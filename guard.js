@@ -13,12 +13,13 @@
      window.UTG.canPlay(slug) for the hub to show/hide Play buttons. */
 (function () {
   function deny(to) { location.replace(to || ((window.UTG_GUARD || "../") + "?locked=1")); }
+  var active = window.UTG_isActive || function (e) { return e && e.enabled; };
   var entry = null;
   try {
     var saved = (localStorage.getItem("utg_class_code") || "").trim().toUpperCase();
     var list = window.CLASS_CODES || [];
     for (var i = 0; i < list.length; i++) {
-      if (list[i].enabled && String(list[i].code).trim().toUpperCase() === saved) { entry = list[i]; break; }
+      if (active(list[i]) && String(list[i].code).trim().toUpperCase() === saved) { entry = list[i]; break; }
     }
   } catch (e) {}
   function allow(perm, key) {

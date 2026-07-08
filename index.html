@@ -131,10 +131,11 @@
       var KEY = "utg_class_code";
       var $ = function (id) { return document.getElementById(id); };
       var norm = function (s) { return (s || "").trim().toUpperCase(); };
+      var active = window.UTG_isActive || function (e) { return e && e.enabled; };
       function find(code) {
         var c = norm(code), list = window.CLASS_CODES || [];
         for (var i = 0; i < list.length; i++) {
-          if (list[i].enabled && norm(list[i].code) === c) return list[i];
+          if (active(list[i]) && norm(list[i].code) === c) return list[i];
         }
         return null;
       }

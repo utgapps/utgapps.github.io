@@ -19,6 +19,10 @@
                  shooter heli slice dodge stack fishing rhythm lander
                  platformer cookie pacman drift
                e.g.  play: ["flappy","drift"]  lets them play only those.
+     hours   : (optional) only works during this Pacific-time window, e.g.
+               "09:00-12:15". Outside it the code is auto-disabled (and it
+               turns back on inside the window). Uses Los Angeles time and
+               follows daylight saving automatically. Leave out for all-day.
 
    This is a simple gate, NOT real security — the codes are public
    in this file. It just keeps kids out of the resources outside class.
@@ -26,6 +30,25 @@
    can take a little while to take effect at home.)
    ============================================================ */
 window.CLASS_CODES = [
-  { code: "POIU", label: "Students",  enabled: true,  tools: "all", print: false, play: [] },
+  { code: "POIU", label: "Students",  enabled: true, tools: "all", print: false, play: [], hours: "09:00-12:15" },
   { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
 ];
+
+// Is this code usable RIGHT NOW? (enabled, and within its Pacific-time `hours`.)
+window.UTG_isActive = function (entry) {
+  if (!entry || !entry.enabled) return false;
+  if (!entry.hours) return true;
+  var m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(entry.hours);
+  if (!m) return true;
+  var start = (+m[1]) * 60 + (+m[2]), end = (+m[3]) * 60 + (+m[4]);
+  var hh = 0, mm = 0;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour12: false,
+      hour: "2-digit", minute: "2-digit" }).formatToParts(new Date()).forEach(function (p) {
+      if (p.type === "hour") hh = +p.value; if (p.type === "minute") mm = +p.value;
+    });
+  } catch (e) { return true; }  // if the timezone lookup fails, don't lock anyone out
+  if (hh === 24) hh = 0;
+  var now = hh * 60 + mm;
+  return now >= start && now < end;
+};
