@@ -58,6 +58,7 @@
     <!-- ===================== SCENE BAR ===================== -->
     <div class="scenebar">
       <button id="addActorBtn" class="tbtn">🧍 Add Person</button>
+      <button id="makeFigBtn" class="tbtn">🧑‍🎨 Make Figure</button>
       <button id="addPropBtn" class="tbtn">🖼️ Add Image</button>
 
       <span class="divider"></span>
@@ -94,7 +95,33 @@
 
   </div>
 
+  <!-- ===================== FIGURE MAKER ===================== -->
+  <div id="figMaker" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <span class="modal-title">🧑‍🎨 Make a Figure</span>
+        <span class="modal-hint" id="figHint">Drag the dots to shape your figure.</span>
+      </div>
+      <div class="fig-tools">
+        <button class="ftool on" data-mode="move">✋ Move</button>
+        <button class="ftool" data-mode="add">➕ Add Limb</button>
+        <button class="ftool" data-mode="head">⭕ Head</button>
+        <button class="ftool" data-mode="erase">❌ Erase</button>
+        <span class="divider"></span>
+        <button id="figUndo" class="ftool">↶ Undo</button>
+        <button id="figReset" class="ftool">🧍 Person</button>
+        <button id="figBlank" class="ftool">◦ Blank</button>
+      </div>
+      <div class="fig-stage"><canvas id="figCanvas" width="760" height="480"></canvas></div>
+      <div class="modal-foot">
+        <button id="figCancel" class="tbtn">Cancel</button>
+        <button id="figAdd" class="tbtn primary">Add to Scene ✓</button>
+      </div>
+    </div>
+  </div>
+
   <script src="gifenc.js"></script>
   <script src="app.js"></script>
+  <script src="figuremaker.js"></script>
 </body>
 </html>

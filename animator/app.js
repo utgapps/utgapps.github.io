@@ -20,21 +20,28 @@
   var DEG = Math.PI / 180;
   var STAGE_W = 1280, STAGE_H = 720;
 
-  // ---- person skeleton (shared structure) ----------------------
-  var FIG = [
-    { name: "hip",    parent: -1, len: 0,  rel: 0 },
-    { name: "neck",   parent: 0,  len: 84, rel: -90 },
-    { name: "head",   parent: 1,  len: 62, rel: 0, head: 30 },
-    { name: "lElbow", parent: 1,  len: 62, rel: -135 },
-    { name: "lHand",  parent: 3,  len: 56, rel: 0 },
-    { name: "rElbow", parent: 1,  len: 62, rel: 135 },
-    { name: "rHand",  parent: 5,  len: 56, rel: 0 },
-    { name: "lKnee",  parent: 0,  len: 81, rel: 100 },
-    { name: "lFoot",  parent: 7,  len: 73, rel: 0 },
-    { name: "rKnee",  parent: 0,  len: 81, rel: 80 },
-    { name: "rFoot",  parent: 9,  len: 73, rel: 0 }
+  // ---- person skeleton -----------------------------------------
+  // A "fig" is the bone list for one actor: {parent, len, rel(rad), head(radius)}.
+  // Each actor owns its own fig, so the Figure Maker can build custom ones.
+  var DEFAULT_FIG_DEG = [
+    { parent: -1, len: 0,  rel: 0 },
+    { parent: 0,  len: 84, rel: -90 },
+    { parent: 1,  len: 62, rel: 0, head: 30 },
+    { parent: 1,  len: 62, rel: -135 },
+    { parent: 3,  len: 56, rel: 0 },
+    { parent: 1,  len: 62, rel: 135 },
+    { parent: 5,  len: 56, rel: 0 },
+    { parent: 0,  len: 81, rel: 100 },
+    { parent: 7,  len: 73, rel: 0 },
+    { parent: 0,  len: 81, rel: 80 },
+    { parent: 9,  len: 73, rel: 0 }
   ];
-  var N = FIG.length;
+  function cloneFig(fig) {
+    return fig.map(function (b) { return { parent: b.parent, len: b.len, rel: b.rel, head: b.head || 0 }; });
+  }
+  function defaultFig() {
+    return DEFAULT_FIG_DEG.map(function (b) { return { parent: b.parent, len: b.len, rel: (b.rel || 0) * DEG, head: b.head || 0 }; });
+  }
   var COLORS = ["#1f2a37", "#01aefd", "#ff5a5a", "#2fbf71", "#9b5de5", "#ff9f1c"];
 
   // ---- state ---------------------------------------------------
@@ -57,30 +64,30 @@
   var $ = function (id) { return document.getElementById(id); };
 
   // ---- poses ---------------------------------------------------
-  function defaultPose(cx, cy) {
+  function defaultPose(fig, cx, cy) {
     return { x: cx == null ? STAGE_W / 2 : cx, y: cy == null ? STAGE_H / 2 - 30 : cy,
-             rel: FIG.map(function (n) { return (n.rel || 0) * DEG; }) };
+             rel: fig.map(function (b) { return b.rel; }) };
   }
   var GRAB = 28; // joint grab radius (bigger canvas → bigger targets)
   function clonePose(p) { return { x: p.x, y: p.y, rel: p.rel.slice() }; }
   function cloneT(t) { return { x: t.x, y: t.y, scale: t.scale, rot: t.rot }; }
 
-  function positions(p) {
-    var pos = new Array(N), world = new Array(N);
+  function positions(p, fig) {
+    var n = fig.length, pos = new Array(n), world = new Array(n);
     pos[0] = { x: p.x, y: p.y }; world[0] = p.rel[0];
-    for (var i = 1; i < N; i++) {
-      var par = FIG[i].parent;
+    for (var i = 1; i < n; i++) {
+      var par = fig[i].parent;
       world[i] = world[par] + p.rel[i];
-      pos[i] = { x: pos[par].x + FIG[i].len * Math.cos(world[i]),
-                 y: pos[par].y + FIG[i].len * Math.sin(world[i]) };
+      pos[i] = { x: pos[par].x + fig[i].len * Math.cos(world[i]),
+                 y: pos[par].y + fig[i].len * Math.sin(world[i]) };
     }
     return { pos: pos, world: world };
   }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpAngle(a, b, t) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t; }
   function blendPose(a, b, t) {
-    var o = { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), rel: new Array(N) };
-    for (var i = 0; i < N; i++) o.rel[i] = lerpAngle(a.rel[i], b.rel[i], t);
+    var n = a.rel.length, o = { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), rel: new Array(n) };
+    for (var i = 0; i < n; i++) o.rel[i] = lerpAngle(a.rel[i], b.rel[i], t);
     return o;
   }
 
@@ -122,25 +129,26 @@
     c.restore();
   }
 
-  function drawActor(c, pose, color, handles, alpha) {
-    var P = positions(pose).pos;
+  function drawActor(c, pose, fig, color, handles, alpha) {
+    var n = fig.length, P = positions(pose, fig).pos;
     c.save();
     if (alpha != null) c.globalAlpha = alpha;
     c.strokeStyle = color; c.fillStyle = color;
     c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = 16;
-    for (var i = 1; i < N; i++) {
-      if (FIG[i].head) continue;
-      var par = FIG[i].parent;
+    // every bone as a rounded line (the head's bone becomes its "neck")
+    for (var i = 1; i < n; i++) {
+      var par = fig[i].parent;
       c.beginPath(); c.moveTo(P[par].x, P[par].y); c.lineTo(P[i].x, P[i].y); c.stroke();
     }
-    var hi = 2, ni = FIG[hi].parent;
-    c.beginPath(); c.moveTo(P[ni].x, P[ni].y); c.lineTo(P[hi].x, P[hi].y); c.stroke();
-    c.beginPath(); c.arc(P[hi].x, P[hi].y, FIG[hi].head, 0, Math.PI * 2); c.fill();
+    // filled circle at every head node, on top
+    for (var h = 0; h < n; h++) {
+      if (fig[h].head) { c.beginPath(); c.arc(P[h].x, P[h].y, fig[h].head, 0, Math.PI * 2); c.fill(); }
+    }
     c.restore();
 
     if (handles) {
-      for (var j = 0; j < N; j++) {
-        if (j === 2) continue;
+      for (var j = 0; j < n; j++) {
+        if (fig[j].head) continue; // head tips have no separate handle
         var root = j === 0;
         c.beginPath(); c.arc(P[j].x, P[j].y, root ? 14 : 11, 0, Math.PI * 2);
         c.fillStyle = root ? "#ffd633" : "#ffffff"; c.fill();
@@ -184,7 +192,7 @@
     var a = ghost ? 0.5 : 1;
     for (var i = 0; i < state.actors.length; i++) {
       var col = ghost ? "#c3ccd4" : state.actors[i].color;
-      drawActor(c, frame.poses[i], col, !ghost && handles && state.sel.type === "actor" && state.sel.index === i, ghost ? a : null);
+      drawActor(c, frame.poses[i], state.actors[i].fig, col, !ghost && handles && state.sel.type === "actor" && state.sel.index === i, ghost ? a : null);
     }
     for (var j = 0; j < state.props.length; j++) {
       drawProp(c, state.props[j], frame.props[j], !ghost && handles && state.sel.type === "prop" && state.sel.index === j, ghost ? a : null);
@@ -242,7 +250,7 @@
   function snapshot() {
     return {
       frames: state.frames.map(function (f) { return { poses: f.poses.map(clonePose), props: f.props.map(cloneT) }; }),
-      actors: state.actors.map(function (a) { return { color: a.color }; }),
+      actors: state.actors.map(function (a) { return { color: a.color, fig: cloneFig(a.fig) }; }),
       props: state.props.slice(),
       bg: { img: state.bg.img, dataURL: state.bg.dataURL },
       cur: state.cur, sel: { type: state.sel.type, index: state.sel.index }
@@ -272,9 +280,9 @@
   function hitActorJoint(pt) {
     var best = null, bestD = GRAB * GRAB;
     for (var a = 0; a < state.actors.length; a++) {
-      var P = positions(state.frames[state.cur].poses[a]).pos;
-      for (var i = 0; i < N; i++) {
-        if (i === 2) continue;
+      var fig = state.actors[a].fig, P = positions(state.frames[state.cur].poses[a], fig).pos;
+      for (var i = 0; i < fig.length; i++) {
+        if (fig[i].head) continue;
         var dx = P[i].x - pt.x, dy = P[i].y - pt.y, d = dx * dx + dy * dy;
         if (d < bestD) { bestD = d; best = { actor: a, node: i }; }
       }
@@ -303,7 +311,7 @@
     var aj = hitActorJoint(pt);
     if (aj) {
       select("actor", aj.actor);
-      var P = positions(f.poses[aj.actor]).pos;
+      var P = positions(f.poses[aj.actor], state.actors[aj.actor].fig).pos;
       drag = { kind: aj.node === 0 ? "actorMove" : "joint", actor: aj.actor, node: aj.node,
                offx: P[aj.node].x - pt.x, offy: P[aj.node].y - pt.y };
       begin(e); render(); return;
@@ -328,7 +336,8 @@
     if (drag.kind === "actorMove") {
       var pose = f.poses[drag.actor]; pose.x = pt.x + drag.offx; pose.y = pt.y + drag.offy;
     } else if (drag.kind === "joint") {
-      var pose2 = f.poses[drag.actor], info = positions(pose2), par = FIG[drag.node].parent;
+      var fig = state.actors[drag.actor].fig, pose2 = f.poses[drag.actor];
+      var info = positions(pose2, fig), par = fig[drag.node].parent;
       pose2.rel[drag.node] = Math.atan2(pt.y - info.pos[par].y, pt.x - info.pos[par].x) - info.world[par];
     } else if (drag.kind === "move") {
       var t = f.props[drag.j]; t.x = pt.x + drag.offx; t.y = pt.y + drag.offy;
@@ -376,11 +385,12 @@
     var x = STAGE_W / 2 + ((n % 2 === 0 ? 1 : -1) * Math.ceil(n / 2) * span);
     return Math.max(180, Math.min(STAGE_W - 180, x));
   }
-  function addActor() {
+  function addActor(fig) {
     if (state.playing) stop();
     pushUndo();
-    state.actors.push({ color: COLORS[state.actors.length % COLORS.length] });
-    var pose = defaultPose(actorSpawnX(), STAGE_H / 2 - 30);
+    var f2 = fig ? cloneFig(fig) : defaultFig();
+    state.actors.push({ color: COLORS[state.actors.length % COLORS.length], fig: f2 });
+    var pose = defaultPose(f2, actorSpawnX(), STAGE_H / 2 - 30);
     state.frames.forEach(function (f) { f.poses.push(clonePose(pose)); });
     select("actor", state.actors.length - 1);
     rebuildStrip(); render(); save();
@@ -466,10 +476,11 @@
     if (!confirm("Start a brand new animation? This clears your scene.")) return;
     if (state.playing) stop();
     pushUndo();
+    var fig = defaultFig();
     state.bg = { img: null, dataURL: null };
-    state.actors = [{ color: COLORS[0] }];
+    state.actors = [{ color: COLORS[0], fig: fig }];
     state.props = [];
-    state.frames = [{ poses: [defaultPose()], props: [] }];
+    state.frames = [{ poses: [defaultPose(fig)], props: [] }];
     state.cur = 0; select("actor", 0);
     rebuildStrip(); render(); save();
   }
@@ -568,9 +579,9 @@
   function save() {
     try {
       localStorage.setItem(SKEY, JSON.stringify({
-        v: 2,
+        v: 3,
         bg: { dataURL: state.bg.dataURL },
-        actors: state.actors.map(function (a) { return { color: a.color }; }),
+        actors: state.actors.map(function (a) { return { color: a.color, fig: a.fig }; }),
         props: state.props.map(function (p) { return { name: p.name, dataURL: p.dataURL, w: p.w, h: p.h }; }),
         frames: state.frames, fps: state.fps, loop: state.loop, onion: state.onion
       }));
@@ -584,15 +595,16 @@
     try {
       var raw = localStorage.getItem(SKEY); if (!raw) return false;
       var d = JSON.parse(raw);
-      if (d.v !== 2) return false; // ignore saves from an older stage size / schema
+      if (d.v !== 3) return false; // ignore saves from an older stage size / schema
       if (!d.frames || !d.frames.length || !d.actors) return false;
+      for (var ai = 0; ai < d.actors.length; ai++) if (!d.actors[ai].fig || !d.actors[ai].fig.length) return false;
       for (var i = 0; i < d.frames.length; i++) {
         var f = d.frames[i];
         if (!f.poses || f.poses.length !== d.actors.length) return false;
-        for (var k = 0; k < f.poses.length; k++) if (!f.poses[k].rel || f.poses[k].rel.length !== N) return false;
+        for (var k = 0; k < f.poses.length; k++) if (!f.poses[k].rel || f.poses[k].rel.length !== d.actors[k].fig.length) return false;
         if (!f.props) f.props = [];
       }
-      state.actors = d.actors.map(function (a) { return { color: a.color }; });
+      state.actors = d.actors.map(function (a) { return { color: a.color, fig: cloneFig(a.fig) }; });
       state.props = (d.props || []).map(function (p) {
         var def = { name: p.name, dataURL: p.dataURL, w: p.w, h: p.h, img: null };
         def.img = imgFromDataURL(p.dataURL, function () { render(); refreshAllThumbs(); });
@@ -637,7 +649,8 @@
     $("loopBtn").addEventListener("click", function () { state.loop = !state.loop; $("loopBtn").classList.toggle("on", state.loop); save(); });
     $("onionBtn").addEventListener("click", function () { state.onion = !state.onion; $("onionBtn").classList.toggle("on", state.onion); render(); save(); });
 
-    $("addActorBtn").addEventListener("click", addActor);
+    $("addActorBtn").addEventListener("click", function () { addActor(); });
+    $("makeFigBtn").addEventListener("click", function () { FigMaker.open(); });
     $("addPropBtn").addEventListener("click", function () { $("propFile").click(); });
     $("propFile").addEventListener("change", function (e) { if (e.target.files[0]) onPropFile(e.target.files[0]); e.target.value = ""; });
     $("bgPhotoBtn").addEventListener("click", function () { $("bgFile").click(); });
@@ -663,10 +676,11 @@
   // ---- init ----------------------------------------------------
   function init() {
     if (!load()) {
+      var fig = defaultFig();
       state.bg = { img: null, dataURL: null };
-      state.actors = [{ color: COLORS[0] }];
+      state.actors = [{ color: COLORS[0], fig: fig }];
       state.props = [];
-      state.frames = [{ poses: [defaultPose()], props: [] }];
+      state.frames = [{ poses: [defaultPose(fig)], props: [] }];
       state.cur = 0;
     }
     buildSwatches();
@@ -679,4 +693,10 @@
     render();
   }
   init();
+
+  // expose the few things the Figure Maker needs
+  window.UTGAnim = {
+    addActorFromFig: function (fig) { addActor(fig); },
+    defaultFig: defaultFig, positions: positions, DEG: DEG
+  };
 })();
