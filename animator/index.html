@@ -31,7 +31,7 @@
 
         <span class="divider"></span>
 
-        <span class="tlabel">Color</span>
+        <span class="tlabel">Person color</span>
         <div class="swatches" id="swatches"></div>
 
         <span class="divider"></span>
@@ -54,12 +54,33 @@
       </div>
     </header>
 
+    <!-- ===================== SCENE BAR ===================== -->
+    <div class="scenebar">
+      <button id="addActorBtn" class="tbtn">🧍 Add Person</button>
+      <button id="addPropBtn" class="tbtn">🖼️ Add Image</button>
+
+      <span class="divider"></span>
+
+      <span class="tlabel">Background</span>
+      <input type="color" id="bgColor" class="colorpick" value="#ffffff" title="Background color" />
+      <button id="bgPhotoBtn" class="tbtn">Photo</button>
+      <button id="bgClearBtn" class="tbtn">Clear</button>
+
+      <span class="divider"></span>
+
+      <span id="selInfo" class="selinfo">Nothing selected</span>
+      <button id="removeSelBtn" class="tbtn danger" disabled>🗑 Remove</button>
+
+      <input type="file" id="propFile" accept="image/*" hidden />
+      <input type="file" id="bgFile" accept="image/*" hidden />
+    </div>
+
     <!-- ===================== STAGE ===================== -->
     <main class="stage-area">
       <div class="stage-wrap">
         <canvas id="stage" width="800" height="600"></canvas>
       </div>
-      <div class="hint" id="hint">Drag the <b>blue dots</b> to bend the arms and legs. Drag the <b>gold dot</b> to move the whole person. Then press <b>＋ Add Frame</b> and move a little!</div>
+      <div class="hint" id="hint">Drag the <b>blue dots</b> to bend arms and legs, or the <b>gold dot</b> to move a person. Add more people, a background, or your own pictures. Then press <b>＋ Add Frame</b> and move things a little!</div>
     </main>
 
     <!-- ===================== FRAME STRIP ===================== -->

@@ -56,6 +56,24 @@ body{
 .tbtn.playing{background:#ff5a5a;border-color:#ff5a5a}
 .tbtn.playing:hover{background:#e64848;border-color:#e64848}
 
+/* ---------- scene bar (row 2) ---------- */
+.scenebar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:9px 16px;
+  background:#fbfdff;
+  border-bottom:1px solid var(--line);
+  z-index:4;
+}
+.colorpick{
+  width:40px;height:34px;padding:0;border:2px solid var(--line);
+  border-radius:10px;background:#fff;cursor:pointer;
+}
+.colorpick::-webkit-color-swatch-wrapper{padding:3px}
+.colorpick::-webkit-color-swatch{border:none;border-radius:6px}
+.selinfo{font-size:14px;color:var(--muted);font-weight:600;min-width:120px}
+.selinfo b{color:var(--ink)}
+.tbtn.danger:hover:not(:disabled){border-color:#ff5a5a;color:#ff5a5a}
+
 /* stepper */
 .stepper{display:flex;align-items:center;gap:0;border:2px solid var(--line);border-radius:12px;overflow:hidden}
 .step{font-family:inherit;font-size:18px;font-weight:700;width:38px;height:40px;border:0;background:#fff;color:var(--ink);cursor:pointer}
