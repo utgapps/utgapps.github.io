@@ -31,6 +31,7 @@
    ============================================================ */
 window.CLASS_CODES = [
   { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
+  { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator"], print: false, play: [] },
   { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
 ];
 
