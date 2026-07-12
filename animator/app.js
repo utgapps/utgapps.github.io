@@ -18,21 +18,21 @@
   "use strict";
 
   var DEG = Math.PI / 180;
-  var STAGE_W = 800, STAGE_H = 600;
+  var STAGE_W = 1280, STAGE_H = 720;
 
   // ---- person skeleton (shared structure) ----------------------
   var FIG = [
     { name: "hip",    parent: -1, len: 0,  rel: 0 },
-    { name: "neck",   parent: 0,  len: 60, rel: -90 },
-    { name: "head",   parent: 1,  len: 44, rel: 0, head: 22 },
-    { name: "lElbow", parent: 1,  len: 44, rel: -135 },
-    { name: "lHand",  parent: 3,  len: 40, rel: 0 },
-    { name: "rElbow", parent: 1,  len: 44, rel: 135 },
-    { name: "rHand",  parent: 5,  len: 40, rel: 0 },
-    { name: "lKnee",  parent: 0,  len: 58, rel: 100 },
-    { name: "lFoot",  parent: 7,  len: 52, rel: 0 },
-    { name: "rKnee",  parent: 0,  len: 58, rel: 80 },
-    { name: "rFoot",  parent: 9,  len: 52, rel: 0 }
+    { name: "neck",   parent: 0,  len: 84, rel: -90 },
+    { name: "head",   parent: 1,  len: 62, rel: 0, head: 30 },
+    { name: "lElbow", parent: 1,  len: 62, rel: -135 },
+    { name: "lHand",  parent: 3,  len: 56, rel: 0 },
+    { name: "rElbow", parent: 1,  len: 62, rel: 135 },
+    { name: "rHand",  parent: 5,  len: 56, rel: 0 },
+    { name: "lKnee",  parent: 0,  len: 81, rel: 100 },
+    { name: "lFoot",  parent: 7,  len: 73, rel: 0 },
+    { name: "rKnee",  parent: 0,  len: 81, rel: 80 },
+    { name: "rFoot",  parent: 9,  len: 73, rel: 0 }
   ];
   var N = FIG.length;
   var COLORS = ["#1f2a37", "#01aefd", "#ff5a5a", "#2fbf71", "#9b5de5", "#ff9f1c"];
@@ -40,7 +40,7 @@
   // ---- state ---------------------------------------------------
   // frame = { poses:[ {x,y,rel[]} per person ], props:[ {x,y,scale,rot} per picture ] }
   var state = {
-    bg: { color: "#eaf6ff", img: null, dataURL: null },
+    bg: { img: null, dataURL: null },   // blank (white) or an imported image
     actors: [],        // [{ color }]   identity = index
     props: [],         // [{ name, img, dataURL, w, h }]
     frames: [],
@@ -61,6 +61,7 @@
     return { x: cx == null ? STAGE_W / 2 : cx, y: cy == null ? STAGE_H / 2 - 30 : cy,
              rel: FIG.map(function (n) { return (n.rel || 0) * DEG; }) };
   }
+  var GRAB = 28; // joint grab radius (bigger canvas → bigger targets)
   function clonePose(p) { return { x: p.x, y: p.y, rel: p.rel.slice() }; }
   function cloneT(t) { return { x: t.x, y: t.y, scale: t.scale, rot: t.rot }; }
 
@@ -108,7 +109,7 @@
   // ---- drawing -------------------------------------------------
   function drawBackground(c) {
     c.save();
-    c.fillStyle = state.bg.color || "#ffffff";
+    c.fillStyle = "#ffffff";
     c.fillRect(0, 0, STAGE_W, STAGE_H);
     if (state.bg.img && state.bg.img.complete && state.bg.img.naturalWidth) {
       var im = state.bg.img, sc = Math.max(STAGE_W / im.naturalWidth, STAGE_H / im.naturalHeight);
@@ -116,7 +117,7 @@
       c.drawImage(im, (STAGE_W - dw) / 2, (STAGE_H - dh) / 2, dw, dh);
     } else {
       c.strokeStyle = "rgba(0,0,0,.06)"; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(0, STAGE_H - 60); c.lineTo(STAGE_W, STAGE_H - 60); c.stroke();
+      c.beginPath(); c.moveTo(0, STAGE_H - 80); c.lineTo(STAGE_W, STAGE_H - 80); c.stroke();
     }
     c.restore();
   }
@@ -126,7 +127,7 @@
     c.save();
     if (alpha != null) c.globalAlpha = alpha;
     c.strokeStyle = color; c.fillStyle = color;
-    c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = 12;
+    c.lineCap = "round"; c.lineJoin = "round"; c.lineWidth = 16;
     for (var i = 1; i < N; i++) {
       if (FIG[i].head) continue;
       var par = FIG[i].parent;
@@ -141,9 +142,9 @@
       for (var j = 0; j < N; j++) {
         if (j === 2) continue;
         var root = j === 0;
-        c.beginPath(); c.arc(P[j].x, P[j].y, root ? 11 : 9, 0, Math.PI * 2);
+        c.beginPath(); c.arc(P[j].x, P[j].y, root ? 14 : 11, 0, Math.PI * 2);
         c.fillStyle = root ? "#ffd633" : "#ffffff"; c.fill();
-        c.lineWidth = 3; c.strokeStyle = root ? "#e0b400" : "#01aefd"; c.stroke();
+        c.lineWidth = 3.5; c.strokeStyle = root ? "#e0b400" : "#01aefd"; c.stroke();
       }
     }
   }
@@ -199,9 +200,10 @@
   }
 
   // ---- frame strip --------------------------------------------
+  var THUMB_W = 104, THUMB_H = Math.round(THUMB_W * STAGE_H / STAGE_W); // 16:9
   function renderThumb(tctx, frame) {
     tctx.save();
-    tctx.scale(96 / STAGE_W, 96 / STAGE_W);
+    tctx.scale(THUMB_W / STAGE_W, THUMB_W / STAGE_W);
     drawBackground(tctx);
     drawScene(tctx, frame, false, false);
     tctx.restore();
@@ -211,7 +213,7 @@
     state.frames.forEach(function (frame, i) {
       var btn = document.createElement("button");
       btn.className = "frame" + (i === state.cur ? " sel" : "");
-      var tc = document.createElement("canvas"); tc.width = 96; tc.height = 72;
+      var tc = document.createElement("canvas"); tc.width = THUMB_W; tc.height = THUMB_H;
       renderThumb(tc.getContext("2d"), frame);
       btn.appendChild(tc);
       var num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
@@ -231,7 +233,7 @@
   }
   function refreshThumb(i) {
     var btn = strip.children[i]; if (!btn) return;
-    var tc = btn.querySelector("canvas"); tc.getContext("2d").clearRect(0, 0, 96, 72);
+    var tc = btn.querySelector("canvas"); tc.getContext("2d").clearRect(0, 0, THUMB_W, THUMB_H);
     renderThumb(tc.getContext("2d"), state.frames[i]);
   }
   function refreshAllThumbs() { for (var i = 0; i < state.frames.length; i++) refreshThumb(i); }
@@ -242,7 +244,7 @@
       frames: state.frames.map(function (f) { return { poses: f.poses.map(clonePose), props: f.props.map(cloneT) }; }),
       actors: state.actors.map(function (a) { return { color: a.color }; }),
       props: state.props.slice(),
-      bg: { color: state.bg.color, img: state.bg.img, dataURL: state.bg.dataURL },
+      bg: { img: state.bg.img, dataURL: state.bg.dataURL },
       cur: state.cur, sel: { type: state.sel.type, index: state.sel.index }
     };
   }
@@ -268,7 +270,7 @@
     return { x: (e.clientX - r.left) * (STAGE_W / r.width), y: (e.clientY - r.top) * (STAGE_H / r.height) };
   }
   function hitActorJoint(pt) {
-    var best = null, bestD = 22 * 22;
+    var best = null, bestD = GRAB * GRAB;
     for (var a = 0; a < state.actors.length; a++) {
       var P = positions(state.frames[state.cur].poses[a]).pos;
       for (var i = 0; i < N; i++) {
@@ -370,9 +372,9 @@
   // ---- scene ops ----------------------------------------------
   function actorSpawnX() {
     // stagger new people so they don't stack
-    var n = state.actors.length, span = 140;
+    var n = state.actors.length, span = 220;
     var x = STAGE_W / 2 + ((n % 2 === 0 ? 1 : -1) * Math.ceil(n / 2) * span);
-    return Math.max(120, Math.min(STAGE_W - 120, x));
+    return Math.max(180, Math.min(STAGE_W - 180, x));
   }
   function addActor() {
     if (state.playing) stop();
@@ -387,8 +389,8 @@
     if (state.playing) stop();
     pushUndo();
     state.props.push(def);
-    var scale = 180 / Math.max(def.w, def.h);
-    state.frames.forEach(function (f) { f.props.push({ x: STAGE_W / 2, y: STAGE_H / 2 - 20, scale: scale, rot: 0 }); });
+    var scale = 300 / Math.max(def.w, def.h);
+    state.frames.forEach(function (f) { f.props.push({ x: STAGE_W / 2, y: STAGE_H / 2, scale: scale, rot: 0 }); });
     select("prop", state.props.length - 1);
     rebuildStrip(); render(); save();
   }
@@ -464,30 +466,31 @@
     if (!confirm("Start a brand new animation? This clears your scene.")) return;
     if (state.playing) stop();
     pushUndo();
-    state.bg = { color: "#eaf6ff", img: null, dataURL: null };
+    state.bg = { img: null, dataURL: null };
     state.actors = [{ color: COLORS[0] }];
     state.props = [];
     state.frames = [{ poses: [defaultPose()], props: [] }];
     state.cur = 0; select("actor", 0);
-    $("bgColor").value = "#eaf6ff";
     rebuildStrip(); render(); save();
   }
 
   // ---- playback ------------------------------------------------
   var playT = 0, lastTS = 0, rafId = 0;
-  function playFrame() {
+  // interpolated scene at continuous time t (t in frame units, wraps)
+  function frameAt(t) {
     var n = state.frames.length;
     if (n === 1) return state.frames[0];
-    var a = Math.floor(playT) % n, b = (a + 1) % n, f = playT - Math.floor(playT);
+    var a = Math.floor(t) % n, b = (a + 1) % n, f = t - Math.floor(t);
     var A = state.frames[a], B = state.frames[b];
     return {
       poses: A.poses.map(function (p, i) { return blendPose(p, B.poses[i], f); }),
-      props: A.props.map(function (t, j) {
+      props: A.props.map(function (tt, j) {
         var u = B.props[j];
-        return { x: lerp(t.x, u.x, f), y: lerp(t.y, u.y, f), scale: lerp(t.scale, u.scale, f), rot: lerpAngle(t.rot, u.rot, f) };
+        return { x: lerp(tt.x, u.x, f), y: lerp(tt.y, u.y, f), scale: lerp(tt.scale, u.scale, f), rot: lerpAngle(tt.rot, u.rot, f) };
       })
     };
   }
+  function playFrame() { return frameAt(playT); }
   function tick(ts) {
     if (!state.playing) return;
     if (!lastTS) lastTS = ts;
@@ -517,7 +520,47 @@
   var hintTimer = 0;
   function flashHint(msg) {
     var h = $("hint"), prev = h.innerHTML; h.textContent = msg;
-    clearTimeout(hintTimer); hintTimer = setTimeout(function () { h.innerHTML = prev; }, 2200);
+    clearTimeout(hintTimer); hintTimer = setTimeout(function () { h.innerHTML = prev; }, 2600);
+  }
+
+  // ---- export animated GIF ------------------------------------
+  function exportGif() {
+    if (state.playing) stop();
+    var K = state.frames.length;
+    if (K < 2) { flashHint("Add at least 2 frames first, then Save GIF."); return; }
+    if (!window.UTGGif) { flashHint("GIF tool didn't load — try refreshing."); return; }
+    var btn = $("gifBtn"), label = btn.innerHTML;
+    btn.disabled = true; btn.textContent = "Making GIF…";
+    // downscale for a reasonable file size / speed
+    var EXPORT_W = 640, EXPORT_H = Math.round(EXPORT_W * STAGE_H / STAGE_W);
+    var SUB = Math.max(1, Math.min(4, Math.round(24 / state.fps)));
+    if (K * SUB > 120) SUB = Math.max(1, Math.floor(120 / K));
+    var total = K * SUB, delayCs = Math.max(2, Math.round(100 / (state.fps * SUB)));
+    setTimeout(function () {
+      try {
+        var oc = document.createElement("canvas"); oc.width = EXPORT_W; oc.height = EXPORT_H;
+        var octx = oc.getContext("2d"), frames = [];
+        for (var i = 0; i < total; i++) {
+          octx.setTransform(1, 0, 0, 1, 0, 0);
+          octx.clearRect(0, 0, EXPORT_W, EXPORT_H);
+          octx.scale(EXPORT_W / STAGE_W, EXPORT_W / STAGE_W);
+          drawBackground(octx);
+          drawScene(octx, frameAt(i / SUB), false, false);
+          frames.push(octx.getImageData(0, 0, EXPORT_W, EXPORT_H));
+        }
+        var bytes = window.UTGGif.encode(frames, EXPORT_W, EXPORT_H, delayCs);
+        var blob = new Blob([bytes], { type: "image/gif" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a"); a.href = url; a.download = "animation.gif";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+        flashHint("Saved animation.gif to your Downloads! 🎉");
+      } catch (err) {
+        flashHint("Sorry, the GIF couldn't be made.");
+        if (window.console) console.error(err);
+      }
+      btn.disabled = false; btn.innerHTML = label;
+    }, 40);
   }
 
   // ---- save / load --------------------------------------------
@@ -525,7 +568,8 @@
   function save() {
     try {
       localStorage.setItem(SKEY, JSON.stringify({
-        bg: { color: state.bg.color, dataURL: state.bg.dataURL },
+        v: 2,
+        bg: { dataURL: state.bg.dataURL },
         actors: state.actors.map(function (a) { return { color: a.color }; }),
         props: state.props.map(function (p) { return { name: p.name, dataURL: p.dataURL, w: p.w, h: p.h }; }),
         frames: state.frames, fps: state.fps, loop: state.loop, onion: state.onion
@@ -540,6 +584,7 @@
     try {
       var raw = localStorage.getItem(SKEY); if (!raw) return false;
       var d = JSON.parse(raw);
+      if (d.v !== 2) return false; // ignore saves from an older stage size / schema
       if (!d.frames || !d.frames.length || !d.actors) return false;
       for (var i = 0; i < d.frames.length; i++) {
         var f = d.frames[i];
@@ -553,7 +598,7 @@
         def.img = imgFromDataURL(p.dataURL, function () { render(); refreshAllThumbs(); });
         return def;
       });
-      state.bg = { color: (d.bg && d.bg.color) || "#eaf6ff", dataURL: (d.bg && d.bg.dataURL) || null, img: null };
+      state.bg = { dataURL: (d.bg && d.bg.dataURL) || null, img: null };
       if (state.bg.dataURL) state.bg.img = imgFromDataURL(state.bg.dataURL, function () { render(); refreshAllThumbs(); });
       state.frames = d.frames; state.fps = d.fps || 8;
       state.loop = d.loop !== false; state.onion = !!d.onion;
@@ -597,12 +642,12 @@
     $("propFile").addEventListener("change", function (e) { if (e.target.files[0]) onPropFile(e.target.files[0]); e.target.value = ""; });
     $("bgPhotoBtn").addEventListener("click", function () { $("bgFile").click(); });
     $("bgFile").addEventListener("change", function (e) { if (e.target.files[0]) onBgFile(e.target.files[0]); e.target.value = ""; });
-    $("bgColor").addEventListener("input", function (e) { pushUndoThrottled(); state.bg.color = e.target.value; render(); refreshAllThumbs(); save(); });
     $("bgClearBtn").addEventListener("click", function () {
       if (state.playing) stop();
       pushUndo(); state.bg.img = null; state.bg.dataURL = null; render(); refreshAllThumbs(); save();
     });
     $("removeSelBtn").addEventListener("click", removeSelected);
+    $("gifBtn").addEventListener("click", exportGif);
 
     document.addEventListener("keydown", function (e) {
       if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
@@ -614,16 +659,11 @@
     });
     window.addEventListener("beforeunload", save);
   }
-  // color input fires many events while sliding; snapshot only the first
-  var bgUndoArmed = true;
-  function pushUndoThrottled() {
-    if (bgUndoArmed) { pushUndo(); bgUndoArmed = false; setTimeout(function () { bgUndoArmed = true; }, 600); }
-  }
 
   // ---- init ----------------------------------------------------
   function init() {
     if (!load()) {
-      state.bg = { color: "#eaf6ff", img: null, dataURL: null };
+      state.bg = { img: null, dataURL: null };
       state.actors = [{ color: COLORS[0] }];
       state.props = [];
       state.frames = [{ poses: [defaultPose()], props: [] }];
@@ -633,7 +673,6 @@
     setFps(state.fps);
     $("loopBtn").classList.toggle("on", state.loop);
     $("onionBtn").classList.toggle("on", state.onion);
-    $("bgColor").value = state.bg.color;
     select("actor", 0);
     wire();
     rebuildStrip();

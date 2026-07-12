@@ -47,6 +47,7 @@
         <span class="divider"></span>
 
         <button id="playBtn" class="tbtn primary" title="Play the animation">▶ Play</button>
+        <button id="gifBtn" class="tbtn" title="Save your animation as a GIF you can share">🎞️ Save GIF</button>
 
         <span class="divider"></span>
 
@@ -62,9 +63,8 @@
       <span class="divider"></span>
 
       <span class="tlabel">Background</span>
-      <input type="color" id="bgColor" class="colorpick" value="#ffffff" title="Background color" />
-      <button id="bgPhotoBtn" class="tbtn">Photo</button>
-      <button id="bgClearBtn" class="tbtn">Clear</button>
+      <button id="bgPhotoBtn" class="tbtn">🏞️ Photo</button>
+      <button id="bgClearBtn" class="tbtn">Blank</button>
 
       <span class="divider"></span>
 
@@ -78,7 +78,7 @@
     <!-- ===================== STAGE ===================== -->
     <main class="stage-area">
       <div class="stage-wrap">
-        <canvas id="stage" width="800" height="600"></canvas>
+        <canvas id="stage" width="1280" height="720"></canvas>
       </div>
       <div class="hint" id="hint">Drag the <b>blue dots</b> to bend arms and legs, or the <b>gold dot</b> to move a person. Add more people, a background, or your own pictures. Then press <b>＋ Add Frame</b> and move things a little!</div>
     </main>
@@ -94,6 +94,7 @@
 
   </div>
 
+  <script src="gifenc.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

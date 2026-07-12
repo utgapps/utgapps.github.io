@@ -137,7 +137,7 @@ body{
 }
 .frame:hover{border-color:var(--blue)}
 .frame.sel{border-color:var(--blue);box-shadow:0 0 0 3px rgba(1,174,253,.2)}
-.frame canvas{border-radius:9px;display:block;width:96px;height:72px}
+.frame canvas{border-radius:9px;display:block;width:104px;height:59px}
 .frame .num{
   position:absolute;top:4px;left:5px;
   font-size:11px;font-weight:700;color:#fff;
