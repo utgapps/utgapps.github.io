@@ -9,7 +9,7 @@
      label   : a name just for you (shown after they sign in)
      enabled : true = works now,  false = locked
      tools   : "all", or a list of what this code unlocks —
-               "pixel-art"  and/or  "camp"
+               "pixel-art" , "animator" , and/or "camp"
      print   : true = may use "Print to PDF" on the coding workbooks;
                leave it out (or false) to block printing for that code.
      play    : who may PLAY the finished games (the "Play" buttons).

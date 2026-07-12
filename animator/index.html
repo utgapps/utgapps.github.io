@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Animator · UTG Academy</title>
+  <script>window.UTG_GUARD="../";window.UTG_TOOL="animator";document.write('<script src="../class-codes.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="../guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ===================== TOP BAR ===================== -->
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" />
+        <span class="brand-sep"></span>
+        <span class="brand-name">Animator</span>
+      </div>
+
+      <div class="tools">
+        <button id="undoBtn" class="tbtn" title="Undo">↶ Undo</button>
+
+        <span class="divider"></span>
+
+        <button id="onionBtn" class="tbtn" title="See the frame before this one, faintly">👻 Onion</button>
+
+        <span class="divider"></span>
+
+        <span class="tlabel">Color</span>
+        <div class="swatches" id="swatches"></div>
+
+        <span class="divider"></span>
+
+        <span class="tlabel">Speed</span>
+        <div class="stepper">
+          <button id="fpsDown" class="step" title="Slower">−</button>
+          <span id="fpsVal" class="stepval">8</span>
+          <button id="fpsUp" class="step" title="Faster">＋</button>
+        </div>
+        <button id="loopBtn" class="tbtn on" title="Play over and over">🔁 Loop</button>
+
+        <span class="divider"></span>
+
+        <button id="playBtn" class="tbtn primary" title="Play the animation">▶ Play</button>
+
+        <span class="divider"></span>
+
+        <button id="newBtn" class="tbtn" title="Start over">✨ New</button>
+      </div>
+    </header>
+
+    <!-- ===================== STAGE ===================== -->
+    <main class="stage-area">
+      <div class="stage-wrap">
+        <canvas id="stage" width="800" height="600"></canvas>
+      </div>
+      <div class="hint" id="hint">Drag the <b>blue dots</b> to bend the arms and legs. Drag the <b>gold dot</b> to move the whole person. Then press <b>＋ Add Frame</b> and move a little!</div>
+    </main>
+
+    <!-- ===================== FRAME STRIP ===================== -->
+    <footer class="frames">
+      <div class="frame-actions">
+        <button id="addFrame" class="fbtn add" title="Copy this frame so you can move the person a little">＋ Add Frame</button>
+        <button id="delFrame" class="fbtn del" title="Delete this frame">🗑</button>
+      </div>
+      <div class="frame-strip" id="strip"></div>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
