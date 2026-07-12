@@ -30,7 +30,7 @@
    can take a little while to take effect at home.)
    ============================================================ */
 window.CLASS_CODES = [
-  { code: "POIU", label: "Students",  enabled: true, tools: "all", print: false, play: [], hours: "08:50-12:15" },
+  { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
   { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
 ];
 
