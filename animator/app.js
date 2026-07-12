@@ -367,7 +367,7 @@
   }
   function syncSelUI() {
     var s = state.sel, txt = "Nothing selected", canRemove = false;
-    if (s.type === "actor" && state.actors[s.index]) { txt = "Selected: <b>Person " + (s.index + 1) + "</b>"; canRemove = true; }
+    if (s.type === "actor" && state.actors[s.index]) { txt = "Selected: <b>Figure " + (s.index + 1) + "</b>"; canRemove = true; }
     else if (s.type === "prop" && state.props[s.index]) { txt = "Selected: <b>" + (state.props[s.index].name || "Picture") + "</b>"; canRemove = true; }
     $("selInfo").innerHTML = txt;
     $("removeSelBtn").disabled = !canRemove;
@@ -623,11 +623,11 @@
     var wrap = $("swatches");
     COLORS.forEach(function (col) {
       var s = document.createElement("button");
-      s.className = "swatch"; s.style.background = col; s.dataset.col = col; s.title = "Color the selected person";
+      s.className = "swatch"; s.style.background = col; s.dataset.col = col; s.title = "Color the selected figure";
       s.addEventListener("click", function () {
         var sel = state.sel;
         var idx = (sel.type === "actor") ? sel.index : (state.actors.length ? 0 : -1);
-        if (idx < 0) { flashHint("Add or pick a person first, then choose a color."); return; }
+        if (idx < 0) { flashHint("Add or pick a figure first, then choose a color."); return; }
         pushUndo();
         state.actors[idx].color = col;
         if (sel.type !== "actor") select("actor", idx); else syncSelUI();
@@ -637,6 +637,11 @@
     });
   }
   function setFps(v) { state.fps = Math.max(1, Math.min(24, v)); $("fpsVal").textContent = state.fps; save(); }
+  function syncOnionBtn() {
+    var b = $("onionBtn");
+    b.classList.toggle("on", state.onion);
+    b.textContent = "👻 Ghost last frame" + (state.onion ? " (on)" : "");
+  }
 
   function wire() {
     $("undoBtn").addEventListener("click", undo); $("undoBtn").disabled = true;
@@ -647,7 +652,7 @@
     $("fpsUp").addEventListener("click", function () { setFps(state.fps + 1); });
     $("fpsDown").addEventListener("click", function () { setFps(state.fps - 1); });
     $("loopBtn").addEventListener("click", function () { state.loop = !state.loop; $("loopBtn").classList.toggle("on", state.loop); save(); });
-    $("onionBtn").addEventListener("click", function () { state.onion = !state.onion; $("onionBtn").classList.toggle("on", state.onion); render(); save(); });
+    $("onionBtn").addEventListener("click", function () { state.onion = !state.onion; syncOnionBtn(); render(); save(); });
 
     $("addActorBtn").addEventListener("click", function () { addActor(); });
     $("makeFigBtn").addEventListener("click", function () { FigMaker.open(); });
@@ -686,7 +691,7 @@
     buildSwatches();
     setFps(state.fps);
     $("loopBtn").classList.toggle("on", state.loop);
-    $("onionBtn").classList.toggle("on", state.onion);
+    syncOnionBtn();
     select("actor", 0);
     wire();
     rebuildStrip();

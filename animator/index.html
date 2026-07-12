@@ -27,12 +27,7 @@
 
         <span class="divider"></span>
 
-        <button id="onionBtn" class="tbtn" title="See the frame before this one, faintly">👻 Onion</button>
-
-        <span class="divider"></span>
-
-        <span class="tlabel">Person color</span>
-        <div class="swatches" id="swatches"></div>
+        <button id="onionBtn" class="tbtn" title="Show the frame before this one, faintly">👻 Ghost last frame</button>
 
         <span class="divider"></span>
 
@@ -57,15 +52,20 @@
 
     <!-- ===================== SCENE BAR ===================== -->
     <div class="scenebar">
-      <button id="addActorBtn" class="tbtn">🧍 Add Person</button>
+      <button id="addActorBtn" class="tbtn">🧍 Add Figure</button>
       <button id="makeFigBtn" class="tbtn">🧑‍🎨 Make Figure</button>
-      <button id="addPropBtn" class="tbtn">🖼️ Add Image</button>
+      <button id="addPropBtn" class="tbtn">🖼️ Add Object</button>
 
       <span class="divider"></span>
 
       <span class="tlabel">Background</span>
       <button id="bgPhotoBtn" class="tbtn">🏞️ Photo</button>
       <button id="bgClearBtn" class="tbtn">Blank</button>
+
+      <span class="divider"></span>
+
+      <span class="tlabel">Figure color</span>
+      <div class="swatches" id="swatches"></div>
 
       <span class="divider"></span>
 
@@ -81,13 +81,13 @@
       <div class="stage-wrap">
         <canvas id="stage" width="1280" height="720"></canvas>
       </div>
-      <div class="hint" id="hint">Drag the <b>blue dots</b> to bend arms and legs, or the <b>gold dot</b> to move a person. Add more people, a background, or your own pictures. Then press <b>＋ Add Frame</b> and move things a little!</div>
+      <div class="hint" id="hint">Drag the <b>blue dots</b> to bend arms and legs, or the <b>gold dot</b> to move a figure. Add more figures, a background, or your own objects. Then press <b>＋ Add Frame</b> and move things a little!</div>
     </main>
 
     <!-- ===================== FRAME STRIP ===================== -->
     <footer class="frames">
       <div class="frame-actions">
-        <button id="addFrame" class="fbtn add" title="Copy this frame so you can move the person a little">＋ Add Frame</button>
+        <button id="addFrame" class="fbtn add" title="Copy this frame so you can move things a little">＋ Add Frame</button>
         <button id="delFrame" class="fbtn del" title="Delete this frame">🗑</button>
       </div>
       <div class="frame-strip" id="strip"></div>
