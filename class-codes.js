@@ -9,7 +9,7 @@
      label   : a name just for you (shown after they sign in)
      enabled : true = works now,  false = locked
      tools   : "all", or a list of what this code unlocks —
-               "pixel-art" , "animator" , and/or "camp"
+               "pixel-art" , "animator" , "digital-art" , "modeling" , and/or "camp"
      print   : true = may use "Print to PDF" on the coding workbooks;
                leave it out (or false) to block printing for that code.
      play    : who may PLAY the finished games (the "Play" buttons).
@@ -31,7 +31,7 @@
    ============================================================ */
 window.CLASS_CODES = [
   { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
-  { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator"], print: false, play: [] },
+  { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator", "digital-art", "modeling"], print: false, play: [] },
   { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
 ];
 

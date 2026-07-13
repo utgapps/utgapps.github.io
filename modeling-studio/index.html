@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Modeling Studio | UTG Academy</title>
+  <script>window.UTG_GUARD="../";window.UTG_TOOL="modeling";document.write('<script src="../class-codes.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="../guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+      "three-bvh-csg": "https://cdn.jsdelivr.net/npm/three-bvh-csg@0.0.18/build/index.module.js",
+      "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.7/build/index.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../" title="Back to UTG resources">
+      <img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" />
+      <span></span>
+      <strong>Modeling Studio</strong>
+    </a>
+    <div class="project-name"><label for="projectName">Model</label><input id="projectName" value="my-derby-part" maxlength="40" /></div>
+    <div class="top-actions">
+      <button id="homeView" class="icon-btn" type="button" title="Reset the camera view">Home</button>
+      <button id="newProject" class="icon-btn" type="button" title="Start a new model">New</button>
+      <button id="undo" class="icon-btn history-btn" type="button" title="Undo last model change" disabled>Undo</button>
+      <button id="redo" class="icon-btn history-btn" type="button" title="Redo last model change" disabled>Redo</button>
+      <div class="export-actions">
+        <button id="exportStl" class="primary-btn" type="button" title="Download a printable STL file">Export STL</button>
+        <button id="hardAlert" class="print-alert issue" type="button" title="Open print settings" aria-label="Hard print issues" hidden>!</button>
+        <button id="warningAlert" class="print-alert warning" type="button" title="Open print settings" aria-label="May need support" hidden>!</button>
+      </div>
+      <button id="settingsButton" class="icon-btn" type="button" title="Open modeling settings">Settings</button>
+    </div>
+  </header>
+
+  <dialog id="settingsDialog" class="settings-dialog" aria-labelledby="settingsTitle">
+    <div class="settings-heading"><h2 id="settingsTitle">Settings</h2><button id="closeSettings" class="dialog-close" type="button" title="Close settings" aria-label="Close settings">&times;</button></div>
+    <section class="settings-section">
+      <h3>Snap</h3>
+      <label class="control-row" for="gridSnap">Grid step <select id="gridSnap"><option value="1">1 mm</option><option value="5">5 mm</option><option value="10" selected>10 mm</option></select></label>
+      <label class="check-row"><input id="planeSnap" type="checkbox" checked /> Snap to the workplane and nearby shape faces</label>
+    </section>
+    <section class="settings-section">
+      <h3>Print check</h3>
+      <label class="control-row" for="hardAngle">Hard support at <input id="hardAngle" type="number" min="0" max="89" value="45" /> degrees</label>
+      <label class="control-row" for="warnAngle">May need support at <input id="warnAngle" type="number" min="1" max="90" value="60" /> degrees</label>
+      <label class="check-row"><input id="showPrintCheck" type="checkbox" checked /> Show surface warnings</label>
+      <p class="tiny-note">0 degrees is a flat ceiling. Red is hard to print without support; yellow may need support.</p>
+      <div id="printSummary" class="print-summary">No model to check yet.</div>
+    </section>
+  </dialog>
+
+  <div class="app-shell">
+    <aside class="left-panel" aria-label="Shape tools">
+      <section class="panel-section">
+        <h2>Transform</h2>
+        <div class="transform-grid">
+          <button type="button" data-mode="translate" class="mode-btn active" title="Move the selected shape">Move</button>
+          <button type="button" data-mode="rotate" class="mode-btn" title="Turn the selected shape">Rotate</button>
+          <button type="button" data-mode="scale" class="mode-btn" title="Resize the selected shape">Scale</button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>Add shape</h2>
+        <div class="shape-grid">
+          <button type="button" data-add="box" title="Add a box shape">Box</button>
+          <button type="button" data-add="cylinder" title="Add a cylinder shape">Cylinder</button>
+          <button type="button" data-add="sphere" title="Add a sphere shape">Sphere</button>
+          <button type="button" data-add="roof" title="Add a four-sided roof shape">Roof</button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>Build</h2>
+        <div class="construction-grid">
+          <button id="duplicate" type="button" title="Make a copy of the selected shape">Duplicate</button>
+          <div class="build-pair">
+            <button id="makeSolid" type="button" title="Change selected shapes into printable solid material">Solid</button>
+            <button id="makeHole" type="button" title="Change selected shapes into cut-out shapes">Hole</button>
+          </div>
+          <div class="build-pair">
+            <button id="union" type="button" title="Create a non-destructive union from selected solids and holes">Union</button>
+            <button id="breakUnion" type="button" title="Restore the original shapes from a live union">Break union</button>
+          </div>
+        </div>
+        <p class="tiny-note">Hold Shift while clicking shapes to select more than one. Union keeps all source shapes, including holes. Break union restores them.</p>
+      </section>
+
+      <section class="panel-section">
+        <h2>Print prep</h2>
+        <div class="print-prep-grid">
+          <button id="layFlat" type="button" title="Place the selected object directly on the workplane">Lay flat</button>
+          <button id="optimizeOrientation" type="button" title="Rotate the selected object onto its broadest face for printing">Optimize print</button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2>Cleanup</h2>
+        <div class="cleanup-grid"><button id="deleteSelected" type="button" class="danger" title="Delete selected shapes">Delete selected</button></div>
+      </section>
+    </aside>
+
+    <main class="viewport-wrap">
+      <div id="viewport" aria-label="3D workplane"></div>
+      <div class="viewport-hint">Drag to orbit. Scroll to zoom. Click a shape to edit it.</div>
+      <div id="status" class="status" role="status">Add a shape to start modeling.</div>
+    </main>
+
+    <aside class="right-panel" aria-label="Selected shape settings">
+      <section class="panel-section selection-title">
+        <p class="eyebrow">Selected shape</p>
+        <h2 id="selectedName">Nothing selected</h2>
+        <p id="selectedHint" class="selection-hint">Click a shape in the workplane.</p>
+      </section>
+      <section class="panel-section inspector">
+        <h2>Position (mm)</h2>
+        <div class="field-grid">
+          <label>X<input id="posX" type="number" step="1" /></label>
+          <label>Y<input id="posY" type="number" step="1" /></label>
+          <label>Z<input id="posZ" type="number" step="1" /></label>
+        </div>
+      </section>
+      <section class="panel-section inspector">
+        <h2>Size (mm)</h2>
+        <div class="field-grid">
+          <label>Width<input id="sizeX" type="number" min="1" step="1" /></label>
+          <label>Height<input id="sizeY" type="number" min="1" step="1" /></label>
+          <label>Depth<input id="sizeZ" type="number" min="1" step="1" /></label>
+        </div>
+      </section>
+      <section class="panel-section inspector">
+        <h2>Rotation (degrees)</h2>
+        <div class="field-grid">
+          <label>X<input id="rotX" type="number" step="15" /></label>
+          <label>Y<input id="rotY" type="number" step="15" /></label>
+          <label>Z<input id="rotZ" type="number" step="15" /></label>
+        </div>
+      </section>
+      <section class="panel-section model-rules">
+        <h2>Print-ready check</h2>
+        <ul>
+          <li>Keep every part touching the workplane or another part.</li>
+          <li>Union holes before you export.</li>
+          <li>Avoid very thin details.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

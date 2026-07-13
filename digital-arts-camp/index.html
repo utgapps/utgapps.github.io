@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Downhill Derby | Digital Arts Camp</title>
+  <script>window.UTG_GUARD="../";window.UTG_TOOL="digital-art";document.write('<script src="../class-codes.js?t=' + Date.now() + '"><\/script>');</script>
+  <script src="../guard.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" />
+  <style>
+    :root {
+      --brand:#01aefd; --brand-dark:#087db7; --brand-tint:#e8f7ff; --gold:#ffd633;
+      --ink:#1f2a37; --muted:#5b6a7c; --bg:#eef2f7; --surface:#fff;
+      --border:#d6e0ea; --border-strong:#b8c8d8; --ok:#087b4e; --ok-tint:#edf9f3;
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); font-family:"Rubik",system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); }
+    a { color:var(--brand-dark); font-weight:600; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    a:focus-visible { outline:3px solid var(--gold); outline-offset:3px; border-radius:3px; }
+    .wrap { max-width:1160px; margin:0 auto; padding:28px 22px 76px; }
+    .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:26px; }
+    .logo-img { display:block; height:40px; width:auto; }
+    .back { font-size:14px; }
+    .hero { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(260px,.7fr); gap:30px; align-items:end; padding:16px 0 24px; }
+    .eyebrow { color:var(--brand-dark); font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    h1 { font-size:54px; line-height:1; margin:8px 0 12px; letter-spacing:0; }
+    .lead { max-width:720px; margin:0; color:#43505f; font-size:18px; line-height:1.5; }
+    .quick, .toc, .step { background:var(--surface); border:1px solid var(--border); border-radius:8px; box-shadow:0 1px 3px rgba(31,42,55,.05); }
+    .quick { padding:18px; }
+    .quick h2, .toc h2 { margin:0 0 10px; font-size:16px; }
+    .quick ol { margin:0; padding-left:20px; color:#43505f; font-size:14px; line-height:1.65; }
+    .resource-row { display:flex; flex-wrap:wrap; gap:9px; margin:0 0 34px; }
+    .pill, .linkbtn { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:8px 12px; border:1px solid var(--border); border-radius:7px; background:var(--surface); color:var(--brand-dark); font-size:14px; }
+    .pill:hover, .linkbtn:hover { background:var(--brand-tint); text-decoration:none; }
+    .layout { display:grid; grid-template-columns:250px minmax(0,1fr); gap:26px; align-items:start; }
+    .layout > * { min-width:0; }
+    .toc { position:sticky; top:18px; padding:16px; }
+    .toc a { display:block; padding:8px 6px; border-radius:5px; color:#43505f; font-size:14px; font-weight:500; }
+    .toc a:hover { background:var(--brand-tint); color:var(--brand-dark); text-decoration:none; }
+    .chapter { margin:0 0 34px; scroll-margin-top:24px; }
+    .chapter-head { display:flex; align-items:baseline; justify-content:space-between; gap:20px; margin-bottom:9px; padding-bottom:11px; border-bottom:1px solid var(--border-strong); }
+    .chapter h2 { margin:0; font-size:28px; line-height:1.15; }
+    .duration { color:var(--muted); font-size:14px; white-space:nowrap; }
+    .intro { max-width:800px; margin:0 0 14px; color:#4c5b6c; line-height:1.5; }
+    .steps { display:grid; gap:12px; min-width:0; }
+    .step { min-width:0; padding:17px 18px; }
+    .step h3 { margin:0 0 8px; font-size:19px; }
+    .step > p { margin:0; color:#43505f; line-height:1.5; }
+    .actions { margin:10px 0 0; padding-left:21px; color:#43505f; line-height:1.55; }
+    .actions li + li { margin-top:4px; }
+    .do-label { display:block; margin-bottom:5px; color:var(--brand-dark); font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+    .check { margin-top:12px; padding:10px 12px; border-left:4px solid var(--ok); border-radius:0 6px 6px 0; background:var(--ok-tint); color:#275540; font-size:14px; line-height:1.4; }
+    .tip { margin-top:12px; padding:10px 12px; border-left:4px solid var(--brand); border-radius:0 6px 6px 0; background:#f5fbff; color:#405064; font-size:14px; line-height:1.4; }
+    .links { display:flex; flex-wrap:wrap; gap:8px; margin-top:13px; }
+    .linkbtn { min-height:34px; background:var(--brand-tint); font-size:13px; font-weight:700; }
+    .shotgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-top:14px; }
+    figure { margin:0; }
+    .shot { display:block; width:100%; border:1px solid var(--border); border-radius:7px; background:#fff; box-shadow:0 1px 3px rgba(31,42,55,.07); }
+    figcaption { margin-top:5px; color:var(--muted); font-size:12px; line-height:1.35; }
+    code { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; background:#edf3f8; padding:1px 4px; border-radius:4px; }
+    pre { width:100%; max-width:100%; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; margin:12px 0 0; padding:12px; border:1px solid var(--border); border-radius:7px; background:#15202b; color:#f4fbff; line-height:1.45; }
+    pre code { padding:0; background:transparent; color:inherit; }
+    footer { margin-top:42px; color:var(--muted); font-size:13px; }
+    @media (max-width:900px) {
+      .hero, .layout { grid-template-columns:1fr; }
+      .toc { position:static; }
+      .chapter-head { align-items:flex-start; flex-direction:column; gap:4px; }
+      .duration { white-space:normal; }
+    }
+    @media (max-width:540px) {
+      .wrap { padding:20px 16px 56px; }
+      .topline { align-items:flex-start; flex-wrap:wrap; }
+      h1 { font-size:30px; }
+      .lead { font-size:16px; }
+      .resource-row, .links { display:grid; grid-template-columns:1fr; }
+      .shotgrid { grid-template-columns:minmax(0,1fr); }
+      .pill, .linkbtn { width:100%; }
+      .step { padding:15px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topline">
+      <a href="../"><img class="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
+      <a class="back" href="../">Back to resources</a>
+    </div>
+
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Digital Arts Camp</div>
+        <h1>Downhill Derby</h1>
+        <p class="lead">Build a derby car, make a short animation, and create game art. Work through one small mission at a time. Finish the green check before moving on.</p>
+      </div>
+      <aside class="quick" aria-label="How this guide works">
+        <h2>How to use this guide</h2>
+        <ol>
+          <li>Open the tool linked in the mission.</li>
+          <li>Do the short action list.</li>
+          <li>Read the green check, then continue.</li>
+        </ol>
+      </aside>
+    </header>
+
+    <nav class="resource-row" aria-label="Core resources">
+      <a class="pill" href="https://www.tinkercad.com/joinclass/IYVQ51BEP" target="_blank" rel="noopener">Open Tinkercad class</a>
+      <a class="pill" href="../pixel-art-maker/?canvas=640&amp;px=8&amp;editor=1&amp;name=background" target="_blank" rel="noopener">Open Pixel Art Maker</a>
+      <a class="pill" href="../animator/" target="_blank" rel="noopener">Open UTG Animator</a>
+      <a class="pill" href="https://pixelpad.io/app/rawnkpuexcp/?edit=1" target="_blank" rel="noopener">Open PixelPad Dino starter</a>
+    </nav>
+
+    <div class="layout">
+      <aside class="toc">
+        <h2>Mission list</h2>
+        <a href="#setup">0. Get ready</a>
+        <a href="#tinkercad-basics">1. Learn Tinkercad moves</a>
+        <a href="#wrench">2. Build a wrench</a>
+        <a href="#derby-parts">3. Make derby parts</a>
+        <a href="#topper">4. Design a topper</a>
+        <a href="#animation-plan">5. Plan an animation</a>
+        <a href="#pixel-assets">6. Draw pixel art</a>
+        <a href="#animator">7. Animate your scene</a>
+        <a href="#game-art">8. Make game art</a>
+        <a href="#showcase">9. Share your work</a>
+      </aside>
+
+      <main>
+        <section class="chapter" id="setup">
+          <div class="chapter-head"><h2>0. Get Ready</h2><span class="duration">15 minutes</span></div>
+          <p class="intro">Set up your account and folder before you start making things.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Join the Tinkercad class</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Open the Tinkercad class link.</li>
+                <li>Choose <strong>Join with nickname</strong>.</li>
+                <li>Type your first and last name together: no spaces, no capitals.</li>
+              </ol>
+              <div class="links"><a class="linkbtn" href="https://www.tinkercad.com/joinclass/IYVQ51BEP" target="_blank" rel="noopener">Join Tinkercad</a></div>
+              <div class="check"><strong>You are ready when:</strong> you can see the class activities page.</div>
+            </article>
+            <article class="step">
+              <h3>Make your project folder</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Make a folder on the desktop.</li>
+                <li>Name it with your first and last name.</li>
+                <li>Save every PNG and GIF from this camp there.</li>
+              </ol>
+              <div class="check"><strong>You are ready when:</strong> your named folder is open and empty.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="tinkercad-basics">
+          <div class="chapter-head"><h2>1. Learn Tinkercad Moves</h2><span class="duration">70-90 minutes</span></div>
+          <p class="intro">Complete the star-and-goal activities in your Tinkercad class. Each one gives you a new building skill.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Move, lift, and resize</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Drag a star into its matching green goal.</li>
+                <li>Use the black cone to lift or lower it.</li>
+                <li>Pull a white square to resize it. Type a number when you need an exact size.</li>
+              </ol>
+              <div class="check"><strong>You are ready when:</strong> your star fits the goal and you can change its height and size.</div>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-010.webp" alt="Tinkercad object with an arrow for changing its height" /><figcaption>The black cone changes height. Drag it up or down.</figcaption></figure></div>
+            </article>
+            <article class="step">
+              <h3>Rotate and look around</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Use the curved arrows to rotate a shape.</li>
+                <li>Try 45, 90, and 180 degrees.</li>
+                <li>Use the view cube and press <code>F</code> to focus on a selected shape.</li>
+              </ol>
+              <div class="check"><strong>You are ready when:</strong> you can turn a shape to face the right direction.</div>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-015.webp" alt="Tinkercad rotation handles around an object" /><figcaption>Use the curved arrows to turn a shape.</figcaption></figure></div>
+            </article>
+            <article class="step">
+              <h3>Line up, join, and cut shapes</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Drag a box around two shapes to select both.</li>
+                <li>Use <strong>Align</strong> to line them up.</li>
+                <li>Use <strong>Group</strong> to join shapes, or change one shape to <strong>Hole</strong> to cut it out.</li>
+              </ol>
+              <div class="check"><strong>You are ready when:</strong> you can make one clean shape with a hole in it.</div>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-021.webp" alt="Tinkercad solid and hole shape buttons" /><figcaption>A hole shape removes material when you group it with a solid.</figcaption></figure></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="wrench">
+          <div class="chapter-head"><h2>2. Build a Wrench</h2><span class="duration">75-120 minutes</span></div>
+          <p class="intro">Use the wrench activity to practice all your shape moves on one printable object.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Finish the wrench activity</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions">
+                <li>Open the wrench activity in Tinkercad.</li>
+                <li>Build the handle, then the closed end, then the open end.</li>
+                <li>Follow each comment bubble and submit the activity when it is complete.</li>
+              </ol>
+              <div class="tip">Use the skills from Mission 1: align shapes first, then group them. Make holes before you group.</div>
+              <div class="check"><strong>You are ready when:</strong> your wrench is one clean model with both ends finished.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="derby-parts">
+          <div class="chapter-head"><h2>3. Make Derby Parts</h2><span class="duration">60-90 minutes</span></div>
+          <p class="intro">Now make the pieces that help your derby car roll.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Create an axle</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Open the axle activity.</li><li>Build the axle by following the activity notes.</li><li>Check that it is straight and grouped before you submit.</li></ol>
+              <div class="check"><strong>You are ready when:</strong> your axle is one straight, printable piece.</div>
+            </article>
+            <article class="step">
+              <h3>Create a wheel</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Open the wheel activity.</li><li>Build the wheel shape.</li><li>Use a hole shape to make space for the axle.</li><li>Duplicate it so you have a matching second wheel.</li></ol>
+              <div class="check"><strong>You are ready when:</strong> both wheels have centered holes and match each other.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="topper">
+          <div class="chapter-head"><h2>4. Design a Car Topper</h2><span class="duration">45-90 minutes</span></div>
+          <p class="intro">Make a small original design that can sit safely on top of your car.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Spot the print problems</h3>
+              <span class="do-label">Look for this</span>
+              <ul class="actions"><li>Pieces floating in the air.</li><li>Tiny parts that could break off.</li><li>Shapes sticking out past the base.</li><li>Shapes that were not grouped.</li></ul>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-074.webp" alt="Example car toppers with print problems to identify" /><figcaption>Find the parts that are floating, too small, or outside the base.</figcaption></figure></div>
+            </article>
+            <article class="step">
+              <h3>Make your topper</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Choose one simple idea: an animal, food, robot, logo, or character.</li><li>Build it on the topper base.</li><li>Keep every part touching the base or another part.</li><li>Group the finished model and submit it.</li></ol>
+              <div class="check"><strong>You are ready when:</strong> your original topper is one grouped model with no floating pieces.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="animation-plan">
+          <div class="chapter-head"><h2>5. Plan an Animation</h2><span class="duration">30-45 minutes</span></div>
+          <p class="intro">A tiny plan will make your animation much easier to finish. Keep it simple: one place, one action, one ending.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Make a 3 to 5 panel plan</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Name your background.</li><li>List the characters or objects that move.</li><li>Draw 3 to 5 boxes showing what changes in each moment.</li><li>Give your animation a clear ending.</li></ol>
+              <div class="check"><strong>You are ready when:</strong> another student can look at your boxes and tell what happens.</div>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-085.webp" alt="Example animation plan with background, objects, and storyboard boxes" /><figcaption>Your plan can be quick. Show the background, the action, and the ending.</figcaption></figure></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="pixel-assets">
+          <div class="chapter-head"><h2>6. Draw Pixel Art</h2><span class="duration">60-90 minutes</span></div>
+          <p class="intro">Make the art for your animation in UTG Pixel Art Maker. Start big, then add small details.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Draw your background</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Open the background canvas.</li><li>Fill the whole canvas with a base color.</li><li>Add the biggest shapes first, then details.</li><li>Save it as <code>background.png</code> in your project folder.</li></ol>
+              <div class="links"><a class="linkbtn" href="../pixel-art-maker/?cw=640&amp;ch=640&amp;px=8&amp;editor=1&amp;name=background" target="_blank" rel="noopener">Open background canvas</a></div>
+              <div class="check"><strong>You are ready when:</strong> you have a saved background PNG with no characters on it.</div>
+            </article>
+            <article class="step">
+              <h3>Draw moving objects</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Draw one moving object per image.</li><li>Give each file a clear name, such as <code>basket.png</code>.</li><li>Save each PNG in your project folder.</li></ol>
+              <div class="links"><a class="linkbtn" href="../pixel-art-maker/?cw=256&amp;ch=256&amp;px=4&amp;editor=1&amp;name=moving-object" target="_blank" rel="noopener">Open object canvas</a></div>
+              <div class="tip">One object per PNG makes it easy to move that object in the animation.</div>
+              <div class="check"><strong>You are ready when:</strong> every moving thing in your plan has its own PNG.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="animator">
+          <div class="chapter-head"><h2>7. Animate Your Scene</h2><span class="duration">90-150 minutes</span></div>
+          <p class="intro">Use UTG Animator to turn your art into motion. Small moves between frames make smooth animation.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Set up your scene</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Open UTG Animator.</li><li>Choose <strong>Photo</strong> to add <code>background.png</code>.</li><li>Choose <strong>Add Object</strong> for each moving PNG.</li><li>Choose <strong>Add Figure</strong> or <strong>Make Figure</strong> for characters.</li></ol>
+              <div class="links"><a class="linkbtn" href="../animator/" target="_blank" rel="noopener">Open UTG Animator</a></div>
+              <div class="check"><strong>You are ready when:</strong> your background and moving items are visible in one scene.</div>
+            </article>
+            <article class="step">
+              <h3>Make the motion</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Place the first pose.</li><li>Move one item a tiny amount.</li><li>Add a frame.</li><li>Repeat, then press <strong>Play</strong> to check it.</li></ol>
+              <div class="tip">Use <strong>Ghost last frame</strong> to see your previous pose. It helps you make small, even movements.</div>
+              <div class="check"><strong>You are ready when:</strong> your animation moves from beginning to ending when you press Play.</div>
+            </article>
+            <article class="step">
+              <h3>Export your GIF</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Watch your animation one last time.</li><li>Fix any jumpy frames.</li><li>Export a GIF and save it in your project folder.</li></ol>
+              <div class="check"><strong>You are ready when:</strong> you can open your GIF and watch the complete animation.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="game-art">
+          <div class="chapter-head"><h2>8. Make Game Art</h2><span class="duration">60-120 minutes</span></div>
+          <p class="intro">Bonus mission: use the same pixel-art skills to customize a simple PixelPad game.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Make your own Dino starter</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Open the Dino starter.</li><li>Choose <strong>See App Page</strong>.</li><li>Use <strong>Spinoff</strong> to make your own copy.</li></ol>
+              <div class="links"><a class="linkbtn" href="https://pixelpad.io/app/rawnkpuexcp/?edit=1" target="_blank" rel="noopener">Open Dino starter</a></div>
+              <div class="check"><strong>You are ready when:</strong> you are working in your own copy of the game.</div>
+            </article>
+            <article class="step">
+              <h3>Replace the game art</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Draw a new ground, player, or obstacle in Pixel Art Maker.</li><li>Upload the PNG to PixelPad.</li><li>Change the matching sprite filename in the game code.</li></ol>
+              <div class="links">
+                <a class="linkbtn" href="../pixel-art-maker/?cw=225&amp;ch=30&amp;px=1&amp;editor=1&amp;name=ground2" target="_blank" rel="noopener">Draw ground</a>
+                <a class="linkbtn" href="../pixel-art-maker/?cw=250&amp;ch=250&amp;px=4&amp;editor=1&amp;name=player" target="_blank" rel="noopener">Draw player</a>
+                <a class="linkbtn" href="../pixel-art-maker/?cw=100&amp;ch=100&amp;px=2&amp;editor=1&amp;name=obstacle" target="_blank" rel="noopener">Draw obstacle</a>
+              </div>
+              <div class="check"><strong>You are ready when:</strong> the game shows at least one piece of art you made.</div>
+            </article>
+            <article class="step">
+              <h3>Make a 4-frame run cycle</h3>
+              <span class="do-label">Do this</span>
+              <ol class="actions"><li>Draw four poses of the same player.</li><li>Put the poses in a 2 by 2 image.</li><li>Upload the sheet as <code>runner-sheet.png</code>.</li><li>Use the code below to play frames 0 through 3.</li></ol>
+              <pre><code># 2 rows, 2 columns, frames 0 through 3
+self.spriteSheet = sprite("runner-sheet.png", 2, 2)
+set_animation(self, animation(self.spriteSheet, 8, 0, 3))</code></pre>
+              <div class="shotgrid"><figure><img class="shot" src="assets/page-147.webp" alt="Four pixel art poses that make up a running animation" /><figcaption>Change the arms and legs a little in each pose to make a run cycle.</figcaption></figure></div>
+              <div class="check"><strong>You are ready when:</strong> your character loops through all four poses in the game.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="chapter" id="showcase">
+          <div class="chapter-head"><h2>9. Share Your Work</h2><span class="duration">30 minutes</span></div>
+          <p class="intro">Finish strong. Put your work in order, then choose one thing you are proud of.</p>
+          <div class="steps">
+            <article class="step">
+              <h3>Final check</h3>
+              <span class="do-label">Make sure you have</span>
+              <ul class="actions"><li>Your submitted Tinkercad wheel, axle, and topper.</li><li>Your pixel-art PNG files in your folder.</li><li>Your exported animation GIF.</li><li>Your PixelPad game changes, if you did the bonus mission.</li></ul>
+              <div class="check"><strong>You are finished when:</strong> you can show your files and explain one design choice you made.</div>
+            </article>
+          </div>
+        </section>
+
+        <footer>&copy; 2026 UTG Academy</footer>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

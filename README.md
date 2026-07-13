@@ -11,11 +11,11 @@ The home page is locked behind a **4-letter class code** so kids can't use the t
 ```
 
 - **`enabled`** — `true` = the code works now; `false` = locked. To lock a class out after class / at home, set its code to `false` and push; to let them in, set it `true`.
-- **`tools`** — `"all"`, or a list of `"pixel-art"` / `"camp"`, to control *which* resources that code reveals.
+- **`tools`** — `"all"`, or a list of `"pixel-art"` / `"animator"` / `"digital-art"` / `"camp"`, to control *which* resources that code reveals.
 - **`print`** — `true` lets that code use **Print to PDF** on the coding workbooks; leave it out / `false` to block printing. (When blocked, the button is hidden *and* Ctrl+P prints a blank page, so it can't be bypassed.)
 - **`play`** — who may **play the finished games** (the "Play" buttons): `"all"`, a list of game slugs (e.g. `["flappy","drift"]`), or `[]` / leave out for none. When a game isn't allowed its Play button is hidden, and opening its `-final.html` directly bounces to that game's guide. (Game slugs are listed in `class-codes.js`.)
 
-Out of the box: **`QWER`** = students (all resources, **no** printing, **no** playing — guides only), **`ASDF`** = teacher (all resources, **can** print and play). To let students play a specific game, add its slug to QWER's `play` list.
+Out of the box: **`POIU`** = students (time-gated, currently disabled), **`CVBN`** = art and animation resources, and **`ASDF`** = teacher (all resources, **can** print and play). To let students play a specific game, add its slug to the student code's `play` list.
 
 Entering a valid, enabled code reveals the matching resources and remembers it on that device. Tool pages (and the games/guides) check the code too, so typing a direct URL at home still bounces back to the gate. It's a simple gate, **not real security** — the codes are public in the repo; it just keeps kids out of the resources outside class. (Browsers may cache `class-codes.js` for a few minutes, so a lock can take a little while to take effect.)
 
@@ -55,8 +55,14 @@ Any of `canvas`, `cw`, `ch`, `px`/`tile`, `ew`, `eh`, or `editor=1` lands you di
 - `pixel-art-maker/?canvas=512&px=8` — 512px picture with 8px pixels (64×64 grid).
 - `pixel-art-maker/?canvas=256&px=32&export=1024` — chunky 8×8 grid on a 256px picture, saved at 1024×1024.
 
+### [Digital Arts Camp](./digital-arts-camp/)
+A step-by-step online version of the Downhill Derby camp, with Tinkercad modeling chapters, 3D printed car parts, UTG Pixel Art Maker asset creation, UTG Animator production, and PixelPad game-art extensions.
+
+### [Modeling Studio](./modeling-studio/)
+A kid-friendly 3D modeling workspace for printable shapes. Add boxes, cylinders, spheres, and roofs; use non-destructive unions that can be broken apart; snap to the grid and nearby faces; flag floating pieces and unsupported overhangs; and export an STL for 3D printing.
+
 ### 🏕️ [Camp Coding Projects](./camp-coding-projects/)
-20 printable, step-by-step game workbooks (built on [PixelPad](https://pixelpad.io)) — Flappy Bird, Pac-Man, Pong, and more. Each lands on a hub linking every workbook and its playable finished game.
+21 printable, step-by-step game workbooks (built on [PixelPad](https://pixelpad.io)) — Flappy Bird, Pac-Man, Pong, Drift Rush, and more. Each lands on a hub linking every workbook and its playable finished game.
 
 Every workbook's "Before you start" sprite list is **clickable**: each sprite (e.g. *"bird.png — draw it 30×30, yellow"*) links straight to the Pixel Art Maker with the canvas size pre-filled (`?cw=30&ch=30&px=1&editor=1`), so a kid taps it, draws the sprite at exactly the right size, and saves the PNG. `px=1` makes the drawing grid match the sprite's native pixel dimensions.
 
