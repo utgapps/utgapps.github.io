@@ -1,0 +1,25 @@
+name = "utg-classroom-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# D1 database (accounts, code projects, sessions, media metadata)
+[[d1_databases]]
+binding = "DB"
+database_name = "utg-classroom"
+database_id = "167a4fab-42d8-453a-8a91-ce62c2a014ef"
+
+[vars]
+# Class ids that may create guest accounts (comma separated). "*" allows any.
+ALLOWED_CLASSES = "ai102,ai201"
+# Days a guest account (and all its data) lives before the nightly cron wipes it.
+GUEST_TTL_DAYS = "120"
+
+# Nightly cleanup of expired guest accounts + their data
+[triggers]
+crons = ["17 8 * * *"]
+
+# R2 media bucket — uncomment once R2 is enabled in the dashboard:
+# [[r2_buckets]]
+# binding = "MEDIA"
+# bucket_name = "utg-classroom-media"
