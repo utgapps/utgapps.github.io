@@ -19,7 +19,7 @@ export function AdminApp() {
   if (token && !me) return <Dashboard token={token} me={null} onSignOut={signOut} />; // token from storage; dashboard validates
 
   return <main className="admin-auth"><section className="join-card">
-    <a className="back" href="./">UTG Academy</a>
+    <a className="back" href="./"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
     <p className="eyebrow">Classroom admin</p>
     <h1>{mode === "login" ? "Admin sign in" : "First-time setup"}</h1>
     {mode === "login" ? <LoginForm onAuthed={onAuthed} setMsg={setMsg} /> : <SetupForm onAuthed={onAuthed} setMsg={setMsg} />}
@@ -91,7 +91,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   const perms = accounts.filter((a) => a.isPermanent);
 
   return <main className="admin-shell">
-    <header className="room-header"><div><a href="./">UTG Academy</a><span className="slash">/</span><strong>Admin</strong></div>
+    <header className="room-header"><div><a href="./"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>Admin</strong></div>
       <div className="connection">{me?.username ? `@${me.username}` : "signed in"}<button className="text-button" onClick={onSignOut}>Sign out</button></div></header>
 
     <section className="admin-body">
