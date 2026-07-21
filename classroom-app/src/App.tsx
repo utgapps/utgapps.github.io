@@ -165,10 +165,10 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     updateRoom((current) => ({ ...current, students: [...current.students, made.student], projects: { ...current.projects, [made.project.id]: made.project } }));
     setSelectedId(made.student.id); setNewStudent("");
   }
-  function openRoom() {
+  async function openRoom() {
     if (peerRef.current) return;
     setStatus("Opening your classroom connection...");
-    const peer = new Peer(hostId(room.code), peerOptions());
+    const peer = new Peer(hostId(room.code), await peerOptions());
     peerRef.current = peer;
     peer.on("open", () => { setIsOpen(true); setStatus("Class is open. Students may now use their student login code."); });
     peer.on("error", () => { setStatus("This class code is already being hosted. Check the other instructor device, then try again."); peer.destroy(); peerRef.current = null; });
@@ -266,14 +266,14 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   }
   useEffect(() => () => { clearFindingTimer(); peerRef.current?.destroy(); }, []);
 
-  function join() {
+  async function join() {
     if (code.length !== 4 || !name.trim()) { setStatus("Add your name and a four-character class code first."); return; }
     const assignment = classroomAssignment(code);
     if (!assignment || assignment.role !== "student") { setStatus("Use your student login code. The instructor login code cannot join a student project."); return; }
     peerRef.current?.destroy();
     clearFindingTimer();
     setStep("waiting"); setStatus("Finding your classroom...");
-    const peer = new Peer(peerOptions()); peerRef.current = peer;
+    const peer = new Peer(await peerOptions()); peerRef.current = peer;
     findingTimerRef.current = window.setTimeout(() => connectionProblem("We found your class but could not open a live link to your teacher. This is usually a school or home network blocking connections. Ask your teacher (they may need to turn on the classroom relay), or try a different network."), 20000);
     peer.on("open", () => {
       const connection = peer.connect(hostId(assignment.roomCode)); connectionRef.current = connection;

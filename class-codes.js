@@ -54,11 +54,20 @@ window.UTG_CLASSROOMS = [
    Without one, a student sees "we found your class but could not open a
    live link to your teacher" even though the class shows as open.
 
-   Free option (~5 min, no card): make an account at metered.ca, open
-   Metered TURN, copy the "ICE Servers" array it gives you, and paste the
-   entries below (they include a username + credential). Then it just works.
+   TWO WAYS to provide a relay (use either one):
 
-   Leave this empty [] to use PeerJS's built-in defaults (often blocked). */
+   1) UTG_TURN_URL (recommended — Cloudflare, big free tier): deploy the tiny
+      worker in classroom-app/cloudflare-turn-worker.js, then put its URL here.
+      The app fetches fresh credentials from it each time (Cloudflare creds
+      expire, so they can't be pasted directly). See that file for setup.
+
+   2) UTG_TURN (static creds — e.g. Metered, ~5 min, no card): make an account
+      at metered.ca, open Metered TURN, and paste the "ICE Servers" array it
+      gives you (username + credential included) into the array below.
+
+   STUN is always tried first; the relay is only used when a direct/STUN path
+   fails. Leave both empty to use PeerJS's built-in defaults (often blocked). */
+window.UTG_TURN_URL = ""; // e.g. "https://utg-turn.YOURNAME.workers.dev"
 window.UTG_TURN = [
   // { urls: "stun:stun.relay.metered.ca:80" },
   // { urls: "turn:global.relay.metered.ca:80",  username: "PASTE", credential: "PASTE" },

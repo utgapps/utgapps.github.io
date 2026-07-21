@@ -22,25 +22,45 @@ declare global {
     // Optional extra ICE servers (especially a TURN relay) so students on
     // locked-down school/home networks can reach the teacher. Set in class-codes.js.
     UTG_TURN?: RTCIceServer[];
+    // Optional URL that returns fresh TURN credentials as { iceServers: [...] }.
+    // Used for providers whose credentials expire (e.g. a Cloudflare TURN Worker).
+    UTG_TURN_URL?: string;
   }
 }
 
-// Options for every Peer we create. When a TURN relay is configured in
-// class-codes.js (window.UTG_TURN), it is used so the WebRTC data channel can
-// still form on networks that block direct/STUN connections. With none set,
-// PeerJS falls back to its own defaults (which many school firewalls block).
-export function peerOptions(): import("peerjs").PeerOptions {
-  const extra = window.UTG_TURN;
-  if (!Array.isArray(extra) || extra.length === 0) return {};
-  return {
-    config: {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        ...extra,
-      ],
-    },
-  };
+let iceCache: RTCIceServer[] | null = null;
+
+// STUN is always tried first (WebRTC prefers direct/STUN candidates and only
+// falls back to a TURN relay when those fail). We add TURN relays from either a
+// static list (window.UTG_TURN) or a credentials endpoint (window.UTG_TURN_URL,
+// e.g. a Cloudflare Worker that mints short-lived credentials).
+async function loadIceServers(): Promise<RTCIceServer[]> {
+  if (iceCache) return iceCache;
+  const base: RTCIceServer[] = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ];
+  const staticTurn = Array.isArray(window.UTG_TURN) ? window.UTG_TURN : [];
+  let fetched: RTCIceServer[] = [];
+  const url = window.UTG_TURN_URL;
+  if (typeof url === "string" && url) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : data && data.iceServers;
+      if (Array.isArray(list)) fetched = list;
+    } catch {
+      /* fall back to STUN + any static TURN */
+    }
+  }
+  iceCache = [...base, ...staticTurn, ...fetched];
+  return iceCache;
+}
+
+// Options for every Peer we create. Resolves to PeerJS defaults (STUN-only,
+// which many school firewalls block) unless a TURN relay is configured.
+export async function peerOptions(): Promise<import("peerjs").PeerOptions> {
+  return { config: { iceServers: await loadIceServers() } };
 }
 
 export function classroomAssignment(code: string) {
