@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import Peer, { DataConnection } from "peerjs";
-import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import { changedFiles, downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
 import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
@@ -11,6 +11,7 @@ type WireMessage =
   | { type: "approved"; studentId: string; project: Project; className: string }
   | { type: "wait"; message: string }
   | { type: "project"; project: Project }
+  | { type: "patch"; projectId: string; title: string; files: Record<string, string>; updatedAt: string }
   | { type: "close"; message: string };
 
 const deviceKey = "utg-classroom-device-v1";
@@ -148,9 +149,14 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   const [newStudent, setNewStudent] = useState("");
   const peerRef = useRef<Peer | null>(null);
   const connections = useRef(new Map<string, DataConnection>());
+  const roomRef = useRef(room);
+  const pushBaseline = useRef(new Map<string, Record<string, string>>()); // projectId -> last-synced files
+  const pushPending = useRef<Project | null>(null);
+  const pushTimer = useRef<number | null>(null);
+  const pushLast = useRef(0);
 
   useEffect(() => { setRoom(record); }, [record]);
-  useEffect(() => { onChange(room); }, [room]);
+  useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
   useEffect(() => () => peerRef.current?.destroy(), []);
 
   const selected = room.students.find((student) => student.id === selectedId);
@@ -191,6 +197,17 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     }
     if (data.type === "project") {
       updateRoom((current) => ({ ...current, projects: { ...current.projects, [data.project.id]: data.project }, students: current.students.map((student) => student.projectId === data.project.id ? { ...student, status: "connected", lastSeen: new Date().toISOString() } : student) }));
+      pushBaseline.current.set(data.project.id, { ...data.project.files });
+    }
+    if (data.type === "patch") {
+      updateRoom((current) => {
+        const existing = current.projects[data.projectId];
+        if (!existing) return current;
+        const merged: Project = { ...existing, files: { ...existing.files, ...data.files }, title: data.title || existing.title, updatedAt: data.updatedAt };
+        return { ...current, projects: { ...current.projects, [data.projectId]: merged }, students: current.students.map((student) => student.projectId === data.projectId ? { ...student, status: "connected", lastSeen: new Date().toISOString() } : student) };
+      });
+      const base = pushBaseline.current.get(data.projectId) || {};
+      pushBaseline.current.set(data.projectId, { ...base, ...data.files });
     }
   }
   function approve(join: PendingJoin, existingStudentId?: string, connection?: DataConnection) {
@@ -206,11 +223,34 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     const hasDevice = nextRoom.devices.some((item) => item.id === device.id);
     nextRoom = { ...nextRoom, devices: hasDevice ? nextRoom.devices : [...nextRoom.devices, device], students: nextRoom.students.map((item) => item.id === student!.id ? { ...item, status: "connected", deviceIds: Array.from(new Set([...item.deviceIds, join.connectionId])) } : item) };
     setRoom(nextRoom); setSelectedId(student.id); setPending((items) => items.filter((item) => item.connectionId !== join.connectionId));
-    target?.send({ type: "approved", studentId: student.id, project: nextRoom.projects[student.projectId], className: nextRoom.name } satisfies WireMessage);
+    const initial = nextRoom.projects[student.projectId];
+    pushBaseline.current.set(student.projectId, { ...initial.files });
+    target?.send({ type: "approved", studentId: student.id, project: initial, className: nextRoom.name } satisfies WireMessage);
+  }
+  // Send an instructor edit only to the student who owns that project, only the
+  // files that changed, and at most once per second.
+  function flushPush() {
+    if (pushTimer.current !== null) { window.clearTimeout(pushTimer.current); pushTimer.current = null; }
+    const p = pushPending.current;
+    if (!p) return;
+    const base = pushBaseline.current.get(p.id) || {};
+    const files = changedFiles(p.files, base);
+    if (Object.keys(files).length === 0) return;
+    const owner = roomRef.current.students.find((s) => s.projectId === p.id);
+    const targets = owner ? owner.deviceIds.map((id) => connections.current.get(id)).filter(Boolean) as DataConnection[] : [];
+    let sent = false;
+    for (const conn of targets) if (conn.open) { conn.send({ type: "patch", projectId: p.id, title: p.title, files, updatedAt: p.updatedAt } satisfies WireMessage); sent = true; }
+    if (sent) { pushBaseline.current.set(p.id, { ...base, ...files }); pushLast.current = Date.now(); }
+  }
+  function schedulePush() {
+    const elapsed = Date.now() - pushLast.current;
+    if (elapsed >= 1000) flushPush();
+    else if (pushTimer.current === null) pushTimer.current = window.setTimeout(flushPush, 1000 - elapsed);
   }
   function updateProject(project: Project) {
     updateRoom((current) => ({ ...current, projects: { ...current.projects, [project.id]: project } }));
-    for (const connection of connections.current.values()) connection.send({ type: "project", project } satisfies WireMessage);
+    pushPending.current = project;
+    schedulePush();
   }
   function checkpoint() {
     if (!selectedProject) return;
@@ -284,13 +324,44 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     });
     peer.on("error", (error) => connectionProblem(error.type === "peer-unavailable" ? "This classroom is not open yet. Ask your instructor to open AI102 first." : "We could not start your classroom connection. Refresh and try again."));
   }
+  // --- outgoing sync: send only changed files, at most once per second ---
+  const baselineRef = useRef<Record<string, string>>({});
+  const pendingRef = useRef<Project | null>(null);
+  const sendTimerRef = useRef<number | null>(null);
+  const lastSendRef = useRef(0);
+  function adoptProject(p: Project) { setProject(p); pendingRef.current = p; baselineRef.current = { ...p.files }; }
+  function flushSend() {
+    if (sendTimerRef.current !== null) { window.clearTimeout(sendTimerRef.current); sendTimerRef.current = null; }
+    const p = pendingRef.current, conn = connectionRef.current;
+    if (!p || !conn || !conn.open) return;
+    const files = changedFiles(p.files, baselineRef.current);
+    if (Object.keys(files).length === 0) return;
+    conn.send({ type: "patch", projectId: p.id, title: p.title, files, updatedAt: p.updatedAt } satisfies WireMessage);
+    baselineRef.current = { ...baselineRef.current, ...files };
+    lastSendRef.current = Date.now();
+  }
+  function scheduleSend() {
+    const elapsed = Date.now() - lastSendRef.current;
+    if (elapsed >= 1000) flushSend();
+    else if (sendTimerRef.current === null) sendTimerRef.current = window.setTimeout(flushSend, 1000 - elapsed);
+  }
+  useEffect(() => () => flushSend(), []); // best-effort send on unmount
+
   function receive(data: WireMessage) {
     if (data.type === "wait") setStatus(data.message);
-    if (data.type === "approved") { clearFindingTimer(); setProject(data.project); setClassName(data.className); setStep("room"); setStatus("Connected and saved locally."); }
-    if (data.type === "project") setProject(data.project);
+    if (data.type === "approved") { clearFindingTimer(); adoptProject(data.project); setClassName(data.className); setStep("room"); setStatus("Connected and saved locally."); }
+    if (data.type === "project") adoptProject(data.project);
+    if (data.type === "patch") {
+      const base = pendingRef.current || project;
+      if (base) {
+        const merged: Project = { ...base, files: { ...base.files, ...data.files }, title: data.title || base.title, updatedAt: data.updatedAt };
+        setProject(merged); pendingRef.current = merged;
+        baselineRef.current = { ...baselineRef.current, ...data.files };
+      }
+    }
     if (data.type === "close") setStatus(data.message);
   }
-  function updateProject(next: Project) { setProject(next); connectionRef.current?.open && connectionRef.current.send({ type: "project", project: next } satisfies WireMessage); }
+  function updateProject(next: Project) { setProject(next); pendingRef.current = next; scheduleSend(); }
 
   if (step !== "room" || !project) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}>UTG Academy</a><p className="eyebrow">Student classroom</p><h1>Join your class</h1><p>Use your student login code. If the instructor has not opened the classroom yet, you will see a clear message instead of starting a room.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Student login code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Join classroom</button><p className="notice">{status}</p><small>This browser remembers approved devices. If your browser data is cleared, ask your teacher to approve this device again.</small></section></main>;
   return <main className="student-shell"><header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={connectionRef.current?.open ? "online" : "offline"}></i>{connectionRef.current?.open ? "Synced to teacher" : "Saved locally"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify(project, null, 2))}>Export backup</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{project.title}</h1></div><span className="save-label">{status}</span></div><ProjectEditor project={project} onChange={updateProject} readOnly={false} /></section></main>;
