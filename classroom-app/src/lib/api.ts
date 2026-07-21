@@ -4,7 +4,7 @@
 const API = ((typeof window !== "undefined" && (window as Window & { UTG_API_URL?: string }).UTG_API_URL) as string) ||
   "https://utg-classroom-api.utgapps.workers.dev";
 
-export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string };
+export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
 export type ApiProject = { id: string; title: string; files: Record<string, string>; updatedAt: number };
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {
@@ -21,6 +21,9 @@ export async function apiLoginGuest(classId: string, name: string): Promise<{ to
 }
 export async function apiLoginAccount(username: string, password: string): Promise<{ token: string; account: ApiAccount }> {
   return req("/login/account", { method: "POST", body: JSON.stringify({ username, password }) });
+}
+export async function apiBootstrapAdmin(body: { setupSecret: string; classId: string; name: string; username: string; password: string }): Promise<{ token: string; account: ApiAccount }> {
+  return req("/admin/bootstrap", { method: "POST", body: JSON.stringify(body) });
 }
 export async function apiGetProject(token: string): Promise<ApiProject | null> {
   const d = await req("/project", {}, token);

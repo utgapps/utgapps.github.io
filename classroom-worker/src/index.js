@@ -88,6 +88,19 @@ export default {
         return json({ token, account: publicAccount(acc) });
       }
 
+      // ---- first-time admin setup (gated by SETUP_SECRET; only if no admin yet) ----
+      if (path === "/admin/bootstrap" && request.method === "POST") {
+        const { setupSecret, classId, name, username, password } = await request.json();
+        if (!env.SETUP_SECRET || setupSecret !== env.SETUP_SECRET) return bad("Bad setup secret.", 403);
+        if (await db.prepare("SELECT id FROM accounts WHERE role='admin' LIMIT 1").first()) return bad("An admin already exists.", 409);
+        if (!username || !password) return bad("Username and password required.");
+        const { hash, salt } = await hashPassword(password);
+        const id = uuid(), now = Date.now();
+        await db.prepare("INSERT INTO accounts (id, class_id, name, username, password_hash, password_salt, is_permanent, role, created_at, last_seen) VALUES (?,?,?,?,?,?,1,'admin',?,?)")
+          .bind(id, classId || "*", name || "Teacher", username.trim(), hash, salt, now, now).run();
+        return json({ token: await newSession(db, id, 30), account: publicAccount(await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first()) });
+      }
+
       // ---- account login: username + password ----
       if (path === "/login/account" && request.method === "POST") {
         const { username, password } = await request.json();

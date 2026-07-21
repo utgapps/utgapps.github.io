@@ -5,6 +5,7 @@ import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protoc
 import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
 import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
 import { CollabEditor } from "./CollabEditor";
+import { AdminApp } from "./AdminApp";
 import { apiLoginGuest, apiGetProject, apiSaveProject } from "./lib/api";
 import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
@@ -70,6 +71,7 @@ function App() {
     setMode("instructor");
   }
 
+  if (new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
   if (mode === "instructor" && activeClass) {
     return <InstructorRoom record={activeClass} onChange={persistClass} onExit={() => setMode("home")} />;
   }

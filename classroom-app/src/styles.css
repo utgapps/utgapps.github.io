@@ -80,3 +80,23 @@ i.offline, .student i.offline { background: #aebcc0; }
 .cm-ySelectionCaret { position: relative; border-left: 2px solid; border-right: 0; margin-left: -1px; margin-right: -1px; box-sizing: border-box; }
 .cm-ySelectionCaretDot { border-radius: 50%; position: absolute; width: 6px; height: 6px; top: -3px; left: -3px; }
 .cm-ySelectionInfo { position: absolute; top: -1.35em; left: -1px; font-size: 10px; font-weight: 700; line-height: normal; color: #fff; padding: 1px 5px; border-radius: 4px 4px 4px 0; white-space: nowrap; opacity: .95; z-index: 5; }
+
+/* ---- admin dashboard ---- */
+.admin-auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.admin-shell { max-width: 1000px; margin: 0 auto; padding: 0 20px 60px; }
+.admin-body { padding-top: 18px; }
+.admin-toolbar { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.admin-toolbar label { display: grid; gap: 4px; font-size: 13px; color: #4d6871; }
+.admin-toolbar input { padding: 8px 10px; border: 1px solid #cbd9dd; border-radius: 8px; }
+.admin-create { background: #f7fafb; border: 1px solid #e3edef; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
+.admin-create h3 { margin: 0 0 10px; font-size: 15px; }
+.admin-create .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-create input { padding: 8px 10px; border: 1px solid #cbd9dd; border-radius: 8px; min-width: 130px; flex: 1; }
+.admin-table { margin-bottom: 26px; }
+.admin-table h3 { font-size: 15px; margin: 0 0 8px; }
+.admin-table table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.admin-table th { text-align: left; color: #6b8791; font-weight: 600; border-bottom: 1px solid #e3edef; padding: 6px 8px; }
+.admin-table td { padding: 8px; border-bottom: 1px solid #eef4f5; }
+.admin-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.admin-actions .danger { color: #d33; }
+.muted { color: #8aa0a7; font-size: 12.5px; }
