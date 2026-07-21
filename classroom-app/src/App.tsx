@@ -316,8 +316,11 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   const [className, setClassName] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
+  const liveRoomRef = useRef("");
+  const liveNameRef = useRef("");
+  const reconnectTimer = useRef<number | null>(null);
   const device = useMemo(localDevice, []);
-  useEffect(() => () => { peerRef.current?.destroy(); }, []);
+  useEffect(() => () => { if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current); peerRef.current?.destroy(); }, []);
 
   // --- the student's own project doc (source of truth), backed by D1 ---
   const docRef = useRef<Y.Doc | null>(null);
@@ -401,19 +404,40 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     // eslint-disable-next-line
   }, []);
 
+  // Connect to the teacher's live session — and keep quietly retrying if they
+  // haven't opened the class yet (or they close it). Failed attempts are just a
+  // tiny signaling check ("peer-unavailable"); no relay bandwidth is used until
+  // a real connection exists, so a slow retry loop is essentially free.
   async function connectToTeacher(roomCode: string, studentName: string) {
+    liveRoomRef.current = roomCode; liveNameRef.current = studentName;
     try {
       peerRef.current?.destroy();
       const peer = new Peer(await peerOptions()); peerRef.current = peer;
-      peer.on("open", () => {
-        const connection = peer.connect(hostId(roomCode)); connectionRef.current = connection;
-        connection.on("open", () => { setLive(true); connection.send({ type: "join", name: studentName, deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage); });
-        connection.on("data", (data) => receive(data as WireMessage));
-        connection.on("close", () => { setLive(false); setStatus("Teacher disconnected — your work is still saved."); });
-        connection.on("error", () => { setLive(false); });
-      });
-      peer.on("error", () => { setLive(false); });
-    } catch { setLive(false); }
+      peer.on("open", () => attemptConnect());
+      peer.on("error", () => { setLive(false); scheduleReconnect(); }); // e.g. teacher not hosting yet
+      peer.on("disconnected", () => { try { peer.reconnect(); } catch { /* ignore */ } });
+    } catch { scheduleReconnect(); }
+  }
+  function attemptConnect() {
+    const peer = peerRef.current;
+    if (!peer || peer.destroyed || !peer.open) { scheduleReconnect(); return; }
+    if (connectionRef.current && connectionRef.current.open) return; // already live
+    const connection = peer.connect(hostId(liveRoomRef.current)); connectionRef.current = connection;
+    connection.on("open", () => {
+      if (reconnectTimer.current !== null) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
+      setLive(true); setStatus("Live with your teacher — they can see and help.");
+      connection.send({ type: "join", name: liveNameRef.current, deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage);
+    });
+    connection.on("data", (data) => receive(data as WireMessage));
+    connection.on("close", () => { setLive(false); setStatus("Teacher went offline — your work is saved. Will reconnect when they return."); scheduleReconnect(); });
+    connection.on("error", () => { setLive(false); scheduleReconnect(); });
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer.current !== null) return;
+    reconnectTimer.current = window.setTimeout(() => {
+      reconnectTimer.current = null;
+      if (!connectionRef.current || !connectionRef.current.open) attemptConnect();
+    }, 15000);
   }
 
   function receive(data: WireMessage) {
