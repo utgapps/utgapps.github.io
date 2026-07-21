@@ -224,7 +224,7 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
 
   return <main className="room-shell">
     <header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={onExit}>Exit</button></div></header>
-    <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
+    <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
       <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div><ProjectEditor project={selectedProject} onChange={updateProject} readOnly={false} /><div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
@@ -243,27 +243,43 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   const [className, setClassName] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
+  const findingTimerRef = useRef<number | null>(null);
   const device = useMemo(localDevice, []);
-  useEffect(() => () => peerRef.current?.destroy(), []);
+  function clearFindingTimer() {
+    if (findingTimerRef.current !== null) window.clearTimeout(findingTimerRef.current);
+    findingTimerRef.current = null;
+  }
+  function connectionProblem(message: string) {
+    clearFindingTimer();
+    peerRef.current?.destroy();
+    peerRef.current = null;
+    connectionRef.current = null;
+    setStep("join");
+    setStatus(message);
+  }
+  useEffect(() => () => { clearFindingTimer(); peerRef.current?.destroy(); }, []);
 
   function join() {
     if (code.length !== 4 || !name.trim()) { setStatus("Add your name and a four-character class code first."); return; }
     const assignment = classroomAssignment(code);
     if (!assignment || assignment.role !== "student") { setStatus("Use your student login code. The instructor login code cannot join a student project."); return; }
+    peerRef.current?.destroy();
+    clearFindingTimer();
     setStep("waiting"); setStatus("Finding your classroom...");
     const peer = new Peer(); peerRef.current = peer;
+    findingTimerRef.current = window.setTimeout(() => connectionProblem("We could not reach the open classroom. Keep the instructor page open in another tab or device, then try again."), 10000);
     peer.on("open", () => {
       const connection = peer.connect(hostId(assignment.roomCode)); connectionRef.current = connection;
-      connection.on("open", () => connection.send({ type: "join", name: name.trim(), deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage));
+      connection.on("open", () => { clearFindingTimer(); setStatus("Connected to your instructor. Waiting for approval..."); connection.send({ type: "join", name: name.trim(), deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage); });
       connection.on("data", (data) => receive(data as WireMessage));
-      connection.on("close", () => setStatus("Connection interrupted. Your latest project remains saved in this browser."));
-      connection.on("error", () => setStatus("This classroom is not open yet. Ask your instructor to open AI102 first."));
+      connection.on("close", () => connectionProblem("Connection interrupted. Keep the instructor classroom open, then try joining again."));
+      connection.on("error", () => connectionProblem("This classroom is not open yet. Ask your instructor to open AI102 first."));
     });
-    peer.on("error", (error) => setStatus(error.type === "peer-unavailable" ? "This classroom is not open yet. Ask your instructor to open AI102 first." : "We could not start your classroom connection. Refresh and try again."));
+    peer.on("error", (error) => connectionProblem(error.type === "peer-unavailable" ? "This classroom is not open yet. Ask your instructor to open AI102 first." : "We could not start your classroom connection. Refresh and try again."));
   }
   function receive(data: WireMessage) {
     if (data.type === "wait") setStatus(data.message);
-    if (data.type === "approved") { setProject(data.project); setClassName(data.className); setStep("room"); setStatus("Connected and saved locally."); }
+    if (data.type === "approved") { clearFindingTimer(); setProject(data.project); setClassName(data.className); setStep("room"); setStatus("Connected and saved locally."); }
     if (data.type === "project") setProject(data.project);
     if (data.type === "close") setStatus(data.message);
   }
