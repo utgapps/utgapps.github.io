@@ -44,6 +44,13 @@ function App() {
   useEffect(() => { getClasses().then(setClasses).catch(() => setMessage("Your browser could not open local class storage.")); }, []);
   useEffect(() => { persistentStorage(); }, []);
 
+  function persistClass(record: ClassRecord) {
+    saveClass(record)
+      .then(() => getClasses())
+      .then(setClasses)
+      .catch(() => setMessage("Your latest classroom changes could not be saved in this browser."));
+  }
+
   async function useClass(record: ClassRecord) {
     if (!classroomForRoomCode(record.code)) {
       setMessage("This class file does not match a classroom configured in the root class-code list.");
@@ -57,7 +64,7 @@ function App() {
   }
 
   if (mode === "instructor" && activeClass) {
-    return <InstructorRoom record={activeClass} onChange={useClass} onExit={() => setMode("home")} />;
+    return <InstructorRoom record={activeClass} onChange={persistClass} onExit={() => setMode("home")} />;
   }
   if (mode === "student") return <StudentJoin onExit={() => setMode("home")} />;
 
