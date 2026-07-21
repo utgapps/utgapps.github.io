@@ -1,26 +1,19 @@
 import type { ClassRecord, Project, Student } from "./types";
 import { starterFiles } from "./types";
 
-const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
 export function normalizeCode(value: string) {
   return value.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 4);
-}
-
-export function createCode() {
-  const random = crypto.getRandomValues(new Uint32Array(4));
-  return Array.from(random, (value) => alphabet[value % alphabet.length]).join("");
 }
 
 export function hostId(code: string) {
   return `utg-academy-kitsilano-class-v1-${normalizeCode(code).toLowerCase()}-host`;
 }
 
-export function makeClass(name: string, courseId: string): ClassRecord {
+export function makeClass(name: string, courseId: string, code: string): ClassRecord {
   return {
     schemaVersion: 1,
     id: crypto.randomUUID(),
-    code: createCode(),
+    code: normalizeCode(code),
     name,
     courseId,
     createdAt: new Date().toISOString(),

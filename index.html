@@ -171,6 +171,9 @@
           var id = card.getAttribute("data-tool-card");
           var show = tools === "all" || (Array.isArray(tools) && tools.indexOf(id) >= 0);
           card.style.display = show ? "" : "none";
+          if (id === "classroom" && entry.classroom) {
+            card.href = "./classroom/?classCode=" + encodeURIComponent(entry.code);
+          }
         });
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
       }

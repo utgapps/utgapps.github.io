@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import Peer, { DataConnection } from "peerjs";
-import { createCode, downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import { classroomAssignment } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
 
@@ -39,6 +40,11 @@ function App() {
   useEffect(() => { persistentStorage(); }, []);
 
   async function useClass(record: ClassRecord) {
+    if (!classroomAssignment(record.code)) {
+      setMessage(`The root class-code list does not currently assign ${record.code} to a classroom. Add its classroom assignment in class-codes.js first.`);
+      setMode("home");
+      return;
+    }
     await saveClass(record);
     setActiveClass(record);
     setClasses(await getClasses());
@@ -56,23 +62,26 @@ function App() {
     onInstructor={() => setMode("instructor")}
     onStudent={() => setMode("student")}
     onOpen={useClass}
-    onCreate={async (name, course) => useClass(makeClass(name, course))}
+    onCreate={async (name, course, code) => useClass(makeClass(name, course, code))}
     onImport={async (record) => useClass(record)}
   />;
 }
 
 function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onImport }: {
   classes: ClassRecord[]; message: string; onInstructor: () => void; onStudent: () => void;
-  onOpen: (record: ClassRecord) => void; onCreate: (name: string, course: string) => void; onImport: (record: ClassRecord) => void;
+  onOpen: (record: ClassRecord) => void; onCreate: (name: string, course: string, code: string) => void; onImport: (record: ClassRecord) => void;
 }) {
-  const [teacherPanel, setTeacherPanel] = useState(false);
-  const [name, setName] = useState("AI102 - Introduction to AI Integration");
-  const [course, setCourse] = useState("AI102");
-  const [code, setCode] = useState("");
+  const queryCode = normalizeCode(new URLSearchParams(window.location.search).get("classCode") || "");
+  const [teacherPanel, setTeacherPanel] = useState(Boolean(queryCode));
+  const [code, setCode] = useState(queryCode);
   const [notice, setNotice] = useState(message);
+  const assignment = classroomAssignment(code);
+  const name = assignment?.className || "";
+  const course = assignment?.courseId || "";
 
   async function openSaved() {
-    const record = await getClassByCode(normalizeCode(code));
+    if (!assignment) { setNotice("That code is not an active root classroom code. Add its course assignment in class-codes.js first."); return; }
+    const record = await getClassByCode(code);
     if (record) onOpen(record); else setNotice("This browser does not have that class file yet. Import its .classpack first.");
   }
   function importPack(event: ChangeEvent<HTMLInputElement>) {
@@ -82,7 +91,7 @@ function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onI
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result)) as ClassRecord;
-        if (parsed.schemaVersion !== 1 || !parsed.code || !parsed.projects) throw new Error();
+        if (parsed.schemaVersion !== 1 || !parsed.code || !parsed.projects || !classroomAssignment(parsed.code)) throw new Error();
         onImport({ ...parsed, id: crypto.randomUUID() });
       } catch { setNotice("That file is not a compatible UTG .classpack. Your current classes were not changed."); }
     };
@@ -109,8 +118,8 @@ function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onI
       <button className="icon-button" aria-label="Close" onClick={() => setTeacherPanel(false)}>x</button>
       <p className="eyebrow">Instructor workspace</p><h2>Open a curriculum classroom</h2>
       <div className="teacher-options">
-        <div><h3>Start a new class</h3><label>Class name<input value={name} onChange={(e) => setName(e.target.value)} /></label><label>Course code<input value={course} onChange={(e) => setCourse(e.target.value.toUpperCase())} /></label><button className="primary" onClick={() => onCreate(name, course)}>Create classroom</button></div>
-        <div><h3>Open a saved class</h3><label>Class code<input value={code} maxLength={4} placeholder="K7F3" onChange={(e) => setCode(normalizeCode(e.target.value))} /></label><button className="secondary" onClick={openSaved}>Open this class</button><p className="small">Available here: {classes.length ? classes.map((item) => item.code).join(", ") : "none yet"}</p></div>
+        <div><h3>Start a new class</h3><label>Root class code<input value={code} maxLength={4} placeholder="ASDF" onChange={(e) => setCode(normalizeCode(e.target.value))} /></label>{assignment ? <><label>Assigned course<input value={course} readOnly /></label><label>Class name<input value={name} readOnly /></label><button className="primary" onClick={() => onCreate(name, course, code)}>Create classroom</button></> : <p className="small">Choose an active code that has a classroom assignment in the root class-code list.</p>}</div>
+        <div><h3>Open a saved class</h3><label>Root class code<input value={code} maxLength={4} placeholder="ASDF" onChange={(e) => setCode(normalizeCode(e.target.value))} /></label><button className="secondary" onClick={openSaved}>Open this class</button><p className="small">Available here: {classes.length ? classes.map((item) => item.code).join(", ") : "none yet"}</p></div>
         <div><h3>Import a class file</h3><p>Use a .classpack exported by another UTG instructor. Imported classes remain local until you open them.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label></div>
       </div>
       {notice && <p className="notice warning">{notice}</p>}
@@ -233,6 +242,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
 
   function join() {
     if (code.length !== 4 || !name.trim()) { setStatus("Add your name and a four-character class code first."); return; }
+    if (!classroomAssignment(code)) { setStatus("That is not an active UTG classroom code. Ask your teacher for today's class code."); return; }
     setStep("waiting"); setStatus("Finding your classroom...");
     const peer = new Peer(); peerRef.current = peer;
     peer.on("open", () => {
