@@ -67,7 +67,7 @@ window.UTG_CLASSROOMS = [
 
    STUN is always tried first; the relay is only used when a direct/STUN path
    fails. Leave both empty to use PeerJS's built-in defaults (often blocked). */
-window.UTG_TURN_URL = ""; // e.g. "https://utg-turn.YOURNAME.workers.dev"
+window.UTG_TURN_URL = "https://utg-turn.utgapps.workers.dev";
 window.UTG_TURN = [
   // { urls: "stun:stun.relay.metered.ca:80" },
   // { urls: "turn:global.relay.metered.ca:80",  username: "PASTE", credential: "PASTE" },
