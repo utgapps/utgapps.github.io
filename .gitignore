@@ -12,3 +12,4 @@ __pycache__/
 classroom-app/node_modules/
 classroom-app/*.tsbuildinfo
 classroom-worker/.dev.vars
+.wrangler/
