@@ -7,3 +7,7 @@
 # Python
 __pycache__/
 *.pyc
+
+# Classroom development output
+classroom-app/node_modules/
+classroom-app/*.tsbuildinfo

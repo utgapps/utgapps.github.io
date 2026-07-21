@@ -1,0 +1,9 @@
+{
+  "name": "UTG Classroom",
+  "short_name": "UTG Classroom",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#087ea4",
+  "description": "UTG Academy's browser coding classroom."
+}
