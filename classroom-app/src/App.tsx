@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import Peer, { DataConnection } from "peerjs";
 import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
-import { classroomAssignment, classroomForRoomCode } from "./lib/rootCodes";
+import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
 
@@ -168,7 +168,7 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   function openRoom() {
     if (peerRef.current) return;
     setStatus("Opening your classroom connection...");
-    const peer = new Peer(hostId(room.code));
+    const peer = new Peer(hostId(room.code), peerOptions());
     peerRef.current = peer;
     peer.on("open", () => { setIsOpen(true); setStatus("Class is open. Students may now use their student login code."); });
     peer.on("error", () => { setStatus("This class code is already being hosted. Check the other instructor device, then try again."); peer.destroy(); peerRef.current = null; });
@@ -273,8 +273,8 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     peerRef.current?.destroy();
     clearFindingTimer();
     setStep("waiting"); setStatus("Finding your classroom...");
-    const peer = new Peer(); peerRef.current = peer;
-    findingTimerRef.current = window.setTimeout(() => connectionProblem("We could not reach the open classroom. Keep the instructor page open in another tab or device, then try again."), 10000);
+    const peer = new Peer(peerOptions()); peerRef.current = peer;
+    findingTimerRef.current = window.setTimeout(() => connectionProblem("We found your class but could not open a live link to your teacher. This is usually a school or home network blocking connections. Ask your teacher (they may need to turn on the classroom relay), or try a different network."), 20000);
     peer.on("open", () => {
       const connection = peer.connect(hostId(assignment.roomCode)); connectionRef.current = connection;
       connection.on("open", () => { clearFindingTimer(); setStatus("Connected to your instructor. Waiting for approval..."); connection.send({ type: "join", name: name.trim(), deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage); });

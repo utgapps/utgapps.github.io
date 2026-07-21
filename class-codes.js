@@ -44,6 +44,29 @@ window.UTG_CLASSROOMS = [
   }
 ];
 
+/* ------------------------------------------------------------------
+   CLASSROOM RELAY (TURN)  —  needed for the live classroom to work on
+   locked-down school / home Wi-Fi.
+
+   The classroom connects the teacher and each student directly, browser
+   to browser (WebRTC). Many school and home networks block that unless
+   the traffic can bounce through a "TURN relay" server on port 443.
+   Without one, a student sees "we found your class but could not open a
+   live link to your teacher" even though the class shows as open.
+
+   Free option (~5 min, no card): make an account at metered.ca, open
+   Metered TURN, copy the "ICE Servers" array it gives you, and paste the
+   entries below (they include a username + credential). Then it just works.
+
+   Leave this empty [] to use PeerJS's built-in defaults (often blocked). */
+window.UTG_TURN = [
+  // { urls: "stun:stun.relay.metered.ca:80" },
+  // { urls: "turn:global.relay.metered.ca:80",  username: "PASTE", credential: "PASTE" },
+  // { urls: "turn:global.relay.metered.ca:443", username: "PASTE", credential: "PASTE" },
+  // { urls: "turn:global.relay.metered.ca:443?transport=tcp", username: "PASTE", credential: "PASTE" },
+  // { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "PASTE", credential: "PASTE" }
+];
+
 window.CLASS_CODES = [
   { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
   { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator", "digital-art", "modeling"], print: false, play: [] },
