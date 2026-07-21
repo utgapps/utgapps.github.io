@@ -50,6 +50,13 @@
     }
     .gate-btn:hover { background:var(--brand-dark); }
     .gate-msg { min-height:20px; margin:14px 0 0; font-size:14px; font-weight:600; color:#e23b4e; }
+    .gate-or { display:flex; align-items:center; gap:12px; margin:22px 0 16px; color:var(--muted); font-size:13px; }
+    .gate-or::before, .gate-or::after { content:""; flex:1; height:1px; background:var(--border); }
+    .acct-input { font-family:"Rubik",system-ui,sans-serif; font-size:15px; width:100%; margin-bottom:10px;
+      padding:12px 14px; border:2px solid var(--border); border-radius:12px; color:var(--ink); background:var(--surface); }
+    .acct-input:focus { outline:none; border-color:var(--brand); box-shadow:0 0 0 4px rgba(1,174,253,.15); }
+    .gate-btn.ghost { background:var(--surface); color:var(--brand-ink); border:2px solid var(--border); margin-top:4px; }
+    .gate-btn.ghost:hover { background:var(--brand-tint); border-color:var(--brand); }
     .gate-hint { color:var(--muted); font-size:13px; margin:18px 0 0; }
     .shake { animation:shake .35s; }
     @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
@@ -95,7 +102,15 @@
              aria-label="Class code" />
       <button id="codeGo" class="gate-btn">Enter →</button>
       <p id="codeMsg" class="gate-msg"></p>
-      <p class="gate-hint">Ask your teacher for today's code.</p>
+
+      <div class="gate-or"><span>or sign in to your account</span></div>
+      <input id="uname" class="acct-input" placeholder="Username" autocomplete="username"
+             autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Username" />
+      <input id="pword" class="acct-input" type="password" placeholder="Password"
+             autocomplete="current-password" aria-label="Password" />
+      <button id="acctGo" class="gate-btn ghost">Sign in →</button>
+      <p id="acctMsg" class="gate-msg"></p>
+      <p class="gate-hint">Ask your teacher for a class code, or for your account.</p>
     </div>
   </div>
 
@@ -203,7 +218,26 @@
       });
       $("codeInput").addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
       $("codeGo").addEventListener("click", submit);
-      $("lockBtn").addEventListener("click", function () { localStorage.removeItem(KEY); showGate(""); });
+      $("lockBtn").addEventListener("click", function () { localStorage.removeItem(KEY); localStorage.removeItem("utg_account"); localStorage.removeItem("utg_admin_token"); showGate(""); });
+
+      // ---- username / password sign-in (permanent accounts) ----
+      var API = window.UTG_API_URL || "https://utg-classroom-api.utgapps.workers.dev";
+      function accountLogin() {
+        var u = ($("uname").value || "").trim(), p = $("pword").value || "";
+        if (!u || !p) { $("acctMsg").textContent = "Enter your username and password."; return; }
+        $("acctMsg").style.color = "#6b7787"; $("acctMsg").textContent = "Signing in…";
+        fetch(API + "/login/account", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify({ username: u, password: p }) })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.d.token) { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = (res.d && res.d.error) || "Wrong username or password."; return; }
+            if (res.d.account.role === "admin") { localStorage.setItem("utg_admin_token", res.d.token); location.href = "./classroom/?admin"; }
+            else { localStorage.setItem("utg_account", JSON.stringify({ token: res.d.token, account: res.d.account })); location.href = "./classroom/"; }
+          })
+          .catch(function () { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = "Could not reach the sign-in server."; });
+      }
+      $("acctGo").addEventListener("click", accountLogin);
+      $("pword").addEventListener("keydown", function (e) { if (e.key === "Enter") accountLogin(); });
+      $("uname").addEventListener("keydown", function (e) { if (e.key === "Enter") $("pword").focus(); });
 
       // already signed in (and the code is still active)?
       var saved = localStorage.getItem(KEY);

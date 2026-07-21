@@ -47,6 +47,10 @@ function App() {
   useEffect(() => {
     const loginCode = normalizeCode(new URLSearchParams(window.location.search).get("loginCode") || "");
     if (classroomAssignment(loginCode)?.role === "student") setMode("student");
+    try {
+      const acct = JSON.parse(localStorage.getItem("utg_account") || "null");
+      if (acct && acct.token && acct.account && acct.account.role !== "admin") setMode("student");
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => { getClasses().then(setClasses).catch(() => setMessage("Your browser could not open local class storage.")); }, []);
@@ -347,19 +351,26 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     const assignment = classroomAssignment(code);
     if (!assignment || assignment.role !== "student") { setStatus("Use your student login code. The instructor login code cannot join a student project."); return; }
     setStep("waiting"); setStatus("Signing in…");
-    // 1) sign in + load any saved work (offline-tolerant)
-    let startFiles: Record<string, string> = starterFiles();
     try {
       const { token } = await apiLoginGuest(assignment.id, name.trim());
-      apiTokenRef.current = token;
-      const saved = await apiGetProject(token);
+      await openSession(token, name.trim(), assignment.className || "", assignment.roomCode);
+    } catch (e) { setStep("join"); setStatus((e as Error).message || "Could not sign in. Try again."); }
+  }
+
+  // Open the editor for a signed-in session (guest OR a real account from the root login).
+  async function openSession(token: string, displayName: string, cls: string, roomCode: string) {
+    setStep("waiting"); setStatus("Opening your project…");
+    let startFiles: Record<string, string> = starterFiles();
+    let loaded = false;
+    try {
+      const saved = await apiGetProject(token); loaded = true;
       if (saved && saved.files && Object.keys(saved.files).length) { startFiles = saved.files; titleRef.current = saved.title || titleRef.current; }
-    } catch { apiTokenRef.current = null; }
-    // 2) build MY doc (I'm the source of truth for my project)
+    } catch { loaded = false; }
+    apiTokenRef.current = loaded ? token : null; // only autosave once we know the saved state (never clobber on a failed load)
     const doc = new Y.Doc();
     seedDoc(doc, startFiles);
     const awareness = new Awareness(doc);
-    awareness.setLocalStateField("user", { name: name.trim() || "Student", color: userColor(device.id) });
+    awareness.setLocalStateField("user", { name: displayName || "Student", color: userColor(device.id) });
     doc.on("update", (u: Uint8Array, origin: unknown) => {
       if (origin !== "remote") sendConn({ type: "ydoc", projectId: projectIdRef.current, u: b64encode(u) });
       scheduleDerive(); scheduleSave();
@@ -368,11 +379,24 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
       sendConn({ type: "awareness", projectId: projectIdRef.current, u: b64encode(encodeAwarenessUpdate(awareness, added.concat(updated, removed))) });
     });
     docRef.current = doc; awarenessRef.current = awareness;
-    setFiles(docToFiles(doc)); setTitle(titleRef.current); setClassName(assignment.className || "");
+    setFiles(docToFiles(doc)); setTitle(titleRef.current); setClassName(cls);
     setStep("room"); setStatus(apiTokenRef.current ? "Your work is saved to your account." : "Working on this device.");
-    // 3) best-effort: connect to the teacher for live help (never blocks editing)
-    connectToTeacher(assignment.roomCode, name.trim());
+    if (roomCode) connectToTeacher(roomCode, displayName);
   }
+
+  // Auto sign-in from an account stored by the root login page.
+  useEffect(() => {
+    const raw = localStorage.getItem("utg_account");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { token?: string; account?: { name?: string; classId?: string; role?: string } };
+      if (!parsed.token || !parsed.account || parsed.account.role === "admin") return;
+      const c = (window.UTG_CLASSROOMS || []).find((x) => x.id === parsed.account!.classId);
+      setName(parsed.account.name || "");
+      openSession(parsed.token, parsed.account.name || "Student", c ? c.className : "", c ? c.roomCode : "");
+    } catch { /* ignore */ }
+    // eslint-disable-next-line
+  }, []);
 
   async function connectToTeacher(roomCode: string, studentName: string) {
     try {
@@ -404,7 +428,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   }
 
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}>UTG Academy</a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>Enter your class code and your name. Your work is saved to your account so you can come back to it any time — even outside class.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Class code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>New name → a new guest project. Ask your teacher to make it a permanent account so it is kept.</small></section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} /></section></main>;
+  return <main className="student-shell"><header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} /></section></main>;
 }
 
 function CollabWorkspace({ doc, awareness, files, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; readOnly?: boolean }) {
