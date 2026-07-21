@@ -6,9 +6,9 @@ import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./l
 import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiGetProject, apiSaveProject, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiMedia } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiAccount, type ApiMedia } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
-import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
+import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { starterFiles } from "./lib/types";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
@@ -23,6 +23,17 @@ type WireMessage =
   | { type: "close"; message: string };
 
 const deviceKey = "utg-classroom-device-v1";
+const accountKey = "utg_account";
+
+type StoredAccount = { token: string; account: ApiAccount };
+
+function savedAccount(): StoredAccount | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(accountKey) || "null") as StoredAccount | null;
+    return parsed && parsed.token && parsed.account ? parsed : null;
+  } catch { return null; }
+}
+function saveAccount(value: StoredAccount) { localStorage.setItem(accountKey, JSON.stringify(value)); }
 
 function localDevice() {
   const saved = localStorage.getItem(deviceKey);
@@ -44,71 +55,80 @@ function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);
   const [message, setMessage] = useState("");
+  const classSaveTimers = useRef(new Map<string, number>());
 
   useEffect(() => {
-    const loginCode = normalizeCode(new URLSearchParams(window.location.search).get("loginCode") || "");
-    if (classroomAssignment(loginCode)?.role === "student") setMode("student");
-    try {
-      const acct = JSON.parse(localStorage.getItem("utg_account") || "null");
-      if (acct && acct.token && acct.account && acct.account.role !== "admin") setMode("student");
-    } catch { /* ignore */ }
+    const account = savedAccount();
+    if (account?.account.role === "student") setMode("student");
   }, []);
 
   useEffect(() => { getClasses().then(setClasses).catch(() => setMessage("Your browser could not open local class storage.")); }, []);
   useEffect(() => { persistentStorage(); }, []);
 
   function persistClass(record: ClassRecord) {
-    saveClass(record)
-      .then(() => getClasses())
-      .then(setClasses)
+    saveClass(record).then(() => getClasses()).then(setClasses)
       .catch(() => setMessage("Your latest classroom changes could not be saved in this browser."));
+    const account = savedAccount();
+    const classId = record.classId || record.courseId.toLowerCase();
+    if (!account || !(account.account.role === "admin" || (account.account.role === "instructor" && account.account.classId === classId))) return;
+    const prior = classSaveTimers.current.get(classId);
+    if (prior) window.clearTimeout(prior);
+    classSaveTimers.current.set(classId, window.setTimeout(() => {
+      classSaveTimers.current.delete(classId);
+      apiSaveClassroom(account.token, classId, record).catch(() => setMessage("Your classroom changes could not be saved to the shared classroom."));
+    }, 700));
   }
 
-  async function useClass(record: ClassRecord) {
-    if (!classroomForRoomCode(record.code)) {
-      setMessage("This class file does not match a classroom configured in the root class-code list.");
+  async function useClass(record: ClassRecord, account: StoredAccount) {
+    const classId = record.classId || record.courseId.toLowerCase();
+    const course = classroomForId(classId);
+    if (!course || !(account.account.role === "admin" || (account.account.role === "instructor" && account.account.classId === classId))) {
+      setMessage("This account cannot open that classroom.");
       setMode("home");
       return;
     }
-    await saveClass(record);
-    setActiveClass(record);
+    const shared = await apiGetClassroom(account.token, classId);
+    const opened = shared && shared.record && typeof shared.record === "object" ? shared.record as ClassRecord : { ...record, classId };
+    await saveClass(opened);
+    setActiveClass(opened);
     setClasses(await getClasses());
     setMode("instructor");
   }
 
   if (new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
   if (mode === "instructor" && activeClass) {
-    return <InstructorRoom record={activeClass} onChange={persistClass} onExit={() => setMode("home")} />;
+    const account = savedAccount();
+    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} />;
+    return <InstructorRoom record={activeClass} token={account.token} onChange={persistClass} onExit={() => setMode("home")} />;
   }
   if (mode === "student") return <StudentJoin onExit={() => setMode("home")} />;
 
   return <Home
     classes={classes}
     message={message}
-    onInstructor={() => setMode("instructor")}
     onStudent={() => setMode("student")}
     onOpen={useClass}
-    onCreate={async (name, course, roomCode) => useClass(makeClass(name, course, roomCode))}
-    onImport={async (record) => useClass(record)}
+    onImport={useClass}
   />;
 }
 
-function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onImport }: {
-  classes: ClassRecord[]; message: string; onInstructor: () => void; onStudent: () => void;
-  onOpen: (record: ClassRecord) => void; onCreate: (name: string, course: string, roomCode: string) => void; onImport: (record: ClassRecord) => void;
+function Home({ classes, message, onStudent, onOpen, onImport }: {
+  classes: ClassRecord[]; message: string; onStudent: () => void;
+  onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
 }) {
-  const queryCode = normalizeCode(new URLSearchParams(window.location.search).get("loginCode") || "");
-  const [teacherPanel, setTeacherPanel] = useState(Boolean(queryCode));
-  const [code, setCode] = useState(queryCode);
+  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor"));
+  const [code, setCode] = useState("");
   const [notice, setNotice] = useState(message);
-  const assignment = classroomAssignment(code);
-  const name = assignment?.className || "";
-  const course = assignment?.courseId || "";
 
-  async function openSaved() {
-    if (!assignment || assignment.role !== "instructor") { setNotice("Use the instructor login code to open this classroom."); return; }
-    const record = await getClassByCode(assignment.roomCode);
-    if (record) onOpen(record); else setNotice("This browser does not have that class file yet. Import its .classpack first.");
+  async function openInstructor() {
+    try {
+      const session = await apiLoginInstructor(code);
+      saveAccount(session);
+      const course = classroomForId(session.account.classId);
+      if (!course) throw new Error("This instructor code is not linked to a configured curriculum classroom.");
+      const local = classes.find((item) => (item.classId || item.courseId.toLowerCase()) === course.id);
+      await onOpen(local || makeClass(course.className, course.courseId, course.id), session);
+    } catch (error) { setNotice((error as Error).message || "Could not open the classroom."); }
   }
   function importPack(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -117,8 +137,10 @@ function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onI
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result)) as ClassRecord;
-        if (parsed.schemaVersion !== 1 || !parsed.code || !parsed.projects || !classroomForRoomCode(parsed.code)) throw new Error();
-        onImport({ ...parsed, id: crypto.randomUUID() });
+        const account = savedAccount();
+        const classId = parsed.classId || parsed.courseId.toLowerCase();
+        if (!account || parsed.schemaVersion !== 1 || !parsed.projects || !classroomForId(classId)) throw new Error();
+        onImport({ ...parsed, id: crypto.randomUUID(), classId }, account);
       } catch { setNotice("That file is not a compatible UTG .classpack. Your current classes were not changed."); }
     };
     reader.readAsText(file);
@@ -132,11 +154,11 @@ function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onI
       <p>One classroom code connects a teacher and their students. Each student has a separate project, saved on their device and synchronized when class is open.</p>
       <div className="choice-row">
         <button className="primary" onClick={onStudent}>Join a class</button>
-        <button className="secondary" onClick={() => { setTeacherPanel(true); onInstructor(); }}>Instructor access</button>
+        <button className="secondary" onClick={() => setTeacherPanel(true)}>Instructor access</button>
       </div>
     </section>
     <section className="home-grid">
-      <article className="feature"><strong>1</strong><h2>Permanent class code</h2><p>Students use the same four-character code each week. The code finds the room; teacher approval controls entry.</p></article>
+      <article className="feature"><strong>1</strong><h2>Private class code</h2><p>Students use a private code issued by their Classroom admin. The code finds the class; teacher approval controls live entry.</p></article>
       <article className="feature"><strong>2</strong><h2>Individual projects</h2><p>Students cannot browse each other's code. Teachers can open any project to help in real time.</p></article>
       <article className="feature"><strong>3</strong><h2>Portable class file</h2><p>Export one class file with your roster, projects, checkpoints, and private notes for a safe handoff.</p></article>
     </section>
@@ -144,16 +166,15 @@ function Home({ classes, message, onInstructor, onStudent, onOpen, onCreate, onI
       <button className="icon-button" aria-label="Close" onClick={() => setTeacherPanel(false)}>x</button>
       <p className="eyebrow">Instructor workspace</p><h2>Open a curriculum classroom</h2>
       <div className="teacher-options">
-        <div><h3>Open AI102 as instructor</h3><label>Instructor login code<input value={code} maxLength={4} placeholder="ACKV" onChange={(e) => setCode(normalizeCode(e.target.value))} /></label>{assignment?.role === "instructor" ? <><label>Assigned course<input value={course} readOnly /></label><label>Class name<input value={name} readOnly /></label><button className="primary" onClick={() => onCreate(name, course, assignment.roomCode)}>Create classroom</button></> : <p className="small">Use the instructor login code assigned to this classroom.</p>}</div>
-        <div><h3>Open a saved class</h3><label>Instructor login code<input value={code} maxLength={4} placeholder="ACKV" onChange={(e) => setCode(normalizeCode(e.target.value))} /></label><button className="secondary" onClick={openSaved}>Open this class</button><p className="small">Available here: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
-        <div><h3>Import a class file</h3><p>Use a .classpack exported by another UTG instructor. Imported classes remain local until you open them.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label></div>
+        <div><h3>Open a curriculum classroom</h3><label>Instructor code<input value={code} maxLength={32} placeholder="Your private instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label><button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
+        <div><h3>Classroom backup</h3><p>Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
       </div>
       {notice && <p className="notice warning">{notice}</p>}
     </section></div>}
   </main>;
 }
 
-function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onChange: (record: ClassRecord) => void; onExit: () => void }) {
+function InstructorRoom({ record, token, onChange, onExit }: { record: ClassRecord; token: string; onChange: (record: ClassRecord) => void; onExit: () => void }) {
   const [room, setRoom] = useState(record);
   const [isOpen, setIsOpen] = useState(false);
   const [pending, setPending] = useState<PendingJoin[]>([]);
@@ -179,7 +200,8 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   const selectedEntry = selectedProject ? docs.current.get(selectedProject.id) : undefined;
   void docsTick;
   const onlineCount = room.students.filter((student) => student.status === "connected" || student.status === "syncing").length;
-  const courseInfo = classroomForRoomCode(room.code);
+  const classId = room.classId || room.courseId.toLowerCase();
+  const courseInfo = classroomForId(classId);
 
   function updateRoom(change: (current: ClassRecord) => ClassRecord) { setRoom((current) => change(current)); }
   function addStudent() {
@@ -190,16 +212,19 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   }
   async function openRoom() {
     if (peerRef.current) return;
-    setStatus("Opening your classroom connection...");
-    const peer = new Peer(hostId(room.code), await peerOptions());
-    peerRef.current = peer;
-    peer.on("open", () => { setIsOpen(true); setStatus("Class is open. Students may now use their student login code."); });
-    peer.on("error", () => { setStatus("This class code is already being hosted. Check the other instructor device, then try again."); peer.destroy(); peerRef.current = null; });
-    peer.on("connection", (connection) => {
-      connections.current.set(connection.peer, connection);
-      connection.on("data", (data) => receive(connection, data as WireMessage));
-      connection.on("close", () => markDisconnected(connection.peer));
-    });
+    try {
+      setStatus("Opening your classroom connection...");
+      const liveRoom = await apiOpenLiveRoom(token, classId);
+      const peer = new Peer(liveRoom.peerId, await peerOptions(token));
+      peerRef.current = peer;
+      peer.on("open", () => { setIsOpen(true); setStatus("Class is open. Students may now use their private student code."); });
+      peer.on("error", () => { setStatus("The live classroom could not start. Try opening it again."); peer.destroy(); peerRef.current = null; });
+      peer.on("connection", (connection) => {
+        connections.current.set(connection.peer, connection);
+        connection.on("data", (data) => receive(connection, data as WireMessage));
+        connection.on("close", () => markDisconnected(connection.peer));
+      });
+    } catch (error) { setStatus((error as Error).message || "The live classroom could not start."); }
   }
   function markDisconnected(peerId: string) {
     connections.current.delete(peerId);
@@ -246,9 +271,10 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   }
   function receive(connection: DataConnection, data: WireMessage) {
     if (data.type === "join") {
-      const recognized = room.devices.find((device) => device.id === data.deviceId && !device.revoked);
+      const currentRoom = roomRef.current;
+      const recognized = currentRoom.devices.find((device) => device.id === data.deviceId && !device.revoked);
       if (recognized) approve({ connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }, recognized.studentId, connection);
-      else if (room.admissionsOpen) { setPending((items) => [...items.filter((item) => item.connectionId !== connection.peer), { connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }]); connection.send({ type: "wait", message: "Your teacher needs to approve this device." } satisfies WireMessage); }
+      else if (currentRoom.admissionsOpen) { setPending((items) => [...items.filter((item) => item.connectionId !== connection.peer), { connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }]); connection.send({ type: "wait", message: "Your teacher needs to approve this device." } satisfies WireMessage); }
       else connection.send({ type: "wait", message: "Admissions are closed. Ask your teacher to open admissions." } satisfies WireMessage);
     }
     if (data.type === "ydoc" || data.type === "awareness") {
@@ -263,8 +289,8 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   }
   function approve(join: PendingJoin, existingStudentId?: string, connection?: DataConnection) {
     let target = connection || connections.current.get(join.connectionId);
-    let nextRoom = room;
-    let student = existingStudentId ? room.students.find((item) => item.id === existingStudentId) : room.students.find((item) => item.name.toLowerCase() === join.studentName.toLowerCase());
+    let nextRoom = roomRef.current;
+    let student = existingStudentId ? nextRoom.students.find((item) => item.id === existingStudentId) : nextRoom.students.find((item) => item.name.toLowerCase() === join.studentName.toLowerCase());
     if (!student) {
       const made = makeStudent(join.studentName);
       student = made.student;
@@ -290,10 +316,11 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     downloadFile(`${room.code.toLowerCase()}-${room.courseId.toLowerCase()}.classpack`, JSON.stringify(room, null, 2));
     setStatus("Classpack exported. It includes student projects and private class records; transfer it securely.");
   }
-  function closeRoom() {
+  async function closeRoom() {
     connections.current.forEach((connection) => connection.send({ type: "close", message: "Class has ended. Your project is saved on this device." } satisfies WireMessage));
     peerRef.current?.destroy(); peerRef.current = null; connections.current.clear(); setIsOpen(false); setStatus("Class closed. Export a classpack before handing the class to another instructor.");
     updateRoom((current) => ({ ...current, students: current.students.map((student) => ({ ...student, status: "offline" })) }));
+    try { await apiCloseLiveRoom(token, classId); } catch { /* the live room expires automatically */ }
   }
 
   return <main className="room-shell">
@@ -302,7 +329,7 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
       <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry && fileNames(selectedEntry.doc).length > 0 ? <CollabWorkspace doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} /> : <div className="offline-view"><p className="empty">{selectedEntry ? "Connected — loading this student's code…" : "This student is offline. Their last saved work is shown here; live co-editing resumes when they open their project."}</p><iframe title="Last saved preview" sandbox="allow-scripts" srcDoc={buildPreview(selectedProject.files)} /></div>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
-      <aside className="details"><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>{courseInfo?.instructorCode || "Managed centrally"}</dd><dt>Student login</dt><dd>{courseInfo?.studentCode || "Managed centrally"}</dd><dt>Room address</dt><dd className="small-code">Managed by the class-code system</dd><dt>Local class file</dt><dd>Saved in this browser</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. Export a classpack at the end of class or before changing instructor devices.</p></div></aside>
+      <aside className="details"><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>Private instructor code</dd><dt>Student login</dt><dd>Private student code</dd><dt>Room address</dt><dd className="small-code">Fresh and private for each live class</dd><dt>Class record</dt><dd>Saved to the shared classroom</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. The shared class record is also available to authorized instructor devices.</p></div></aside>
     </div>
     <footer className="room-footer">{status}</footer>
   </main>;
@@ -310,13 +337,14 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
 
 function StudentJoin({ onExit }: { onExit: () => void }) {
   const [step, setStep] = useState<"join" | "waiting" | "room">("join");
-  const [code, setCode] = useState(() => normalizeCode(new URLSearchParams(window.location.search).get("loginCode") || ""));
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
-  const [status, setStatus] = useState("Enter your teacher's permanent four-character class code.");
+  const [status, setStatus] = useState("Enter the private student code from your teacher.");
   const [className, setClassName] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
-  const liveRoomRef = useRef("");
+  const liveClassIdRef = useRef("");
+  const liveTokenRef = useRef("");
   const liveNameRef = useRef("");
   const reconnectTimer = useRef<number | null>(null);
   const device = useMemo(localDevice, []);
@@ -352,18 +380,19 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   useEffect(() => () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); awarenessRef.current?.destroy(); docRef.current?.destroy(); }, []);
 
   async function join() {
-    if (code.length !== 4 || !name.trim()) { setStatus("Add your name and a four-character class code first."); return; }
-    const assignment = classroomAssignment(code);
-    if (!assignment || assignment.role !== "student") { setStatus("Use your student login code. The instructor login code cannot join a student project."); return; }
+    if (!code.trim() || !name.trim()) { setStatus("Add your name and student class code first."); return; }
     setStep("waiting"); setStatus("Signing in…");
     try {
-      const { token } = await apiLoginGuest(assignment.id, name.trim());
-      await openSession(token, name.trim(), assignment.className || "", assignment.roomCode);
+      const session = await apiLoginGuest(code, name.trim());
+      saveAccount(session);
+      const course = classroomForId(session.account.classId);
+      if (!course) throw new Error("This student code is not linked to a configured curriculum classroom.");
+      await openSession(session.token, session.account.name, course.className, session.account.classId);
     } catch (e) { setStep("join"); setStatus((e as Error).message || "Could not sign in. Try again."); }
   }
 
   // Open the editor for a signed-in session (guest OR a real account from the root login).
-  async function openSession(token: string, displayName: string, cls: string, roomCode: string) {
+  async function openSession(token: string, displayName: string, cls: string, classId: string) {
     setStep("waiting"); setStatus("Opening your project…");
     let startFiles: Record<string, string> = starterFiles();
     let loaded = false;
@@ -387,7 +416,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     docRef.current = doc; awarenessRef.current = awareness;
     setFiles(docToFiles(doc)); setTitle(titleRef.current); setClassName(cls);
     setStep("room"); setStatus(apiTokenRef.current ? "Your work is saved to your account." : "Working on this device.");
-    if (roomCode) connectToTeacher(roomCode, displayName);
+    if (classId) connectToTeacher(classId, token, displayName);
   }
 
   // Auto sign-in from an account stored by the root login page.
@@ -397,9 +426,10 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     try {
       const parsed = JSON.parse(raw) as { token?: string; account?: { name?: string; classId?: string; role?: string } };
       if (!parsed.token || !parsed.account || parsed.account.role === "admin") return;
-      const c = (window.UTG_CLASSROOMS || []).find((x) => x.id === parsed.account!.classId);
-      setName(parsed.account.name || "");
-      openSession(parsed.token, parsed.account.name || "Student", c ? c.className : "", c ? c.roomCode : "");
+       if (parsed.account.role !== "student") return;
+       const c = classroomForId(parsed.account.classId || "");
+       setName(parsed.account.name || "");
+       if (c) openSession(parsed.token, parsed.account.name || "Student", c.className, c.id);
     } catch { /* ignore */ }
     // eslint-disable-next-line
   }, []);
@@ -408,21 +438,29 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   // haven't opened the class yet (or they close it). Failed attempts are just a
   // tiny signaling check ("peer-unavailable"); no relay bandwidth is used until
   // a real connection exists, so a slow retry loop is essentially free.
-  async function connectToTeacher(roomCode: string, studentName: string) {
-    liveRoomRef.current = roomCode; liveNameRef.current = studentName;
-    try {
-      peerRef.current?.destroy();
-      const peer = new Peer(await peerOptions()); peerRef.current = peer;
-      peer.on("open", () => attemptConnect());
-      peer.on("error", () => { setLive(false); scheduleReconnect(); }); // e.g. teacher not hosting yet
-      peer.on("disconnected", () => { try { peer.reconnect(); } catch { /* ignore */ } });
-    } catch { scheduleReconnect(); }
+  async function connectToTeacher(classId: string, token: string, studentName: string) {
+    liveClassIdRef.current = classId; liveTokenRef.current = token; liveNameRef.current = studentName;
+    await attemptConnect();
   }
-  function attemptConnect() {
+  async function attemptConnect() {
+    let room;
+    try { room = await apiGetLiveRoom(liveTokenRef.current, liveClassIdRef.current); }
+    catch { scheduleReconnect(); return; }
+    if (!room) { setLive(false); setStatus("Your classroom is not open yet. Your project is still saved."); scheduleReconnect(); return; }
     const peer = peerRef.current;
-    if (!peer || peer.destroyed || !peer.open) { scheduleReconnect(); return; }
+    if (!peer || peer.destroyed) {
+      try {
+        const created = new Peer(await peerOptions(liveTokenRef.current));
+        peerRef.current = created;
+        created.on("open", () => { void attemptConnect(); });
+        created.on("error", () => { setLive(false); scheduleReconnect(); });
+        created.on("disconnected", () => { try { created.reconnect(); } catch { /* reconnect on the next poll */ } });
+      } catch { scheduleReconnect(); }
+      return;
+    }
+    if (!peer.open) { scheduleReconnect(); return; }
     if (connectionRef.current && connectionRef.current.open) return; // already live
-    const connection = peer.connect(hostId(liveRoomRef.current)); connectionRef.current = connection;
+    const connection = peer.connect(room.peerId); connectionRef.current = connection;
     connection.on("open", () => {
       if (reconnectTimer.current !== null) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
       setLive(true); setStatus("Live with your teacher — they can see and help.");
@@ -436,7 +474,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     if (reconnectTimer.current !== null) return;
     reconnectTimer.current = window.setTimeout(() => {
       reconnectTimer.current = null;
-      if (!connectionRef.current || !connectionRef.current.open) attemptConnect();
+      if (!connectionRef.current || !connectionRef.current.open) void attemptConnect();
     }, 15000);
   }
 
@@ -454,7 +492,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     if (data.type === "close") setStatus(data.message);
   }
 
-  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>Enter your class code and your name. Your work is saved to your account so you can come back to it any time — even outside class.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Class code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>New name → a new guest project. Ask your teacher to make it a permanent account so it is kept.</small></section></main>;
+  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>Enter the private student code from your teacher. Your browser remembers this guest session so you can safely return to your own project.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label><button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
   return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 

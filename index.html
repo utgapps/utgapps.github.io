@@ -221,7 +221,8 @@
       $("lockBtn").addEventListener("click", function () { localStorage.removeItem(KEY); localStorage.removeItem("utg_account"); localStorage.removeItem("utg_admin_token"); showGate(""); });
 
       // ---- username / password sign-in (permanent accounts) ----
-      var API = window.UTG_API_URL || "https://utg-classroom-api.utgapps.workers.dev";
+       var isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+       var API = window.UTG_API_URL || (isLocal ? "http://127.0.0.1:8787" : "https://utg-classroom-api.utgapps.workers.dev");
       function accountLogin() {
         var u = ($("uname").value || "").trim(), p = $("pword").value || "";
         if (!u || !p) { $("acctMsg").textContent = "Enter your username and password."; return; }
@@ -230,8 +231,10 @@
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (res) {
             if (!res.ok || !res.d.token) { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = (res.d && res.d.error) || "Wrong username or password."; return; }
+            localStorage.setItem("utg_account", JSON.stringify({ token: res.d.token, account: res.d.account }));
             if (res.d.account.role === "admin") { localStorage.setItem("utg_admin_token", res.d.token); location.href = "./classroom/?admin"; }
-            else { localStorage.setItem("utg_account", JSON.stringify({ token: res.d.token, account: res.d.account })); location.href = "./classroom/"; }
+            else if (res.d.account.role === "instructor") { location.href = "./classroom/?instructor=1"; }
+            else { location.href = "./classroom/"; }
           })
           .catch(function () { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = "Could not reach the sign-in server."; });
       }

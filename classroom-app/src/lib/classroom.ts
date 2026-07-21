@@ -9,11 +9,12 @@ export function hostId(code: string) {
   return `utg-academy-kitsilano-class-v1-${normalizeCode(code).toLowerCase()}-host`;
 }
 
-export function makeClass(name: string, courseId: string, code: string): ClassRecord {
+export function makeClass(name: string, courseId: string, classId: string): ClassRecord {
   return {
     schemaVersion: 1,
     id: crypto.randomUUID(),
-    code: normalizeCode(code),
+    classId: classId.toLowerCase(),
+    code: normalizeCode(courseId),
     name,
     courseId,
     createdAt: new Date().toISOString(),

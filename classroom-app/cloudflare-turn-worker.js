@@ -34,18 +34,35 @@
    Cloudflare changes them, adjust the fetch URL / parsing below.)
    ============================================================ */
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",           // or lock to "https://utgapps.github.io"
+const ALLOWED_ORIGINS = new Set(["https://utgapps.github.io", "http://localhost:5173", "http://127.0.0.1:5173"]);
+
+function cors(request) {
+  const origin = request.headers.get("origin");
+  return origin && ALLOWED_ORIGINS.has(origin) ? {
+    "Access-Control-Allow-Origin": origin,
+    "Vary": "Origin",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "content-type",
-};
+    "Access-Control-Allow-Headers": "authorization",
+  } : {};
+}
 
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    const headers = cors(request);
+    if (request.method === "OPTIONS") return new Response(null, { headers });
+
+    const authorization = request.headers.get("authorization") || "";
+    const session = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    // A service binding keeps this authorization check private between Workers.
+    const verification = await env.CLASSROOM_API.fetch("https://classroom-api.internal/turn/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: session }),
+    });
+    if (!verification.ok) return json(request, { iceServers: [], error: "Sign in before opening a classroom connection." }, 401);
 
     if (!env.TURN_KEY_ID || !env.TURN_KEY_API_TOKEN) {
-      return json({ iceServers: [], error: "Worker is missing TURN_KEY_ID / TURN_KEY_API_TOKEN variables." }, 500);
+      return json(request, { iceServers: [], error: "TURN is not configured." }, 500);
     }
 
     try {
@@ -61,22 +78,21 @@ export default {
           body: JSON.stringify({ ttl }),
         }
       );
-      if (!res.ok) return json({ iceServers: [], error: `Cloudflare TURN error ${res.status}` }, 502);
+      if (!res.ok) return json(request, { iceServers: [], error: "TURN service is unavailable." }, 502);
 
       const data = await res.json();
       // Cloudflare returns { iceServers: { urls:[...], username, credential } }.
       // Wrap that single entry in an array (the shape the classroom expects).
       const ice = data && data.iceServers ? [data.iceServers] : [];
-      return json({ iceServers: ice }, 200);
+      return json(request, { iceServers: ice }, 200);
     } catch (e) {
-      return json({ iceServers: [], error: String(e) }, 502);
+      return json(request, { iceServers: [], error: "TURN service is unavailable." }, 502);
     }
   },
 };
 
-function json(body, status) {
+function json(request, body, status) {
   return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
+    status, headers: { ...cors(request), "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }

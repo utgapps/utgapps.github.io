@@ -34,6 +34,7 @@ export type Checkpoint = {
 export type ClassRecord = {
   schemaVersion: 1;
   id: string;
+  classId?: string;
   code: string;
   name: string;
   courseId: string;

@@ -1,0 +1,7 @@
+name = "utg-turn"
+main = "cloudflare-turn-worker.js"
+compatibility_date = "2026-07-21"
+
+[[services]]
+binding = "CLASSROOM_API"
+service = "utg-classroom-api"

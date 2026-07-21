@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, type ApiAccount } from "./lib/api";
+import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, type ApiAccount } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 
@@ -66,7 +66,8 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
   const [classId, setClassId] = useState("");
   const [msg, setMsg] = useState("");
-  const [nc, setNc] = useState({ classId: "ai102", name: "", username: "", password: "" });
+  const [nc, setNc] = useState({ classId: "ai102", name: "", username: "", password: "", role: "student" as "student" | "instructor" });
+  const [codes, setCodes] = useState({ classId: "ai102", studentCode: "", instructorCode: "" });
 
   async function refresh() {
     try { setAccounts(await apiAdminList(token, classId || undefined)); setMsg(""); }
@@ -85,6 +86,10 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   async function remove(a: ApiAccount) {
     if (!confirm(`Delete "${a.name}"${a.username ? ` (@${a.username})` : ""} and all their work? This cannot be undone.`)) return;
     try { await apiAdminDelete(token, a.id); refresh(); } catch (e) { setMsg((e as Error).message); }
+  }
+  async function saveCodes() {
+    try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); setMsg("Class access codes saved."); }
+    catch (e) { setMsg((e as Error).message); }
   }
 
   const guests = accounts.filter((a) => !a.isPermanent);
@@ -109,7 +114,17 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
           <input value={nc.name} placeholder="name" onChange={(e) => setNc({ ...nc, name: e.target.value })} />
           <input value={nc.username} placeholder="username" onChange={(e) => setNc({ ...nc, username: e.target.value })} />
           <input value={nc.password} placeholder="password" onChange={(e) => setNc({ ...nc, password: e.target.value })} />
+          <select value={nc.role} onChange={(e) => setNc({ ...nc, role: e.target.value as "student" | "instructor" })}><option value="student">Student</option><option value="instructor">Instructor</option></select>
           <button className="primary" onClick={create}>Create</button>
+        </div>
+      </div>
+      <div className="admin-create">
+        <h3>Set private classroom codes</h3>
+        <div className="row">
+          <input value={codes.classId} placeholder="class (ai102)" onChange={(e) => setCodes({ ...codes, classId: e.target.value })} />
+          <input value={codes.studentCode} placeholder="student code (8+ characters)" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} />
+          <input value={codes.instructorCode} placeholder="instructor code (8+ characters)" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} />
+          <button className="primary" onClick={saveCodes}>Save codes</button>
         </div>
       </div>
 
