@@ -1,6 +1,10 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import Peer, { DataConnection } from "peerjs";
-import { changedFiles, downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import * as Y from "yjs";
+import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
+import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
+import { CollabEditor } from "./CollabEditor";
 import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
@@ -8,10 +12,11 @@ import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
 type Mode = "home" | "instructor" | "student";
 type WireMessage =
   | { type: "join"; name: string; deviceId: string; deviceLabel: string; fingerprint: string }
-  | { type: "approved"; studentId: string; project: Project; className: string }
+  // approved carries the shared doc as an encoded Yjs state (base64), not plain files
+  | { type: "approved"; studentId: string; projectId: string; title: string; docState: string; className: string }
   | { type: "wait"; message: string }
-  | { type: "project"; project: Project }
-  | { type: "patch"; projectId: string; title: string; files: Record<string, string>; updatedAt: string }
+  | { type: "ydoc"; projectId: string; u: string }        // base64 Yjs document update
+  | { type: "awareness"; projectId: string; u: string }   // base64 awareness (cursors/presence) update
   | { type: "close"; message: string };
 
 const deviceKey = "utg-classroom-device-v1";
@@ -150,17 +155,22 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   const peerRef = useRef<Peer | null>(null);
   const connections = useRef(new Map<string, DataConnection>());
   const roomRef = useRef(room);
-  const pushBaseline = useRef(new Map<string, Record<string, string>>()); // projectId -> last-synced files
-  const pushPending = useRef<Project | null>(null);
-  const pushTimer = useRef<number | null>(null);
-  const pushLast = useRef(0);
+  const docs = useRef(new Map<string, { doc: Y.Doc; awareness: Awareness }>()); // projectId -> live shared doc
+  const connMeta = useRef(new Map<string, string>()); // connection.peer -> projectId (routing + authorization)
+  const deriveTimers = useRef(new Map<string, number>());
+  const [docsTick, setDocsTick] = useState(0); // bump to re-render when a doc is (de)registered
 
   useEffect(() => { setRoom(record); }, [record]);
   useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
-  useEffect(() => () => peerRef.current?.destroy(), []);
+  useEffect(() => () => { peerRef.current?.destroy(); docs.current.forEach((e) => { e.awareness.destroy(); e.doc.destroy(); }); }, []);
 
   const selected = room.students.find((student) => student.id === selectedId);
   const selectedProject = selected ? room.projects[selected.projectId] : undefined;
+  // Prepare a shared doc for whichever student is selected so the teacher can
+  // co-edit (it seeds from stored files; the student receives it on connect).
+  useEffect(() => { if (selectedProject) getDoc(selectedProject.id, selectedProject.files); /* eslint-disable-next-line */ }, [selectedId]);
+  const selectedEntry = selectedProject ? docs.current.get(selectedProject.id) : undefined;
+  void docsTick;
   const onlineCount = room.students.filter((student) => student.status === "connected" || student.status === "syncing").length;
   const courseInfo = classroomForRoomCode(room.code);
 
@@ -186,7 +196,47 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
   }
   function markDisconnected(peerId: string) {
     connections.current.delete(peerId);
+    connMeta.current.delete(peerId);
     updateRoom((current) => ({ ...current, students: current.students.map((student) => student.deviceIds.includes(peerId) ? { ...student, status: "offline" } : student) }));
+  }
+  // A live shared doc per project, seeded ONCE from the stored files. Students
+  // receive it as an encoded state (they never re-seed), so text can't duplicate.
+  function getDoc(projectId: string, files: Record<string, string>) {
+    let entry = docs.current.get(projectId);
+    if (!entry) {
+      const doc = new Y.Doc();
+      seedDoc(doc, files);
+      const awareness = new Awareness(doc);
+      awareness.setLocalStateField("user", { name: "Teacher", color: "#12202b" });
+      doc.on("update", (u: Uint8Array, origin: unknown) => {
+        if (origin !== "remote") sendToOwner(projectId, { type: "ydoc", projectId, u: b64encode(u) });
+        scheduleDerive(projectId);
+      });
+      awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+        sendToOwner(projectId, { type: "awareness", projectId, u: b64encode(encodeAwarenessUpdate(awareness, added.concat(updated, removed))) });
+      });
+      entry = { doc, awareness };
+      docs.current.set(projectId, entry);
+      setDocsTick((n) => n + 1);
+    }
+    return entry;
+  }
+  function sendToOwner(projectId: string, msg: WireMessage) {
+    const owner = roomRef.current.students.find((s) => s.projectId === projectId);
+    if (!owner) return;
+    for (const id of owner.deviceIds) { const conn = connections.current.get(id); if (conn && conn.open) conn.send(msg); }
+  }
+  function scheduleDerive(projectId: string) {
+    if (deriveTimers.current.has(projectId)) return;
+    deriveTimers.current.set(projectId, window.setTimeout(() => {
+      deriveTimers.current.delete(projectId);
+      const entry = docs.current.get(projectId);
+      if (!entry) return;
+      const files = docToFiles(entry.doc);
+      updateRoom((current) => current.projects[projectId]
+        ? { ...current, projects: { ...current.projects, [projectId]: { ...current.projects[projectId], files, updatedAt: new Date().toISOString() } } }
+        : current);
+    }, 500));
   }
   function receive(connection: DataConnection, data: WireMessage) {
     if (data.type === "join") {
@@ -195,19 +245,14 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
       else if (room.admissionsOpen) { setPending((items) => [...items.filter((item) => item.connectionId !== connection.peer), { connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }]); connection.send({ type: "wait", message: "Your teacher needs to approve this device." } satisfies WireMessage); }
       else connection.send({ type: "wait", message: "Admissions are closed. Ask your teacher to open admissions." } satisfies WireMessage);
     }
-    if (data.type === "project") {
-      updateRoom((current) => ({ ...current, projects: { ...current.projects, [data.project.id]: data.project }, students: current.students.map((student) => student.projectId === data.project.id ? { ...student, status: "connected", lastSeen: new Date().toISOString() } : student) }));
-      pushBaseline.current.set(data.project.id, { ...data.project.files });
-    }
-    if (data.type === "patch") {
-      updateRoom((current) => {
-        const existing = current.projects[data.projectId];
-        if (!existing) return current;
-        const merged: Project = { ...existing, files: { ...existing.files, ...data.files }, title: data.title || existing.title, updatedAt: data.updatedAt };
-        return { ...current, projects: { ...current.projects, [data.projectId]: merged }, students: current.students.map((student) => student.projectId === data.projectId ? { ...student, status: "connected", lastSeen: new Date().toISOString() } : student) };
-      });
-      const base = pushBaseline.current.get(data.projectId) || {};
-      pushBaseline.current.set(data.projectId, { ...base, ...data.files });
+    if (data.type === "ydoc" || data.type === "awareness") {
+      const pid = connMeta.current.get(connection.peer);
+      if (!pid || pid !== data.projectId) return; // a student may only edit their own project
+      const entry = docs.current.get(pid);
+      if (!entry) return;
+      if (data.type === "ydoc") { Y.applyUpdate(entry.doc, b64decode(data.u), "remote"); scheduleDerive(pid); }
+      else applyAwarenessUpdate(entry.awareness, b64decode(data.u), "remote");
+      updateRoom((current) => ({ ...current, students: current.students.map((s) => s.projectId === pid ? { ...s, status: "connected", lastSeen: new Date().toISOString() } : s) }));
     }
   }
   function approve(join: PendingJoin, existingStudentId?: string, connection?: DataConnection) {
@@ -222,35 +267,11 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     const device = { id: join.deviceId, studentId: student.id, label: join.deviceLabel, fingerprint: join.fingerprint, approvedAt: new Date().toISOString() };
     const hasDevice = nextRoom.devices.some((item) => item.id === device.id);
     nextRoom = { ...nextRoom, devices: hasDevice ? nextRoom.devices : [...nextRoom.devices, device], students: nextRoom.students.map((item) => item.id === student!.id ? { ...item, status: "connected", deviceIds: Array.from(new Set([...item.deviceIds, join.connectionId])) } : item) };
-    setRoom(nextRoom); setSelectedId(student.id); setPending((items) => items.filter((item) => item.connectionId !== join.connectionId));
+    setRoom(nextRoom); roomRef.current = nextRoom; setSelectedId(student.id); setPending((items) => items.filter((item) => item.connectionId !== join.connectionId));
     const initial = nextRoom.projects[student.projectId];
-    pushBaseline.current.set(student.projectId, { ...initial.files });
-    target?.send({ type: "approved", studentId: student.id, project: initial, className: nextRoom.name } satisfies WireMessage);
-  }
-  // Send an instructor edit only to the student who owns that project, only the
-  // files that changed, and at most once per second.
-  function flushPush() {
-    if (pushTimer.current !== null) { window.clearTimeout(pushTimer.current); pushTimer.current = null; }
-    const p = pushPending.current;
-    if (!p) return;
-    const base = pushBaseline.current.get(p.id) || {};
-    const files = changedFiles(p.files, base);
-    if (Object.keys(files).length === 0) return;
-    const owner = roomRef.current.students.find((s) => s.projectId === p.id);
-    const targets = owner ? owner.deviceIds.map((id) => connections.current.get(id)).filter(Boolean) as DataConnection[] : [];
-    let sent = false;
-    for (const conn of targets) if (conn.open) { conn.send({ type: "patch", projectId: p.id, title: p.title, files, updatedAt: p.updatedAt } satisfies WireMessage); sent = true; }
-    if (sent) { pushBaseline.current.set(p.id, { ...base, ...files }); pushLast.current = Date.now(); }
-  }
-  function schedulePush() {
-    const elapsed = Date.now() - pushLast.current;
-    if (elapsed >= 1000) flushPush();
-    else if (pushTimer.current === null) pushTimer.current = window.setTimeout(flushPush, 1000 - elapsed);
-  }
-  function updateProject(project: Project) {
-    updateRoom((current) => ({ ...current, projects: { ...current.projects, [project.id]: project } }));
-    pushPending.current = project;
-    schedulePush();
+    const entry = getDoc(student.projectId, initial.files);
+    connMeta.current.set(join.connectionId, student.projectId);
+    target?.send({ type: "approved", studentId: student.id, projectId: student.projectId, title: initial.title, docState: b64encode(Y.encodeStateAsUpdate(entry.doc)), className: nextRoom.name } satisfies WireMessage);
   }
   function checkpoint() {
     if (!selectedProject) return;
@@ -274,7 +295,7 @@ function InstructorRoom({ record, onChange, onExit }: { record: ClassRecord; onC
     <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
-      <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div><ProjectEditor project={selectedProject} onChange={updateProject} readOnly={false} /><div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
+      <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry ? <CollabWorkspace doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} /> : <p className="empty">Preparing the collaborative editor…</p>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
       <aside className="details"><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>{courseInfo?.instructorCode || "Managed centrally"}</dd><dt>Student login</dt><dd>{courseInfo?.studentCode || "Managed centrally"}</dd><dt>Room address</dt><dd className="small-code">Managed by the class-code system</dd><dt>Local class file</dt><dd>Saved in this browser</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. Export a classpack at the end of class or before changing instructor devices.</p></div></aside>
     </div>
     <footer className="room-footer">{status}</footer>
@@ -286,7 +307,6 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   const [code, setCode] = useState(() => normalizeCode(new URLSearchParams(window.location.search).get("loginCode") || ""));
   const [name, setName] = useState("");
   const [status, setStatus] = useState("Enter your teacher's permanent four-character class code.");
-  const [project, setProject] = useState<Project | null>(null);
   const [className, setClassName] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
@@ -324,55 +344,54 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
     });
     peer.on("error", (error) => connectionProblem(error.type === "peer-unavailable" ? "This classroom is not open yet. Ask your instructor to open AI102 first." : "We could not start your classroom connection. Refresh and try again."));
   }
-  // --- outgoing sync: send only changed files, at most once per second ---
-  const baselineRef = useRef<Record<string, string>>({});
-  const pendingRef = useRef<Project | null>(null);
-  const sendTimerRef = useRef<number | null>(null);
-  const lastSendRef = useRef(0);
-  function adoptProject(p: Project) { setProject(p); pendingRef.current = p; baselineRef.current = { ...p.files }; }
-  function flushSend() {
-    if (sendTimerRef.current !== null) { window.clearTimeout(sendTimerRef.current); sendTimerRef.current = null; }
-    const p = pendingRef.current, conn = connectionRef.current;
-    if (!p || !conn || !conn.open) return;
-    const files = changedFiles(p.files, baselineRef.current);
-    if (Object.keys(files).length === 0) return;
-    conn.send({ type: "patch", projectId: p.id, title: p.title, files, updatedAt: p.updatedAt } satisfies WireMessage);
-    baselineRef.current = { ...baselineRef.current, ...files };
-    lastSendRef.current = Date.now();
+  // --- live shared doc (Yjs) ---
+  const docRef = useRef<Y.Doc | null>(null);
+  const awarenessRef = useRef<Awareness | null>(null);
+  const projectIdRef = useRef<string>("");
+  const [files, setFiles] = useState<Record<string, string>>({});
+  const [title, setTitle] = useState("");
+  const deriveTimer = useRef<number | null>(null);
+  function sendConn(msg: WireMessage) { const c = connectionRef.current; if (c && c.open) c.send(msg); }
+  function scheduleDerive() {
+    if (deriveTimer.current !== null) return;
+    deriveTimer.current = window.setTimeout(() => { deriveTimer.current = null; if (docRef.current) setFiles(docToFiles(docRef.current)); }, 300);
   }
-  function scheduleSend() {
-    const elapsed = Date.now() - lastSendRef.current;
-    if (elapsed >= 1000) flushSend();
-    else if (sendTimerRef.current === null) sendTimerRef.current = window.setTimeout(flushSend, 1000 - elapsed);
-  }
-  useEffect(() => () => flushSend(), []); // best-effort send on unmount
+  useEffect(() => () => { awarenessRef.current?.destroy(); docRef.current?.destroy(); }, []);
 
   function receive(data: WireMessage) {
     if (data.type === "wait") setStatus(data.message);
-    if (data.type === "approved") { clearFindingTimer(); adoptProject(data.project); setClassName(data.className); setStep("room"); setStatus("Connected and saved locally."); }
-    if (data.type === "project") adoptProject(data.project);
-    if (data.type === "patch") {
-      const base = pendingRef.current || project;
-      if (base) {
-        const merged: Project = { ...base, files: { ...base.files, ...data.files }, title: data.title || base.title, updatedAt: data.updatedAt };
-        setProject(merged); pendingRef.current = merged;
-        baselineRef.current = { ...baselineRef.current, ...data.files };
-      }
+    if (data.type === "approved") {
+      clearFindingTimer();
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, b64decode(data.docState));
+      const awareness = new Awareness(doc);
+      awareness.setLocalStateField("user", { name: name.trim() || "Student", color: userColor(device.id) });
+      doc.on("update", (u: Uint8Array, origin: unknown) => {
+        if (origin !== "remote") sendConn({ type: "ydoc", projectId: data.projectId, u: b64encode(u) });
+        scheduleDerive();
+      });
+      awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+        sendConn({ type: "awareness", projectId: data.projectId, u: b64encode(encodeAwarenessUpdate(awareness, added.concat(updated, removed))) });
+      });
+      docRef.current = doc; awarenessRef.current = awareness; projectIdRef.current = data.projectId;
+      setFiles(docToFiles(doc)); setTitle(data.title); setClassName(data.className);
+      setStep("room"); setStatus("Connected. Your teacher can see and help live.");
     }
+    if (data.type === "ydoc") { if (docRef.current && data.projectId === projectIdRef.current) { Y.applyUpdate(docRef.current, b64decode(data.u), "remote"); scheduleDerive(); } }
+    if (data.type === "awareness") { if (awarenessRef.current && data.projectId === projectIdRef.current) applyAwarenessUpdate(awarenessRef.current, b64decode(data.u), "remote"); }
     if (data.type === "close") setStatus(data.message);
   }
-  function updateProject(next: Project) { setProject(next); pendingRef.current = next; scheduleSend(); }
 
-  if (step !== "room" || !project) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}>UTG Academy</a><p className="eyebrow">Student classroom</p><h1>Join your class</h1><p>Use your student login code. If the instructor has not opened the classroom yet, you will see a clear message instead of starting a room.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Student login code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Join classroom</button><p className="notice">{status}</p><small>This browser remembers approved devices. If your browser data is cleared, ask your teacher to approve this device again.</small></section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={connectionRef.current?.open ? "online" : "offline"}></i>{connectionRef.current?.open ? "Synced to teacher" : "Saved locally"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify(project, null, 2))}>Export backup</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{project.title}</h1></div><span className="save-label">{status}</span></div><ProjectEditor project={project} onChange={updateProject} readOnly={false} /></section></main>;
+  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}>UTG Academy</a><p className="eyebrow">Student classroom</p><h1>Join your class</h1><p>Use your student login code. If the instructor has not opened the classroom yet, you will see a clear message instead of starting a room.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Student login code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Join classroom</button><p className="notice">{status}</p><small>This browser remembers approved devices. If your browser data is cleared, ask your teacher to approve this device again.</small></section></main>;
+  return <main className="student-shell"><header className="room-header"><div><a href="../">UTG Academy</a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={connectionRef.current?.open ? "online" : "offline"}></i>{connectionRef.current?.open ? "Synced to teacher" : "Saved locally"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} /></section></main>;
 }
 
-function ProjectEditor({ project, onChange, readOnly }: { project: Project; onChange: (project: Project) => void; readOnly: boolean }) {
-  const [file, setFile] = useState("index.html");
+function CollabWorkspace({ doc, awareness, files, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; readOnly?: boolean }) {
+  const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
+  const [file, setFile] = useState(names[0] || "index.html");
   const [running, setRunning] = useState(true);
-  useEffect(() => { if (!project.files[file]) setFile(Object.keys(project.files)[0]); }, [project, file]);
-  const update = (contents: string) => onChange({ ...project, files: { ...project.files, [file]: contents }, updatedAt: new Date().toISOString() });
-  return <div className="editor-grid"><section className="code-panel"><div className="tabs">{Object.keys(project.files).map((name) => <button key={name} className={name === file ? "tab active" : "tab"} onClick={() => setFile(name)}>{name}</button>)}</div><textarea className="editor" spellCheck="false" value={project.files[file] || ""} readOnly={readOnly} onChange={(event) => update(event.target.value)} aria-label={`${file} code editor`} /></section><section className="preview-panel"><div className="preview-top"><strong>Preview</strong><button className="text-button" onClick={() => setRunning((value) => !value)}>{running ? "Refresh" : "Run project"}</button></div>{running && <iframe title="Project preview" sandbox="allow-scripts" srcDoc={buildPreview(project.files)} />}</section></div>;
+  useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
+  return <div className="editor-grid"><section className="code-panel"><div className="tabs">{names.map((name) => <button key={name} className={name === file ? "tab active" : "tab"} onClick={() => setFile(name)}>{name}</button>)}</div><CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} /></section><section className="preview-panel"><div className="preview-top"><strong>Preview</strong><button className="text-button" onClick={() => setRunning((value) => !value)}>{running ? "Refresh" : "Run project"}</button></div>{running && <iframe title="Project preview" sandbox="allow-scripts" srcDoc={buildPreview(files)} />}</section></div>;
 }
 
 export default App;

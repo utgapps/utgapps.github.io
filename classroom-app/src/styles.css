@@ -68,3 +68,15 @@ i.offline, .student i.offline { background: #aebcc0; }
 .join-screen { min-height: 100vh; display: grid; place-items: center; padding: 22px; background: linear-gradient(130deg,#e6f7fa,#f9f4e9); }.join-card { width: min(450px,100%); padding: 34px; background: #fff; border: 1px solid #dce6e8; border-radius: 8px; box-shadow: 0 17px 45px rgba(32,65,75,.12); }.join-card h1 { font-size: 32px; margin: 0 0 10px; }.join-card > p:not(.eyebrow):not(.notice) { color: #5b7178; font-size: 15px; line-height: 1.55; }.back { display: inline-block; margin-bottom: 35px; font-size: 13px; font-weight: 800; }.code-input { font: 700 23px ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; }.join-card small { display: block; margin-top: 17px; }.student-project { max-width: 1350px; margin: 0 auto; padding: 28px; }.save-label { color: #2a8254; background: #e4f7eb; border-radius: 4px; padding: 7px 9px; font-size: 12px; font-weight: 800; }
 @media (max-width: 1050px) { .class-layout { grid-template-columns: 230px minmax(0,1fr); }.details { display: none; }.home-grid, .teacher-options { grid-template-columns: 1fr; }.editor-grid { grid-template-columns: 1fr; height: auto; }.code-panel { height: 400px; border-right: 0; border-bottom: 1px solid #d4e0e3; }.preview-panel { height: 320px; } }
 @media (max-width: 680px) { .welcome { padding: 22px; }.welcome-copy { padding: 65px 0 45px; }.class-banner, .workspace-top { align-items: flex-start; flex-direction: column; }.class-layout { display: block; }.roster { border-right: 0; border-bottom: 1px solid #dce5e8; }.student-list { grid-template-columns: repeat(2, minmax(0,1fr)); }.roster-footer { display: none; }.workspace { padding: 16px; }.room-header, .class-banner, .pending-strip { padding-left: 16px; padding-right: 16px; }.connection { font-size: 11px; }.modal { padding: 28px 20px; }.student-project { padding: 16px; } }
+
+/* ---- CodeMirror collaborative editor ---- */
+.cm-host { min-height: 0; overflow: hidden; background: #fff; }
+.cm-host .cm-editor { height: 100%; }
+.cm-host .cm-editor.cm-focused { outline: none; }
+.cm-host .cm-scroller { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.cm-host .cm-gutters { background: #f7fafb; border-right: 1px solid #e3edef; color: #90a7ad; }
+
+/* remote cursors + name labels (color comes inline from each user's awareness) */
+.cm-ySelectionCaret { position: relative; border-left: 2px solid; border-right: 0; margin-left: -1px; margin-right: -1px; box-sizing: border-box; }
+.cm-ySelectionCaretDot { border-radius: 50%; position: absolute; width: 6px; height: 6px; top: -3px; left: -3px; }
+.cm-ySelectionInfo { position: absolute; top: -1.35em; left: -1px; font-size: 10px; font-weight: 700; line-height: normal; color: #fff; padding: 1px 5px; border-radius: 4px 4px 4px 0; white-space: nowrap; opacity: .95; z-index: 5; }
