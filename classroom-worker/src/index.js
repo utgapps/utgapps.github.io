@@ -24,6 +24,7 @@ const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padSta
 const fromHex = (hex) => new Uint8Array(hex.match(/.{1,2}/g).map((h) => parseInt(h, 16)));
 function rndHex(n) { return toHex(crypto.getRandomValues(new Uint8Array(n))); }
 function uuid() { return crypto.randomUUID(); }
+function mediaUrl(url, id) { return `${url.origin}/media/file/${id}`; }
 async function hashPassword(password, saltHex) {
   const salt = saltHex ? fromHex(saltHex) : crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
@@ -64,6 +65,17 @@ export default {
     const db = env.DB;
     try {
       if (path === "/" || path === "/health") return json({ ok: true, service: "utg-classroom-api" });
+
+      // ---- public media serving (opaque UUID id; used by <img>/<audio> src) ----
+      const fileMatch = path.match(/^\/media\/file\/([^/]+)$/);
+      if (fileMatch && request.method === "GET") {
+        if (!env.MEDIA) return new Response("Not found", { status: 404, headers: CORS });
+        const m = await db.prepare("SELECT r2_key, mime FROM media WHERE id = ?").bind(fileMatch[1]).first();
+        if (!m) return new Response("Not found", { status: 404, headers: CORS });
+        const obj = await env.MEDIA.get(m.r2_key);
+        if (!obj) return new Response("Not found", { status: 404, headers: CORS });
+        return new Response(obj.body, { headers: { ...CORS, "Content-Type": m.mime, "Cache-Control": "public, max-age=31536000, immutable" } });
+      }
 
       // ---- guest login: class code + name ----
       if (path === "/login/guest" && request.method === "POST") {
@@ -140,6 +152,38 @@ export default {
         return json({ ok: true, updatedAt: now });
       }
 
+      // ---- media (images + audio, already compressed by the client) ----
+      if (path === "/media" && request.method === "GET") {
+        const rows = (await db.prepare("SELECT id, name, kind, mime, size, created_at FROM media WHERE account_id = ? ORDER BY created_at DESC").bind(me.id).all()).results;
+        return json({ media: rows.map((m) => ({ id: m.id, name: m.name, kind: m.kind, mime: m.mime, size: m.size, url: mediaUrl(url, m.id), createdAt: m.created_at })) });
+      }
+      if (path === "/media" && request.method === "POST") {
+        if (!env.MEDIA) return bad("Media storage is not enabled.", 503);
+        const kind = url.searchParams.get("kind");
+        const mime = url.searchParams.get("mime") || "application/octet-stream";
+        const name = (url.searchParams.get("name") || "upload").slice(0, 80);
+        if (kind !== "image" && kind !== "audio") return bad("Only images or sound files are allowed.");
+        if (kind === "image" && !mime.startsWith("image/")) return bad("Not an image.");
+        if (kind === "audio" && !mime.startsWith("audio/")) return bad("Not a sound file.");
+        const body = await request.arrayBuffer();
+        const max = parseInt(env.MAX_MEDIA_BYTES || "4000000", 10);
+        if (!body.byteLength) return bad("Empty file.");
+        if (body.byteLength > max) return bad(`Too big — keep it under ${Math.round(max / 1000000)}MB after compression.`, 413);
+        const id = uuid(), now = Date.now(), key = `${me.id}/${id}`;
+        await env.MEDIA.put(key, body, { httpMetadata: { contentType: mime, cacheControl: "public, max-age=31536000, immutable" } });
+        await db.prepare("INSERT INTO media (id, account_id, name, kind, mime, size, r2_key, created_at) VALUES (?,?,?,?,?,?,?,?)")
+          .bind(id, me.id, name, kind, mime, body.byteLength, key, now).run();
+        return json({ media: { id, name, kind, mime, size: body.byteLength, url: mediaUrl(url, id), createdAt: now } });
+      }
+      const mediaMatch = path.match(/^\/media\/([^/]+)$/);
+      if (mediaMatch && request.method === "DELETE") {
+        const m = await db.prepare("SELECT * FROM media WHERE id = ? AND account_id = ?").bind(mediaMatch[1], me.id).first();
+        if (!m) return bad("No such file.", 404);
+        if (env.MEDIA) await env.MEDIA.delete(m.r2_key);
+        await db.prepare("DELETE FROM media WHERE id = ?").bind(m.id).run();
+        return json({ ok: true });
+      }
+
       // ---- admin (role = 'admin') ----
       if (path.startsWith("/admin/")) {
         if (me.role !== "admin") return bad("Admins only.", 403);
@@ -169,6 +213,10 @@ export default {
           const acc = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first();
           if (!acc) return bad("No such account.", 404);
           if (request.method === "DELETE") {
+            if (env.MEDIA) {
+              const keys = (await db.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results;
+              for (const { r2_key } of keys) await env.MEDIA.delete(r2_key);
+            }
             await db.batch([
               db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id),
               db.prepare("DELETE FROM media WHERE account_id = ?").bind(id),
@@ -212,7 +260,10 @@ export default {
       const cutoff = Date.now() - ttlDays * 86400000;
       const stale = (await env.DB.prepare("SELECT id FROM accounts WHERE is_permanent = 0 AND last_seen < ?").bind(cutoff).all()).results;
       for (const { id } of stale) {
-        // TODO(media): also delete this account's R2 objects once R2 is enabled.
+        if (env.MEDIA) {
+          const keys = (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results;
+          for (const { r2_key } of keys) await env.MEDIA.delete(r2_key);
+        }
         await env.DB.batch([
           env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id),
           env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id),

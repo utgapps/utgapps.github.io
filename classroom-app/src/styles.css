@@ -101,3 +101,16 @@ i.offline, .student i.offline { background: #aebcc0; }
 .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .admin-actions .danger { color: #d33; }
 .muted { color: #8aa0a7; font-size: 12.5px; }
+
+/* ---- media panel ---- */
+.media-panel { margin-top: 20px; border: 1px solid #dbe3ec; border-radius: 10px; background: #fff; padding: 14px 16px; }
+.media-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.media-head strong { font-size: 15px; }
+.media-list { display: flex; gap: 12px; overflow-x: auto; padding: 12px 2px 2px; }
+.media-item { flex: 0 0 auto; width: 150px; border: 1px solid #e3edef; border-radius: 9px; padding: 8px; background: #f7fafb; }
+.media-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 6px; background: #fff; display: block; }
+.media-item audio { width: 100%; margin: 6px 0; }
+.media-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin: 7px 0 2px; }
+.media-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-actions { display: flex; justify-content: space-between; }
+.media-actions .danger { color: #d33; }

@@ -33,6 +33,24 @@ export async function apiSaveProject(token: string, title: string, files: Record
   await req("/project", { method: "PUT", body: JSON.stringify({ title, files }) }, token);
 }
 
+// ---- media ----
+export type ApiMedia = { id: string; name: string; kind: "image" | "audio"; mime: string; size: number; url: string; createdAt: number };
+export async function apiListMedia(token: string): Promise<ApiMedia[]> {
+  const d = await req("/media", {}, token);
+  return d.media || [];
+}
+export async function apiUploadMedia(token: string, kind: "image" | "audio", mime: string, name: string, blob: Blob): Promise<ApiMedia> {
+  const res = await fetch(`${API}/media?kind=${kind}&mime=${encodeURIComponent(mime)}&name=${encodeURIComponent(name)}`, {
+    method: "POST", cache: "no-store", headers: { authorization: `Bearer ${token}` }, body: blob,
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((d && d.error) || "Upload failed.");
+  return d.media;
+}
+export async function apiDeleteMedia(token: string, id: string): Promise<void> {
+  await req(`/media/${id}`, { method: "DELETE" }, token);
+}
+
 // ---- admin ----
 export async function apiAdminList(token: string, classId?: string): Promise<ApiAccount[]> {
   const d = await req(`/admin/accounts${classId ? `?classId=${encodeURIComponent(classId)}` : ""}`, {}, token);

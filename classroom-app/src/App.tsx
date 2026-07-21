@@ -6,7 +6,8 @@ import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./l
 import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiGetProject, apiSaveProject } from "./lib/api";
+import { apiLoginGuest, apiGetProject, apiSaveProject, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiMedia } from "./lib/api";
+import { compressImage, compressAudio } from "./lib/media";
 import { classroomAssignment, classroomForRoomCode, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { starterFiles } from "./lib/types";
@@ -327,6 +328,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   const [files, setFiles] = useState<Record<string, string>>({});
   const [title, setTitle] = useState("My project");
   const [live, setLive] = useState(false);
+  const [accountToken, setAccountToken] = useState<string | null>(null);
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
   function sendConn(msg: WireMessage) { const c = connectionRef.current; if (c && c.open) c.send(msg); }
@@ -367,6 +369,7 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
       if (saved && saved.files && Object.keys(saved.files).length) { startFiles = saved.files; titleRef.current = saved.title || titleRef.current; }
     } catch { loaded = false; }
     apiTokenRef.current = loaded ? token : null; // only autosave once we know the saved state (never clobber on a failed load)
+    setAccountToken(loaded ? token : null);
     const doc = new Y.Doc();
     seedDoc(doc, startFiles);
     const awareness = new Awareness(doc);
@@ -428,7 +431,48 @@ function StudentJoin({ onExit }: { onExit: () => void }) {
   }
 
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>Enter your class code and your name. Your work is saved to your account so you can come back to it any time — even outside class.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Class code<input className="code-input" value={code} maxLength={4} placeholder="BU2K" onChange={(event) => setCode(normalizeCode(event.target.value))} /></label><button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>New name → a new guest project. Ask your teacher to make it a permanent account so it is kept.</small></section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} /></section></main>;
+  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
+}
+
+function MediaPanel({ token }: { token: string }) {
+  const [items, setItems] = useState<ApiMedia[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  useEffect(() => { apiListMedia(token).then(setItems).catch(() => {}); }, [token]);
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    const isImg = file.type.startsWith("image/"), isAud = file.type.startsWith("audio/");
+    if (!isImg && !isAud) { setNote("Only images or sound files can be uploaded."); return; }
+    setBusy(true); setNote(isImg ? "Compressing image…" : "Re-encoding sound (this can take a moment)…");
+    try {
+      const c = isImg ? await compressImage(file) : await compressAudio(file);
+      const m = await apiUploadMedia(token, isImg ? "image" : "audio", c.mime, c.name, c.blob);
+      setItems((prev) => [m, ...prev]);
+      setNote(`Uploaded ${m.name} (${Math.round(m.size / 1024)} KB).`);
+    } catch (err) { setNote((err as Error).message || "Upload failed."); }
+    setBusy(false);
+  }
+  async function del(id: string) { try { await apiDeleteMedia(token, id); setItems((p) => p.filter((m) => m.id !== id)); } catch { /* ignore */ } }
+  function copyTag(m: ApiMedia) {
+    const tag = m.kind === "image" ? `<img src="${m.url}" alt="${m.name}">` : `<audio controls src="${m.url}"></audio>`;
+    if (navigator.clipboard) navigator.clipboard.writeText(tag);
+    setNote("Copied the tag — paste it into your code (index.html).");
+  }
+  return <div className="media-panel">
+    <div className="media-head">
+      <strong>My media</strong>
+      <label className="file-button">{busy ? "Working…" : "＋ Upload image or sound"}<input type="file" accept="image/*,audio/*" onChange={onFile} disabled={busy} /></label>
+      <span className="muted">Images become WebP, sound becomes small MP3. Keep files small.</span>
+    </div>
+    {note && <p className="notice">{note}</p>}
+    <div className="media-list">{items.length === 0 ? <span className="muted">No media yet — upload a picture or a sound.</span> : items.map((m) =>
+      <div className="media-item" key={m.id}>
+        {m.kind === "image" ? <img src={m.url} alt={m.name} /> : <audio controls src={m.url} />}
+        <div className="media-meta"><span className="media-name" title={m.name}>{m.name}</span><span className="muted">{Math.round(m.size / 1024)} KB</span></div>
+        <div className="media-actions"><button className="text-button" onClick={() => copyTag(m)}>Copy tag</button><button className="text-button danger" onClick={() => del(m.id)}>Delete</button></div>
+      </div>)}</div>
+  </div>;
 }
 
 function CollabWorkspace({ doc, awareness, files, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; readOnly?: boolean }) {
