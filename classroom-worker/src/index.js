@@ -15,7 +15,7 @@ const CORS = {
   "Access-Control-Max-Age": "86400",
 };
 const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const bad = (msg, status = 400) => json({ error: msg }, status);
 
 // ---- crypto helpers -----------------------------------------

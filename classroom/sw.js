@@ -1,11 +1,16 @@
-const cacheName = "utg-classroom-v2";
+const cacheName = "utg-classroom-v3";
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(["./"])));
   self.skipWaiting();
 });
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("activate", (event) => event.waitUntil(
+  caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== cacheName).map((k) => caches.delete(k)))).then(() => self.clients.claim())
+));
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  // Never touch cross-origin requests (e.g. the classroom API / TURN worker) —
+  // caching those would serve stale data.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   // Always ask the network for the app shell first, so an instructor does not
   // stay on an old classroom version after a GitHub Pages update.
   if (event.request.mode === "navigate") {
