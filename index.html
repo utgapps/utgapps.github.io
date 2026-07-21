@@ -172,7 +172,7 @@
           var show = tools === "all" || (Array.isArray(tools) && tools.indexOf(id) >= 0);
           card.style.display = show ? "" : "none";
           if (id === "classroom" && entry.classroom) {
-            card.href = "./classroom/?classCode=" + encodeURIComponent(entry.code);
+            card.href = "./classroom/?loginCode=" + encodeURIComponent(entry.code);
           }
         });
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";

@@ -23,21 +23,35 @@
                "09:00-12:15". Outside it the code is auto-disabled (and it
                turns back on inside the window). Uses Los Angeles time and
                follows daylight saving automatically. Leave out for all-day.
-     classroom : (optional) connects this existing code to a live UTG Classroom.
-               Add a courseId and className for codes that should open a curriculum
-               classroom. The same four-letter code is then the classroom address;
-               do not create a second classroom code elsewhere.
+     classroom : (optional) connects this login code to a live UTG Classroom.
+               Give it a classId and a role: "instructor" or "student". The login
+               code is not the PeerJS room address. Classroom room codes live below
+               in UTG_CLASSROOMS and are used internally by the classroom app.
 
    This is a simple gate, NOT real security — the codes are public
    in this file. It just keeps kids out of the resources outside class.
    (Note: browsers may cache this file for a few minutes, so a lock
    can take a little while to take effect at home.)
    ============================================================ */
+window.UTG_CLASSROOMS = [
+  {
+    id: "ai102",
+    courseId: "AI102",
+    className: "AI102 - Introduction to AI Integration",
+    roomCode: "3DVT",
+    instructorCode: "ACKV",
+    studentCode: "BU2K"
+  }
+];
+
 window.CLASS_CODES = [
   { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
   { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator", "digital-art", "modeling"], print: false, play: [] },
-  { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all",
-    classroom: { courseId: "AI102", className: "AI102 - Introduction to AI Integration" } },
+  { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
+  { code: "ACKV", label: "AI102 Instructor", enabled: true, tools: ["classroom"], print: true, play: [],
+    classroom: { classId: "ai102", role: "instructor" } },
+  { code: "BU2K", label: "AI102 Students", enabled: true, tools: ["classroom"], print: false, play: [],
+    classroom: { classId: "ai102", role: "student" } },
 ];
 
 // Is this code usable RIGHT NOW? (enabled, and within its Pacific-time `hours`.)
