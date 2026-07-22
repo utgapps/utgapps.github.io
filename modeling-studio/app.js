@@ -91,6 +91,7 @@ let clayNumber = 0;
 let analysisTimer = 0;
 let selectionPivotActive = false;
 let clayMode = "grow";
+let clayBrushActive = false;
 let sculpting = false;
 let sculptedMesh = null;
 const undoStack = [];
@@ -899,12 +900,12 @@ function resize() {
   renderer.setSize(rect.width, rect.height, false);
 }
 
-renderer.domElement.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || transform.dragging) return;
+window.addEventListener("pointerdown", (event) => {
+  if (event.target !== renderer.domElement || event.button !== 0 || transform.dragging) return;
   pointerFromEvent(event);
   const hit = raycaster.intersectObjects(visibleMeshes(), false)[0];
   const one = selection.size === 1 ? [...selection][0] : null;
-  if (hit && hit.object === one && isClay(one) && !event.shiftKey) {
+  if (clayBrushActive && hit && hit.object === one && isClay(one) && !event.shiftKey) {
     event.stopImmediatePropagation();
     recordHistory(); sculpting = true; sculptedMesh = one; orbit.enabled = false;
     renderer.domElement.setPointerCapture(event.pointerId);
@@ -914,7 +915,7 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   if (hit) event.shiftKey ? toggleSelect(hit.object) : select([hit.object]); else if (!event.shiftKey) select([]);
 }, { capture: true });
 
-renderer.domElement.addEventListener("pointermove", (event) => {
+window.addEventListener("pointermove", (event) => {
   if (!sculpting || !sculptedMesh) return;
   event.stopImmediatePropagation();
   pointerFromEvent(event);
@@ -922,7 +923,7 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   if (hit) sculptClay(sculptedMesh, hit);
 }, { capture: true });
 
-renderer.domElement.addEventListener("pointerup", (event) => {
+window.addEventListener("pointerup", (event) => {
   if (!sculpting) return;
   event.stopImmediatePropagation();
   sculpting = false; sculptedMesh = null; orbit.enabled = true;
@@ -932,11 +933,12 @@ renderer.domElement.addEventListener("pointerup", (event) => {
 
 document.querySelectorAll("[data-add]").forEach((button) => button.addEventListener("click", () => addShape(button.dataset.add)));
 document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
+  clayBrushActive = false;
   transform.setMode(button.dataset.mode);
   document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button));
 }));
 document.querySelectorAll("[data-clay-mode]").forEach((button) => button.addEventListener("click", () => {
-  clayMode = button.dataset.clayMode;
+  clayMode = button.dataset.clayMode; clayBrushActive = true;
   document.querySelectorAll("[data-clay-mode]").forEach((item) => item.classList.toggle("active", item === button));
   setStatus(`${button.textContent} brush selected. Drag directly on your clay shape.`);
 }));
