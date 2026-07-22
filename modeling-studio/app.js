@@ -902,7 +902,7 @@ function resize() {
 }
 
 function beginSculpt(event, canCapture) {
-  if (event.target !== renderer.domElement || event.button !== 0 || transform.dragging) return;
+  if (event.button !== 0 || transform.dragging) return;
   pointerFromEvent(event);
   const hit = raycaster.intersectObjects(visibleMeshes(), false)[0];
   const one = selection.size === 1 ? [...selection][0] : null;
