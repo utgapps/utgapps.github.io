@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, type ApiAccount } from "./lib/api";
+import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, type ApiAccessLockout, type ApiAccount } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 
@@ -64,13 +64,17 @@ function SetupForm({ onAuthed, setMsg }: { onAuthed: (t: string, a: ApiAccount) 
 
 function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | null; onSignOut: () => void }) {
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
+  const [lockouts, setLockouts] = useState<ApiAccessLockout[]>([]);
   const [classId, setClassId] = useState("");
   const [msg, setMsg] = useState("");
   const [nc, setNc] = useState({ classId: "ai102", name: "", username: "", password: "", role: "student" as "student" | "instructor" });
   const [codes, setCodes] = useState({ classId: "ai102", studentCode: "", instructorCode: "" });
 
   async function refresh() {
-    try { setAccounts(await apiAdminList(token, classId || undefined)); setMsg(""); }
+    try {
+      const [nextAccounts, nextLockouts] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token)]);
+      setAccounts(nextAccounts); setLockouts(nextLockouts); setMsg("");
+    }
     catch (e) { setMsg((e as Error).message); if ((e as Error).message.toLowerCase().includes("sign")) onSignOut(); }
   }
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [classId]);
@@ -89,6 +93,10 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   }
   async function saveCodes() {
     try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); setMsg("Class access codes saved."); }
+    catch (e) { setMsg((e as Error).message); }
+  }
+  async function clearLockout(browserKey: string) {
+    try { await apiAdminClearAccessLockout(token, browserKey); refresh(); }
     catch (e) { setMsg((e as Error).message); }
   }
 
@@ -119,19 +127,37 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
         </div>
       </div>
       <div className="admin-create">
-        <h3>Set private classroom codes</h3>
+        <h3>Set classroom codes</h3>
         <div className="row">
           <input value={codes.classId} placeholder="class (ai102)" onChange={(e) => setCodes({ ...codes, classId: e.target.value })} />
-          <input value={codes.studentCode} placeholder="student code (8+ characters)" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} />
-          <input value={codes.instructorCode} placeholder="instructor code (8+ characters)" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} />
+          <input value={codes.studentCode} placeholder="student code (4+ characters)" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} />
+          <input value={codes.instructorCode} placeholder="instructor code (4+ characters)" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} />
           <button className="primary" onClick={saveCodes}>Save codes</button>
         </div>
       </div>
+
+      <AccessLockoutTable rows={lockouts} onClear={clearLockout} />
 
       <AccountTable title="Permanent accounts" rows={perms} onUpdate={update} onRemove={remove} />
       <AccountTable title={`Guests (auto-deleted after 120 days)`} rows={guests} onUpdate={update} onRemove={remove} isGuest />
     </section>
   </main>;
+}
+
+function AccessLockoutTable({ rows, onClear }: { rows: ApiAccessLockout[]; onClear: (browserKey: string) => void }) {
+  function status(row: ApiAccessLockout) {
+    if (row.lockLevel >= 4 && row.lockedUntil == null) return "Permanent lock";
+    if (row.lockedUntil && row.lockedUntil > Date.now()) return `Locked until ${new Date(row.lockedUntil).toLocaleString()}`;
+    return `${row.attemptCount}/5 distinct incorrect codes`;
+  }
+  return <div className="admin-table">
+    <h3>Class code lockouts <span className="muted">({rows.length})</span></h3>
+    {rows.length === 0 ? <p className="empty">No active browser code records.</p> : <table><thead><tr><th>Browser</th><th>Status</th><th>Lock level</th><th>Updated</th><th></th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.browserKey}>
+        <td className="muted">{row.browserKey.slice(0, 12)}</td><td>{status(row)}</td><td>{row.lockLevel}/4</td><td className="muted">{new Date(row.updatedAt).toLocaleString()}</td>
+        <td className="admin-actions"><button className="text-button danger" onClick={() => onClear(row.browserKey)}>Clear lock</button></td>
+      </tr>)}</tbody></table>}
+  </div>;
 }
 
 function AccountTable({ title, rows, onUpdate, onRemove, isGuest }: {

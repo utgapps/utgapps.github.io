@@ -199,18 +199,33 @@
         $("codeInput").value = "";
         $("codeInput").focus();
       }
+      var ACCESS_DEVICE_KEY = "utg_classroom_access_device";
+      function accessDevice() {
+        var id = localStorage.getItem(ACCESS_DEVICE_KEY);
+        if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/[^a-zA-Z0-9-]/g, ""); localStorage.setItem(ACCESS_DEVICE_KEY, id); }
+        return id;
+      }
+      function showCodeError(message) {
+        $("codeMsg").textContent = message || "That code isn't active right now.";
+        var card = document.querySelector(".gate-card");
+        card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+        $("codeInput").select();
+      }
+      function verifyClassroomCode(code, entry) {
+        fetch(API + "/access/verify", { method: "POST", cache: "no-store", headers: { "content-type": "application/json", "x-utg-access-device": accessDevice() }, body: JSON.stringify({ code: code }) })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !entry) { showCodeError((res.d && res.d.error) || "That code isn't active right now."); return; }
+            localStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(entry);
+          })
+          .catch(function () { showCodeError("Could not check that class code. Try again."); });
+      }
       function submit() {
-        var entry = find($("codeInput").value);
-        if (entry) {
-          localStorage.setItem(KEY, norm($("codeInput").value));
-          $("codeMsg").textContent = "";
-          reveal(entry);
-        } else {
-          $("codeMsg").textContent = "That code isn't active right now.";
-          var card = document.querySelector(".gate-card");
-          card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
-          $("codeInput").select();
-        }
+        var code = norm($("codeInput").value), entry = find(code);
+        if (entry && entry.classroom) { verifyClassroomCode(code, entry); return; }
+        if (entry) { localStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(entry); return; }
+        if (code.length === 4) { verifyClassroomCode(code, null); return; }
+        showCodeError("Enter a 4-letter class code.");
       }
       $("codeInput").addEventListener("input", function () {
         this.value = this.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -246,7 +261,8 @@
       var saved = localStorage.getItem(KEY);
       var entry = find(saved);
       if (entry) {
-        reveal(entry);
+        if (entry.classroom) verifyClassroomCode(norm(saved), entry);
+        else reveal(entry);
       } else {
         if (saved) localStorage.removeItem(KEY);
         var locked = new URLSearchParams(location.search).get("locked");

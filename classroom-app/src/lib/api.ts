@@ -5,12 +5,20 @@ const localApi = typeof window !== "undefined" && (window.location.hostname === 
 const API = ((typeof window !== "undefined" && (window as Window & { UTG_API_URL?: string }).UTG_API_URL) as string) || localApi ||
   "https://utg-classroom-api.utgapps.workers.dev";
 const TURN = ((typeof window !== "undefined" && (window as Window & { UTG_TURN_URL?: string }).UTG_TURN_URL) as string) || "";
+const accessDeviceKey = "utg_classroom_access_device";
+
+function accessDevice() {
+  if (typeof window === "undefined") return "";
+  let id = localStorage.getItem(accessDeviceKey);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(accessDeviceKey, id); }
+  return id;
+}
 
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
 export type ApiProject = { id: string; title: string; files: Record<string, string>; updatedAt: number };
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {
-  const headers: Record<string, string> = { "content-type": "application/json", ...(opts.headers as Record<string, string>) };
+  const headers: Record<string, string> = { "content-type": "application/json", "x-utg-access-device": accessDevice(), ...(opts.headers as Record<string, string>) };
   if (token) headers.authorization = `Bearer ${token}`;
   const res = await fetch(`${API}${path}`, { ...opts, headers, cache: "no-store" });
   const data = await res.json().catch(() => ({}));
@@ -98,4 +106,11 @@ export async function apiAdminDelete(token: string, id: string): Promise<void> {
 }
 export async function apiAdminSetClassAccess(token: string, classId: string, studentCode: string, instructorCode: string): Promise<void> {
   await req(`/admin/class-access/${encodeURIComponent(classId)}`, { method: "PUT", body: JSON.stringify({ studentCode, instructorCode }) }, token);
+}
+export type ApiAccessLockout = { browserKey: string; attemptCount: number; lockLevel: number; lockedUntil: number | null; updatedAt: number };
+export async function apiAdminListAccessLockouts(token: string): Promise<ApiAccessLockout[]> {
+  return (await req("/admin/access-lockouts", {}, token)).lockouts || [];
+}
+export async function apiAdminClearAccessLockout(token: string, browserKey: string): Promise<void> {
+  await req(`/admin/access-lockouts/${encodeURIComponent(browserKey)}`, { method: "DELETE" }, token);
 }

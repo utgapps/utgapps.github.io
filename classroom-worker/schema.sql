@@ -76,3 +76,15 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count    INTEGER NOT NULL,
   reset_at INTEGER NOT NULL
 );
+
+-- Browser-scoped classroom-code attempts. Wrong-code hashes are retained only
+-- long enough to avoid counting the same typo twice in one attempt cycle.
+CREATE TABLE IF NOT EXISTS access_lockouts (
+  browser_key           TEXT PRIMARY KEY,
+  attempted_code_hashes TEXT NOT NULL DEFAULT '[]',
+  attempt_count         INTEGER NOT NULL DEFAULT 0,
+  lock_level            INTEGER NOT NULL DEFAULT 0,
+  locked_until          INTEGER,
+  updated_at            INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_access_lockouts_locked_until ON access_lockouts(locked_until);

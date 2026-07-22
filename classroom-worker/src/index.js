@@ -3,6 +3,7 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const DAY = 86400000;
+const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
 
@@ -130,6 +131,50 @@ async function rateLimit(db, request, bucket, limit = 12) {
   if (row.count >= limit) throw new HttpError("Too many attempts. Try again in a few minutes.", 429);
   await db.prepare("UPDATE rate_limits SET count = count + 1 WHERE key = ?").bind(key).run();
 }
+function lockError(level, until) {
+  if (level >= 4 && !until) return new HttpError("This browser is permanently locked after repeated code lockouts. Ask an admin to clear it.", 429);
+  const remaining = Math.max(1, Math.ceil((until - Date.now()) / 60000));
+  return new HttpError(`Too many distinct incorrect codes. This browser is locked for ${remaining < 60 ? `${remaining} minutes` : `${Math.ceil(remaining / 60)} hours`}.`, 429);
+}
+async function browserLockKey(request) {
+  const device = String(request.headers.get("X-UTG-Access-Device") || "").trim();
+  const browser = /^[a-zA-Z0-9-]{16,64}$/.test(device) ? `browser:${device}` : `ip:${request.headers.get("CF-Connecting-IP") || "unknown"}`;
+  return sha256(`class-code-lock:${browser}`);
+}
+function attemptedHashes(value) {
+  try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string").slice(0, 5) : []; }
+  catch { return []; }
+}
+async function checkCodeLock(db, request) {
+  const browserKey = await browserLockKey(request), now = Date.now();
+  const row = await db.prepare("SELECT * FROM access_lockouts WHERE browser_key = ?").bind(browserKey).first();
+  if (!row) return { browserKey, attemptCount: 0, lockLevel: 0, hashes: [] };
+  if (row.lock_level >= 4 && row.locked_until == null) throw lockError(row.lock_level, null);
+  if (row.locked_until && row.locked_until > now) throw lockError(row.lock_level, row.locked_until);
+  if (row.locked_until && row.locked_until <= now) {
+    await db.prepare("UPDATE access_lockouts SET attempted_code_hashes = '[]', attempt_count = 0, locked_until = NULL, updated_at = ? WHERE browser_key = ?").bind(now, browserKey).run();
+    return { browserKey, attemptCount: 0, lockLevel: row.lock_level, hashes: [] };
+  }
+  return { browserKey, attemptCount: row.attempt_count, lockLevel: row.lock_level, hashes: attemptedHashes(row.attempted_code_hashes) };
+}
+async function clearCodeAttempts(db, browserKey) {
+  await db.prepare("UPDATE access_lockouts SET attempted_code_hashes = '[]', attempt_count = 0, locked_until = NULL, updated_at = ? WHERE browser_key = ?").bind(Date.now(), browserKey).run();
+}
+async function recordWrongCode(db, request, cleanCode) {
+  const state = await checkCodeLock(db, request), code = await sha256(cleanCode);
+  if (state.hashes.includes(code)) return;
+  const hashes = [...state.hashes, code], now = Date.now();
+  if (hashes.length < 5) {
+    await db.prepare("INSERT INTO access_lockouts (browser_key, attempted_code_hashes, attempt_count, lock_level, locked_until, updated_at) VALUES (?,?,?,?,NULL,?) ON CONFLICT(browser_key) DO UPDATE SET attempted_code_hashes=excluded.attempted_code_hashes, attempt_count=excluded.attempt_count, updated_at=excluded.updated_at")
+      .bind(state.browserKey, JSON.stringify(hashes), hashes.length, state.lockLevel, now).run();
+    return;
+  }
+  const nextLevel = state.lockLevel + 1;
+  const lockedUntil = nextLevel >= 4 ? null : now + [HOUR, DAY, 7 * DAY][nextLevel - 1];
+  await db.prepare("INSERT INTO access_lockouts (browser_key, attempted_code_hashes, attempt_count, lock_level, locked_until, updated_at) VALUES (?, '[]', 0, ?, ?, ?) ON CONFLICT(browser_key) DO UPDATE SET attempted_code_hashes='[]', attempt_count=0, lock_level=excluded.lock_level, locked_until=excluded.locked_until, updated_at=excluded.updated_at")
+    .bind(state.browserKey, nextLevel, lockedUntil, now).run();
+  throw lockError(nextLevel, lockedUntil);
+}
 async function signedMediaUrl(url, env, id, accountId) {
   if (!env.SETUP_SECRET) throw new HttpError("Media signing is not configured.", 503);
   const expires = Date.now() + 7 * DAY;
@@ -164,13 +209,14 @@ export default {
       }
 
       if (path === "/login/guest" && request.method === "POST") {
-        await rateLimit(db, request, "guest-login");
         const { code, name } = await readJson(request);
         const cleanCode = normalizeCode(code);
         const cleanName = String(name || "").trim().slice(0, 40);
         if (!validCode(cleanCode) || !cleanName) throw new HttpError("Enter your class code and name.");
+        const lock = await checkCodeLock(db, request);
         const access = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
-        if (!access) throw new HttpError("That student code is not valid.", 401);
+        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That student code is not valid.", 401); }
+        await clearCodeAttempts(db, lock.browserKey);
         const now = Date.now(), id = crypto.randomUUID();
         await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,0,'student',?,?)")
           .bind(id, access.class_id, cleanName, now, now).run();
@@ -179,13 +225,14 @@ export default {
       }
 
       if (path === "/login/instructor" && request.method === "POST") {
-        await rateLimit(db, request, "instructor-login", 8);
         const { code } = await readJson(request);
         const cleanCode = normalizeCode(code);
         if (!validCode(cleanCode)) throw new HttpError("Enter your instructor code.");
+        const lock = await checkCodeLock(db, request);
         const access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE instructor_code_hash = ?")
           .bind(await codeHash("instructor", cleanCode)).first();
-        if (!access) throw new HttpError("That instructor code is not valid.", 401);
+        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That instructor code is not valid.", 401); }
+        await clearCodeAttempts(db, lock.browserKey);
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(access.instructor_account_id).first();
         if (!account) throw new HttpError("This instructor account needs to be recreated by an admin.", 409);
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(Date.now(), account.id).run();
@@ -216,6 +263,22 @@ export default {
         if (!timingSafeEqual(hash, account.password_hash)) throw new HttpError("Wrong username or password.", 401);
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(Date.now(), account.id).run();
         return response(request, env, { token: await newSession(db, account.id, 30), account: publicAccount(account) });
+      }
+
+      // The root four-character class-code gate verifies Classroom codes here
+      // before revealing the Classroom link, so lockouts cannot be bypassed by
+      // reloading the static home page.
+      if (path === "/access/verify" && request.method === "POST") {
+        const { code } = await readJson(request, 200);
+        const cleanCode = normalizeCode(code);
+        if (!validCode(cleanCode)) throw new HttpError("Enter a valid class code.");
+        const lock = await checkCodeLock(db, request);
+        const student = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
+        const instructor = student ? null : await db.prepare("SELECT class_id FROM class_access WHERE instructor_code_hash = ?").bind(await codeHash("instructor", cleanCode)).first();
+        const access = student || instructor;
+        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That class code is not valid.", 401); }
+        await clearCodeAttempts(db, lock.browserKey);
+        return response(request, env, { classId: access.class_id, role: student ? "student" : "instructor" });
       }
 
       // Used only by the TURN credential Worker. It deliberately returns no
@@ -333,6 +396,15 @@ export default {
           const classId = url.searchParams.get("classId");
           const rows = classId ? (await db.prepare("SELECT * FROM accounts WHERE class_id = ? ORDER BY is_permanent DESC, last_seen DESC").bind(classId).all()).results : (await db.prepare("SELECT * FROM accounts ORDER BY is_permanent DESC, last_seen DESC").all()).results;
           return response(request, env, { accounts: rows.map(publicAccount) });
+        }
+        if (path === "/admin/access-lockouts" && request.method === "GET") {
+          const rows = (await db.prepare("SELECT browser_key, attempt_count, lock_level, locked_until, updated_at FROM access_lockouts ORDER BY updated_at DESC").all()).results;
+          return response(request, env, { lockouts: rows.map((row) => ({ browserKey: row.browser_key, attemptCount: row.attempt_count, lockLevel: row.lock_level, lockedUntil: row.locked_until, updatedAt: row.updated_at })) });
+        }
+        const lockoutMatch = path.match(/^\/admin\/access-lockouts\/([^/]+)$/);
+        if (lockoutMatch && request.method === "DELETE") {
+          await db.prepare("DELETE FROM access_lockouts WHERE browser_key = ?").bind(lockoutMatch[1]).run();
+          return response(request, env, { ok: true });
         }
         if (path === "/admin/account" && request.method === "POST") {
           const { classId, name, username, password, role } = await readJson(request);
