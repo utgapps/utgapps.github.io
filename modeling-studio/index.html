@@ -35,6 +35,8 @@
       <button id="undo" class="icon-btn history-btn" type="button" title="Undo last model change" disabled>Undo</button>
       <button id="redo" class="icon-btn history-btn" type="button" title="Redo last model change" disabled>Redo</button>
       <div class="export-actions">
+        <button id="saveModel" class="icon-btn" type="button" title="Save an editable UTG model file">Save model</button>
+        <label class="icon-btn file-btn" title="Open a saved UTG model file">Open model<input id="loadModel" type="file" accept=".utgmodel,application/json" /></label>
         <button id="exportStl" class="primary-btn" type="button" title="Download a printable STL file">Export STL</button>
         <button id="hardAlert" class="print-alert issue" type="button" title="Open print settings" aria-label="Hard print issues" hidden>!</button>
         <button id="warningAlert" class="print-alert warning" type="button" title="Open print settings" aria-label="May need support" hidden>!</button>
@@ -79,6 +81,12 @@
           <button type="button" data-add="sphere" title="Add a sphere shape">Sphere</button>
           <button type="button" data-add="roof" title="Add a four-sided roof shape">Roof</button>
         </div>
+      </section>
+
+      <section class="panel-section clay-library">
+        <h2>Custom Clay Shapes</h2>
+        <div id="clayList" class="clay-list"><p class="tiny-note">Make a soft clay shape, then drag on it to sculpt.</p></div>
+        <button id="addClay" type="button" class="clay-add" title="Make a new custom clay shape" aria-label="Make a new custom clay shape">+</button>
       </section>
 
       <section class="panel-section">
@@ -146,6 +154,17 @@
           <label>Y<input id="rotY" type="number" step="15" /></label>
           <label>Z<input id="rotZ" type="number" step="15" /></label>
         </div>
+      </section>
+      <section id="clayControls" class="panel-section clay-controls" hidden>
+        <h2>Clay brush</h2>
+        <div class="clay-mode-grid">
+          <button type="button" data-clay-mode="grow" class="active" title="Add soft clay where you drag">Grow</button>
+          <button type="button" data-clay-mode="carve" title="Press clay inward where you drag">Carve</button>
+          <button type="button" data-clay-mode="smooth" title="Round out bumpy clay where you drag">Smooth</button>
+        </div>
+        <label class="clay-slider">Brush size <input id="clayBrushSize" type="range" min="4" max="24" value="12" /><output id="clayBrushSizeValue">12</output></label>
+        <label class="clay-slider">Strength <input id="clayBrushStrength" type="range" min="1" max="10" value="4" /><output id="clayBrushStrengthValue">4</output></label>
+        <p class="tiny-note">Choose a brush, then drag directly on your clay shape.</p>
       </section>
       <section class="panel-section model-rules">
         <h2>Print-ready check</h2>

@@ -20,6 +20,12 @@ const warningAlert = document.getElementById("warningAlert");
 const settingsDialog = document.getElementById("settingsDialog");
 const undoButton = document.getElementById("undo");
 const redoButton = document.getElementById("redo");
+const clayList = document.getElementById("clayList");
+const clayControls = document.getElementById("clayControls");
+const clayBrushSize = document.getElementById("clayBrushSize");
+const clayBrushStrength = document.getElementById("clayBrushStrength");
+const clayBrushSizeValue = document.getElementById("clayBrushSizeValue");
+const clayBrushStrengthValue = document.getElementById("clayBrushStrengthValue");
 const fields = {
   posX: document.getElementById("posX"), posY: document.getElementById("posY"), posZ: document.getElementById("posZ"),
   sizeX: document.getElementById("sizeX"), sizeY: document.getElementById("sizeY"), sizeZ: document.getElementById("sizeZ"),
@@ -81,8 +87,12 @@ const selectionPivotPreviousMatrix = new THREE.Matrix4();
 const selectionTransformDelta = new THREE.Matrix4();
 let itemNumber = 0;
 let unionNumber = 0;
+let clayNumber = 0;
 let analysisTimer = 0;
 let selectionPivotActive = false;
+let clayMode = "grow";
+let sculpting = false;
+let sculptedMesh = null;
 const undoStack = [];
 const redoStack = [];
 const historyLimit = 24;
@@ -113,7 +123,8 @@ function captureHistoryState() {
     })),
     selection: [...selection].map((mesh) => meshes.indexOf(mesh)),
     itemNumber,
-    unionNumber
+    unionNumber,
+    clayNumber
   };
 }
 
@@ -164,6 +175,7 @@ function restoreHistoryState(state) {
   });
   itemNumber = state.itemNumber;
   unionNumber = state.unionNumber;
+  clayNumber = state.clayNumber || 0;
   select(state.selection.map((index) => meshes[index]).filter(Boolean));
   restoringHistory = false;
   scheduleAnalysis();
@@ -192,6 +204,7 @@ function baseMaterial(hole = false) {
 }
 
 function createGeometry(kind) {
+  if (kind === "clay") return new THREE.IcosahedronGeometry(18, 4).toNonIndexed();
   if (kind === "cylinder") return new THREE.CylinderGeometry(12, 12, 20, 48);
   if (kind === "sphere") return new THREE.SphereGeometry(14, 32, 20);
   if (kind === "roof") return new THREE.ConeGeometry(18, 28, 4);
@@ -205,12 +218,13 @@ function addShape(kind) {
   const mesh = new THREE.Mesh(geometry, baseMaterial());
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  mesh.userData = { kind, name: `${kind[0].toUpperCase()}${kind.slice(1)} ${++itemNumber}`, hole: false, baseSize: geometry.boundingBox.getSize(new THREE.Vector3()) };
+  const name = kind === "clay" ? `Clay shape ${++clayNumber}` : `${kind[0].toUpperCase()}${kind.slice(1)} ${++itemNumber}`;
+  mesh.userData = { kind, name, hole: false, baseSize: geometry.boundingBox.getSize(new THREE.Vector3()), clayRadius: kind === "clay" ? 18 : undefined };
   mesh.position.y = mesh.userData.baseSize.y / 2;
   if (kind === "roof") mesh.rotation.y = Math.PI / 4;
   modelGroup.add(mesh);
   select([mesh]);
-  setStatus(`${mesh.userData.name} added. Drag its arrows or type exact measurements.`);
+  setStatus(kind === "clay" ? "Clay shape added. Choose a clay brush, then drag on the shape." : `${mesh.userData.name} added. Drag its arrows or type exact measurements.`);
   scheduleAnalysis();
 }
 
@@ -262,6 +276,30 @@ function attachTransformControls(mesh) {
   });
 }
 
+function isClay(mesh) {
+  return Boolean(mesh && mesh.userData.kind === "clay" && !mesh.userData.unionResult);
+}
+
+function syncClayList() {
+  const clayShapes = modelGroup.children.filter(isClay);
+  clayList.replaceChildren();
+  if (!clayShapes.length) {
+    const note = document.createElement("p");
+    note.className = "tiny-note";
+    note.textContent = "Make a soft clay shape, then drag on it to sculpt.";
+    clayList.appendChild(note);
+    return;
+  }
+  clayShapes.forEach((mesh) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `clay-item${selection.has(mesh) ? " active" : ""}`;
+    button.textContent = mesh.userData.name;
+    button.addEventListener("click", () => select([mesh]));
+    clayList.appendChild(button);
+  });
+}
+
 function updateSelectionUI() {
   modelGroup.children.forEach((mesh) => {
     mesh.material.emissive.set(selection.has(mesh) ? 0x5b4200 : 0x000000);
@@ -273,7 +311,9 @@ function updateSelectionUI() {
   if (one) attachTransformControls(one);
   else if (selection.size > 1) updateSelectionPivot([...selection]);
   selectedName.textContent = one ? one.userData.name : selection.size ? `${selection.size} shapes selected` : "Nothing selected";
-  selectedHint.textContent = one ? (isUnionResult(one) ? "Move, rotate, or scale this live union. Break union restores its source shapes here." : one.userData.hole ? "This is a hole. Union it with a solid to remove material." : "Use the arrows or type exact measurements.") : selection.size ? "Choose Union to keep source shapes together, including any holes." : "Click a shape in the workplane.";
+  selectedHint.textContent = one ? (isClay(one) ? "Pick a clay brush below, then drag directly on this shape." : isUnionResult(one) ? "Move, rotate, or scale this live union. Break union restores its source shapes here." : one.userData.hole ? "This is a hole. Union it with a solid to remove material." : "Use the arrows or type exact measurements.") : selection.size ? "Choose Union to keep source shapes together, including any holes." : "Click a shape in the workplane.";
+  clayControls.hidden = !isClay(one);
+  syncClayList();
   syncInspector();
 }
 
@@ -550,7 +590,8 @@ function duplicateSelected() {
     copy.position.copy(mesh.position).add(new THREE.Vector3(8, 0, 8));
     copy.rotation.copy(mesh.rotation); copy.scale.copy(mesh.scale);
     copy.castShadow = true; copy.receiveShadow = true;
-    copy.userData = { ...mesh.userData, name: `${mesh.userData.kind[0].toUpperCase()}${mesh.userData.kind.slice(1)} ${++itemNumber}`, baseSize: mesh.userData.baseSize.clone() };
+    const name = mesh.userData.kind === "clay" ? `Clay shape ${++clayNumber}` : `${mesh.userData.kind[0].toUpperCase()}${mesh.userData.kind.slice(1)} ${++itemNumber}`;
+    copy.userData = { ...mesh.userData, name, baseSize: mesh.userData.baseSize.clone() };
     modelGroup.add(copy);
     return copy;
   });
@@ -731,6 +772,120 @@ function exportStl() {
   setStatus("STL exported. Keep it with your project files.");
 }
 
+function plainUserData(mesh) {
+  const data = { ...mesh.userData };
+  if (data.baseSize) data.baseSize = { x: data.baseSize.x, y: data.baseSize.y, z: data.baseSize.z };
+  return data;
+}
+
+function saveModel() {
+  const meshes = [...modelGroup.children];
+  const model = {
+    version: 1,
+    projectName: projectName.value,
+    itemNumber,
+    unionNumber,
+    clayNumber,
+    selection: [...selection].map((mesh) => meshes.indexOf(mesh)),
+    meshes: meshes.map((mesh) => ({
+      geometry: mesh.geometry.toJSON(), userData: plainUserData(mesh), position: mesh.position.toArray(),
+      quaternion: mesh.quaternion.toArray(), scale: mesh.scale.toArray(), visible: mesh.visible
+    })),
+    unions: [...liveUnions.entries()].map(([id, union]) => ({
+      id, sources: union.sources.map((source) => meshes.indexOf(source)), result: meshes.indexOf(union.result), lastMatrix: union.lastMatrix.elements
+    }))
+  };
+  const name = (projectName.value.trim() || "utg-model").replace(/[^a-z0-9-_]/gi, "-");
+  downloadBlob(new Blob([JSON.stringify(model)], { type: "application/json" }), `${name}.utgmodel`);
+  setStatus("Editable model saved. Open this .utgmodel file later to keep building.");
+}
+
+function downloadBlob(blob, filename) {
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url; link.download = filename; link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function readUserData(data, geometry) {
+  geometry.computeBoundingBox();
+  const base = data && data.baseSize;
+  return { ...data, baseSize: base ? new THREE.Vector3(base.x, base.y, base.z) : geometry.boundingBox.getSize(new THREE.Vector3()) };
+}
+
+async function loadModel(file) {
+  try {
+    const saved = JSON.parse(await file.text());
+    if (saved.version !== 1 || !Array.isArray(saved.meshes)) throw new Error("Not a UTG model file.");
+    recordHistory();
+    transform.detach(); removeMeshes([...modelGroup.children]); liveUnions.clear();
+    const loader = new THREE.BufferGeometryLoader();
+    const meshes = saved.meshes.map((item) => {
+      const geometry = loader.parse(item.geometry);
+      const mesh = new THREE.Mesh(geometry, baseMaterial(Boolean(item.userData && item.userData.hole)));
+      mesh.userData = readUserData(item.userData || {}, geometry);
+      mesh.position.fromArray(item.position || [0, 0, 0]);
+      mesh.quaternion.fromArray(item.quaternion || [0, 0, 0, 1]);
+      mesh.scale.fromArray(item.scale || [1, 1, 1]);
+      mesh.visible = item.visible !== false; mesh.castShadow = true; mesh.receiveShadow = true;
+      modelGroup.add(mesh);
+      return mesh;
+    });
+    (saved.unions || []).forEach((item) => {
+      const result = meshes[item.result];
+      const sources = (item.sources || []).map((index) => meshes[index]).filter(Boolean);
+      if (result && sources.length) liveUnions.set(item.id, { sources, result, lastMatrix: new THREE.Matrix4().fromArray(item.lastMatrix || []) });
+    });
+    projectName.value = String(saved.projectName || "my-derby-part").slice(0, 40);
+    itemNumber = Number(saved.itemNumber) || meshes.length;
+    unionNumber = Number(saved.unionNumber) || 0;
+    clayNumber = Number(saved.clayNumber) || modelGroup.children.filter(isClay).length;
+    select((saved.selection || []).map((index) => meshes[index]).filter(Boolean));
+    setStatus("Model opened. Your shapes, clay details, and unions are ready to edit.");
+    scheduleAnalysis();
+  } catch (error) {
+    console.error(error);
+    setStatus("That file could not be opened. Choose a .utgmodel file saved by Modeling Studio.", true);
+  }
+}
+
+function pointerFromEvent(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+}
+
+function sculptClay(mesh, hit) {
+  const geometry = mesh.geometry;
+  const position = geometry.attributes.position;
+  const normal = geometry.attributes.normal;
+  const point = mesh.worldToLocal(hit.point.clone());
+  const radius = Number(clayBrushSize.value);
+  const amount = Number(clayBrushStrength.value) * 0.12;
+  const vertex = new THREE.Vector3(), surfaceNormal = new THREE.Vector3(), target = new THREE.Vector3();
+  for (let index = 0; index < position.count; index += 1) {
+    vertex.fromBufferAttribute(position, index);
+    const distance = vertex.distanceTo(point);
+    if (distance > radius) continue;
+    const falloff = (1 - distance / radius) ** 2;
+    if (clayMode === "smooth") {
+      target.copy(vertex).normalize().multiplyScalar(mesh.userData.clayRadius || 18);
+      vertex.lerp(target, amount * falloff * 0.45);
+    } else {
+      surfaceNormal.fromBufferAttribute(normal, index);
+      vertex.addScaledVector(surfaceNormal, amount * falloff * (clayMode === "carve" ? -1 : 1));
+    }
+    position.setXYZ(index, vertex.x, vertex.y, vertex.z);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  mesh.userData.baseSize = geometry.boundingBox.getSize(new THREE.Vector3());
+  syncInspector();
+  scheduleAnalysis();
+}
+
 function resetView() {
   camera.position.set(155, 125, 175);
   orbit.target.set(0, 0, 0);
@@ -746,12 +901,30 @@ function resize() {
 
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (event.button !== 0 || transform.dragging) return;
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-  raycaster.setFromCamera(pointer, camera);
+  pointerFromEvent(event);
   const hit = raycaster.intersectObjects(visibleMeshes(), false)[0];
+  const one = selection.size === 1 ? [...selection][0] : null;
+  if (hit && hit.object === one && isClay(one) && !event.shiftKey) {
+    recordHistory(); sculpting = true; sculptedMesh = one; orbit.enabled = false;
+    renderer.domElement.setPointerCapture(event.pointerId);
+    sculptClay(one, hit);
+    return;
+  }
   if (hit) event.shiftKey ? toggleSelect(hit.object) : select([hit.object]); else if (!event.shiftKey) select([]);
+});
+
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (!sculpting || !sculptedMesh) return;
+  pointerFromEvent(event);
+  const hit = raycaster.intersectObject(sculptedMesh, false)[0];
+  if (hit) sculptClay(sculptedMesh, hit);
+});
+
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (!sculpting) return;
+  sculpting = false; sculptedMesh = null; orbit.enabled = true;
+  if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+  setStatus("Clay changed. Keep sculpting, or use the arrows to move your shape.");
 });
 
 document.querySelectorAll("[data-add]").forEach((button) => button.addEventListener("click", () => addShape(button.dataset.add)));
@@ -759,6 +932,12 @@ document.querySelectorAll("[data-mode]").forEach((button) => button.addEventList
   transform.setMode(button.dataset.mode);
   document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button));
 }));
+document.querySelectorAll("[data-clay-mode]").forEach((button) => button.addEventListener("click", () => {
+  clayMode = button.dataset.clayMode;
+  document.querySelectorAll("[data-clay-mode]").forEach((item) => item.classList.toggle("active", item === button));
+  setStatus(`${button.textContent} brush selected. Drag directly on your clay shape.`);
+}));
+document.getElementById("addClay").addEventListener("click", () => addShape("clay"));
 document.getElementById("duplicate").addEventListener("click", duplicateSelected);
 document.getElementById("makeSolid").addEventListener("click", () => changeType(false));
 document.getElementById("makeHole").addEventListener("click", () => changeType(true));
@@ -768,7 +947,9 @@ document.getElementById("layFlat").addEventListener("click", layFlat);
 document.getElementById("optimizeOrientation").addEventListener("click", optimizePrintOrientation);
 document.getElementById("deleteSelected").addEventListener("click", deleteSelected);
 document.getElementById("exportStl").addEventListener("click", exportStl);
-document.getElementById("newProject").addEventListener("click", () => { recordHistory(); removeMeshes([...modelGroup.children]); liveUnions.clear(); select([]); projectName.value = "my-derby-part"; setStatus("New model ready. Add a shape to begin."); scheduleAnalysis(); });
+document.getElementById("saveModel").addEventListener("click", saveModel);
+document.getElementById("loadModel").addEventListener("change", (event) => { const file = event.target.files && event.target.files[0]; if (file) loadModel(file); event.target.value = ""; });
+document.getElementById("newProject").addEventListener("click", () => { recordHistory(); removeMeshes([...modelGroup.children]); liveUnions.clear(); clayNumber = 0; select([]); projectName.value = "my-derby-part"; setStatus("New model ready. Add a shape to begin."); scheduleAnalysis(); });
 document.getElementById("homeView").addEventListener("click", resetView);
 undoButton.addEventListener("click", undo);
 redoButton.addEventListener("click", redo);
@@ -783,6 +964,7 @@ Object.values(fields).forEach((input) => {
 gridSnap.addEventListener("change", () => { transform.setTranslationSnap(Number(gridSnap.value)); setStatus(`Grid snapping set to ${gridSnap.value} mm.`); });
 planeSnap.addEventListener("change", () => setStatus(planeSnap.checked ? "Plane snapping is on." : "Plane snapping is off."));
 [hardAngle, warnAngle, showPrintCheck].forEach((input) => input.addEventListener("change", scheduleAnalysis));
+[clayBrushSize, clayBrushStrength].forEach((input) => input.addEventListener("input", () => { clayBrushSizeValue.value = clayBrushSize.value; clayBrushStrengthValue.value = clayBrushStrength.value; }));
 document.addEventListener("keydown", (event) => {
   if (event.target.matches("input")) return;
   if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); deleteSelected(); }
