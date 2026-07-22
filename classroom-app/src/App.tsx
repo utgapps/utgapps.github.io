@@ -64,16 +64,14 @@ function App() {
   const rootInstructorCode = rootClass && rootRole === "instructor" ? rootCode : "";
   const rootStudentGrant = rootClass && rootRole === "student" ? rootGrant : "";
   const rootInstructorGrant = rootClass && rootRole === "instructor" ? rootGrant : "";
-  const [mode, setMode] = useState<Mode>(() => rootStudentCode || rootStudentGrant ? "student" : "home");
+  const [mode, setMode] = useState<Mode>(() => {
+    if (rootStudentCode || rootStudentGrant) return "student";
+    return savedAccount()?.account.role === "student" ? "student" : "home";
+  });
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);
   const [message, setMessage] = useState("");
   const classSaveTimers = useRef(new Map<string, number>());
-
-  useEffect(() => {
-    const account = savedAccount();
-    if (account?.account.role === "student") setMode("student");
-  }, []);
 
   useEffect(() => { getClasses().then(setClasses).catch(() => setMessage("Your browser could not open local class storage.")); }, []);
   useEffect(() => { persistentStorage(); }, []);
@@ -109,17 +107,22 @@ function App() {
   }
 
   if (window.location.pathname.replace(/\/+$/, "").endsWith("/admin")) return <AdminApp />;
+  // The classroom has no standalone landing page. Arriving without a role, an
+  // instructor entry, or an account sends you back to the modules hub.
+  if (!rootRole && !new URLSearchParams(window.location.search).has("instructor") && !savedAccount()) {
+    window.location.replace("../");
+    return null;
+  }
   if (mode === "instructor" && activeClass) {
     const account = savedAccount();
-    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
+    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
     return <InstructorRoom record={activeClass} token={account.token} onChange={persistClass} onExit={() => setMode("home")} />;
   }
-  if (mode === "student") return <StudentJoin initialCode={rootStudentCode} initialGrant={rootStudentGrant} onExit={() => setMode("home")} />;
+  if (mode === "student") return <StudentJoin initialCode={rootStudentCode} initialGrant={rootStudentGrant} onExit={() => window.location.replace("../")} />;
 
   return <Home
     classes={classes}
     message={message}
-    onStudent={() => setMode("student")}
     onOpen={useClass}
     onImport={useClass}
     initialInstructorCode={rootInstructorCode}
@@ -127,12 +130,11 @@ function App() {
   />;
 }
 
-function Home({ classes, message, onStudent, onOpen, onImport, initialInstructorCode, initialInstructorGrant }: {
-  classes: ClassRecord[]; message: string; onStudent: () => void;
+function Home({ classes, message, onOpen, onImport, initialInstructorCode, initialInstructorGrant }: {
+  classes: ClassRecord[]; message: string;
   onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
   initialInstructorCode: string; initialInstructorGrant: string;
 }) {
-  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor") || Boolean(initialInstructorCode || initialInstructorGrant));
   const [code, setCode] = useState(initialInstructorCode);
   const [notice, setNotice] = useState(message);
 
@@ -164,29 +166,15 @@ function Home({ classes, message, onStudent, onOpen, onImport, initialInstructor
 
   return <main className="welcome">
     <header className="brand"><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span>Classroom</span></header>
-    <section className="welcome-copy">
-      <p className="eyebrow">Browser coding classroom</p>
-      <h1>Teach live. Keep every project safe.</h1>
-      <p>One classroom code connects a teacher and their students. Each student has a separate project, saved on their device and synchronized when class is open.</p>
-      <div className="choice-row">
-        <button className="primary" onClick={onStudent}>Join a class</button>
-        <button className="secondary" onClick={() => setTeacherPanel(true)}>Instructor access</button>
-      </div>
-    </section>
-    <section className="home-grid">
-      <article className="feature"><strong>1</strong><h2>Class access code</h2><p>Students use their four-character class code. The code finds the class; teacher approval controls live entry.</p></article>
-      <article className="feature"><strong>2</strong><h2>Individual projects</h2><p>Students cannot browse each other's code. Teachers can open any project to help in real time.</p></article>
-      <article className="feature"><strong>3</strong><h2>Portable class file</h2><p>Export one class file with your roster, projects, checkpoints, and private notes for a safe handoff.</p></article>
-    </section>
-    {teacherPanel && <div className="modal-backdrop"><section className="modal teacher-modal">
-      <button className="icon-button" aria-label="Close" onClick={() => setTeacherPanel(false)}>x</button>
-      <p className="eyebrow">Instructor workspace</p><h2>Open a curriculum classroom</h2>
+    <section className="teacher-entry">
+      <p className="eyebrow">Instructor workspace</p>
+      <h2>Open a curriculum classroom</h2>
       <div className="teacher-options">
-        <div><h3>Open a curriculum classroom</h3>{initialInstructorGrant ? <p className="small">Instructor access was verified at the class gate.</p> : <label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}<button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
-        <div><h3>Classroom backup</h3><p>Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
+        <div><h3>Curriculum classroom</h3>{initialInstructorGrant ? <p className="small">Instructor access was verified at the class gate.</p> : <label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}<button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
+        <div><h3>Classroom backup</h3><p className="small">Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
       </div>
       {notice && <p className="notice warning">{notice}</p>}
-    </section></div>}
+    </section>
   </main>;
 }
 

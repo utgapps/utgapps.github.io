@@ -1,35 +1,9 @@
-/* Live class codes and permissions are managed in the Classroom Admin dashboard. */
-/* ============================================================
-   CLASS CODES  —  edit this file to control who gets in.
+/* UTG site configuration (public — no secrets here).
 
-   Kids enter a 4-letter code on the home page. A code only works
-   while  enabled: true . To lock a class out (after class / at home)
-   set its  enabled  to  false  and push. To let them in, set it  true .
-
-     code    : the 4 letters kids type (not case sensitive)
-     label   : a name just for you (shown after they sign in)
-     enabled : true = works now,  false = locked
-     tools   : "all", or a list of what this code unlocks —
-               "pixel-art" , "animator" , "digital-art" , "modeling" , "camp" , and/or "classroom"
-     print   : true = may use "Print to PDF" on the coding workbooks;
-               leave it out (or false) to block printing for that code.
-     play    : who may PLAY the finished games (the "Play" buttons).
-               "all", a list of game slugs, or [] / leave out for none.
-               Game slugs:
-                 catch whack flappy subway geo crossy pong brick doodle
-                 shooter heli slice dodge stack fishing rhythm lander
-                 platformer cookie pacman drift
-               e.g.  play: ["flappy","drift"]  lets them play only those.
-     hours   : (optional) only works during this Pacific-time window, e.g.
-               "09:00-12:15". Outside it the code is auto-disabled (and it
-               turns back on inside the window). Uses Los Angeles time and
-               follows daylight saving automatically. Leave out for all-day.
-   This is a simple gate, NOT real security — the codes are public
-    in this file. It just keeps kids out of the resources outside class.
-    Classroom student and instructor codes are held only as hashes by the API.
-   (Note: browsers may cache this file for a few minutes, so a lock
-   can take a little while to take effect at home.)
-   ============================================================ */
+   Class codes and their permissions are NOT in this file. They live only as
+   hashes in the Classroom API's D1 database and are managed from the Admin
+   dashboard (/admin). This file just declares the curriculum classrooms and
+   the TURN relay URL used by the live classroom. */
 window.UTG_CLASSROOMS = [
   {
     id: "ai102",
@@ -38,30 +12,9 @@ window.UTG_CLASSROOMS = [
   }
 ];
 
-/* ------------------------------------------------------------------
-   CLASSROOM RELAY (TURN)  —  needed for the live classroom to work on
-   locked-down school / home Wi-Fi.
-
-   The classroom connects the teacher and each student directly, browser
-   to browser (WebRTC). Many school and home networks block that unless
-   the traffic can bounce through a "TURN relay" server on port 443.
-   Without one, a student sees "we found your class but could not open a
-   live link to your teacher" even though the class shows as open.
-
-   TWO WAYS to provide a relay (use either one):
-
-   1) UTG_TURN_URL (recommended — Cloudflare, big free tier): deploy the tiny
-      worker in classroom-app/cloudflare-turn-worker.js, then put its URL here.
-      The app fetches fresh credentials from it each time (Cloudflare creds
-      expire, so they can't be pasted directly). See that file for setup.
-
-   2) UTG_TURN (static creds — e.g. Metered, ~5 min, no card): make an account
-      at metered.ca, open Metered TURN, and paste the "ICE Servers" array it
-      gives you (username + credential included) into the array below.
-
-   STUN is always tried first; the relay is only used when a direct/STUN path
-   fails. Leave both empty to use PeerJS's built-in defaults (often blocked). */
+/* CLASSROOM RELAY (TURN) — needed for the live classroom on locked-down
+   school / home Wi-Fi, where direct browser-to-browser WebRTC is blocked.
+   The tiny worker in classroom-app/cloudflare-turn-worker.js mints fresh,
+   short-lived credentials on demand; put its URL here. STUN is tried first;
+   the relay is only used when a direct/STUN path fails. */
 window.UTG_TURN_URL = "https://utg-turn.utgapps.workers.dev";
-
-// Access-code values and permissions live only in the Classroom API's D1
-// database. This file deliberately contains no usable class codes.
