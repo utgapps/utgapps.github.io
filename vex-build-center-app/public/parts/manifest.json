@@ -1,0 +1,438 @@
+{
+ "pitchMM": 12.7,
+ "parts": [
+  {
+   "id": "beam-1x1",
+   "name": "1x1 Beam",
+   "category": "beam",
+   "sizeMM": [
+    12.4,
+    12.4,
+    6.1
+   ],
+   "tris": 768
+  },
+  {
+   "id": "beam-1x2",
+   "name": "1x2 Beam",
+   "category": "beam",
+   "sizeMM": [
+    25.1,
+    12.4,
+    6.1
+   ],
+   "tris": 1704
+  },
+  {
+   "id": "beam-1x3",
+   "name": "1x3 Beam",
+   "category": "beam",
+   "sizeMM": [
+    37.8,
+    12.4,
+    6.1
+   ],
+   "tris": 1824
+  },
+  {
+   "id": "beam-1x4",
+   "name": "1x4 Beam",
+   "category": "beam",
+   "sizeMM": [
+    50.5,
+    12.4,
+    6.1
+   ],
+   "tris": 2752
+  },
+  {
+   "id": "beam-1x5",
+   "name": "1x5 Beam",
+   "category": "beam",
+   "sizeMM": [
+    63.2,
+    12.4,
+    6.1
+   ],
+   "tris": 2872
+  },
+  {
+   "id": "beam-1x6",
+   "name": "1x6 Beam",
+   "category": "beam",
+   "sizeMM": [
+    75.9,
+    12.4,
+    6.1
+   ],
+   "tris": 3800
+  },
+  {
+   "id": "beam-1x8",
+   "name": "1x8 Beam",
+   "category": "beam",
+   "sizeMM": [
+    101.3,
+    12.4,
+    6.1
+   ],
+   "tris": 4832
+  },
+  {
+   "id": "beam-1x12",
+   "name": "1x12 Beam",
+   "category": "beam",
+   "sizeMM": [
+    152.1,
+    12.4,
+    6.1
+   ],
+   "tris": 6840
+  },
+  {
+   "id": "plate-3x3",
+   "name": "3x3 Plate",
+   "category": "plate",
+   "sizeMM": [
+    37.8,
+    37.8,
+    6.1
+   ],
+   "tris": 6048
+  },
+  {
+   "id": "plate-3x6",
+   "name": "3x6 Plate",
+   "category": "plate",
+   "sizeMM": [
+    75.9,
+    37.8,
+    6.1
+   ],
+   "tris": 12324
+  },
+  {
+   "id": "plate-3x12",
+   "name": "3x12 Plate",
+   "category": "plate",
+   "sizeMM": [
+    152.1,
+    37.8,
+    6.1
+   ],
+   "tris": 23484
+  },
+  {
+   "id": "pin-connector-0x2",
+   "name": "0x2 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.35,
+    6.35,
+    12.4
+   ],
+   "tris": 1420
+  },
+  {
+   "id": "pin-connector-1x1",
+   "name": "1x1 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    5.8,
+    6.35,
+    12.28
+   ],
+   "tris": 2056
+  },
+  {
+   "id": "pin-connector-1x2",
+   "name": "1x2 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.35,
+    5.8,
+    18.63
+   ],
+   "tris": 2148
+  },
+  {
+   "id": "pin-idler-1x1",
+   "name": "1x1 Idler Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.25,
+    6.35,
+    12.34
+   ],
+   "tris": 1454
+  },
+  {
+   "id": "pin-sheet-0x1",
+   "name": "0x1 Sheet Pin",
+   "category": "pin",
+   "sizeMM": [
+    8,
+    8,
+    7.03
+   ],
+   "tris": 1696
+  },
+  {
+   "id": "standoff-025x",
+   "name": "0.25x Standoff",
+   "category": "standoff",
+   "sizeMM": [
+    6.35,
+    6.35,
+    15.45
+   ],
+   "tris": 1828
+  },
+  {
+   "id": "standoff-05x",
+   "name": "0.5x Standoff",
+   "category": "standoff",
+   "sizeMM": [
+    6.35,
+    6.35,
+    18.63
+   ],
+   "tris": 1820
+  },
+  {
+   "id": "standoff-1x",
+   "name": "1x Standoff",
+   "category": "standoff",
+   "sizeMM": [
+    6.35,
+    6.35,
+    24.98
+   ],
+   "tris": 1824
+  },
+  {
+   "id": "standoff-15x",
+   "name": "1.5x Standoff",
+   "category": "standoff",
+   "sizeMM": [
+    6.35,
+    6.35,
+    31.33
+   ],
+   "tris": 1820
+  },
+  {
+   "id": "standoff-2x",
+   "name": "2x Standoff",
+   "category": "standoff",
+   "sizeMM": [
+    6.35,
+    6.35,
+    37.68
+   ],
+   "tris": 1908
+  },
+  {
+   "id": "corner-1x1",
+   "name": "1x1 Corner",
+   "category": "corner",
+   "sizeMM": [
+    12.4,
+    10.58,
+    18.69
+   ],
+   "tris": 1476
+  },
+  {
+   "id": "corner-1x2",
+   "name": "1x2 Corner",
+   "category": "corner",
+   "sizeMM": [
+    25.1,
+    10.61,
+    18.54
+   ],
+   "tris": 2474
+  },
+  {
+   "id": "corner-2x2",
+   "name": "2x2 Corner",
+   "category": "corner",
+   "sizeMM": [
+    25.1,
+    12.4,
+    31.39
+   ],
+   "tris": 3852
+  },
+  {
+   "id": "gear-12t",
+   "name": "12T Gear",
+   "category": "gear",
+   "sizeMM": [
+    14.46,
+    14.46,
+    6.35
+   ],
+   "tris": 1824
+  },
+  {
+   "id": "gear-24t",
+   "name": "24T Gear",
+   "category": "gear",
+   "sizeMM": [
+    27.36,
+    27.36,
+    6.35
+   ],
+   "tris": 2416
+  },
+  {
+   "id": "gear-36t",
+   "name": "36T Gear",
+   "category": "gear",
+   "sizeMM": [
+    40.22,
+    40.22,
+    6.35
+   ],
+   "tris": 5504
+  },
+  {
+   "id": "gear-48t",
+   "name": "48T Gear",
+   "category": "gear",
+   "sizeMM": [
+    52.85,
+    52.85,
+    6.35
+   ],
+   "tris": 7360
+  },
+  {
+   "id": "gear-60t",
+   "name": "60T Gear",
+   "category": "gear",
+   "sizeMM": [
+    65.56,
+    65.56,
+    6.35
+   ],
+   "tris": 9740
+  },
+  {
+   "id": "wheel-ant-86",
+   "name": "Ant Wheel 86mm",
+   "category": "wheel",
+   "sizeMM": [
+    16.77,
+    83.07,
+    85.84
+   ],
+   "tris": 6390
+  },
+  {
+   "id": "wheel-ant-96",
+   "name": "Ant Wheel 96mm",
+   "category": "wheel",
+   "sizeMM": [
+    32,
+    93.67,
+    96.25
+   ],
+   "tris": 6720
+  },
+  {
+   "id": "wheel-smooth-160",
+   "name": "160mm Smooth Wheel",
+   "category": "wheel",
+   "sizeMM": [
+    50.48,
+    50.48,
+    18.7
+   ],
+   "tris": 12616
+  },
+  {
+   "id": "shaft-2x",
+   "name": "2x Shaft",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    23.62
+   ],
+   "tris": 396
+  },
+  {
+   "id": "shaft-3x",
+   "name": "3x Shaft",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    36.32
+   ],
+   "tris": 396
+  },
+  {
+   "id": "shaft-4x",
+   "name": "4x Shaft",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    49.02
+   ],
+   "tris": 396
+  },
+  {
+   "id": "spacer-025x",
+   "name": "0.25x Spacer",
+   "category": "spacer",
+   "sizeMM": [
+    8,
+    8,
+    3.17
+   ],
+   "tris": 256
+  },
+  {
+   "id": "washer",
+   "name": "Washer",
+   "category": "spacer",
+   "sizeMM": [
+    8,
+    8,
+    0.76
+   ],
+   "tris": 256
+  },
+  {
+   "id": "smart-motor",
+   "name": "Smart Motor",
+   "category": "motor",
+   "primitive": "box",
+   "sizeMM": [
+    50.8,
+    38.1,
+    25.4
+   ],
+   "color": "#2b7de0",
+   "isMotor": true
+  },
+  {
+   "id": "robot-brain",
+   "name": "Robot Brain",
+   "category": "brain",
+   "primitive": "box",
+   "sizeMM": [
+    88.9,
+    63.5,
+    19
+   ],
+   "color": "#3a3f47",
+   "isMotor": false
+  }
+ ]
+}
