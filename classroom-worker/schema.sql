@@ -103,3 +103,14 @@ CREATE TABLE IF NOT EXISTS site_access (
   hours               TEXT,
   updated_at          INTEGER NOT NULL
 );
+
+-- A short-lived, one-use handoff from the root access gate to the Classroom
+-- app. It contains no code and expires before it can become a durable login.
+CREATE TABLE IF NOT EXISTS classroom_access_grants (
+  token       TEXT PRIMARY KEY,
+  class_id    TEXT NOT NULL,
+  role        TEXT NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  used_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_classroom_access_grants_expiry ON classroom_access_grants(expires_at);

@@ -196,6 +196,22 @@ function publicProfile(profile) {
     classroom: profile.classroom_class_id ? { classId: profile.classroom_class_id, role: profile.classroom_role } : null,
   };
 }
+async function newClassroomGrant(db, profile) {
+  if (!profile.classroom_class_id || !profile.classroom_role) return null;
+  const token = rndHex(24), now = Date.now();
+  await db.prepare("INSERT INTO classroom_access_grants (token, class_id, role, expires_at, used_at) VALUES (?,?,?,?,NULL)")
+    .bind(token, profile.classroom_class_id, profile.classroom_role, now + 5 * 60 * 1000).run();
+  return token;
+}
+async function useClassroomGrant(db, value, role) {
+  const token = String(value || "").trim();
+  if (!/^[a-f0-9]{48}$/.test(token)) return null;
+  const now = Date.now();
+  const grant = await db.prepare("SELECT * FROM classroom_access_grants WHERE token = ? AND used_at IS NULL AND expires_at > ?").bind(token, now).first();
+  if (!grant || grant.role !== role) return null;
+  await db.prepare("UPDATE classroom_access_grants SET used_at = ? WHERE token = ? AND used_at IS NULL").bind(now, token).run();
+  return grant;
+}
 async function signedMediaUrl(url, env, id, accountId) {
   if (!env.SETUP_SECRET) throw new HttpError("Media signing is not configured.", 503);
   const expires = Date.now() + 7 * DAY;
@@ -230,30 +246,41 @@ export default {
       }
 
       if (path === "/login/guest" && request.method === "POST") {
-        const { code, name } = await readJson(request);
+        const { code, name, grant } = await readJson(request);
         const cleanCode = normalizeCode(code);
         const cleanName = String(name || "").trim().slice(0, 40);
-        if (!validCode(cleanCode) || !cleanName) throw new HttpError("Enter your class code and name.");
-        const lock = await checkCodeLock(db, request);
-        const access = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
-        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That student code is not valid.", 401); }
-        await clearCodeAttempts(db, lock.browserKey);
+        if (!cleanName) throw new HttpError("Enter your name.");
+        const granted = await useClassroomGrant(db, grant, "student");
+        let classId = granted && granted.class_id;
+        if (!classId) {
+          if (!validCode(cleanCode)) throw new HttpError("Enter your class code and name.");
+          const lock = await checkCodeLock(db, request);
+          const access = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
+          if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That student code is not valid.", 401); }
+          await clearCodeAttempts(db, lock.browserKey);
+          classId = access.class_id;
+        }
         const now = Date.now(), id = crypto.randomUUID();
         await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,0,'student',?,?)")
-          .bind(id, access.class_id, cleanName, now, now).run();
+          .bind(id, classId, cleanName, now, now).run();
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first();
         return response(request, env, { token: await newSession(db, id, 4), account: publicAccount(account) });
       }
 
       if (path === "/login/instructor" && request.method === "POST") {
-        const { code } = await readJson(request);
+        const { code, grant } = await readJson(request);
         const cleanCode = normalizeCode(code);
-        if (!validCode(cleanCode)) throw new HttpError("Enter your instructor code.");
-        const lock = await checkCodeLock(db, request);
-        const access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE instructor_code_hash = ?")
-          .bind(await codeHash("instructor", cleanCode)).first();
-        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That instructor code is not valid.", 401); }
-        await clearCodeAttempts(db, lock.browserKey);
+        const granted = await useClassroomGrant(db, grant, "instructor");
+        let access = null;
+        if (granted) access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE class_id = ?").bind(granted.class_id).first();
+        else {
+          if (!validCode(cleanCode)) throw new HttpError("Enter your instructor code.");
+          const lock = await checkCodeLock(db, request);
+          access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE instructor_code_hash = ?").bind(await codeHash("instructor", cleanCode)).first();
+          if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That instructor code is not valid.", 401); }
+          await clearCodeAttempts(db, lock.browserKey);
+        }
+        if (!access) throw new HttpError("That classroom pass is not valid.", 401);
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(access.instructor_account_id).first();
         if (!account) throw new HttpError("This instructor account needs to be recreated by an admin.", 409);
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(Date.now(), account.id).run();
@@ -298,7 +325,7 @@ export default {
         const profile = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(await siteCodeHash(cleanCode)).first();
         if (!profile || !profileActive(profile)) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That class code is not valid.", 401); }
         await clearCodeAttempts(db, lock.browserKey);
-        return response(request, env, { profile: publicProfile(profile) });
+        return response(request, env, { profile: publicProfile(profile), classroomGrant: await newClassroomGrant(db, profile) });
       }
 
       // Used only by the TURN credential Worker. It deliberately returns no
@@ -504,7 +531,7 @@ export default {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
         await env.DB.batch([env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
-      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now)]);
+      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now)]);
     })());
   },
 };

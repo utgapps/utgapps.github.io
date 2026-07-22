@@ -180,7 +180,7 @@
           var show = tools === "all" || (Array.isArray(tools) && tools.indexOf(id) >= 0);
           card.style.display = show ? "" : "none";
           if (id === "classroom" && entry.classroom) {
-            card.href = "./classroom/?classId=" + encodeURIComponent(entry.classroom.classId) + "&role=" + encodeURIComponent(entry.classroom.role);
+            card.href = "./classroom/?classId=" + encodeURIComponent(entry.classroom.classId) + "&role=" + encodeURIComponent(entry.classroom.role) + "&grant=" + encodeURIComponent(entry.classroomGrant || "");
           }
         });
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
@@ -211,7 +211,7 @@
             if (!res.ok || !res.d || !res.d.profile) { showCodeError((res.d && res.d.error) || "That code isn't active right now."); return; }
             // Session storage carries the already-verified code into the
             // classroom app without putting it in the URL.
-            localStorage.setItem(KEY, code); sessionStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(res.d.profile);
+            localStorage.setItem(KEY, code); sessionStorage.setItem(KEY, code); res.d.profile.classroomGrant = res.d.classroomGrant || ""; $("codeMsg").textContent = ""; reveal(res.d.profile);
           })
           .catch(function () { showCodeError("Could not check that class code. Try again."); });
       }

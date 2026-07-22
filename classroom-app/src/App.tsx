@@ -54,6 +54,7 @@ function App() {
   const rootParams = new URLSearchParams(window.location.search);
   const rootClassId = rootParams.get("classId") || "";
   const rootRole = rootParams.get("role");
+  const rootGrant = rootParams.get("grant") || "";
   // The root gate sets this same-tab value after the API verifies the code.
   // It keeps a four-character code out of the classroom URL and avoids a
   // stale persisted code selecting the wrong classroom.
@@ -61,7 +62,9 @@ function App() {
   const rootClass = classroomForId(rootClassId);
   const rootStudentCode = rootClass && rootRole === "student" ? rootCode : "";
   const rootInstructorCode = rootClass && rootRole === "instructor" ? rootCode : "";
-  const [mode, setMode] = useState<Mode>(() => rootStudentCode ? "student" : "home");
+  const rootStudentGrant = rootClass && rootRole === "student" ? rootGrant : "";
+  const rootInstructorGrant = rootClass && rootRole === "instructor" ? rootGrant : "";
+  const [mode, setMode] = useState<Mode>(() => rootStudentCode || rootStudentGrant ? "student" : "home");
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);
   const [message, setMessage] = useState("");
@@ -108,10 +111,10 @@ function App() {
   if (new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
   if (mode === "instructor" && activeClass) {
     const account = savedAccount();
-    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} />;
+    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
     return <InstructorRoom record={activeClass} token={account.token} onChange={persistClass} onExit={() => setMode("home")} />;
   }
-  if (mode === "student") return <StudentJoin initialCode={rootStudentCode} onExit={() => setMode("home")} />;
+  if (mode === "student") return <StudentJoin initialCode={rootStudentCode} initialGrant={rootStudentGrant} onExit={() => setMode("home")} />;
 
   return <Home
     classes={classes}
@@ -120,21 +123,22 @@ function App() {
     onOpen={useClass}
     onImport={useClass}
     initialInstructorCode={rootInstructorCode}
+    initialInstructorGrant={rootInstructorGrant}
   />;
 }
 
-function Home({ classes, message, onStudent, onOpen, onImport, initialInstructorCode }: {
+function Home({ classes, message, onStudent, onOpen, onImport, initialInstructorCode, initialInstructorGrant }: {
   classes: ClassRecord[]; message: string; onStudent: () => void;
   onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
-  initialInstructorCode: string;
+  initialInstructorCode: string; initialInstructorGrant: string;
 }) {
-  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor") || Boolean(initialInstructorCode));
+  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor") || Boolean(initialInstructorCode || initialInstructorGrant));
   const [code, setCode] = useState(initialInstructorCode);
   const [notice, setNotice] = useState(message);
 
   async function openInstructor() {
     try {
-      const session = await apiLoginInstructor(code);
+      const session = await apiLoginInstructor(code, initialInstructorGrant);
       saveAccount(session);
       const course = classroomForId(session.account.classId);
       if (!course) throw new Error("This instructor code is not linked to a configured curriculum classroom.");
@@ -178,7 +182,7 @@ function Home({ classes, message, onStudent, onOpen, onImport, initialInstructor
       <button className="icon-button" aria-label="Close" onClick={() => setTeacherPanel(false)}>x</button>
       <p className="eyebrow">Instructor workspace</p><h2>Open a curriculum classroom</h2>
       <div className="teacher-options">
-        <div><h3>Open a curriculum classroom</h3><label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label><button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
+        <div><h3>Open a curriculum classroom</h3>{initialInstructorGrant ? <p className="small">Instructor access was verified at the class gate.</p> : <label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}<button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
         <div><h3>Classroom backup</h3><p>Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
       </div>
       {notice && <p className="notice warning">{notice}</p>}
@@ -347,7 +351,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   </main>;
 }
 
-function StudentJoin({ onExit, initialCode }: { onExit: () => void; initialCode: string }) {
+function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void; initialCode: string; initialGrant: string }) {
   const [step, setStep] = useState<"join" | "waiting" | "room">("join");
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState("");
@@ -392,10 +396,10 @@ function StudentJoin({ onExit, initialCode }: { onExit: () => void; initialCode:
   useEffect(() => () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); awarenessRef.current?.destroy(); docRef.current?.destroy(); }, []);
 
   async function join() {
-    if (!code.trim() || !name.trim()) { setStatus("Add your name and student class code first."); return; }
+    if ((!code.trim() && !initialGrant) || !name.trim()) { setStatus(initialGrant ? "Add your name first." : "Add your name and student class code first."); return; }
     setStep("waiting"); setStatus("Signing in…");
     try {
-      const session = await apiLoginGuest(code, name.trim());
+      const session = await apiLoginGuest(code, name.trim(), initialGrant);
       saveAccount(session);
       const course = classroomForId(session.account.classId);
       if (!course) throw new Error("This student code is not linked to a configured curriculum classroom.");
@@ -504,7 +508,7 @@ function StudentJoin({ onExit, initialCode }: { onExit: () => void; initialCode:
     if (data.type === "close") setStatus(data.message);
   }
 
-  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>Enter the four-character student code from your teacher. Your browser remembers this guest session so you can safely return to your own project.</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label><label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label><button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
+  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>{initialGrant ? "Class access is verified. Enter your name to open your project." : "Enter the four-character student code from your teacher. Your browser remembers this guest session so you can safely return to your own project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
   return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 

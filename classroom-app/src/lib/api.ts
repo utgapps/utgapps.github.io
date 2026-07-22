@@ -26,11 +26,11 @@ async function req(path: string, opts: RequestInit = {}, token?: string) {
   return data;
 }
 
-export async function apiLoginGuest(code: string, name: string): Promise<{ token: string; account: ApiAccount }> {
-  return req("/login/guest", { method: "POST", body: JSON.stringify({ code, name }) });
+export async function apiLoginGuest(code: string, name: string, grant = ""): Promise<{ token: string; account: ApiAccount }> {
+  return req("/login/guest", { method: "POST", body: JSON.stringify({ code, name, grant }) });
 }
-export async function apiLoginInstructor(code: string): Promise<{ token: string; account: ApiAccount }> {
-  return req("/login/instructor", { method: "POST", body: JSON.stringify({ code }) });
+export async function apiLoginInstructor(code: string, grant = ""): Promise<{ token: string; account: ApiAccount }> {
+  return req("/login/instructor", { method: "POST", body: JSON.stringify({ code, grant }) });
 }
 export async function apiLoginAccount(username: string, password: string): Promise<{ token: string; account: ApiAccount }> {
   return req("/login/account", { method: "POST", body: JSON.stringify({ username, password }) });
