@@ -37,7 +37,7 @@ function toHex(buf) { return [...new Uint8Array(buf)].map((byte) => byte.toStrin
 function fromHex(hex) { return new Uint8Array(hex.match(/.{1,2}/g).map((part) => parseInt(part, 16))); }
 function rndHex(bytes) { return toHex(crypto.getRandomValues(new Uint8Array(bytes))); }
 function normalizeCode(value) { return String(value || "").trim().toUpperCase(); }
-function validCode(value) { return /^[A-Z0-9-]{8,32}$/.test(value); }
+function validCode(value) { return /^(?:[A-Z0-9]{4}|[A-Z0-9-]{8,32})$/.test(value); }
 
 async function sha256(text) { return toHex(await crypto.subtle.digest("SHA-256", enc.encode(text))); }
 async function codeHash(role, code) { return sha256(`${role}:${normalizeCode(code)}`); }
@@ -349,7 +349,7 @@ export default {
           const classId = accessMatch[1];
           const { studentCode, instructorCode } = await readJson(request);
           const student = normalizeCode(studentCode), instructor = normalizeCode(instructorCode);
-          if (!validCode(student) || !validCode(instructor)) throw new HttpError("Codes must be 8-32 letters, numbers, or hyphens.");
+          if (!validCode(student) || !validCode(instructor)) throw new HttpError("Codes must be 4 letters/numbers, or 8-32 letters, numbers, or hyphens.");
           const now = Date.now();
           const old = await db.prepare("SELECT instructor_account_id FROM class_access WHERE class_id = ?").bind(classId).first();
           let instructorAccountId = old && old.instructor_account_id;

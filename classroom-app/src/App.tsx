@@ -8,7 +8,7 @@ import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
 import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiAccount, type ApiMedia } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
-import { classroomForId, peerOptions } from "./lib/rootCodes";
+import { classroomAccessForCode, classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { starterFiles } from "./lib/types";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
@@ -51,7 +51,10 @@ function buildPreview(files: Record<string, string>) {
 }
 
 function App() {
-  const [mode, setMode] = useState<Mode>("home");
+  const rootAccess = classroomAccessForCode(new URLSearchParams(window.location.search).get("loginCode") || "");
+  const rootStudentCode = rootAccess?.classroom?.role === "student" ? rootAccess.code : "";
+  const rootInstructorCode = rootAccess?.classroom?.role === "instructor" ? rootAccess.code : "";
+  const [mode, setMode] = useState<Mode>(() => rootStudentCode ? "student" : "home");
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);
   const [message, setMessage] = useState("");
@@ -98,10 +101,10 @@ function App() {
   if (new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
   if (mode === "instructor" && activeClass) {
     const account = savedAccount();
-    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} />;
+    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} />;
     return <InstructorRoom record={activeClass} token={account.token} onChange={persistClass} onExit={() => setMode("home")} />;
   }
-  if (mode === "student") return <StudentJoin onExit={() => setMode("home")} />;
+  if (mode === "student") return <StudentJoin initialCode={rootStudentCode} onExit={() => setMode("home")} />;
 
   return <Home
     classes={classes}
@@ -109,15 +112,17 @@ function App() {
     onStudent={() => setMode("student")}
     onOpen={useClass}
     onImport={useClass}
+    initialInstructorCode={rootInstructorCode}
   />;
 }
 
-function Home({ classes, message, onStudent, onOpen, onImport }: {
+function Home({ classes, message, onStudent, onOpen, onImport, initialInstructorCode }: {
   classes: ClassRecord[]; message: string; onStudent: () => void;
   onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
+  initialInstructorCode: string;
 }) {
-  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor"));
-  const [code, setCode] = useState("");
+  const [teacherPanel, setTeacherPanel] = useState(new URLSearchParams(window.location.search).has("instructor") || Boolean(initialInstructorCode));
+  const [code, setCode] = useState(initialInstructorCode);
   const [notice, setNotice] = useState(message);
 
   async function openInstructor() {
@@ -335,9 +340,9 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   </main>;
 }
 
-function StudentJoin({ onExit }: { onExit: () => void }) {
+function StudentJoin({ onExit, initialCode }: { onExit: () => void; initialCode: string }) {
   const [step, setStep] = useState<"join" | "waiting" | "room">("join");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode);
   const [name, setName] = useState("");
   const [status, setStatus] = useState("Enter the private student code from your teacher.");
   const [className, setClassName] = useState("");

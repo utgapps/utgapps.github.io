@@ -66,6 +66,8 @@ window.CLASS_CODES = [
   { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
   { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator", "digital-art", "modeling"], print: false, play: [] },
   { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
+  { code: "ACKV", label: "AI102 Instructor", enabled: true, tools: ["classroom"], print: true, play: [], classroom: { classId: "ai102", role: "instructor" } },
+  { code: "BU2K", label: "AI102 Students", enabled: true, tools: ["classroom"], print: false, play: [], classroom: { classId: "ai102", role: "student" } },
 ];
 
 // Is this code usable RIGHT NOW? (enabled, and within its Pacific-time `hours`.)
