@@ -94,6 +94,7 @@ let clayMode = "grow";
 let clayBrushActive = false;
 let sculpting = false;
 let sculptedMesh = null;
+let ignoreMouseUntil = 0;
 const undoStack = [];
 const redoStack = [];
 const historyLimit = 24;
@@ -900,7 +901,7 @@ function resize() {
   renderer.setSize(rect.width, rect.height, false);
 }
 
-window.addEventListener("pointerdown", (event) => {
+function beginSculpt(event, canCapture) {
   if (event.target !== renderer.domElement || event.button !== 0 || transform.dragging) return;
   pointerFromEvent(event);
   const hit = raycaster.intersectObjects(visibleMeshes(), false)[0];
@@ -908,28 +909,35 @@ window.addEventListener("pointerdown", (event) => {
   if (clayBrushActive && hit && hit.object === one && isClay(one) && !event.shiftKey) {
     event.stopImmediatePropagation();
     recordHistory(); sculpting = true; sculptedMesh = one; orbit.enabled = false;
-    renderer.domElement.setPointerCapture(event.pointerId);
+    if (canCapture) renderer.domElement.setPointerCapture(event.pointerId);
     sculptClay(one, hit);
     return;
   }
   if (hit) event.shiftKey ? toggleSelect(hit.object) : select([hit.object]); else if (!event.shiftKey) select([]);
-}, { capture: true });
+}
 
-window.addEventListener("pointermove", (event) => {
+function moveSculpt(event) {
   if (!sculpting || !sculptedMesh) return;
   event.stopImmediatePropagation();
   pointerFromEvent(event);
   const hit = raycaster.intersectObject(sculptedMesh, false)[0];
   if (hit) sculptClay(sculptedMesh, hit);
-}, { capture: true });
+}
 
-window.addEventListener("pointerup", (event) => {
+function endSculpt(event, canRelease) {
   if (!sculpting) return;
   event.stopImmediatePropagation();
   sculpting = false; sculptedMesh = null; orbit.enabled = true;
-  if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
+  if (canRelease && renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
   setStatus("Clay changed. Keep sculpting, or use the arrows to move your shape.");
-}, { capture: true });
+}
+
+window.addEventListener("pointerdown", (event) => { ignoreMouseUntil = Date.now() + 700; beginSculpt(event, true); }, { capture: true });
+window.addEventListener("pointermove", (event) => moveSculpt(event), { capture: true });
+window.addEventListener("pointerup", (event) => endSculpt(event, true), { capture: true });
+window.addEventListener("mousedown", (event) => { if (Date.now() >= ignoreMouseUntil) beginSculpt(event, false); }, { capture: true });
+window.addEventListener("mousemove", (event) => { if (Date.now() >= ignoreMouseUntil) moveSculpt(event); }, { capture: true });
+window.addEventListener("mouseup", (event) => { if (Date.now() >= ignoreMouseUntil) endSculpt(event, false); }, { capture: true });
 
 document.querySelectorAll("[data-add]").forEach((button) => button.addEventListener("click", () => addShape(button.dataset.add)));
 document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
