@@ -11,6 +11,16 @@ a { color: #01aefd; cursor: pointer; text-decoration: none; }
 .eyebrow { color: #01aefd; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 12px; }
 h1, h2, h3, p { margin-top: 0; }
 .teacher-entry h2 { font-size: 30px; margin-bottom: 26px; }
+.saved-classrooms { margin: 0 0 24px; }
+.saved-classrooms h3 { font-size: 15px; margin-bottom: 10px; }
+.saved-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.saved-item { display: flex; gap: 8px; align-items: stretch; }
+.saved-open { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid #cbd9dd; border-radius: 9px; background: #fff; padding: 12px 14px; text-align: left; font-weight: 700; color: #1f2a37; }
+.saved-open:hover { border-color: #01aefd; background: #f2fbff; }
+.saved-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-go { color: #0a6299; font-size: 13px; white-space: nowrap; }
+.saved-forget { flex: none; width: 42px; border: 1px solid #e3c9c9; border-radius: 9px; background: #fff; color: #b23b2a; font-size: 20px; line-height: 1; }
+.saved-forget:hover { background: #fbe9e4; border-color: #d98a7a; }
 .banner-actions, .workspace-top > div:last-child { display: flex; flex-wrap: wrap; gap: 10px; }
 .primary, .secondary, .danger, .file-button { border: 0; border-radius: 7px; padding: 11px 16px; font-weight: 750; font-size: 14px; transition: transform .15s, box-shadow .15s; }
 .primary { color: #fff; background: #01aefd; box-shadow: 0 7px 16px rgba(1,174,253,.28); }

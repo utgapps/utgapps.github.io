@@ -122,6 +122,18 @@ function canUseClass(account, classId) {
 function canHostClass(account, classId) {
   return account && (account.role === "admin" || (account.role === "instructor" && account.class_id === classId));
 }
+// Record that an account has connected to a classroom, so it can re-enter from
+// a saved list instead of retyping the code. Idempotent (refreshes last_used).
+async function rememberClassroom(db, accountId, classId, role, label) {
+  if (!accountId || !classId || (role !== "student" && role !== "instructor")) return;
+  let name = label;
+  if (!name) {
+    const row = await db.prepare("SELECT label FROM site_access WHERE classroom_class_id = ? LIMIT 1").bind(classId).first();
+    name = (row && row.label) || String(classId).toUpperCase();
+  }
+  await db.prepare("INSERT INTO account_classrooms (account_id, class_id, role, label, last_used) VALUES (?,?,?,?,?) ON CONFLICT(account_id, class_id, role) DO UPDATE SET label=excluded.label, last_used=excluded.last_used")
+    .bind(accountId, classId, role, name, Date.now()).run();
+}
 async function rateLimit(db, request, bucket, limit = 12) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const key = `${bucket}:${await sha256(ip)}`;
@@ -298,6 +310,7 @@ export default {
         await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,0,'student',?,?)")
           .bind(id, classId, cleanName, now, now).run();
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first();
+        await rememberClassroom(db, id, classId, "student");
         return response(request, env, { token: await newSession(db, id, 4), account: publicAccount(account) });
       }
 
@@ -319,7 +332,8 @@ export default {
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(access.instructor_account_id).first();
         if (!account) throw new HttpError("This instructor account needs to be recreated by an admin.", 409);
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(Date.now(), account.id).run();
-        return response(request, env, { token: await newSession(db, account.id, 1), account: publicAccount(account) });
+        await rememberClassroom(db, account.id, access.class_id, "instructor");
+        return response(request, env, { token: await newSession(db, account.id, 30), account: publicAccount(account) });
       }
 
       if (path === "/admin/bootstrap" && request.method === "POST") {
@@ -373,6 +387,26 @@ export default {
 
       const me = await accountFromRequest(db, request);
       if (path === "/me") return me ? response(request, env, { account: publicAccount(me) }) : bad(request, env, "Not signed in.", 401);
+
+      // The classrooms this account has connected to, for a saved re-entry list.
+      if (path === "/me/classrooms" && request.method === "GET") {
+        if (!me) throw new HttpError("Not signed in.", 401);
+        // Self-heal: every student/instructor always has at least their own
+        // class listed, even accounts created before saved classrooms existed.
+        if ((me.role === "student" || me.role === "instructor") && me.class_id && me.class_id !== "*") {
+          const has = await db.prepare("SELECT 1 FROM account_classrooms WHERE account_id = ? AND class_id = ? AND role = ?").bind(me.id, me.class_id, me.role).first();
+          if (!has) await rememberClassroom(db, me.id, me.class_id, me.role);
+        }
+        const rows = (await db.prepare("SELECT class_id, role, label, last_used FROM account_classrooms WHERE account_id = ? ORDER BY last_used DESC").bind(me.id).all()).results;
+        return response(request, env, { classrooms: rows.map((r) => ({ classId: r.class_id, role: r.role, label: r.label, lastUsed: r.last_used })) });
+      }
+      // Forget a saved classroom (removes the record, never the class code).
+      if (path === "/me/classrooms" && request.method === "DELETE") {
+        if (!me) throw new HttpError("Not signed in.", 401);
+        const { classId, role } = await readJson(request);
+        await db.prepare("DELETE FROM account_classrooms WHERE account_id = ? AND class_id = ? AND role = ?").bind(me.id, String(classId || ""), String(role || "")).run();
+        return response(request, env, { ok: true });
+      }
       if (path === "/logout" && request.method === "POST") {
         const auth = request.headers.get("authorization") || "";
         if (auth.startsWith("Bearer ")) await db.prepare("DELETE FROM sessions WHERE token = ?").bind(auth.slice(7)).run();
@@ -454,6 +488,7 @@ export default {
         const peerId = current && current.expires_at > now ? current.peer_id : `utg-live-${rndHex(24)}`;
         await db.prepare("INSERT INTO live_rooms (class_id, peer_id, opened_by, opened_at, expires_at) VALUES (?,?,?,?,?) ON CONFLICT(class_id) DO UPDATE SET peer_id=excluded.peer_id, opened_by=excluded.opened_by, opened_at=excluded.opened_at, expires_at=excluded.expires_at")
           .bind(classId, peerId, me.id, now, now + 4 * 60 * 60 * 1000).run();
+        await rememberClassroom(db, me.id, classId, "instructor");
         return response(request, env, { room: { classId, peerId, expiresAt: now + 4 * 60 * 60 * 1000 } });
       }
       const liveMatch = path.match(/^\/live\/([^/]+)$/);
@@ -542,6 +577,7 @@ export default {
           const { hash, salt } = await hashPassword(password), id = crypto.randomUUID(), now = Date.now();
           await db.prepare("INSERT INTO accounts (id, class_id, name, username, password_hash, password_salt, is_permanent, role, created_at, last_seen) VALUES (?,?,?,?,?,?,1,?,?,?)")
             .bind(id, String(classId).trim(), String(name).trim().slice(0, 40), String(username).trim(), hash, salt, cleanRole, now, now).run();
+          await rememberClassroom(db, id, String(classId).trim(), cleanRole);
           return response(request, env, { account: publicAccount(await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first()) });
         }
         const accessMatch = path.match(/^\/admin\/class-access\/([^/]+)$/);
@@ -558,6 +594,7 @@ export default {
             await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,1,'instructor',?,?)")
               .bind(instructorAccountId, classId, `${classId.toUpperCase()} Instructor`, now, now).run();
           }
+          await rememberClassroom(db, instructorAccountId, classId, "instructor");
           await db.prepare("INSERT INTO class_access (class_id, student_code_hash, instructor_code_hash, instructor_account_id, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(class_id) DO UPDATE SET student_code_hash=excluded.student_code_hash, instructor_code_hash=excluded.instructor_code_hash, updated_at=excluded.updated_at")
             .bind(classId, await codeHash("student", student), await codeHash("instructor", instructor), instructorAccountId, now).run();
           for (const [role, code] of [["student", student], ["instructor", instructor]]) {
@@ -576,7 +613,7 @@ export default {
           if (!account) throw new HttpError("No such account.", 404);
           if (request.method === "DELETE") {
             if (env.MEDIA) for (const { r2_key } of (await db.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-            await db.batch([db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+            await db.batch([db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
             return response(request, env, { ok: true });
           }
           if (request.method === "PATCH") {
@@ -610,7 +647,7 @@ export default {
       const stale = (await env.DB.prepare("SELECT id FROM accounts WHERE is_permanent = 0 AND last_seen < ?").bind(cutoff).all()).results;
       for (const { id } of stale) {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-        await env.DB.batch([env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+        await env.DB.batch([env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
       await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now)]);
     })());

@@ -46,6 +46,14 @@ export async function apiSaveProject(token: string, title: string, files: Record
   await req("/project", { method: "PUT", body: JSON.stringify({ title, files }) }, token);
 }
 
+export type ApiClassroomLink = { classId: string; role: "student" | "instructor"; label: string; lastUsed: number };
+export async function apiMyClassrooms(token: string): Promise<ApiClassroomLink[]> {
+  return (await req("/me/classrooms", {}, token)).classrooms || [];
+}
+export async function apiForgetClassroom(token: string, classId: string, role: string): Promise<void> {
+  await req("/me/classrooms", { method: "DELETE", body: JSON.stringify({ classId, role }) }, token);
+}
+
 export type ApiClassroom = { record: unknown; updatedAt: number };
 export async function apiGetClassroom(token: string, classId: string): Promise<ApiClassroom | null> {
   const d = await req(`/classroom/${encodeURIComponent(classId)}`, {}, token);

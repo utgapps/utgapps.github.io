@@ -6,7 +6,7 @@ import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./l
 import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiAccount, type ApiMedia } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
@@ -130,6 +130,35 @@ function App() {
   />;
 }
 
+// A saved list of the classrooms this account has connected to, so teachers and
+// students re-enter without retyping a code. Each row can be forgotten (removes
+// the account's record; it never changes the class code itself).
+function SavedClassrooms({ token, role, actionLabel, onPick }: {
+  token: string; role: "student" | "instructor"; actionLabel: string; onPick: (link: ApiClassroomLink) => void;
+}) {
+  const [links, setLinks] = useState<ApiClassroomLink[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    apiMyClassrooms(token).then((all) => { if (live) setLinks(all.filter((l) => l.role === role)); }).catch(() => { if (live) setLinks([]); });
+    return () => { live = false; };
+  }, [token, role]);
+  async function forget(link: ApiClassroomLink) {
+    setLinks((cur) => (cur || []).filter((l) => !(l.classId === link.classId && l.role === link.role)));
+    try { await apiForgetClassroom(token, link.classId, link.role); } catch { /* removed locally; reappears on reload if the server call failed */ }
+  }
+  if (!links || !links.length) return null;
+  return <div className="saved-classrooms">
+    <h3>Your classrooms</h3>
+    <ul className="saved-list">
+      {links.map((l) => <li key={l.classId + l.role} className="saved-item">
+        <button className="saved-open" onClick={() => onPick(l)}><span className="saved-name">{l.label}</span><span className="saved-go">{actionLabel} →</span></button>
+        <button className="saved-forget" title="Forget this classroom" aria-label={`Forget ${l.label}`} onClick={() => forget(l)}>×</button>
+      </li>)}
+    </ul>
+    <p className="small">Removing a classroom only clears it from your account — it does not change the class code.</p>
+  </div>;
+}
+
 function Home({ classes, message, onOpen, onImport, initialInstructorCode, initialInstructorGrant }: {
   classes: ClassRecord[]; message: string;
   onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
@@ -137,6 +166,14 @@ function Home({ classes, message, onOpen, onImport, initialInstructorCode, initi
 }) {
   const [code, setCode] = useState(initialInstructorCode);
   const [notice, setNotice] = useState(message);
+  const account = savedAccount();
+
+  function openSaved(link: ApiClassroomLink) {
+    const course = classroomForId(link.classId);
+    if (!account || !course) { setNotice("This classroom is no longer configured."); return; }
+    const local = classes.find((item) => (item.classId || item.courseId.toLowerCase()) === course.id);
+    onOpen(local || makeClass(course.className, course.courseId, course.id), account);
+  }
 
   async function openInstructor() {
     try {
@@ -169,6 +206,7 @@ function Home({ classes, message, onOpen, onImport, initialInstructorCode, initi
     <section className="teacher-entry">
       <p className="eyebrow">Instructor workspace</p>
       <h2>Open a curriculum classroom</h2>
+      {account && <SavedClassrooms token={account.token} role="instructor" actionLabel="Open" onPick={openSaved} />}
       <div className="teacher-options">
         <div><h3>Curriculum classroom</h3>{initialInstructorGrant ? <p className="small">Instructor access was verified at the class gate.</p> : <label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}<button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
         <div><h3>Classroom backup</h3><p className="small">Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
@@ -345,6 +383,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const [name, setName] = useState("");
   const [status, setStatus] = useState("Enter the private student code from your teacher.");
   const [className, setClassName] = useState("");
+  const [savedToken, setSavedToken] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
   const liveClassIdRef = useRef("");
@@ -423,20 +462,25 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (classId) connectToTeacher(classId, token, displayName);
   }
 
-  // Auto sign-in from an account stored by the root login page.
+  // A signed-in student sees their saved classrooms (rendered below) and picks
+  // one to open, instead of retyping a code. We intentionally do not auto-jump
+  // into a class, so they can also see and forget saved classrooms here.
   useEffect(() => {
     const raw = localStorage.getItem("utg_account");
     if (!raw) return;
     try {
-      const parsed = JSON.parse(raw) as { token?: string; account?: { name?: string; classId?: string; role?: string } };
-      if (!parsed.token || !parsed.account || parsed.account.role === "admin") return;
-       if (parsed.account.role !== "student") return;
-       const c = classroomForId(parsed.account.classId || "");
-       setName(parsed.account.name || "");
-       if (c) openSession(parsed.token, parsed.account.name || "Student", c.className, c.id);
+      const parsed = JSON.parse(raw) as { token?: string; account?: { name?: string; role?: string } };
+      if (!parsed.token || parsed.account?.role !== "student") return;
+      setSavedToken(parsed.token);
+      setName(parsed.account.name || "");
     } catch { /* ignore */ }
-    // eslint-disable-next-line
   }, []);
+
+  function enterSaved(link: ApiClassroomLink) {
+    const course = classroomForId(link.classId);
+    if (!savedToken || !course) { setStatus("Sign in again to open this classroom."); return; }
+    openSession(savedToken, name || "Student", course.className, link.classId);
+  }
 
   // Connect to the teacher's live session — and keep quietly retrying if they
   // haven't opened the class yet (or they close it). Failed attempts are just a
@@ -496,7 +540,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (data.type === "close") setStatus(data.message);
   }
 
-  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1><p>{initialGrant ? "Class access is verified. Enter your name to open your project." : "Enter the four-character student code from your teacher. Your browser remembers this guest session so you can safely return to your own project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
+  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1>{savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}<p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter the four-character student code from your teacher. Your browser remembers this guest session so you can safely return to your own project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
   return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 

@@ -114,3 +114,16 @@ CREATE TABLE IF NOT EXISTS classroom_access_grants (
   used_at     INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_classroom_access_grants_expiry ON classroom_access_grants(expires_at);
+
+-- Classrooms an account has connected to, so teachers and students re-enter
+-- from a saved list instead of retyping a code. These are per-account records
+-- (deleted with the account); they are NOT the class codes themselves.
+CREATE TABLE IF NOT EXISTS account_classrooms (
+  account_id TEXT NOT NULL,
+  class_id   TEXT NOT NULL,
+  role       TEXT NOT NULL,               -- 'student' | 'instructor'
+  label      TEXT NOT NULL,
+  last_used  INTEGER NOT NULL,
+  PRIMARY KEY (account_id, class_id, role)
+);
+CREATE INDEX IF NOT EXISTS idx_account_classrooms_account ON account_classrooms(account_id);
