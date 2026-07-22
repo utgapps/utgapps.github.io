@@ -194,23 +194,21 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
         return <details className="access-profile" key={profile.id}>
           <summary><span className="access-profile-name">{profile.label}</span><span className="muted">{role}</span><span className={value.enabled ? "access-status" : "access-status off"}>{value.enabled ? "Active" : "Disabled"}</span></summary>
           <div className="access-profile-editor">
-            <label>Profile name<input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></label>
-            <label>Classroom role<input value={role} readOnly /></label>
-            <fieldset className="permission-fieldset"><legend>Modules and curriculum</legend><div className="permission-list">
-            <label className="permission-toggle"><input type="checkbox" checked={value.tools.length === MODULES.length} onChange={(e) => set({ tools: e.target.checked ? MODULES.map((module) => module.id) : [] })} />All modules</label>
-            {MODULES.map((module) => <label className="permission-toggle" key={module.id}><input type="checkbox" checked={value.tools.includes(module.id)} onChange={() => set({ tools: toggle(value.tools, module.id) })} />{module.label}</label>)}
+            <section className="profile-basics"><div className="editor-heading"><div><p className="eyebrow">Code settings</p><h4>{role}</h4></div><label className="access-switch"><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /><span>{value.enabled ? "Active" : "Disabled"}</span></label></div><div className="settings-fields">
+              <label>Profile name<input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></label>
+              <label>Available hours<input value={value.hours} aria-label={`${profile.label} hours`} placeholder="All day" onChange={(e) => set({ hours: e.target.value })} /></label>
+            </div></section>
+            <fieldset className="permission-fieldset module-fieldset"><legend>Module access</legend><div className="permission-list">
+              <label className="permission-toggle all-toggle"><input type="checkbox" checked={value.tools.length === MODULES.length} onChange={(e) => set({ tools: e.target.checked ? MODULES.map((module) => module.id) : [] })} />All modules</label>
+              {MODULES.map((module) => <label className="permission-toggle" key={module.id}><input type="checkbox" checked={value.tools.includes(module.id)} onChange={() => set({ tools: toggle(value.tools, module.id) })} />{module.label}</label>)}
             </div></fieldset>
-            <fieldset className="permission-fieldset extras-fieldset"><legend>Extras</legend><div className="permission-list compact-permissions">
-            <label className="permission-toggle"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} />Printing</label>
-            <details><summary>Game access ({value.play.length === GAMES.length ? "all" : value.play.length})</summary><div className="game-list">
-              <label className="permission-toggle"><input type="checkbox" checked={value.play.length === GAMES.length} onChange={(e) => set({ play: e.target.checked ? [...GAMES] : [] })} />All games</label>
-              {GAMES.map((game) => <label className="permission-toggle" key={game}><input type="checkbox" checked={value.play.includes(game)} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>)}
-            </div></details>
-            </div></fieldset>
-            <label>Hours<input value={value.hours} aria-label={`${profile.label} hours`} placeholder="all day" onChange={(e) => set({ hours: e.target.value })} /></label>
-            <label className="permission-toggle active-toggle"><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} />Code is active</label>
-            <div className="replace-code"><label>Replace code<input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="new code" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /></label><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace code</button></div>
-            <div className="admin-actions"><button className="primary" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></div>
+            <section className="profile-utilities"><div className="utility-section"><p className="eyebrow">Extras</p><label className="permission-toggle"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} />Allow printing</label>
+              <details className="game-access"><summary>Game access <span>{value.play.length === GAMES.length ? "All games" : `${value.play.length} selected`}</span></summary><div className="game-list">
+                <label className="permission-toggle all-toggle"><input type="checkbox" checked={value.play.length === GAMES.length} onChange={(e) => set({ play: e.target.checked ? [...GAMES] : [] })} />All games</label>
+                {GAMES.map((game) => <label className="permission-toggle" key={game}><input type="checkbox" checked={value.play.includes(game)} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>)}
+              </div></details>
+            </div><div className="replace-code"><p className="eyebrow">Replace code</p><label>New code<input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="Four letters or numbers" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /></label><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace code</button></div></section>
+            <footer className="access-editor-footer"><span>Changes apply when this code is next used.</span><button className="primary" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></footer>
           </div>
         </details>;
       })}</div>}
