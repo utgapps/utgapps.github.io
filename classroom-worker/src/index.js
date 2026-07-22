@@ -42,6 +42,7 @@ function validCode(value) { return /^(?:[A-Z0-9]{4}|[A-Z0-9-]{8,32})$/.test(valu
 
 async function sha256(text) { return toHex(await crypto.subtle.digest("SHA-256", enc.encode(text))); }
 async function codeHash(role, code) { return sha256(`${role}:${normalizeCode(code)}`); }
+async function siteCodeHash(code) { return sha256(`site:${normalizeCode(code)}`); }
 async function hmac(secret, message) {
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return toHex(await crypto.subtle.sign("HMAC", key, enc.encode(message)));
@@ -176,6 +177,25 @@ async function recordWrongCode(db, request, cleanCode) {
     .bind(state.browserKey, nextLevel, lockedUntil, now).run();
   throw lockError(nextLevel, lockedUntil);
 }
+function profileActive(profile) {
+  if (!profile.enabled) return false;
+  if (!profile.hours) return true;
+  const match = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(profile.hours);
+  if (!match) return true;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date());
+    const hour = Number(parts.find((part) => part.type === "hour")?.value || 0) % 24;
+    const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
+    const now = hour * 60 + minute, start = Number(match[1]) * 60 + Number(match[2]), end = Number(match[3]) * 60 + Number(match[4]);
+    return now >= start && now < end;
+  } catch { return true; }
+}
+function publicProfile(profile) {
+  return {
+    label: profile.label, tools: JSON.parse(profile.tools), print: !!profile.print_allowed, play: JSON.parse(profile.play),
+    classroom: profile.classroom_class_id ? { classId: profile.classroom_class_id, role: profile.classroom_role } : null,
+  };
+}
 async function signedMediaUrl(url, env, id, accountId) {
   if (!env.SETUP_SECRET) throw new HttpError("Media signing is not configured.", 503);
   const expires = Date.now() + 7 * DAY;
@@ -270,16 +290,15 @@ export default {
       // before revealing the Classroom link, so lockouts cannot be bypassed by
       // reloading the static home page.
       if (path === "/access/verify" && request.method === "POST") {
+        await rateLimit(db, request, "code-verify", 60);
         const { code } = await readJson(request, 200);
         const cleanCode = normalizeCode(code);
         if (!validCode(cleanCode)) throw new HttpError("Enter a valid class code.");
         const lock = await checkCodeLock(db, request);
-        const student = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
-        const instructor = student ? null : await db.prepare("SELECT class_id FROM class_access WHERE instructor_code_hash = ?").bind(await codeHash("instructor", cleanCode)).first();
-        const access = student || instructor;
-        if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That class code is not valid.", 401); }
+        const profile = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(await siteCodeHash(cleanCode)).first();
+        if (!profile || !profileActive(profile)) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That class code is not valid.", 401); }
         await clearCodeAttempts(db, lock.browserKey);
-        return response(request, env, { classId: access.class_id, role: student ? "student" : "instructor" });
+        return response(request, env, { profile: publicProfile(profile) });
       }
 
       // Used only by the TURN credential Worker. It deliberately returns no
@@ -433,6 +452,13 @@ export default {
           }
           await db.prepare("INSERT INTO class_access (class_id, student_code_hash, instructor_code_hash, instructor_account_id, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(class_id) DO UPDATE SET student_code_hash=excluded.student_code_hash, instructor_code_hash=excluded.instructor_code_hash, updated_at=excluded.updated_at")
             .bind(classId, await codeHash("student", student), await codeHash("instructor", instructor), instructorAccountId, now).run();
+          for (const [role, code] of [["student", student], ["instructor", instructor]]) {
+            const existing = await db.prepare("SELECT * FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).first();
+            const profile = existing || { label: `${classId.toUpperCase()} ${role === "student" ? "Students" : "Instructor"}`, tools: JSON.stringify(["classroom"]), print_allowed: role === "instructor" ? 1 : 0, play: "[]", hours: null };
+            await db.prepare("DELETE FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).run();
+            await db.prepare("INSERT INTO site_access (code_hash, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+              .bind(await siteCodeHash(code), profile.label, 1, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
+          }
           return response(request, env, { ok: true });
         }
         const accountMatch = path.match(/^\/admin\/account\/([^/]+)$/);

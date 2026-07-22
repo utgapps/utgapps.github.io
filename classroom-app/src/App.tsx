@@ -8,7 +8,7 @@ import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
 import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, type ApiAccount, type ApiMedia } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
-import { classroomAccessForCode, classroomForId, peerOptions } from "./lib/rootCodes";
+import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { starterFiles } from "./lib/types";
 import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
@@ -51,9 +51,13 @@ function buildPreview(files: Record<string, string>) {
 }
 
 function App() {
-  const rootAccess = classroomAccessForCode(new URLSearchParams(window.location.search).get("loginCode") || "");
-  const rootStudentCode = rootAccess?.classroom?.role === "student" ? rootAccess.code : "";
-  const rootInstructorCode = rootAccess?.classroom?.role === "instructor" ? rootAccess.code : "";
+  const rootParams = new URLSearchParams(window.location.search);
+  const rootClassId = rootParams.get("classId") || "";
+  const rootRole = rootParams.get("role");
+  const rootCode = localStorage.getItem("utg_class_code") || "";
+  const rootClass = classroomForId(rootClassId);
+  const rootStudentCode = rootClass && rootRole === "student" ? rootCode : "";
+  const rootInstructorCode = rootClass && rootRole === "instructor" ? rootCode : "";
   const [mode, setMode] = useState<Mode>(() => rootStudentCode ? "student" : "home");
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);

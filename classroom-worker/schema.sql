@@ -88,3 +88,18 @@ CREATE TABLE IF NOT EXISTS access_lockouts (
   updated_at            INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_access_lockouts_locked_until ON access_lockouts(locked_until);
+
+-- Root-site access profiles. The actual four-character codes are only stored
+-- as hashes; the browser receives a profile only after it proves the code.
+CREATE TABLE IF NOT EXISTS site_access (
+  code_hash           TEXT PRIMARY KEY,
+  label               TEXT NOT NULL,
+  enabled             INTEGER NOT NULL DEFAULT 1,
+  tools               TEXT NOT NULL,
+  print_allowed       INTEGER NOT NULL DEFAULT 0,
+  play                TEXT NOT NULL DEFAULT '[]',
+  classroom_class_id  TEXT,
+  classroom_role      TEXT,
+  hours               TEXT,
+  updated_at          INTEGER NOT NULL
+);

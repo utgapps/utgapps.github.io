@@ -170,15 +170,8 @@
       var KEY = "utg_class_code";
       var $ = function (id) { return document.getElementById(id); };
       var norm = function (s) { return (s || "").trim().toUpperCase(); };
-      var active = window.UTG_isActive || function (e) { return e && e.enabled; };
-      function find(code) {
-        var c = norm(code), list = window.CLASS_CODES || [];
-        for (var i = 0; i < list.length; i++) {
-          if (active(list[i]) && norm(list[i].code) === c) return list[i];
-        }
-        return null;
-      }
-      function reveal(entry) {
+      function reveal(profile) {
+        var entry = profile;
         $("gate").classList.add("hidden");
         $("hub").classList.remove("hidden");
         var tools = entry.tools;
@@ -187,7 +180,7 @@
           var show = tools === "all" || (Array.isArray(tools) && tools.indexOf(id) >= 0);
           card.style.display = show ? "" : "none";
           if (id === "classroom" && entry.classroom) {
-            card.href = "./classroom/?loginCode=" + encodeURIComponent(entry.code);
+            card.href = "./classroom/?classId=" + encodeURIComponent(entry.classroom.classId) + "&role=" + encodeURIComponent(entry.classroom.role);
           }
         });
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
@@ -211,20 +204,18 @@
         card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
         $("codeInput").select();
       }
-      function verifyClassroomCode(code, entry) {
+      function verifyCode(code) {
         fetch(API + "/access/verify", { method: "POST", cache: "no-store", headers: { "content-type": "application/json", "x-utg-access-device": accessDevice() }, body: JSON.stringify({ code: code }) })
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (res) {
-            if (!res.ok || !entry) { showCodeError((res.d && res.d.error) || "That code isn't active right now."); return; }
-            localStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(entry);
+            if (!res.ok || !res.d || !res.d.profile) { showCodeError((res.d && res.d.error) || "That code isn't active right now."); return; }
+            localStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(res.d.profile);
           })
           .catch(function () { showCodeError("Could not check that class code. Try again."); });
       }
       function submit() {
-        var code = norm($("codeInput").value), entry = find(code);
-        if (entry && entry.classroom) { verifyClassroomCode(code, entry); return; }
-        if (entry) { localStorage.setItem(KEY, code); $("codeMsg").textContent = ""; reveal(entry); return; }
-        if (code.length === 4) { verifyClassroomCode(code, null); return; }
+        var code = norm($("codeInput").value);
+        if (code.length === 4) { verifyCode(code); return; }
         showCodeError("Enter a 4-letter class code.");
       }
       $("codeInput").addEventListener("input", function () {
@@ -257,14 +248,11 @@
       $("pword").addEventListener("keydown", function (e) { if (e.key === "Enter") accountLogin(); });
       $("uname").addEventListener("keydown", function (e) { if (e.key === "Enter") $("pword").focus(); });
 
-      // already signed in (and the code is still active)?
+      // Re-check the saved code with the API, which can disable it at any time.
       var saved = localStorage.getItem(KEY);
-      var entry = find(saved);
-      if (entry) {
-        if (entry.classroom) verifyClassroomCode(norm(saved), entry);
-        else reveal(entry);
+      if (saved) {
+        verifyCode(norm(saved));
       } else {
-        if (saved) localStorage.removeItem(KEY);
         var locked = new URLSearchParams(location.search).get("locked");
         showGate(locked ? "Your class code isn't active. Enter today's code." : "");
       }

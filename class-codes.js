@@ -62,29 +62,5 @@ window.UTG_CLASSROOMS = [
    fails. Leave both empty to use PeerJS's built-in defaults (often blocked). */
 window.UTG_TURN_URL = "https://utg-turn.utgapps.workers.dev";
 
-window.CLASS_CODES = [
-  { code: "POIU", label: "Students",  enabled: false, tools: "all", print: false, play: [], hours: "08:50-12:15" },
-  { code: "CVBN", label: "Art + Animation", enabled: true, tools: ["pixel-art", "animator", "digital-art", "modeling"], print: false, play: [] },
-  { code: "ASDF", label: "Teacher",   enabled: true, tools: "all", print: true,  play: "all" },
-  { code: "ACKV", label: "AI102 Instructor", enabled: true, tools: ["classroom"], print: true, play: [], classroom: { classId: "ai102", role: "instructor" } },
-  { code: "BU2K", label: "AI102 Students", enabled: true, tools: ["classroom"], print: false, play: [], classroom: { classId: "ai102", role: "student" } },
-];
-
-// Is this code usable RIGHT NOW? (enabled, and within its Pacific-time `hours`.)
-window.UTG_isActive = function (entry) {
-  if (!entry || !entry.enabled) return false;
-  if (!entry.hours) return true;
-  var m = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/.exec(entry.hours);
-  if (!m) return true;
-  var start = (+m[1]) * 60 + (+m[2]), end = (+m[3]) * 60 + (+m[4]);
-  var hh = 0, mm = 0;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour12: false,
-      hour: "2-digit", minute: "2-digit" }).formatToParts(new Date()).forEach(function (p) {
-      if (p.type === "hour") hh = +p.value; if (p.type === "minute") mm = +p.value;
-    });
-  } catch (e) { return true; }  // if the timezone lookup fails, don't lock anyone out
-  if (hh === 24) hh = 0;
-  var now = hh * 60 + mm;
-  return now >= start && now < end;
-};
+// Access-code values and permissions live only in the Classroom API's D1
+// database. This file deliberately contains no usable class codes.

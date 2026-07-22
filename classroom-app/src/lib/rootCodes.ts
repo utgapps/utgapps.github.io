@@ -1,10 +1,3 @@
-export type RootClassCode = {
-  code: string;
-  label?: string;
-  enabled: boolean;
-  classroom?: { classId: string; role: "instructor" | "student" };
-};
-
 export type ClassroomDefinition = {
   id: string;
   courseId: string;
@@ -13,9 +6,7 @@ export type ClassroomDefinition = {
 
 declare global {
   interface Window {
-    CLASS_CODES?: RootClassCode[];
     UTG_CLASSROOMS?: ClassroomDefinition[];
-    UTG_isActive?: (entry: RootClassCode) => boolean;
     // This endpoint accepts a signed Classroom account session, then returns
     // short-lived TURN credentials. It never mints relay credentials publicly.
     UTG_TURN_URL?: string;
@@ -45,16 +36,9 @@ export async function peerOptions(token?: string): Promise<import("peerjs").Peer
 }
 
 export function classroomForId(classId: string) {
-  return (window.UTG_CLASSROOMS || []).find((item) => item.id === classId) || null;
-}
-
-// The root site hands a four-character access code to /classroom/?loginCode=.
-// It identifies the curriculum and role, while the Worker checks the code and
-// creates the authenticated session used for the actual live classroom.
-export function classroomAccessForCode(value: string) {
-  const code = String(value || "").trim().toUpperCase();
-  const entry = (window.CLASS_CODES || []).find((item) => item.code.toUpperCase() === code);
-  if (!entry || !entry.classroom || (window.UTG_isActive && !window.UTG_isActive(entry))) return null;
-  return entry;
+  const known: ClassroomDefinition[] = [
+    { id: "ai102", courseId: "AI102", className: "AI102 - Introduction to AI Integration" },
+  ];
+  return known.find((item) => item.id === classId) || null;
 }
 import { apiGetTurnCredentials } from "./api";

@@ -4,7 +4,7 @@ The classroom is a browser-hosted application built for the existing `utgapps.gi
 
 ## First delivery
 
-- Each classroom has separate four-character instructor and student login codes in the root `class-codes.js` file. Those login codes are not the room address.
+- Each classroom has separate four-character instructor and student login codes stored as hashes in the Classroom API database. Those login codes are not the room address.
 - The deterministic PeerJS host address uses the locked `utg-academy-kitsilano-class-v1-<internal-room-code>-host` prefix. Only the instructor login is allowed to create that host; a student login only tries to join it and receives a plain-language "not open yet" message when it does not exist.
 - The instructor browser hosts the room, approves first-time devices, and remembers approved device identifiers in the local class record.
 - A student only receives the project the instructor assigns to that approved device.
