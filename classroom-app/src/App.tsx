@@ -108,7 +108,7 @@ function App() {
     setMode("instructor");
   }
 
-  if (new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
+  if (window.location.pathname.replace(/\/+$/, "").endsWith("/admin") || new URLSearchParams(window.location.search).has("admin")) return <AdminApp />;
   if (mode === "instructor" && activeClass) {
     const account = savedAccount();
     if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onStudent={() => setMode("student")} onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
