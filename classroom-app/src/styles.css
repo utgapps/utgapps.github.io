@@ -105,14 +105,32 @@ i.offline, .student i.offline { background: #aebcc0; }
 .admin-table input[type="checkbox"] { accent-color: #01aefd; }
 .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .admin-actions .danger { color: #d33; }
+.access-profile-list { display: grid; gap: 8px; }
+.access-profile { border: 1px solid #dce8eb; border-radius: 8px; background: #fff; }
+.access-profile summary { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr) auto; align-items: center; gap: 14px; padding: 12px 14px; cursor: pointer; color: #294750; }
+.access-profile summary::marker { color: #5b7780; }
+.access-profile-name { font-weight: 600; }
+.access-status { color: #167a59; font-size: 12px; font-weight: 600; }
+.access-status.off { color: #b34728; }
+.access-profile-editor { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(230px, 2fr) minmax(165px, 1fr); gap: 14px; border-top: 1px solid #e6eff1; padding: 14px; background: #f8fbfc; }
+.access-profile-editor > label, .replace-code label { display: grid; gap: 5px; color: #4d6871; font-size: 13px; }
+.access-profile-editor input:not([type="checkbox"]), .replace-code input { width: 100%; padding: 7px 8px; border: 1px solid #cbd9dd; border-radius: 6px; }
+.permission-fieldset { margin: 0; min-width: 0; border: 1px solid #dce8eb; border-radius: 6px; padding: 9px 10px; }
+.permission-fieldset legend { padding: 0 4px; color: #4d6871; font-size: 12px; }
+.active-toggle { align-self: end; min-height: 34px; }
 .permission-list { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 5px 9px; min-width: 225px; }
 .permission-toggle { display: flex; align-items: center; gap: 5px; color: #34515b; white-space: nowrap; }
 .compact-permissions { display: block; min-width: 145px; }
 .compact-permissions details { margin-top: 7px; color: #4d6871; }
 .compact-permissions summary { cursor: pointer; }
 .game-list { display: grid; grid-template-columns: repeat(2, minmax(76px, 1fr)); gap: 5px 9px; margin-top: 7px; min-width: 175px; }
-.replace-code { display: grid; gap: 5px; min-width: 120px; }
+.replace-code { display: grid; gap: 5px; min-width: 120px; align-self: end; }
 .replace-code input { min-width: 120px; }
+@media (max-width: 860px) {
+  .access-profile summary { grid-template-columns: 1fr auto; }
+  .access-profile summary .muted { grid-column: 1; }
+  .access-profile-editor { grid-template-columns: 1fr; }
+}
 .muted { color: #8aa0a7; font-size: 12.5px; }
 
 /* ---- media panel ---- */

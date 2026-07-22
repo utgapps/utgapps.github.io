@@ -187,30 +187,33 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
   return <div className="admin-table">
     <h3>Access profiles <span className="muted">({rows.length})</span></h3>
     <p className="muted">Every profile has its own permissions. Existing code letters are never displayed; enter a replacement to change one safely.</p>
-    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <table><thead><tr><th>Profile</th><th>Classroom role</th><th>Modules and curriculum</th><th>Extras</th><th>Hours</th><th>Active</th><th>Replace code</th><th></th></tr></thead>
-      <tbody>{rows.map((profile) => {
+    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <div className="access-profile-list">{rows.map((profile) => {
         const value = draft(profile);
         const set = (next: Partial<typeof value>) => setDrafts({ ...drafts, [profile.id]: { ...value, ...next } });
-        return <tr key={profile.id}>
-          <td><input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></td>
-          <td>{profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : <span className="muted">Resource code</span>}</td>
-          <td><div className="permission-list">
+        const role = profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : "Resource code";
+        return <details className="access-profile" key={profile.id}>
+          <summary><span className="access-profile-name">{profile.label}</span><span className="muted">{role}</span><span className={value.enabled ? "access-status" : "access-status off"}>{value.enabled ? "Active" : "Disabled"}</span></summary>
+          <div className="access-profile-editor">
+            <label>Profile name<input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></label>
+            <label>Classroom role<input value={role} readOnly /></label>
+            <fieldset className="permission-fieldset"><legend>Modules and curriculum</legend><div className="permission-list">
             <label className="permission-toggle"><input type="checkbox" checked={value.tools.length === MODULES.length} onChange={(e) => set({ tools: e.target.checked ? MODULES.map((module) => module.id) : [] })} />All modules</label>
             {MODULES.map((module) => <label className="permission-toggle" key={module.id}><input type="checkbox" checked={value.tools.includes(module.id)} onChange={() => set({ tools: toggle(value.tools, module.id) })} />{module.label}</label>)}
-          </div></td>
-          <td><div className="permission-list compact-permissions">
+            </div></fieldset>
+            <fieldset className="permission-fieldset extras-fieldset"><legend>Extras</legend><div className="permission-list compact-permissions">
             <label className="permission-toggle"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} />Printing</label>
             <details><summary>Game access ({value.play.length === GAMES.length ? "all" : value.play.length})</summary><div className="game-list">
               <label className="permission-toggle"><input type="checkbox" checked={value.play.length === GAMES.length} onChange={(e) => set({ play: e.target.checked ? [...GAMES] : [] })} />All games</label>
               {GAMES.map((game) => <label className="permission-toggle" key={game}><input type="checkbox" checked={value.play.includes(game)} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>)}
             </div></details>
-          </div></td>
-          <td><input value={value.hours} aria-label={`${profile.label} hours`} placeholder="all day" onChange={(e) => set({ hours: e.target.value })} /></td>
-          <td><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></td>
-          <td><div className="replace-code"><input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="new code" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace</button></div></td>
-          <td className="admin-actions"><button className="text-button" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></td>
-        </tr>;
-      })}</tbody></table>}
+            </div></fieldset>
+            <label>Hours<input value={value.hours} aria-label={`${profile.label} hours`} placeholder="all day" onChange={(e) => set({ hours: e.target.value })} /></label>
+            <label className="permission-toggle active-toggle"><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} />Code is active</label>
+            <div className="replace-code"><label>Replace code<input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="new code" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /></label><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace code</button></div>
+            <div className="admin-actions"><button className="primary" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></div>
+          </div>
+        </details>;
+      })}</div>}
   </div>;
 }
 
