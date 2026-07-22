@@ -94,7 +94,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
     try { await apiAdminDelete(token, a.id); refresh(); } catch (e) { setMsg((e as Error).message); }
   }
   async function saveCodes() {
-    try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); setMsg("Class access codes saved."); }
+    try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); await refresh(); setMsg("Class access codes saved."); }
     catch (e) { setMsg((e as Error).message); }
   }
   async function clearLockout(browserKey: string) {
