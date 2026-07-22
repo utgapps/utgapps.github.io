@@ -54,7 +54,10 @@ function App() {
   const rootParams = new URLSearchParams(window.location.search);
   const rootClassId = rootParams.get("classId") || "";
   const rootRole = rootParams.get("role");
-  const rootCode = localStorage.getItem("utg_class_code") || "";
+  // The root gate sets this same-tab value after the API verifies the code.
+  // It keeps a four-character code out of the classroom URL and avoids a
+  // stale persisted code selecting the wrong classroom.
+  const rootCode = sessionStorage.getItem("utg_class_code") || localStorage.getItem("utg_class_code") || "";
   const rootClass = classroomForId(rootClassId);
   const rootStudentCode = rootClass && rootRole === "student" ? rootCode : "";
   const rootInstructorCode = rootClass && rootRole === "instructor" ? rootCode : "";
