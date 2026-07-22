@@ -107,11 +107,11 @@ export async function apiAdminDelete(token: string, id: string): Promise<void> {
 export async function apiAdminSetClassAccess(token: string, classId: string, studentCode: string, instructorCode: string): Promise<void> {
   await req(`/admin/class-access/${encodeURIComponent(classId)}`, { method: "PUT", body: JSON.stringify({ studentCode, instructorCode }) }, token);
 }
-export type ApiSiteAccess = { id: string; label: string; enabled: boolean; tools: string | string[]; print: boolean; play: string | string[]; classroom: { classId: string; role: "student" | "instructor" } | null; hours: string; updatedAt: number };
+export type ApiSiteAccess = { id: string; label: string; enabled: boolean; tools: string | string[]; print: boolean; play: string | string[]; classroom: { classId: string; role: "student" | "instructor" } | null; curriculumEnabled: boolean; hours: string; updatedAt: number };
 export async function apiAdminListSiteAccess(token: string): Promise<ApiSiteAccess[]> {
   return (await req("/admin/site-access", {}, token)).profiles || [];
 }
-export async function apiAdminUpdateSiteAccess(token: string, id: string, body: { label: string; enabled: boolean; hours: string }): Promise<void> {
+export async function apiAdminUpdateSiteAccess(token: string, id: string, body: { label: string; enabled: boolean; curriculumEnabled: boolean; hours: string }): Promise<void> {
   await req(`/admin/site-access/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }, token);
 }
 export type ApiAccessLockout = { browserKey: string; attemptCount: number; lockLevel: number; lockedUntil: number | null; updatedAt: number };

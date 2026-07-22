@@ -190,14 +190,30 @@ function profileActive(profile) {
     return now >= start && now < end;
   } catch { return true; }
 }
+function profileTools(profile) {
+  try {
+    const tools = JSON.parse(profile.tools || "[]");
+    return tools === "all" ? "all" : Array.isArray(tools) ? tools.filter((tool) => typeof tool === "string") : [];
+  } catch { return []; }
+}
+function profileAllows(profile, tool) {
+  const tools = profileTools(profile);
+  return tools === "all" || tools.includes(tool);
+}
+function classroomTools(profile, enabled) {
+  const tools = profileTools(profile);
+  if (tools === "all") return enabled ? "all" : [];
+  const withoutClassroom = tools.filter((tool) => tool !== "classroom");
+  return enabled ? [...withoutClassroom, "classroom"] : withoutClassroom;
+}
 function publicProfile(profile) {
   return {
-    label: profile.label, tools: JSON.parse(profile.tools), print: !!profile.print_allowed, play: JSON.parse(profile.play),
+    label: profile.label, tools: profileTools(profile), print: !!profile.print_allowed, play: JSON.parse(profile.play),
     classroom: profile.classroom_class_id ? { classId: profile.classroom_class_id, role: profile.classroom_role } : null,
   };
 }
 async function newClassroomGrant(db, profile) {
-  if (!profile.classroom_class_id || !profile.classroom_role) return null;
+  if (!profile.classroom_class_id || !profile.classroom_role || !profileAllows(profile, "classroom")) return null;
   const token = rndHex(24), now = Date.now();
   await db.prepare("INSERT INTO classroom_access_grants (token, class_id, role, expires_at, used_at) VALUES (?,?,?,?,NULL)")
     .bind(token, profile.classroom_class_id, profile.classroom_role, now + 5 * 60 * 1000).run();
@@ -209,8 +225,15 @@ async function useClassroomGrant(db, value, role) {
   const now = Date.now();
   const grant = await db.prepare("SELECT * FROM classroom_access_grants WHERE token = ? AND used_at IS NULL AND expires_at > ?").bind(token, now).first();
   if (!grant || grant.role !== role) return null;
+  const profile = await db.prepare("SELECT * FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(grant.class_id, role).first();
+  if (!profile || !profileActive(profile) || !profileAllows(profile, "classroom")) return null;
   await db.prepare("UPDATE classroom_access_grants SET used_at = ? WHERE token = ? AND used_at IS NULL").bind(now, token).run();
   return grant;
+}
+async function classroomProfileForCode(db, code, classId, role) {
+  const profile = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(await siteCodeHash(code)).first();
+  if (!profile || profile.classroom_class_id !== classId || profile.classroom_role !== role) return null;
+  return profileActive(profile) && profileAllows(profile, "classroom") ? profile : null;
 }
 async function signedMediaUrl(url, env, id, accountId) {
   if (!env.SETUP_SECRET) throw new HttpError("Media signing is not configured.", 503);
@@ -257,6 +280,7 @@ export default {
           const lock = await checkCodeLock(db, request);
           const access = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
           if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That student code is not valid.", 401); }
+          if (!await classroomProfileForCode(db, cleanCode, access.class_id, "student")) throw new HttpError("Curriculum access is not enabled for this student code.", 403);
           await clearCodeAttempts(db, lock.browserKey);
           classId = access.class_id;
         }
@@ -278,6 +302,7 @@ export default {
           const lock = await checkCodeLock(db, request);
           access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE instructor_code_hash = ?").bind(await codeHash("instructor", cleanCode)).first();
           if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That instructor code is not valid.", 401); }
+          if (!await classroomProfileForCode(db, cleanCode, access.class_id, "instructor")) throw new HttpError("Curriculum access is not enabled for this instructor code.", 403);
           await clearCodeAttempts(db, lock.browserKey);
         }
         if (!access) throw new HttpError("That classroom pass is not valid.", 401);
@@ -444,7 +469,7 @@ export default {
           return response(request, env, { profiles: rows.map((row) => ({
             id: row.code_hash, label: row.label, enabled: !!row.enabled, tools: JSON.parse(row.tools), print: !!row.print_allowed,
             play: JSON.parse(row.play), classroom: row.classroom_class_id ? { classId: row.classroom_class_id, role: row.classroom_role } : null,
-            hours: row.hours || "", updatedAt: row.updated_at,
+            curriculumEnabled: !!row.classroom_class_id && profileAllows(row, "classroom"), hours: row.hours || "", updatedAt: row.updated_at,
           })) });
         }
         const siteAccessMatch = path.match(/^\/admin\/site-access\/([a-f0-9]{64})$/);
@@ -456,8 +481,14 @@ export default {
           const hours = body.hours == null ? current.hours : String(body.hours).trim().slice(0, 20);
           if (!label) throw new HttpError("Profile label is required.");
           if (hours && !/^(\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}$/.test(hours)) throw new HttpError("Hours must look like 09:00-12:15.");
-          await db.prepare("UPDATE site_access SET label = ?, enabled = ?, hours = ?, updated_at = ? WHERE code_hash = ?")
-            .bind(label, body.enabled == null ? current.enabled : body.enabled ? 1 : 0, hours || null, Date.now(), current.code_hash).run();
+          const curriculumEnabled = body.curriculumEnabled == null ? profileAllows(current, "classroom") : !!body.curriculumEnabled;
+          const tools = current.classroom_class_id ? JSON.stringify(classroomTools(current, curriculumEnabled)) : current.tools;
+          await db.prepare("UPDATE site_access SET label = ?, enabled = ?, tools = ?, hours = ?, updated_at = ? WHERE code_hash = ?")
+            .bind(label, body.enabled == null ? current.enabled : body.enabled ? 1 : 0, tools, hours || null, Date.now(), current.code_hash).run();
+          if (current.classroom_class_id && body.curriculumEnabled === false) {
+            await db.prepare("DELETE FROM sessions WHERE account_id IN (SELECT id FROM accounts WHERE class_id = ? AND role = ?)")
+              .bind(current.classroom_class_id, current.classroom_role).run();
+          }
           return response(request, env, { ok: true });
         }
         if (path === "/admin/accounts" && request.method === "GET") {
@@ -505,7 +536,7 @@ export default {
             const profile = existing || { label: `${classId.toUpperCase()} ${role === "student" ? "Students" : "Instructor"}`, tools: JSON.stringify(["classroom"]), print_allowed: role === "instructor" ? 1 : 0, play: "[]", hours: null };
             await db.prepare("DELETE FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).run();
             await db.prepare("INSERT INTO site_access (code_hash, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-              .bind(await siteCodeHash(code), profile.label, 1, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
+              .bind(await siteCodeHash(code), profile.label, profile.enabled == null ? 1 : profile.enabled, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
           }
           return response(request, env, { ok: true });
         }
