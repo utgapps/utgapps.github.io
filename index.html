@@ -71,6 +71,7 @@
       background:var(--surface); border:1px solid var(--border); border-radius:10px;
       padding:7px 12px; cursor:pointer;
     }
+    a.lockbtn { text-decoration:none; display:inline-flex; align-items:center; }
     .lockbtn:hover { background:var(--brand-tint); border-color:var(--brand); }
     h2.title { font-size:clamp(28px,5vw,40px); font-weight:700; letter-spacing:-.02em; margin:8px 0 8px; }
     .sub { color:var(--muted); font-size:17px; margin:0 0 36px; max-width:560px; line-height:1.5; }
@@ -118,7 +119,7 @@
   <div id="hub" class="wrap hidden">
     <div class="topline">
       <img class="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" />
-      <span class="classchip"><span id="classLabel"></span><button id="lockBtn" class="lockbtn">🔒 Lock</button></span>
+      <span class="classchip"><span id="classLabel"></span><a id="adminBtn" class="lockbtn hidden" href="./classroom/?admin">🛠️ Admin dashboard</a><button id="lockBtn" class="lockbtn">Log out</button></span>
     </div>
     <h2 class="title">Resources</h2>
     <p class="sub">Pick a resource to start.</p>
@@ -154,9 +155,15 @@
         <span>21 step-by-step Python coding projects — build a real, playable game one line at a time.</span>
         <div class="go">Browse projects →</div>
       </a>
-      <a class="card" data-tool-card="classroom" href="./classroom/">
-        <div class="ico">Class</div>
-        <h3>UTG Classroom</h3>
+      <a class="card" data-classroom-card="student" href="./classroom/">
+        <div class="ico">🎓</div>
+        <h3>My Classwork</h3>
+        <span>Open your saved projects and join your teacher's live class from any device.</span>
+        <div class="go">Open →</div>
+      </a>
+      <a class="card" data-classroom-card="teacher" href="./classroom/?instructor=1">
+        <div class="ico">🧑‍🏫</div>
+        <h3>Teacher Classroom</h3>
         <span>Host a live coding class, approve student devices, work in individual projects, and export a complete class file.</span>
         <div class="go">Open classroom →</div>
       </a>
@@ -170,8 +177,7 @@
       var KEY = "utg_class_code";
       var $ = function (id) { return document.getElementById(id); };
       var norm = function (s) { return (s || "").trim().toUpperCase(); };
-      function reveal(profile) {
-        var entry = profile;
+      function reveal(entry) {
         $("gate").classList.add("hidden");
         $("hub").classList.remove("hidden");
         var tools = entry.tools;
@@ -179,11 +185,37 @@
           var id = card.getAttribute("data-tool-card");
           var show = tools === "all" || (Array.isArray(tools) && tools.indexOf(id) >= 0);
           card.style.display = show ? "" : "none";
-          if (id === "classroom" && entry.classroom) {
-            card.href = "./classroom/?classId=" + encodeURIComponent(entry.classroom.classId) + "&role=" + encodeURIComponent(entry.classroom.role) + "&grant=" + encodeURIComponent(entry.classroomGrant || "");
-          }
         });
+        // The classroom is presented as a role-specific module rather than a
+        // separate page: a "My Classwork" card for students, a "Teacher
+        // Classroom" card for instructors/admins.
+        var role = entry.classroomRole || (entry.classroom ? entry.classroom.role : null);
+        var studentCard = document.querySelector('[data-classroom-card="student"]');
+        var teacherCard = document.querySelector('[data-classroom-card="teacher"]');
+        studentCard.style.display = role === "student" ? "" : "none";
+        teacherCard.style.display = (role === "instructor" || entry.isAdmin) ? "" : "none";
+        var deepLink = entry.classroom
+          ? "./classroom/?classId=" + encodeURIComponent(entry.classroom.classId) + "&role=" + encodeURIComponent(entry.classroom.role) + "&grant=" + encodeURIComponent(entry.classroomGrant || "")
+          : null;
+        if (deepLink && role === "student") studentCard.href = deepLink;
+        if (deepLink && role === "instructor") teacherCard.href = deepLink;
+        if (entry.classroomHref && role === "student") studentCard.href = entry.classroomHref;
+        if (entry.classroomHref && role === "instructor") teacherCard.href = entry.classroomHref;
+        $("adminBtn").classList.toggle("hidden", !entry.isAdmin);
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
+      }
+      // Build the hub for a signed-in permanent account. Admins/instructors
+      // host (Teacher Classroom + tools); students get their classwork module.
+      function revealAccount(acct) {
+        var isAdmin = acct.role === "admin";
+        if (isAdmin) localStorage.setItem("utg_admin_token", (JSON.parse(localStorage.getItem("utg_account") || "{}").token) || "");
+        reveal({
+          label: acct.name || acct.username || "",
+          tools: acct.role === "student" ? [] : "all",
+          classroomRole: acct.role === "student" ? "student" : "instructor",
+          classroomHref: acct.role === "student" ? "./classroom/" : "./classroom/?instructor=1",
+          isAdmin: isAdmin
+        });
       }
       function showGate(msg) {
         $("hub").classList.add("hidden");
@@ -240,9 +272,8 @@
           .then(function (res) {
             if (!res.ok || !res.d.token) { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = (res.d && res.d.error) || "Wrong username or password."; return; }
             localStorage.setItem("utg_account", JSON.stringify({ token: res.d.token, account: res.d.account }));
-            if (res.d.account.role === "admin") { localStorage.setItem("utg_admin_token", res.d.token); location.href = "./classroom/?admin"; }
-            else if (res.d.account.role === "instructor") { location.href = "./classroom/?instructor=1"; }
-            else { location.href = "./classroom/"; }
+            $("acctMsg").textContent = "";
+            revealAccount(res.d.account);
           })
           .catch(function () { $("acctMsg").style.color = "#e23b4e"; $("acctMsg").textContent = "Could not reach the sign-in server."; });
       }
@@ -250,9 +281,14 @@
       $("pword").addEventListener("keydown", function (e) { if (e.key === "Enter") accountLogin(); });
       $("uname").addEventListener("keydown", function (e) { if (e.key === "Enter") $("pword").focus(); });
 
+      // A signed-in account takes precedence: show its hub straight away.
+      var savedAcct = null;
+      try { savedAcct = JSON.parse(localStorage.getItem("utg_account") || "null"); } catch (e) { savedAcct = null; }
       // Re-check the saved code with the API, which can disable it at any time.
       var saved = sessionStorage.getItem(KEY) || localStorage.getItem(KEY);
-      if (saved) {
+      if (savedAcct && savedAcct.account) {
+        revealAccount(savedAcct.account);
+      } else if (saved) {
         verifyCode(norm(saved));
       } else {
         var locked = new URLSearchParams(location.search).get("locked");
