@@ -204,7 +204,7 @@ function baseMaterial(hole = false) {
 }
 
 function createGeometry(kind) {
-  if (kind === "clay") return new THREE.IcosahedronGeometry(18, 4).toNonIndexed();
+  if (kind === "clay") return new THREE.IcosahedronGeometry(18, 4);
   if (kind === "cylinder") return new THREE.CylinderGeometry(12, 12, 20, 48);
   if (kind === "sphere") return new THREE.SphereGeometry(14, 32, 20);
   if (kind === "roof") return new THREE.ConeGeometry(18, 28, 4);
@@ -905,27 +905,30 @@ renderer.domElement.addEventListener("pointerdown", (event) => {
   const hit = raycaster.intersectObjects(visibleMeshes(), false)[0];
   const one = selection.size === 1 ? [...selection][0] : null;
   if (hit && hit.object === one && isClay(one) && !event.shiftKey) {
+    event.stopImmediatePropagation();
     recordHistory(); sculpting = true; sculptedMesh = one; orbit.enabled = false;
     renderer.domElement.setPointerCapture(event.pointerId);
     sculptClay(one, hit);
     return;
   }
   if (hit) event.shiftKey ? toggleSelect(hit.object) : select([hit.object]); else if (!event.shiftKey) select([]);
-});
+}, { capture: true });
 
 renderer.domElement.addEventListener("pointermove", (event) => {
   if (!sculpting || !sculptedMesh) return;
+  event.stopImmediatePropagation();
   pointerFromEvent(event);
   const hit = raycaster.intersectObject(sculptedMesh, false)[0];
   if (hit) sculptClay(sculptedMesh, hit);
-});
+}, { capture: true });
 
 renderer.domElement.addEventListener("pointerup", (event) => {
   if (!sculpting) return;
+  event.stopImmediatePropagation();
   sculpting = false; sculptedMesh = null; orbit.enabled = true;
   if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId);
   setStatus("Clay changed. Keep sculpting, or use the arrows to move your shape.");
-});
+}, { capture: true });
 
 document.querySelectorAll("[data-add]").forEach((button) => button.addEventListener("click", () => addShape(button.dataset.add)));
 document.querySelectorAll("[data-mode]").forEach((button) => button.addEventListener("click", () => {
