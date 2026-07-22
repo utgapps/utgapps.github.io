@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, type ApiAccessLockout, type ApiAccount } from "./lib/api";
+import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 
@@ -65,6 +65,8 @@ function SetupForm({ onAuthed, setMsg }: { onAuthed: (t: string, a: ApiAccount) 
 function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | null; onSignOut: () => void }) {
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
   const [lockouts, setLockouts] = useState<ApiAccessLockout[]>([]);
+  const [profiles, setProfiles] = useState<ApiSiteAccess[]>([]);
+  const [tab, setTab] = useState<"accounts" | "codes">("accounts");
   const [classId, setClassId] = useState("");
   const [msg, setMsg] = useState("");
   const [nc, setNc] = useState({ classId: "ai102", name: "", username: "", password: "", role: "student" as "student" | "instructor" });
@@ -72,8 +74,8 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
 
   async function refresh() {
     try {
-      const [nextAccounts, nextLockouts] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token)]);
-      setAccounts(nextAccounts); setLockouts(nextLockouts); setMsg("");
+      const [nextAccounts, nextLockouts, nextProfiles] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token), apiAdminListSiteAccess(token)]);
+      setAccounts(nextAccounts); setLockouts(nextLockouts); setProfiles(nextProfiles); setMsg("");
     }
     catch (e) { setMsg((e as Error).message); if ((e as Error).message.toLowerCase().includes("sign")) onSignOut(); }
   }
@@ -99,6 +101,10 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
     try { await apiAdminClearAccessLockout(token, browserKey); refresh(); }
     catch (e) { setMsg((e as Error).message); }
   }
+  async function updateProfile(profile: ApiSiteAccess, body: { label: string; enabled: boolean; hours: string }) {
+    try { await apiAdminUpdateSiteAccess(token, profile.id, body); await refresh(); setMsg("Class code profile updated."); }
+    catch (e) { setMsg((e as Error).message); }
+  }
 
   const guests = accounts.filter((a) => !a.isPermanent);
   const perms = accounts.filter((a) => a.isPermanent);
@@ -108,6 +114,12 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
       <div className="connection">{me?.username ? `@${me.username}` : "signed in"}<button className="text-button" onClick={onSignOut}>Sign out</button></div></header>
 
     <section className="admin-body">
+      <div className="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button className={tab === "accounts" ? "tab active" : "tab"} onClick={() => setTab("accounts")}>Accounts</button>
+        <button className={tab === "codes" ? "tab active" : "tab"} onClick={() => setTab("codes")}>Class Codes</button>
+      </div>
+      {tab === "codes" && msg && <p className="notice">{msg}</p>}
+      {tab === "accounts" && <>
       <div className="admin-toolbar">
         <label>Filter by class<input value={classId} placeholder="all classes (e.g. ai102)" onChange={(e) => setClassId(e.target.value.trim())} /></label>
         <button className="secondary" onClick={refresh}>Refresh</button>
@@ -126,6 +138,8 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
           <button className="primary" onClick={create}>Create</button>
         </div>
       </div>
+      </>}
+      {tab === "codes" && <>
       <div className="admin-create">
         <h3>Set classroom codes</h3>
         <div className="row">
@@ -136,12 +150,38 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
         </div>
       </div>
 
+      <SiteAccessTable rows={profiles} onUpdate={updateProfile} />
       <AccessLockoutTable rows={lockouts} onClear={clearLockout} />
-
+      </>}
+      {tab === "accounts" && <>
       <AccountTable title="Permanent accounts" rows={perms} onUpdate={update} onRemove={remove} />
       <AccountTable title={`Guests (auto-deleted after 120 days)`} rows={guests} onUpdate={update} onRemove={remove} isGuest />
+      </>}
     </section>
   </main>;
+}
+
+function SiteAccessTable({ rows, onUpdate }: { rows: ApiSiteAccess[]; onUpdate: (profile: ApiSiteAccess, body: { label: string; enabled: boolean; hours: string }) => void }) {
+  const [drafts, setDrafts] = useState<Record<string, { label: string; enabled: boolean; hours: string }>>({});
+  function draft(profile: ApiSiteAccess) { return drafts[profile.id] || { label: profile.label, enabled: profile.enabled, hours: profile.hours }; }
+  function tools(profile: ApiSiteAccess) { return Array.isArray(profile.tools) ? profile.tools.join(", ") : profile.tools; }
+  return <div className="admin-table">
+    <h3>Access profiles <span className="muted">({rows.length})</span></h3>
+    <p className="muted">Codes are never displayed again. Changes take effect when the code is next checked.</p>
+    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <table><thead><tr><th>Profile</th><th>Classroom role</th><th>Resources</th><th>Hours</th><th>Active</th><th></th></tr></thead>
+      <tbody>{rows.map((profile) => {
+        const value = draft(profile);
+        const set = (next: Partial<typeof value>) => setDrafts({ ...drafts, [profile.id]: { ...value, ...next } });
+        return <tr key={profile.id}>
+          <td><input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></td>
+          <td>{profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : <span className="muted">Resource code</span>}</td>
+          <td className="muted">{tools(profile)}</td>
+          <td><input value={value.hours} aria-label={`${profile.label} hours`} placeholder="all day" onChange={(e) => set({ hours: e.target.value })} /></td>
+          <td><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></td>
+          <td className="admin-actions"><button className="text-button" onClick={() => onUpdate(profile, value)}>Save</button></td>
+        </tr>;
+      })}</tbody></table>}
+  </div>;
 }
 
 function AccessLockoutTable({ rows, onClear }: { rows: ApiAccessLockout[]; onClear: (browserKey: string) => void }) {

@@ -439,6 +439,27 @@ export default {
 
       if (path.startsWith("/admin/")) {
         if (me.role !== "admin") throw new HttpError("Admins only.", 403);
+        if (path === "/admin/site-access" && request.method === "GET") {
+          const rows = (await db.prepare("SELECT * FROM site_access ORDER BY classroom_class_id, label").all()).results;
+          return response(request, env, { profiles: rows.map((row) => ({
+            id: row.code_hash, label: row.label, enabled: !!row.enabled, tools: JSON.parse(row.tools), print: !!row.print_allowed,
+            play: JSON.parse(row.play), classroom: row.classroom_class_id ? { classId: row.classroom_class_id, role: row.classroom_role } : null,
+            hours: row.hours || "", updatedAt: row.updated_at,
+          })) });
+        }
+        const siteAccessMatch = path.match(/^\/admin\/site-access\/([a-f0-9]{64})$/);
+        if (siteAccessMatch && request.method === "PATCH") {
+          const current = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(siteAccessMatch[1]).first();
+          if (!current) throw new HttpError("No such access profile.", 404);
+          const body = await readJson(request, 2000);
+          const label = body.label == null ? current.label : String(body.label).trim().slice(0, 80);
+          const hours = body.hours == null ? current.hours : String(body.hours).trim().slice(0, 20);
+          if (!label) throw new HttpError("Profile label is required.");
+          if (hours && !/^(\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}$/.test(hours)) throw new HttpError("Hours must look like 09:00-12:15.");
+          await db.prepare("UPDATE site_access SET label = ?, enabled = ?, hours = ?, updated_at = ? WHERE code_hash = ?")
+            .bind(label, body.enabled == null ? current.enabled : body.enabled ? 1 : 0, hours || null, Date.now(), current.code_hash).run();
+          return response(request, env, { ok: true });
+        }
         if (path === "/admin/accounts" && request.method === "GET") {
           const classId = url.searchParams.get("classId");
           const rows = classId ? (await db.prepare("SELECT * FROM accounts WHERE class_id = ? ORDER BY is_permanent DESC, last_seen DESC").bind(classId).all()).results : (await db.prepare("SELECT * FROM accounts ORDER BY is_permanent DESC, last_seen DESC").all()).results;
