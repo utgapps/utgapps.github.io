@@ -22,7 +22,7 @@ function cors(request, env) {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type, authorization",
+    "Access-Control-Allow-Headers": "content-type, authorization, x-utg-access-device",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
@@ -158,6 +158,7 @@ async function checkCodeLock(db, request) {
   return { browserKey, attemptCount: row.attempt_count, lockLevel: row.lock_level, hashes: attemptedHashes(row.attempted_code_hashes) };
 }
 async function clearCodeAttempts(db, browserKey) {
+  await db.prepare("DELETE FROM access_lockouts WHERE browser_key = ? AND lock_level = 0").bind(browserKey).run();
   await db.prepare("UPDATE access_lockouts SET attempted_code_hashes = '[]', attempt_count = 0, locked_until = NULL, updated_at = ? WHERE browser_key = ?").bind(Date.now(), browserKey).run();
 }
 async function recordWrongCode(db, request, cleanCode) {
