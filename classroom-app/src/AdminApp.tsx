@@ -192,7 +192,7 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
         const set = (next: Partial<typeof value>) => setDrafts({ ...drafts, [profile.id]: { ...value, ...next } });
         const role = profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : "Resource code";
         return <details className="access-profile" key={profile.id}>
-          <summary><span className="access-profile-name">{profile.label}</span><span className="muted">{role}</span><span className={value.enabled ? "access-status" : "access-status off"}>{value.enabled ? "Active" : "Disabled"}</span></summary>
+          <summary><span className="access-profile-identity"><strong>{profile.label}</strong><span className="muted">{role}</span></span><span className={value.enabled ? "access-status" : "access-status off"}>{value.enabled ? "Active" : "Disabled"}</span></summary>
           <div className="access-profile-editor">
             <section className="profile-basics"><div className="editor-heading"><div><p className="eyebrow">Code settings</p><h4>{role}</h4></div><label className="access-switch"><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /><span>{value.enabled ? "Active" : "Disabled"}</span></label></div><div className="settings-fields">
               <label>Profile name<input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></label>
