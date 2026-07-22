@@ -185,30 +185,52 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
   function toggle(values: string[], id: string) { return values.includes(id) ? values.filter((item) => item !== id) : [...values, id]; }
   function scope(values: string[], all: string[]) { return values.length === all.length ? "all" : values; }
   return <div className="admin-table">
-    <h3>Access profiles <span className="muted">({rows.length})</span></h3>
-    <p className="muted">Every profile has its own permissions. Existing code letters are never displayed; enter a replacement to change one safely.</p>
-    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <div className="access-profile-list">{rows.map((profile) => {
+    <div className="table-head">
+      <h3>Access codes <span className="count">{rows.length}</span></h3>
+      <p className="muted">Each code has its own permissions. Codes are stored hashed and never shown — to change one, enter a replacement.</p>
+    </div>
+    {rows.length === 0 ? <p className="empty">No codes yet.</p> : <div className="code-list">{rows.map((profile) => {
         const value = draft(profile);
         const set = (next: Partial<typeof value>) => setDrafts({ ...drafts, [profile.id]: { ...value, ...next } });
-        const role = profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : "Resource code";
-        return <details className="access-profile" key={profile.id}>
-          <summary><span className="access-profile-identity"><strong>{profile.label}</strong><span className="muted">{role}</span></span><span className={value.enabled ? "access-status" : "access-status off"}>{value.enabled ? "Active" : "Disabled"}</span></summary>
-          <div className="access-profile-editor">
-            <section className="profile-basics"><div className="editor-heading"><div><p className="eyebrow">Code settings</p><h4>{role}</h4></div><label className="access-switch"><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /><span>{value.enabled ? "Active" : "Disabled"}</span></label></div><div className="settings-fields">
-              <label>Profile name<input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></label>
-              <label>Available hours<input value={value.hours} aria-label={`${profile.label} hours`} placeholder="All day" onChange={(e) => set({ hours: e.target.value })} /></label>
-            </div></section>
-            <fieldset className="permission-fieldset module-fieldset"><legend>Module access</legend><div className="permission-list">
-              <label className="permission-toggle all-toggle"><input type="checkbox" checked={value.tools.length === MODULES.length} onChange={(e) => set({ tools: e.target.checked ? MODULES.map((module) => module.id) : [] })} />All modules</label>
-              {MODULES.map((module) => <label className="permission-toggle" key={module.id}><input type="checkbox" checked={value.tools.includes(module.id)} onChange={() => set({ tools: toggle(value.tools, module.id) })} />{module.label}</label>)}
-            </div></fieldset>
-            <section className="profile-utilities"><div className="utility-section"><p className="eyebrow">Extras</p><label className="permission-toggle"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} />Allow printing</label>
-              <details className="game-access"><summary>Game access <span>{value.play.length === GAMES.length ? "All games" : `${value.play.length} selected`}</span></summary><div className="game-list">
-                <label className="permission-toggle all-toggle"><input type="checkbox" checked={value.play.length === GAMES.length} onChange={(e) => set({ play: e.target.checked ? [...GAMES] : [] })} />All games</label>
-                {GAMES.map((game) => <label className="permission-toggle" key={game}><input type="checkbox" checked={value.play.includes(game)} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>)}
-              </div></details>
-            </div><div className="replace-code"><p className="eyebrow">Replace code</p><label>New code<input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="Four letters or numbers" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /></label><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace code</button></div></section>
-            <footer className="access-editor-footer"><span>Changes apply when this code is next used.</span><button className="primary" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></footer>
+        const role = profile.classroom ? `${profile.classroom.classId.toUpperCase()} · ${profile.classroom.role}` : "Resource code";
+        const allMods = value.tools.length === MODULES.length;
+        const allGames = value.play.length === GAMES.length;
+        return <details className="code-card" key={profile.id}>
+          <summary className="code-summary">
+            <span className="code-title"><strong>{profile.label}</strong><span className="code-kind">{role}</span></span>
+            <span className={value.enabled ? "pill on" : "pill off"}>{value.enabled ? "Active" : "Off"}</span>
+          </summary>
+          <div className="code-editor">
+            <div className="field-row">
+              <label className="field">Code name<input value={value.label} aria-label={`${profile.label} name`} onChange={(e) => set({ label: e.target.value })} /></label>
+              <label className="field">Active hours <span className="hint">(blank = all day)</span><input value={value.hours} aria-label={`${profile.label} hours`} placeholder="e.g. 09:00-15:00" onChange={(e) => set({ hours: e.target.value })} /></label>
+              <label className="switch-field"><span>Enabled</span><input type="checkbox" className="switch" aria-label={`${profile.label} enabled`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></label>
+            </div>
+
+            <div className="perm-group">
+              <div className="perm-head"><span className="perm-title">Modules this code unlocks</span><button type="button" className="link" onClick={() => set({ tools: allMods ? [] : MODULES.map((m) => m.id) })}>{allMods ? "Clear all" : "Select all"}</button></div>
+              <div className="chip-grid">{MODULES.map((m) => { const on = value.tools.includes(m.id); return <label key={m.id} className={on ? "chip sel" : "chip"}><input type="checkbox" checked={on} onChange={() => set({ tools: toggle(value.tools, m.id) })} />{m.label}</label>; })}</div>
+            </div>
+
+            <label className="check-row"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} /><span>Allow printing workbooks to PDF</span></label>
+
+            <details className="games-fold">
+              <summary className="perm-head"><span className="perm-title">Playable games</span><span className="muted">{allGames ? "All games" : `${value.play.length} of ${GAMES.length}`}</span></summary>
+              <div className="games-body">
+                <div className="perm-head"><button type="button" className="link" onClick={() => set({ play: allGames ? [] : [...GAMES] })}>{allGames ? "Clear all" : "Select all"}</button></div>
+                <div className="chip-grid">{GAMES.map((game) => { const on = value.play.includes(game); return <label key={game} className={on ? "chip sel" : "chip"}><input type="checkbox" checked={on} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>; })}</div>
+              </div>
+            </details>
+
+            <div className="replace-row">
+              <label className="field grow">Replace this code<input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="New 4-letter code" onChange={(e) => set({ newCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4) })} /></label>
+              <button className="secondary" disabled={value.newCode.length < 4} onClick={() => onReplaceCode(profile, value.newCode)}>Replace code</button>
+            </div>
+
+            <div className="code-footer">
+              <span className="muted">Changes take effect the next time the code is used.</span>
+              <button className="primary" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((m) => m.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save changes</button>
+            </div>
           </div>
         </details>;
       })}</div>}
