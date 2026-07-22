@@ -6,6 +6,8 @@ const DAY = 86400000;
 const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
+const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "classroom"];
+const PLAY_GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 
 class HttpError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -196,9 +198,17 @@ function profileTools(profile) {
     return tools === "all" ? "all" : Array.isArray(tools) ? tools.filter((tool) => typeof tool === "string") : [];
   } catch { return []; }
 }
+function allowedScope(value, allowed, label) {
+  if (value === "all") return "all";
+  if (!Array.isArray(value)) throw new HttpError(`${label} must be a list or all.`, 400);
+  const unique = [...new Set(value.filter((item) => typeof item === "string"))];
+  if (unique.some((item) => !allowed.includes(item))) throw new HttpError(`One or more ${label.toLowerCase()} are not recognized.`, 400);
+  return unique;
+}
+function scopeAllows(scope, item) { return scope === "all" || (Array.isArray(scope) && scope.includes(item)); }
 function profileAllows(profile, tool) {
   const tools = profileTools(profile);
-  return tools === "all" || tools.includes(tool);
+  return scopeAllows(tools, tool);
 }
 function classroomTools(profile, enabled) {
   const tools = profileTools(profile);
@@ -481,14 +491,33 @@ export default {
           const hours = body.hours == null ? current.hours : String(body.hours).trim().slice(0, 20);
           if (!label) throw new HttpError("Profile label is required.");
           if (hours && !/^(\d{1,2}):\d{2}\s*-\s*(\d{1,2}):\d{2}$/.test(hours)) throw new HttpError("Hours must look like 09:00-12:15.");
-          const curriculumEnabled = body.curriculumEnabled == null ? profileAllows(current, "classroom") : !!body.curriculumEnabled;
-          const tools = current.classroom_class_id ? JSON.stringify(classroomTools(current, curriculumEnabled)) : current.tools;
-          await db.prepare("UPDATE site_access SET label = ?, enabled = ?, tools = ?, hours = ?, updated_at = ? WHERE code_hash = ?")
-            .bind(label, body.enabled == null ? current.enabled : body.enabled ? 1 : 0, tools, hours || null, Date.now(), current.code_hash).run();
-          if (current.classroom_class_id && body.curriculumEnabled === false) {
+          const enabled = body.enabled == null ? !!current.enabled : !!body.enabled;
+          let tools = body.tools == null ? current.tools : JSON.stringify(allowedScope(body.tools, SITE_TOOLS, "Modules"));
+          if (current.classroom_class_id && body.curriculumEnabled != null && body.tools == null) tools = JSON.stringify(classroomTools(current, !!body.curriculumEnabled));
+          const play = body.play == null ? current.play : JSON.stringify(allowedScope(body.play, PLAY_GAMES, "Games"));
+          const classroomEnabled = profileAllows({ tools }, "classroom");
+          await db.prepare("UPDATE site_access SET label = ?, enabled = ?, tools = ?, print_allowed = ?, play = ?, hours = ?, updated_at = ? WHERE code_hash = ?")
+            .bind(label, enabled ? 1 : 0, tools, body.print == null ? current.print_allowed : body.print ? 1 : 0, play, hours || null, Date.now(), current.code_hash).run();
+          if (current.classroom_class_id && (!enabled || !classroomEnabled)) {
             await db.prepare("DELETE FROM sessions WHERE account_id IN (SELECT id FROM accounts WHERE class_id = ? AND role = ?)")
               .bind(current.classroom_class_id, current.classroom_role).run();
           }
+          return response(request, env, { ok: true });
+        }
+        const siteAccessCodeMatch = path.match(/^\/admin\/site-access\/([a-f0-9]{64})\/code$/);
+        if (siteAccessCodeMatch && request.method === "PUT") {
+          const current = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(siteAccessCodeMatch[1]).first();
+          if (!current) throw new HttpError("No such access profile.", 404);
+          const code = normalizeCode((await readJson(request, 200)).code);
+          if (!validCode(code)) throw new HttpError("Codes must be 4 letters/numbers, or 8-32 letters, numbers, or hyphens.");
+          const nextSiteHash = await siteCodeHash(code);
+          if (nextSiteHash !== current.code_hash && await db.prepare("SELECT code_hash FROM site_access WHERE code_hash = ?").bind(nextSiteHash).first()) throw new HttpError("That code is already in use.", 409);
+          const statements = [db.prepare("UPDATE site_access SET code_hash = ?, updated_at = ? WHERE code_hash = ?").bind(nextSiteHash, Date.now(), current.code_hash)];
+          if (current.classroom_class_id && (current.classroom_role === "student" || current.classroom_role === "instructor")) {
+            const column = current.classroom_role === "student" ? "student_code_hash" : "instructor_code_hash";
+            statements.push(db.prepare(`UPDATE class_access SET ${column} = ?, updated_at = ? WHERE class_id = ?`).bind(await codeHash(current.classroom_role, code), Date.now(), current.classroom_class_id));
+          }
+          await db.batch(statements);
           return response(request, env, { ok: true });
         }
         if (path === "/admin/accounts" && request.method === "GET") {

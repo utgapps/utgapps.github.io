@@ -96,7 +96,7 @@ i.offline, .student i.offline { background: #aebcc0; }
 .admin-create h3 { margin: 0 0 10px; font-size: 15px; }
 .admin-create .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .admin-create input { padding: 8px 10px; border: 1px solid #cbd9dd; border-radius: 8px; min-width: 130px; flex: 1; }
-.admin-table { margin-bottom: 26px; }
+.admin-table { margin-bottom: 26px; overflow-x: auto; }
 .admin-table h3 { font-size: 15px; margin: 0 0 8px; }
 .admin-table table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .admin-table th { text-align: left; color: #6b8791; font-weight: 600; border-bottom: 1px solid #e3edef; padding: 6px 8px; }
@@ -105,6 +105,14 @@ i.offline, .student i.offline { background: #aebcc0; }
 .admin-table input[type="checkbox"] { accent-color: #01aefd; }
 .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .admin-actions .danger { color: #d33; }
+.permission-list { display: grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 5px 9px; min-width: 225px; }
+.permission-toggle { display: flex; align-items: center; gap: 5px; color: #34515b; white-space: nowrap; }
+.compact-permissions { display: block; min-width: 145px; }
+.compact-permissions details { margin-top: 7px; color: #4d6871; }
+.compact-permissions summary { cursor: pointer; }
+.game-list { display: grid; grid-template-columns: repeat(2, minmax(76px, 1fr)); gap: 5px 9px; margin-top: 7px; min-width: 175px; }
+.replace-code { display: grid; gap: 5px; min-width: 120px; }
+.replace-code input { min-width: 120px; }
 .muted { color: #8aa0a7; font-size: 12.5px; }
 
 /* ---- media panel ---- */

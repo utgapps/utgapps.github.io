@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
+import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
+const MODULES = [
+  { id: "pixel-art", label: "Pixel Art" }, { id: "animator", label: "Animator" },
+  { id: "digital-art", label: "Digital Art" }, { id: "modeling", label: "Modeling" },
+  { id: "camp", label: "Camp Coding" }, { id: "classroom", label: "Curriculum Classroom" },
+];
+const GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
+type CodeDraft = { label: string; enabled: boolean; tools: string[]; print: boolean; play: string[]; hours: string; newCode: string };
 
 export function AdminApp() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -101,8 +108,12 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
     try { await apiAdminClearAccessLockout(token, browserKey); refresh(); }
     catch (e) { setMsg((e as Error).message); }
   }
-  async function updateProfile(profile: ApiSiteAccess, body: { label: string; enabled: boolean; curriculumEnabled: boolean; hours: string }) {
+  async function updateProfile(profile: ApiSiteAccess, body: { label: string; enabled: boolean; tools: string | string[]; print: boolean; play: string | string[]; hours: string }) {
     try { await apiAdminUpdateSiteAccess(token, profile.id, body); await refresh(); setMsg("Class code profile updated."); }
+    catch (e) { setMsg((e as Error).message); }
+  }
+  async function replaceProfileCode(profile: ApiSiteAccess, code: string) {
+    try { await apiAdminReplaceSiteAccessCode(token, profile.id, code); await refresh(); setMsg("Class code replaced."); }
     catch (e) { setMsg((e as Error).message); }
   }
 
@@ -150,7 +161,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
         </div>
       </div>
 
-      <SiteAccessTable rows={profiles} onUpdate={updateProfile} />
+      <SiteAccessTable rows={profiles} onUpdate={updateProfile} onReplaceCode={replaceProfileCode} />
       <AccessLockoutTable rows={lockouts} onClear={clearLockout} />
       </>}
       {tab === "accounts" && <>
@@ -161,25 +172,43 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   </main>;
 }
 
-function SiteAccessTable({ rows, onUpdate }: { rows: ApiSiteAccess[]; onUpdate: (profile: ApiSiteAccess, body: { label: string; enabled: boolean; curriculumEnabled: boolean; hours: string }) => void }) {
-  const [drafts, setDrafts] = useState<Record<string, { label: string; enabled: boolean; curriculumEnabled: boolean; hours: string }>>({});
-  function draft(profile: ApiSiteAccess) { return drafts[profile.id] || { label: profile.label, enabled: profile.enabled, curriculumEnabled: profile.curriculumEnabled, hours: profile.hours }; }
-  function tools(profile: ApiSiteAccess) { return Array.isArray(profile.tools) ? profile.tools.join(", ") : profile.tools; }
+function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
+  rows: ApiSiteAccess[];
+  onUpdate: (profile: ApiSiteAccess, body: { label: string; enabled: boolean; tools: string | string[]; print: boolean; play: string | string[]; hours: string }) => void;
+  onReplaceCode: (profile: ApiSiteAccess, code: string) => void;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, CodeDraft>>({});
+  function ids(value: string | string[], allowed: string[]) { return value === "all" ? [...allowed] : Array.isArray(value) ? value.filter((item) => allowed.includes(item)) : []; }
+  function draft(profile: ApiSiteAccess): CodeDraft {
+    return drafts[profile.id] || { label: profile.label, enabled: profile.enabled, tools: ids(profile.tools, MODULES.map((module) => module.id)), print: profile.print, play: ids(profile.play, GAMES), hours: profile.hours, newCode: "" };
+  }
+  function toggle(values: string[], id: string) { return values.includes(id) ? values.filter((item) => item !== id) : [...values, id]; }
+  function scope(values: string[], all: string[]) { return values.length === all.length ? "all" : values; }
   return <div className="admin-table">
     <h3>Access profiles <span className="muted">({rows.length})</span></h3>
-    <p className="muted">Codes are never displayed again. Curriculum access is controlled separately for each student and instructor code.</p>
-    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <table><thead><tr><th>Profile</th><th>Classroom role</th><th>Curriculum</th><th>Resources</th><th>Hours</th><th>Active</th><th></th></tr></thead>
+    <p className="muted">Every profile has its own permissions. Existing code letters are never displayed; enter a replacement to change one safely.</p>
+    {rows.length === 0 ? <p className="empty">No code profiles.</p> : <table><thead><tr><th>Profile</th><th>Classroom role</th><th>Modules and curriculum</th><th>Extras</th><th>Hours</th><th>Active</th><th>Replace code</th><th></th></tr></thead>
       <tbody>{rows.map((profile) => {
         const value = draft(profile);
         const set = (next: Partial<typeof value>) => setDrafts({ ...drafts, [profile.id]: { ...value, ...next } });
         return <tr key={profile.id}>
           <td><input value={value.label} aria-label={`${profile.label} label`} onChange={(e) => set({ label: e.target.value })} /></td>
           <td>{profile.classroom ? `${profile.classroom.classId.toUpperCase()} ${profile.classroom.role}` : <span className="muted">Resource code</span>}</td>
-          <td>{profile.classroom ? <input type="checkbox" title={`Allow ${profile.classroom.role} access to curriculum and modules`} aria-label={`${profile.label} curriculum access`} checked={value.curriculumEnabled} onChange={(e) => set({ curriculumEnabled: e.target.checked })} /> : <span className="muted">â€”</span>}</td>
-          <td className="muted">{tools(profile)}</td>
+          <td><div className="permission-list">
+            <label className="permission-toggle"><input type="checkbox" checked={value.tools.length === MODULES.length} onChange={(e) => set({ tools: e.target.checked ? MODULES.map((module) => module.id) : [] })} />All modules</label>
+            {MODULES.map((module) => <label className="permission-toggle" key={module.id}><input type="checkbox" checked={value.tools.includes(module.id)} onChange={() => set({ tools: toggle(value.tools, module.id) })} />{module.label}</label>)}
+          </div></td>
+          <td><div className="permission-list compact-permissions">
+            <label className="permission-toggle"><input type="checkbox" checked={value.print} onChange={(e) => set({ print: e.target.checked })} />Printing</label>
+            <details><summary>Game access ({value.play.length === GAMES.length ? "all" : value.play.length})</summary><div className="game-list">
+              <label className="permission-toggle"><input type="checkbox" checked={value.play.length === GAMES.length} onChange={(e) => set({ play: e.target.checked ? [...GAMES] : [] })} />All games</label>
+              {GAMES.map((game) => <label className="permission-toggle" key={game}><input type="checkbox" checked={value.play.includes(game)} onChange={() => set({ play: toggle(value.play, game) })} />{game}</label>)}
+            </div></details>
+          </div></td>
           <td><input value={value.hours} aria-label={`${profile.label} hours`} placeholder="all day" onChange={(e) => set({ hours: e.target.value })} /></td>
           <td><input type="checkbox" aria-label={`${profile.label} active`} checked={value.enabled} onChange={(e) => set({ enabled: e.target.checked })} /></td>
-          <td className="admin-actions"><button className="text-button" onClick={() => onUpdate(profile, value)}>Save</button></td>
+          <td><div className="replace-code"><input value={value.newCode} aria-label={`${profile.label} replacement code`} placeholder="new code" onChange={(e) => set({ newCode: e.target.value.toUpperCase() })} /><button className="text-button" disabled={!value.newCode} onClick={() => onReplaceCode(profile, value.newCode)}>Replace</button></div></td>
+          <td className="admin-actions"><button className="text-button" onClick={() => onUpdate(profile, { label: value.label, enabled: value.enabled, tools: scope(value.tools, MODULES.map((module) => module.id)), print: value.print, play: scope(value.play, GAMES), hours: value.hours })}>Save access</button></td>
         </tr>;
       })}</tbody></table>}
   </div>;

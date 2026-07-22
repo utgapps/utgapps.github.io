@@ -111,8 +111,11 @@ export type ApiSiteAccess = { id: string; label: string; enabled: boolean; tools
 export async function apiAdminListSiteAccess(token: string): Promise<ApiSiteAccess[]> {
   return (await req("/admin/site-access", {}, token)).profiles || [];
 }
-export async function apiAdminUpdateSiteAccess(token: string, id: string, body: { label: string; enabled: boolean; curriculumEnabled: boolean; hours: string }): Promise<void> {
+export async function apiAdminUpdateSiteAccess(token: string, id: string, body: { label: string; enabled: boolean; tools: string | string[]; print: boolean; play: string | string[]; hours: string }): Promise<void> {
   await req(`/admin/site-access/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }, token);
+}
+export async function apiAdminReplaceSiteAccessCode(token: string, id: string, code: string): Promise<void> {
+  await req(`/admin/site-access/${encodeURIComponent(id)}/code`, { method: "PUT", body: JSON.stringify({ code }) }, token);
 }
 export type ApiAccessLockout = { browserKey: string; attemptCount: number; lockLevel: number; lockedUntil: number | null; updatedAt: number };
 export async function apiAdminListAccessLockouts(token: string): Promise<ApiAccessLockout[]> {

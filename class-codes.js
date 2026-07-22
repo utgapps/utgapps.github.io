@@ -1,3 +1,4 @@
+/* Live class codes and permissions are managed in the Classroom Admin dashboard. */
 /* ============================================================
    CLASS CODES  —  edit this file to control who gets in.
 
