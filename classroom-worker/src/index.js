@@ -306,10 +306,21 @@ export default {
           await clearCodeAttempts(db, lock.browserKey);
           classId = access.class_id;
         }
-        const now = Date.now(), id = crypto.randomUUID();
-        await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,0,'student',?,?)")
-          .bind(id, classId, cleanName, now, now).run();
-        const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first();
+        const now = Date.now();
+        // A guest is identified by (class, name): signing in with the same name
+        // returns the same guest account, so their projects, media, and saved
+        // classrooms persist. Only guest (non-permanent) accounts match by name
+        // — once promoted to permanent, an account must sign in with a password.
+        let account = await db.prepare("SELECT * FROM accounts WHERE class_id = ? AND name = ? AND is_permanent = 0 AND role = 'student' ORDER BY last_seen DESC LIMIT 1").bind(classId, cleanName).first();
+        let id;
+        if (account) {
+          id = account.id;
+          await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, id).run();
+        } else {
+          id = crypto.randomUUID();
+          await db.prepare("INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_seen) VALUES (?,?,?,0,'student',?,?)").bind(id, classId, cleanName, now, now).run();
+          account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(id).first();
+        }
         await rememberClassroom(db, id, classId, "student");
         return response(request, env, { token: await newSession(db, id, 4), account: publicAccount(account) });
       }
