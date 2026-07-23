@@ -18,3 +18,13 @@ window.UTG_CLASSROOMS = [
    short-lived credentials on demand; put its URL here. STUN is tried first;
    the relay is only used when a direct/STUN path fails. */
 window.UTG_TURN_URL = "https://utg-turn.utgapps.workers.dev";
+
+/* SITE-WIDE SERVICE WORKER — keeps every tool up to date. It's network-first,
+   so an online visitor always gets the latest deploy (unchanged files cost a
+   cheap 304); the cache is only an offline fallback. Registered here because
+   class-codes.js loads on every page, giving the worker whole-site scope. */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("/sw.js").catch(function () {});
+  });
+}
