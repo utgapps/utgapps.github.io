@@ -73,12 +73,82 @@ function detect(mesh, geo) {
           ring.sort((a, b) => a - b);
           const dr = ring[Math.floor(ring.length / 2)];
           if (dc == null || dc > dr + EPS) out.push({ kind: "hole", ai, sign, uu, vv, face: dr });
-          else if (dc < dr - EPS) out.push({ kind: "stud", ai, sign, uu, vv, face: dc });
         }
       }
     }
   }
   return cluster(out, size);
+}
+
+// Built-in pins (studs) need their own pass. A VEX corner connector's pin is
+// SPLIT — a slot runs down its centre — so a single centre ray drops into the
+// slot and the hole/stud ring test never sees it. Instead we measure every
+// sample's protrusion above the surrounding surface, then cluster the raised
+// samples: the slot sits inside the cluster and simply doesn't matter.
+const STUD_STEP = 0.5;   // scan step (mm)
+const STUD_RING = 4.2;   // annulus radius (mm) — just outside a 4.4mm pin
+const STUD_RISE = 1.8;   // how far a pin must stand above its surroundings (mm)
+const STUD_LINK = 2.6;   // cluster link distance (mm) — bridges the pin's slot
+
+function detectStuds(mesh, geo) {
+  const size = geo.boundingBox.getSize(new THREE.Vector3());
+  const ray = new THREE.Raycaster(); ray.far = 1e4;
+  const found = [];
+  for (let ai = 0; ai < 3; ai++) {
+    const uAx = (ai + 1) % 3, vAx = (ai + 2) % 3;
+    const uVec = new THREE.Vector3().setComponent(uAx, 1);
+    const vVec = new THREE.Vector3().setComponent(vAx, 1);
+    for (const sign of [1, -1]) {
+      const dir = new THREE.Vector3().setComponent(ai, sign), into = dir.clone().negate();
+      const start = size.getComponent(ai) / 2 + 5;
+      const uMax = size.getComponent(uAx) / 2, vMax = size.getComponent(vAx) / 2;
+      const surf = (uu, vv) => {
+        const o = dir.clone().multiplyScalar(start).addScaledVector(uVec, uu).addScaledVector(vVec, vv);
+        const d = firstHit(mesh, ray, o, into);
+        return d == null ? null : start - d; // depth of the surface below the scan plane
+      };
+      const tips = [];
+      for (let uu = -uMax; uu <= uMax; uu += STUD_STEP) {
+        for (let vv = -vMax; vv <= vMax; vv += STUD_STEP) {
+          const s = surf(uu, vv);
+          if (s == null) continue;
+          const ring = [];
+          for (let k = 0; k < 12; k++) {
+            const a = (k / 12) * Math.PI * 2;
+            const r = surf(uu + Math.cos(a) * STUD_RING, vv + Math.sin(a) * STUD_RING);
+            if (r != null) ring.push(r);
+          }
+          if (ring.length < 8) continue; // pin hanging off an edge — can't judge
+          ring.sort((a, b) => a - b);
+          const around = ring[Math.floor(ring.length / 2)];
+          if (s - around >= STUD_RISE) tips.push({ uu, vv, s });
+        }
+      }
+      // cluster the raised samples; the slot falls inside a single cluster
+      const groups = [];
+      for (const t of tips) {
+        const g = groups.find((g) => g.pts.some((p) => Math.hypot(p.uu - t.uu, p.vv - t.vv) <= STUD_LINK));
+        if (g) g.pts.push(t); else groups.push({ pts: [t] });
+      }
+      for (const g of groups) {
+        const us = g.pts.map((p) => p.uu), vs = g.pts.map((p) => p.vv);
+        const du = Math.max(...us) - Math.min(...us), dv = Math.max(...vs) - Math.min(...vs);
+        const wide = Math.max(du, dv), narrow = Math.min(du, dv);
+        // a pin reads ~4.4mm across and roughly circular; anything else is body
+        if (wide < 3.4 || wide > 6.4 || narrow < 3.0 || wide / Math.max(narrow, 0.01) > 1.5) continue;
+        const cu = (Math.max(...us) + Math.min(...us)) / 2, cv = (Math.max(...vs) + Math.min(...vs)) / 2;
+        const tip = Math.max(...g.pts.map((p) => p.s));
+        const p = [0, 0, 0];
+        p[ai] = sign * tip; p[uAx] = cu; p[vAx] = cv;
+        const axis = [0, 0, 0]; axis[ai] = sign;
+        found.push({
+          kind: "stud", p: p.map((v) => +v.toFixed(2)), axis,
+          radius: +(wide / 2).toFixed(2), round: +(wide / narrow).toFixed(2), samples: g.pts.length,
+        });
+      }
+    }
+  }
+  return found;
 }
 
 function cluster(raw, size) {
@@ -119,7 +189,11 @@ function measure(mesh, geo, f) {
     for (; r <= 4.0; r += 0.2) {
       const o = centre.clone().addScaledVector(uVec, Math.cos(a) * r).addScaledVector(vVec, Math.sin(a) * r);
       const d = firstHit(mesh, ray, o, into);
-      const isFeature = f.kind === "hole" ? (d == null || d > faceD + EPS) : (d != null && d < faceD - EPS);
+      // hole: still inside the bore (ray goes through, or lands deeper than the face)
+      // stud: still on the raised tip (once we step off, the hit drops to the base)
+      const isFeature = f.kind === "hole"
+        ? (d == null || d > faceD + EPS)
+        : (d != null && d <= faceD + EPS);
       if (!isFeature) break;
     }
     radii.push(r);
@@ -152,7 +226,11 @@ if (WRITE) {
         .map((f) => ({ ...f, ...measure(mesh, geo, f) }))
         // a real VEX bore measures ~2.2mm radius; wider "features" are recessed
         // pockets, narrower ones are surface detail
-        .filter((f) => f.radius >= 1.85 && f.radius <= 2.45 && f.round <= 1.95);
+        .filter((f) => f.radius >= 1.85 && f.radius <= 2.45 && f.round <= 1.95)
+        // Built-in pins only exist on corner connectors. Wheel hub bosses and
+        // the bumper's button read as protrusions too, so don't offer those as
+        // male connectors.
+        .concat(part.category === "corner" ? detectStuds(mesh, geo) : []);
       const handles = feats.map((f) => ({ p: f.p, axis: f.axis, kind: f.kind }));
       for (const sp of SPECIAL[part.id] || []) { // re-label known non-pin features
         let best = null, bestD = Infinity;
@@ -179,7 +257,8 @@ for (const id of ids) {
   const minR = loose ? 1.2 : 1.7, maxR = loose ? 5.0 : 3.0, maxRound = loose ? 4.0 : 1.6;
   let feats = detect(mesh, geo);
   feats = feats.map((f) => ({ ...f, ...measure(mesh, geo, f) }))
-    .filter((f) => f.radius >= minR && f.radius <= maxR && f.round <= maxRound);
+    .filter((f) => f.radius >= minR && f.radius <= maxR && f.round <= maxRound)
+    .concat(detectStuds(mesh, geo));
   feats.sort((a, b) => JSON.stringify(a.axis).localeCompare(JSON.stringify(b.axis)));
   const holes = feats.filter((f) => f.kind === "hole"), studs = feats.filter((f) => f.kind === "stud");
   console.log(`\n=== ${id}  size=${JSON.stringify(meta.sizeMM)}  (${Date.now() - t0}ms) ===`);

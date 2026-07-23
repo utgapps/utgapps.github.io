@@ -6,7 +6,15 @@ export const PITCH = 12.7;
 // of a hole, the outward normal (the direction a pin enters from), and a
 // tangent (a fixed in-plane direction, e.g. the part's length) used to align
 // orientation on connect. A through-hole yields two handles — one per face.
-export type Hole = { p: [number, number, number]; axis: [number, number, number]; tan: [number, number, number] };
+//
+// `kind` is "hole" (female, takes a pin) or "stud" (a corner connector's
+// built-in male pin, which plugs straight into someone else's hole).
+// `core` identifies the physical bore: the two handles of one through-hole
+// share a core, so filling it from either side hides both.
+export type Hole = {
+  p: [number, number, number]; axis: [number, number, number]; tan: [number, number, number];
+  kind: "hole" | "stud"; core: number;
+};
 
 const AXES: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
@@ -37,8 +45,24 @@ export function holesFor(meta: PartMeta): Hole[] {
   // Prefer handles measured from the real CAD mesh (see tools/detect-features.cjs).
   // Only pin holes get markers; axle sockets are reserved for the spin feature.
   if (meta.holes && meta.holes.length) {
-    const pin = meta.holes.filter((h) => h.kind === "hole");
-    if (pin.length) return pin.map((h) => ({ p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis) }));
+    const pin = meta.holes.filter((h) => h.kind === "hole" || h.kind === "stud");
+    if (pin.length) {
+      // The detector emits handles face-by-face, so a through-hole's two
+      // handles are far apart in the list. Pair them by the bore's axis line:
+      // same axis, same in-plane position, opposite normals.
+      const cores = new Map<string, number>();
+      return pin.map((h) => {
+        const ai = h.axis.findIndex((v) => v !== 0);
+        const perp = [0, 1, 2].filter((i) => i !== ai);
+        const key = h.kind === "stud"
+          ? `s:${h.p.map((v) => Math.round(v)).join(",")}`             // a stud is its own core
+          : `h:${ai}:${Math.round(h.p[perp[0]])}:${Math.round(h.p[perp[1]])}`;
+        let c = cores.get(key);
+        if (c === undefined) { c = cores.size; cores.set(key, c); }
+        const kind: "hole" | "stud" = h.kind === "stud" ? "stud" : "hole";
+        return { p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis), kind, core: c };
+      });
+    }
   }
   const s = meta.sizeMM;
   const order = [0, 1, 2].sort((a, b) => s[a] - s[b]);
@@ -47,12 +71,14 @@ export function holesFor(meta: PartMeta): Hole[] {
 
   // A through-hole at `center` along axis `ax`, with in-plane tangent `tanIdx`:
   // a handle on each face, the normal pointing out of that face.
+  let nextCore = 0;
   const through = (center: [number, number, number], ax: number, tanIdx: number) => {
     const half = s[ax] / 2, a = AXES[ax], t = AXES[tanIdx];
     const plus: [number, number, number] = [...center]; plus[ax] += half;
     const minus: [number, number, number] = [...center]; minus[ax] -= half;
-    holes.push({ p: plus, axis: a, tan: t });
-    holes.push({ p: minus, axis: [-a[0], -a[1], -a[2]], tan: t });
+    const core = nextCore++; // both faces are the same physical bore
+    holes.push({ p: plus, axis: a, tan: t, kind: "hole", core });
+    holes.push({ p: minus, axis: [-a[0], -a[1], -a[2]], tan: t, kind: "hole", core });
   };
 
   if (meta.category === "beam") {

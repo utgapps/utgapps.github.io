@@ -50,6 +50,9 @@ export class Editor {
   private disabledPins = new Set<string>(); // pins that don't bind their parts
   private pinLinks = new Map<string, Set<string>>(); // pin uid -> part uids it fills
   private adj = new Map<string, Set<string>>(); // rigid-connection graph (enabled pins only)
+  // A corner's built-in pin plugged straight into another part's hole. There's
+  // no separate connector part, so the join is recorded here instead.
+  private studJoins: { studPart: string; studCore: string; holePart: string; holeCore: string }[] = [];
   private dragGroup: { mesh: THREE.Mesh; start: THREE.Vector3 }[] = [];
   private dragGrabStart = new THREE.Vector3();
 
@@ -67,6 +70,9 @@ export class Editor {
   // don't fight each other.
   private markerMat = new THREE.MeshBasicMaterial({ color: 0x18a0ff, transparent: true, opacity: 0.6, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
   private markerHotMat = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.95, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
+  // a corner's built-in pin is male, so it reads gold and sits a touch proud
+  private studGeo = new THREE.CircleGeometry(3.1, 20);
+  private studMat = new THREE.MeshBasicMaterial({ color: 0xf0a020, transparent: true, opacity: 0.75, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
   private hovered: THREE.Mesh | null = null;
   private markersVisible = true;
   // connect drag
@@ -155,6 +161,8 @@ export class Editor {
     this.ro.observe(container);
 
     this.animate();
+    // dev-only handle for driving the editor from tests; stripped from builds
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__vex = this;
   }
 
   // ---- placing / editing ----------------------------------------------------
@@ -199,13 +207,18 @@ export class Editor {
     if (!hasHoles(part.meta)) return;
     const zAxis = new THREE.Vector3(0, 0, 1);
     holesFor(part.meta).forEach((h, i) => {
-      const m = new THREE.Mesh(this.discGeo, this.markerMat);
+      const stud = h.kind === "stud";
+      const m = new THREE.Mesh(stud ? this.studGeo : this.discGeo, stud ? this.studMat : this.markerMat);
       const axis = new THREE.Vector3(h.axis[0], h.axis[1], h.axis[2]).normalize();
-      m.position.set(h.p[0] + axis.x * PROUD, h.p[1] + axis.y * PROUD, h.p[2] + axis.z * PROUD);
+      const off = stud ? PROUD * 1.6 : PROUD;
+      m.position.set(h.p[0] + axis.x * off, h.p[1] + axis.y * off, h.p[2] + axis.z * off);
       m.quaternion.setFromUnitVectors(zAxis, axis);
       m.visible = this.markersVisible;
       m.userData.holeRef = { partUid: part.uid, holeIndex: i } as HoleRef;
       m.userData.localTan = h.tan;
+      m.userData.kind = h.kind;
+      m.userData.core = h.core;
+      m.userData.proud = off;
       part.mesh.add(m);
       this.markers.push(m);
     });
@@ -471,18 +484,20 @@ export class Editor {
 
       if (draggedTo) { // dragged straight onto another hole — connect now
         this.clearArm();
-        this.onConnect({ from: fromRef, to: draggedTo, depth: this.connectionDepth(fromRef, draggedTo), screen });
+        this.pairUp(fromMarker, target!, screen);
         return;
       }
       if (!clicked) { return; } // dragged to nowhere — leave any armed hole alone
 
       // plain click: arm the first hole, or complete the pair
       if (!this.armed) { this.setArm(fromMarker); return; }
-      const armedRef = this.armed.userData.holeRef as HoleRef;
+      const armedMarker = this.armed;
+      const armedRef = armedMarker.userData.holeRef as HoleRef;
       const sameHandle = armedRef.partUid === fromRef.partUid && armedRef.holeIndex === fromRef.holeIndex;
       this.clearArm();
-      if (sameHandle) this.onConnect({ from: fromRef, to: null, depth: this.stackAtHole(fromRef), screen });
-      else if (armedRef.partUid !== fromRef.partUid) this.onConnect({ from: armedRef, to: fromRef, depth: this.connectionDepth(armedRef, fromRef), screen });
+      if (sameHandle) {
+        if (!this.isStud(fromMarker)) this.onConnect({ from: fromRef, to: null, depth: this.stackAtHole(fromRef), screen });
+      } else if (armedRef.partUid !== fromRef.partUid) this.pairUp(armedMarker, fromMarker, screen);
       else this.setArm(fromMarker); // another hole on the same part — start over from it
       return;
     }
@@ -502,9 +517,27 @@ export class Editor {
 
   private worldOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldPosition(new THREE.Vector3()); }
   private axisOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldDirection(new THREE.Vector3()).normalize(); }
-  private setHot(marker: THREE.Mesh, hot: boolean) { marker.material = hot ? this.markerHotMat : this.markerMat; marker.scale.setScalar(hot ? 1.5 : 1); }
+  private setHot(marker: THREE.Mesh, hot: boolean) {
+    const base = marker.userData.kind === "stud" ? this.studMat : this.markerMat;
+    marker.material = hot ? this.markerHotMat : base;
+    marker.scale.setScalar(hot ? 1.5 : 1);
+  }
+  private isStud(m: THREE.Mesh): boolean { return m.userData.kind === "stud"; }
   private markerFor(ref: HoleRef): THREE.Mesh | null {
     return this.markers.find((m) => { const r = m.userData.holeRef as HoleRef; return r.partUid === ref.partUid && r.holeIndex === ref.holeIndex; }) || null;
+  }
+  // Two handles on different parts have been paired. A stud is a pin already,
+  // so stud+hole joins on the spot; hole+hole asks which connector to use.
+  // Either way `first` is the mover — the part clicked first travels.
+  private pairUp(first: THREE.Mesh, second: THREE.Mesh, screen: { x: number; y: number }) {
+    const a = first.userData.holeRef as HoleRef, b = second.userData.holeRef as HoleRef;
+    const sa = this.isStud(first), sb = this.isStud(second);
+    if (sa && sb) return;                        // two male pins can't mate
+    if (sa || sb) {
+      this.joinStud(sa ? a : b, sa ? b : a, a.partUid);
+      return;
+    }
+    this.onConnect({ from: a, to: b, depth: this.connectionDepth(a, b), screen });
   }
   private setArm(marker: THREE.Mesh) { this.armed = marker; this.setHot(marker, true); this.onArmChange(true); }
   clearArm() { if (this.armed) this.setHot(this.armed, false); this.armed = null; this.onArmChange(false); }
@@ -513,8 +546,11 @@ export class Editor {
     for (const h of this.raycaster.intersectObjects(this.visibleMarkers(), false)) if (h.object !== exclude) return h.object as THREE.Mesh;
     return null;
   }
-  // World point of a hole's face (marker sits PROUD off it along the normal).
-  private faceOf(marker: THREE.Mesh): THREE.Vector3 { return this.worldOf(marker).addScaledVector(this.axisOf(marker), -PROUD); }
+  // World mating point: a hole's open face, or a stud's tip. The marker floats
+  // that far off it along the normal.
+  private faceOf(marker: THREE.Mesh): THREE.Vector3 {
+    return this.worldOf(marker).addScaledVector(this.axisOf(marker), -(marker.userData.proud ?? PROUD));
+  }
   // World tangent (a fixed in-plane direction of the part) at this handle.
   private tanOf(marker: THREE.Mesh): THREE.Vector3 {
     const q = new THREE.Quaternion(); (marker.parent as THREE.Object3D).getWorldQuaternion(q);
@@ -541,7 +577,9 @@ export class Editor {
     return new THREE.Vector3(i === 0 ? 1 : 0, i === 1 ? 1 : 0, i === 2 ? 1 : 0);
   }
 
-  private coreKey(m: THREE.Mesh): string { const r = m.userData.holeRef as HoleRef; return `${r.partUid}:${Math.floor(r.holeIndex / 2)}`; }
+  // Identifies the physical bore a marker belongs to. Both faces of a
+  // through-hole share one core, so filling it from either side hides both.
+  private coreKey(m: THREE.Mesh): string { const r = m.userData.holeRef as HoleRef; return `${r.partUid}:${m.userData.core}`; }
 
   // Unit vector (local) toward a headed pin's cap — detected as the wider end.
   private headLocalAxis(meta: PartMeta, geo: THREE.BufferGeometry): THREE.Vector3 {
@@ -559,36 +597,67 @@ export class Editor {
     return v;
   }
 
-  // Connect two holes with a chosen connector (aligning the second part to the
-  // first), or drop a connector into a single hole when toRef is null.
+  // Move the mover's whole rigid group so its handle mates with the anchor's:
+  // normals oppose (the faces meet) and tangents align (no mirroring). The
+  // anchor never moves — the part clicked FIRST is always the one that travels.
+  private alignGroupTo(mover: THREE.Mesh, anchor: THREE.Mesh) {
+    const moverUid = (mover.userData.holeRef as HoleRef).partUid;
+    const nM = this.axisOf(mover), tM = this.tanOf(mover);
+    const nA = this.axisOf(anchor), tA = this.tanOf(anchor);
+    const v1 = nA.clone().negate(), v2 = tA.clone(), v3 = new THREE.Vector3().crossVectors(v1, v2).normalize();
+    const u1 = nM.clone(), u2 = tM.clone(), u3 = new THREE.Vector3().crossVectors(u1, u2).normalize();
+    const target = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(v1, v2, v3));
+    const source = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u1, u2, u3));
+    const delta = target.multiply(source.invert());
+    const group = [...this.componentOf(moverUid)].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
+    const pivot = this.faceOf(mover);
+    for (const p of group) {
+      p.mesh.quaternion.premultiply(delta);
+      p.mesh.position.sub(pivot).applyQuaternion(delta).add(pivot);
+      p.mesh.updateMatrixWorld(true);
+    }
+    const shift = this.faceOf(anchor).sub(this.faceOf(mover));
+    for (const p of group) { p.mesh.position.add(shift); p.mesh.updateMatrixWorld(true); }
+  }
+
+  // Plug a corner's built-in pin straight into another part's hole. No separate
+  // connector is created — the stud IS the pin.
+  joinStud(studRef: HoleRef, holeRef: HoleRef, moverUid: string) {
+    const mStud = this.markerFor(studRef), mHole = this.markerFor(holeRef);
+    if (!mStud || !mHole) return;
+    if (this.occupied.has(this.coreKey(mHole)) || this.occupied.has(this.coreKey(mStud))) return;
+    const mover = moverUid === studRef.partUid ? mStud : mHole;
+    this.alignGroupTo(mover, mover === mStud ? mHole : mStud);
+    this.studJoins.push({
+      studPart: studRef.partUid, studCore: this.coreKey(mStud),
+      holePart: holeRef.partUid, holeCore: this.coreKey(mHole),
+    });
+    this.select(this.parts.get(moverUid) || null);
+    this.emit();
+  }
+
+  // Connect two holes with a chosen connector (moving the FIRST-clicked part
+  // into the second), or drop a connector into a single hole when toRef is null.
   async connect(fromRef: HoleRef, toRef: HoleRef | null, meta: PartMeta) {
     const mFrom = this.markerFor(fromRef); if (!mFrom) return;
     const fromPart = this.parts.get(fromRef.partUid); if (!fromPart) return;
     if (this.occupied.has(this.coreKey(mFrom))) return; // hole already filled
-    const nA = this.axisOf(mFrom), pA = this.faceOf(mFrom);
     const geo = await loadGeometry(meta);
     if (toRef) {
       const mTo = this.markerFor(toRef), partTo = this.parts.get(toRef.partUid);
       if (mTo && partTo && !this.occupied.has(this.coreKey(mTo))) {
-        // Rotate part 2 so its hole FRAME (normal + tangent) maps onto part 1's:
-        // normal opposes (faces meet), tangent aligns (no unexpected mirroring).
-        const nB = this.axisOf(mTo), tB = this.tanOf(mTo), tA = this.tanOf(mFrom);
-        const v1 = nA.clone().negate(), v2 = tA.clone(), v3 = new THREE.Vector3().crossVectors(v1, v2).normalize();
-        const u1 = nB.clone(), u2 = tB.clone(), u3 = new THREE.Vector3().crossVectors(u1, u2).normalize();
-        const target = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(v1, v2, v3));
-        const source = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u1, u2, u3));
-        partTo.mesh.quaternion.premultiply(target.multiply(source.invert()));
-        partTo.mesh.updateMatrixWorld(true);
-        partTo.mesh.position.add(pA.clone().sub(this.faceOf(mTo)));
-        partTo.mesh.updateMatrixWorld(true);
-        // headed pin: head on the from part's OUTER face; else centered at junction
-        if (isHeaded(meta.id)) await this.addHeadedPin(meta, geo, pA.clone().addScaledVector(nA, -this.extentAlong(fromPart, nA)), nA);
-        else await this.addCenteredConnector(meta, pA, nA);
-        this.select(partTo); this.emit();
+        this.alignGroupTo(mFrom, mTo);           // part 1 travels; part 2 holds still
+        const pJoin = this.faceOf(mTo);          // where the two faces now meet
+        const nJoin = this.axisOf(mFrom);        // out of part 1 at the junction
+        // headed pin: head on part 1's OUTER face; else centered at the junction
+        if (isHeaded(meta.id)) await this.addHeadedPin(meta, geo, pJoin.clone().addScaledVector(nJoin, -this.extentAlong(fromPart, nJoin)), nJoin);
+        else await this.addCenteredConnector(meta, pJoin, nJoin);
+        this.select(fromPart); this.emit();
         return;
       }
     }
     // single hole: head at the grabbed (outer) face, shaft into the part
+    const nA = this.axisOf(mFrom), pA = this.faceOf(mFrom);
     if (isHeaded(meta.id)) await this.addHeadedPin(meta, geo, pA, nA.clone().negate());
     else await this.addCenteredConnector(meta, pA, nA);
     this.emit();
@@ -622,7 +691,10 @@ export class Editor {
     this.occupied.clear(); this.pinLinks.clear(); this.adj.clear();
     const occupiers = [...this.parts.values()].filter((p) => OCCUPIER.has(p.meta.category));
     const byCore = new Map<string, THREE.Mesh[]>();
-    for (const m of this.markers) { const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m); }
+    for (const m of this.markers) {
+      if (this.isStud(m)) continue; // a stud is male — no pin goes into it
+      const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m);
+    }
     const cores = [...byCore.entries()].map(([key, ms]) => {
       const c = new THREE.Vector3();
       for (const m of ms) c.add(m.getWorldPosition(new THREE.Vector3()));
@@ -647,6 +719,13 @@ export class Editor {
     for (const [pinUid, parts] of this.pinLinks) {
       if (this.disabledPins.has(pinUid)) continue;
       for (const partUid of parts) this.link(pinUid, partUid);
+    }
+    // built-in pins: drop stale joins, then fill the hole and bind the parts
+    this.studJoins = this.studJoins.filter((j) => this.parts.has(j.studPart) && this.parts.has(j.holePart));
+    for (const j of this.studJoins) {
+      this.occupied.add(j.holeCore);
+      this.occupied.add(j.studCore); // the stud is spent too
+      this.link(j.studPart, j.holePart);
     }
     // hide filled holes right away; the per-frame facing cull refines the rest
     for (const m of this.markers) if (this.occupied.has(this.coreKey(m))) m.visible = false;
@@ -676,7 +755,10 @@ export class Editor {
   private stackAt(point: THREE.Vector3, axis: THREE.Vector3): number {
     const parts = new Set<string>();
     const byCore = new Map<string, THREE.Mesh[]>();
-    for (const m of this.markers) { const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m); }
+    for (const m of this.markers) {
+      if (this.isStud(m)) continue; // studs aren't layers a pin passes through
+      const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m);
+    }
     for (const [key, ms] of byCore) {
       const c = new THREE.Vector3();
       for (const m of ms) c.add(m.getWorldPosition(new THREE.Vector3()));
