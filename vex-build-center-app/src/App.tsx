@@ -35,6 +35,9 @@ export default function App() {
     ed.onChange = setState;
     ed.onConnect = setConnectReq;
     ed.onPartMenu = setPartMenu;
+    ed.onArmChange = (armed) => setStatus(armed
+      ? "First hole picked — click another hole to connect, or click it again for a single connector. (Esc cancels)"
+      : "Pick a part on the left, or click a hole to start a connection.");
     editorRef.current = ed;
     setStatus("Pick a part on the left to start building.");
     return () => { ed.dispose(); editorRef.current = null; };
@@ -54,7 +57,7 @@ export default function App() {
       else if (e.key === "]") ed.nudgeSelectedY(1);
       else if (e.key === "[") ed.nudgeSelectedY(-1);
       else if (e.key === "f" || e.key === "F") ed.frameAll();
-      else if (e.key === "Escape") ed.selectByUid(null);
+      else if (e.key === "Escape") { ed.clearArm(); ed.selectByUid(null); setConnectReq(null); setPartMenu(null); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -120,7 +123,7 @@ export default function App() {
 
         <div className="stage">
           <div className="canvas-host" ref={mountRef} />
-          <div className="stage-hint">Drag between hole dots to connect · click a hole for a connector · drag a part to move · scroll to zoom</div>
+          <div className="stage-hint">Click a hole then another to connect (or drag between them) · click the same hole twice for one connector · drag a part to move</div>
         </div>
 
         <aside className="inspector">

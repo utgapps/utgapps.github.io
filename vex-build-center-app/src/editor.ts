@@ -43,6 +43,7 @@ export class Editor {
   onChange: (s: EditorState) => void = () => {};
   onConnect: (req: ConnectRequest) => void = () => {};
   onPartMenu: (m: PartMenu) => void = () => {};
+  onArmChange: (armed: boolean) => void = () => {};
 
   private occupied = new Set<string>(); // core-keys "<partUid>:<coreIndex>" filled by a pin
   private headAxisCache = new Map<string, THREE.Vector3>();
@@ -69,6 +70,7 @@ export class Editor {
   private hovered: THREE.Mesh | null = null;
   private markersVisible = true;
   // connect drag
+  private armed: THREE.Mesh | null = null; // first hole picked in a click-click connect
   private connectFrom: THREE.Mesh | null = null;
   private connectLine: THREE.Line;
   private movedDuringDrag = false;
@@ -384,8 +386,10 @@ export class Editor {
         .map((p) => ({ mesh: p!.mesh, start: p!.mesh.position.clone() }));
       e.stopPropagation();
       this.emit();
-    } else if (this.selected) {
-      this.select(null); this.emit();
+    } else {
+      // empty space: cancel any armed hole and clear the selection
+      this.clearArm();
+      if (this.selected) { this.select(null); this.emit(); }
     }
   };
 
@@ -395,7 +399,7 @@ export class Editor {
       this.movedDuringDrag = true;
       const target = this.markerUnderPointer(this.connectFrom);
       if (target !== this.hovered) {
-        if (this.hovered && this.hovered !== this.connectFrom) this.setHot(this.hovered, false);
+        if (this.hovered && this.hovered !== this.connectFrom && this.hovered !== this.armed) this.setHot(this.hovered, false);
         this.hovered = target; if (target) this.setHot(target, true);
       }
       const from = this.worldOf(this.connectFrom);
@@ -415,7 +419,7 @@ export class Editor {
     if (this.markersVisible) {
       const m = (this.raycaster.intersectObjects(this.visibleMarkers(), false)[0]?.object as THREE.Mesh) || null;
       if (m !== this.hovered) {
-        if (this.hovered) this.setHot(this.hovered, false);
+        if (this.hovered && this.hovered !== this.armed) this.setHot(this.hovered, false);
         this.hovered = m; if (m) this.setHot(m, true);
       }
     }
@@ -423,19 +427,34 @@ export class Editor {
 
   private onPointerUp = (e: PointerEvent) => {
     if (this.connectFrom) {
-      const fromRef = this.connectFrom.userData.holeRef as HoleRef;
-      const target = this.hovered && this.hovered !== this.connectFrom ? this.hovered : null;
+      const fromMarker = this.connectFrom;
+      const fromRef = fromMarker.userData.holeRef as HoleRef;
+      const target = this.hovered && this.hovered !== fromMarker ? this.hovered : null;
       const toRef = target ? (target.userData.holeRef as HoleRef) : null;
-      const to = toRef && toRef.partUid !== fromRef.partUid ? toRef : null;
-      this.setHot(this.connectFrom, false); if (this.hovered) this.setHot(this.hovered, false);
+      const draggedTo = toRef && toRef.partUid !== fromRef.partUid ? toRef : null;
+      const clicked = !this.movedDuringDrag;
+      const screen = { x: e.clientX, y: e.clientY };
+      if (fromMarker !== this.armed) this.setHot(fromMarker, false);
+      if (this.hovered && this.hovered !== this.armed) this.setHot(this.hovered, false);
       this.connectLine.visible = false;
       this.controls.enabled = true;
-      const clicked = !this.movedDuringDrag;
       this.connectFrom = null; this.hovered = null;
-      if (to || clicked) {
-        const depth = to ? this.connectionDepth(fromRef, to) : this.stackAtHole(fromRef);
-        this.onConnect({ from: fromRef, to, depth, screen: { x: e.clientX, y: e.clientY } });
+
+      if (draggedTo) { // dragged straight onto another hole — connect now
+        this.clearArm();
+        this.onConnect({ from: fromRef, to: draggedTo, depth: this.connectionDepth(fromRef, draggedTo), screen });
+        return;
       }
+      if (!clicked) { return; } // dragged to nowhere — leave any armed hole alone
+
+      // plain click: arm the first hole, or complete the pair
+      if (!this.armed) { this.setArm(fromMarker); return; }
+      const armedRef = this.armed.userData.holeRef as HoleRef;
+      const sameHandle = armedRef.partUid === fromRef.partUid && armedRef.holeIndex === fromRef.holeIndex;
+      this.clearArm();
+      if (sameHandle) this.onConnect({ from: fromRef, to: null, depth: this.stackAtHole(fromRef), screen });
+      else if (armedRef.partUid !== fromRef.partUid) this.onConnect({ from: armedRef, to: fromRef, depth: this.connectionDepth(armedRef, fromRef), screen });
+      else this.setArm(fromMarker); // another hole on the same part — start over from it
       return;
     }
     if (this.dragging) { this.dragging = false; this.controls.enabled = true; this.emit(); }
@@ -449,6 +468,8 @@ export class Editor {
   private markerFor(ref: HoleRef): THREE.Mesh | null {
     return this.markers.find((m) => { const r = m.userData.holeRef as HoleRef; return r.partUid === ref.partUid && r.holeIndex === ref.holeIndex; }) || null;
   }
+  private setArm(marker: THREE.Mesh) { this.armed = marker; this.setHot(marker, true); this.onArmChange(true); }
+  clearArm() { if (this.armed) this.setHot(this.armed, false); this.armed = null; this.onArmChange(false); }
   private visibleMarkers(): THREE.Mesh[] { return this.markers.filter((m) => m.visible); }
   private markerUnderPointer(exclude: THREE.Mesh): THREE.Mesh | null {
     for (const h of this.raycaster.intersectObjects(this.visibleMarkers(), false)) if (h.object !== exclude) return h.object as THREE.Mesh;
@@ -737,7 +758,7 @@ export class Editor {
       m.getWorldPosition(wp);
       m.getWorldDirection(wd);
       toCam.subVectors(cam, wp);
-      m.visible = wd.dot(toCam) > 0 && !this.occupied.has(this.coreKey(m));
+      m.visible = m === this.armed || (wd.dot(toCam) > 0 && !this.occupied.has(this.coreKey(m)));
     }
   }
 
