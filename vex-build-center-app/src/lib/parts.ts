@@ -4,6 +4,10 @@ export type PartCategory =
   | "beam" | "plate" | "pin" | "standoff" | "corner"
   | "gear" | "wheel" | "shaft" | "spacer" | "motor" | "brain" | "sensor";
 
+// A connection handle detected from the real mesh: a point on an open face
+// plus the outward normal. kind "stud" is a built-in pin sticking out.
+export type DetectedHandle = { p: [number, number, number]; axis: [number, number, number]; kind: "hole" | "stud" };
+
 export type PartMeta = {
   id: string;
   name: string;
@@ -13,6 +17,7 @@ export type PartMeta = {
   primitive?: "box";
   color?: string;
   isMotor?: boolean;
+  holes?: DetectedHandle[]; // measured from the CAD mesh; preferred over the parametric guess
 };
 
 export type Manifest = { pitchMM: number; parts: PartMeta[] };

@@ -10,9 +10,21 @@ export type Hole = { p: [number, number, number]; axis: [number, number, number]
 
 const AXES: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
-// Categories whose parts host holes that connectors plug into.
+// Categories whose parts host holes that connectors plug into (fallback only —
+// most parts now carry handles measured from the real mesh).
 const HOLED: PartCategory[] = ["beam", "plate", "standoff", "corner", "gear", "wheel"];
-export function hasHoles(meta: PartMeta): boolean { return HOLED.includes(meta.category); }
+export function hasHoles(meta: PartMeta): boolean {
+  return (meta.holes && meta.holes.length > 0) || HOLED.includes(meta.category);
+}
+
+// A fixed in-plane direction for a detected handle: the part's longest axis
+// perpendicular to the hole axis (used to align orientation on connect).
+function tangentFor(meta: PartMeta, axis: [number, number, number]): [number, number, number] {
+  const ai = axis.findIndex((v) => v !== 0);
+  const perp = [0, 1, 2].filter((i) => i !== ai);
+  const pick = meta.sizeMM[perp[0]] >= meta.sizeMM[perp[1]] ? perp[0] : perp[1];
+  return AXES[pick];
+}
 
 // VEX parts sit on a 12.7 mm pitch; holes are half-a-pitch in from each edge,
 // so a run of n holes is centered at (i - (n-1)/2) * pitch.
@@ -22,6 +34,10 @@ const centered = (i: number, n: number) => (i - (n - 1) / 2) * PITCH;
 // Compute hole handles from a part's size + category. Derived (not from CAD)
 // so it can be tuned without re-converting meshes.
 export function holesFor(meta: PartMeta): Hole[] {
+  // Prefer handles measured from the real CAD mesh (see tools/detect-features.cjs).
+  if (meta.holes && meta.holes.length) {
+    return meta.holes.map((h) => ({ p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis) }));
+  }
   const s = meta.sizeMM;
   const order = [0, 1, 2].sort((a, b) => s[a] - s[b]);
   const short = order[0], mid = order[1], long = order[2]; // thickness / width / length

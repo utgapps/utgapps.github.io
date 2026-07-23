@@ -5,7 +5,7 @@ import { holesFor, hasHoles } from "./lib/holes";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
-const PROUD = 0.6; // how far a hole marker sits off the face (mm), to avoid z-fighting
+const PROUD = 1.0; // how far a hole marker sits off the face (mm) — clears shallow recesses
 const snap = (v: number) => Math.round(v / HALF) * HALF;
 
 // Categories that fill holes when placed (so those holes become occupied).
@@ -62,7 +62,7 @@ export class Editor {
 
   // hole markers
   private markers: THREE.Mesh[] = [];
-  private discGeo = new THREE.CircleGeometry(4.3, 24);
+  private discGeo = new THREE.CircleGeometry(2.6, 20); // ~the real bore, so it sits inside recessed hole bosses
   // depthTest so solids occlude markers; depthWrite off so translucent discs
   // don't fight each other.
   private markerMat = new THREE.MeshBasicMaterial({ color: 0x18a0ff, transparent: true, opacity: 0.6, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
