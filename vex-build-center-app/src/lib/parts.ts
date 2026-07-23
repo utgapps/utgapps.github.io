@@ -6,7 +6,10 @@ export type PartCategory =
 
 // A connection handle detected from the real mesh: a point on an open face
 // plus the outward normal. kind "stud" is a built-in pin sticking out.
-export type DetectedHandle = { p: [number, number, number]; axis: [number, number, number]; kind: "hole" | "stud" };
+// kind: "hole" takes a pin · "stud" is a built-in pin sticking out ·
+// "axle" is a driven socket (e.g. the Smart Motor output) — reserved for the
+// spinning-axle feature, so it gets no pin marker yet.
+export type DetectedHandle = { p: [number, number, number]; axis: [number, number, number]; kind: "hole" | "stud" | "axle" };
 
 export type PartMeta = {
   id: string;

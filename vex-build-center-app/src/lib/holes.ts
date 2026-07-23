@@ -35,8 +35,10 @@ const centered = (i: number, n: number) => (i - (n - 1) / 2) * PITCH;
 // so it can be tuned without re-converting meshes.
 export function holesFor(meta: PartMeta): Hole[] {
   // Prefer handles measured from the real CAD mesh (see tools/detect-features.cjs).
+  // Only pin holes get markers; axle sockets are reserved for the spin feature.
   if (meta.holes && meta.holes.length) {
-    return meta.holes.map((h) => ({ p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis) }));
+    const pin = meta.holes.filter((h) => h.kind === "hole");
+    if (pin.length) return pin.map((h) => ({ p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis) }));
   }
   const s = meta.sizeMM;
   const order = [0, 1, 2].sort((a, b) => s[a] - s[b]);

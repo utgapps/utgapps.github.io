@@ -133,6 +133,13 @@ const args = process.argv.slice(3);
 const WRITE = args.includes("--write");
 let ids = args.filter((a) => !a.startsWith("--"));
 
+// Features that aren't pin holes. The Smart Motor's output socket sits in a
+// raised circular hub — it spins an axle rather than taking a pin, so it's
+// flagged separately (and gets no pin marker).
+const SPECIAL = {
+  "smart-motor": [{ near: [-9.5, 25.2, 0], kind: "axle" }],
+};
+
 // --write: detect for every part in the manifest and store the handles there.
 if (WRITE) {
   const mfPath = path.join(partsDir, "manifest.json");
@@ -143,8 +150,19 @@ if (WRITE) {
       const { mesh, geo } = loadMesh(partsDir, part.id);
       const feats = detect(mesh, geo)
         .map((f) => ({ ...f, ...measure(mesh, geo, f) }))
-        .filter((f) => f.radius >= 1.7 && f.radius <= 3.0 && f.round <= 1.6);
-      part.holes = feats.map((f) => ({ p: f.p, axis: f.axis, kind: f.kind }));
+        // a real VEX bore measures ~2.2mm radius; wider "features" are recessed
+        // pockets, narrower ones are surface detail
+        .filter((f) => f.radius >= 1.85 && f.radius <= 2.45 && f.round <= 1.95);
+      const handles = feats.map((f) => ({ p: f.p, axis: f.axis, kind: f.kind }));
+      for (const sp of SPECIAL[part.id] || []) { // re-label known non-pin features
+        let best = null, bestD = Infinity;
+        for (const h of handles) {
+          const dd = Math.hypot(h.p[0] - sp.near[0], h.p[1] - sp.near[1], h.p[2] - sp.near[2]);
+          if (dd < bestD) { bestD = dd; best = h; }
+        }
+        if (best && bestD < 6) best.kind = sp.kind;
+      }
+      part.holes = handles;
       done++;
       process.stdout.write(`${part.id}:${feats.length} `);
     } catch (e) { process.stdout.write(`${part.id}:ERR `); }
@@ -157,9 +175,12 @@ if (WRITE) {
 for (const id of ids) {
   const { mesh, geo, meta } = loadMesh(partsDir, id);
   const t0 = Date.now();
+  const loose = args.includes("--loose");
+  const minR = loose ? 1.2 : 1.7, maxR = loose ? 5.0 : 3.0, maxRound = loose ? 4.0 : 1.6;
   let feats = detect(mesh, geo);
   feats = feats.map((f) => ({ ...f, ...measure(mesh, geo, f) }))
-    .filter((f) => f.radius >= 1.7 && f.radius <= 3.0 && f.round <= 1.6);
+    .filter((f) => f.radius >= minR && f.radius <= maxR && f.round <= maxRound);
+  feats.sort((a, b) => JSON.stringify(a.axis).localeCompare(JSON.stringify(b.axis)));
   const holes = feats.filter((f) => f.kind === "hole"), studs = feats.filter((f) => f.kind === "stud");
   console.log(`\n=== ${id}  size=${JSON.stringify(meta.sizeMM)}  (${Date.now() - t0}ms) ===`);
   console.log(`  holes: ${holes.length}   studs: ${studs.length}`);
