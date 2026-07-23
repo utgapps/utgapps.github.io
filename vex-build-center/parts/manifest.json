@@ -5302,6 +5302,234 @@
    "holes": []
   },
   {
+   "id": "shaft-cap-2x",
+   "name": "2x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    24.42
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-2_5x",
+   "name": "2.5x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    30.77
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-3x",
+   "name": "3x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    37.12
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-4x",
+   "name": "4x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    49.82
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-4_5x",
+   "name": "4.5x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    56.17
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-5x",
+   "name": "5x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    62.52
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-6x",
+   "name": "6x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    75.22
+   ],
+   "tris": 352,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-7x",
+   "name": "7x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    87.92
+   ],
+   "tris": 348,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-8x",
+   "name": "8x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    100.62
+   ],
+   "tris": 344,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-9x",
+   "name": "9x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    113.32
+   ],
+   "tris": 336,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-10x",
+   "name": "10x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    126.02
+   ],
+   "tris": 332,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-11x",
+   "name": "11x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    138.72
+   ],
+   "tris": 328,
+   "holes": []
+  },
+  {
+   "id": "shaft-cap-12x",
+   "name": "12x Capped Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.75,
+    4.75,
+    151.42
+   ],
+   "tris": 316,
+   "holes": []
+  },
+  {
+   "id": "shaft-motor-2x",
+   "name": "2x Motor Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.8,
+    4.8,
+    29.97
+   ],
+   "tris": 1460,
+   "holes": []
+  },
+  {
+   "id": "shaft-motor-3x",
+   "name": "3x Motor Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.8,
+    4.8,
+    42.67
+   ],
+   "tris": 1452,
+   "holes": []
+  },
+  {
+   "id": "shaft-motor-4x",
+   "name": "4x Motor Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.8,
+    4.8,
+    55.37
+   ],
+   "tris": 1452,
+   "holes": []
+  },
+  {
+   "id": "shaft-snap-1x",
+   "name": "1x Snap Axle",
+   "category": "shaft",
+   "sizeMM": [
+    4.8,
+    4.8,
+    18.01
+   ],
+   "tris": 676,
+   "holes": []
+  },
+  {
+   "id": "shaft-snap-1_5x",
+   "name": "1.5x Snap Axle",
+   "category": "shaft",
+   "sizeMM": [
+    6.35,
+    6.35,
+    19.73
+   ],
+   "tris": 684,
+   "holes": []
+  },
+  {
+   "id": "shaft-snap-2x",
+   "name": "2x Snap Axle",
+   "category": "shaft",
+   "sizeMM": [
+    6.35,
+    6.35,
+    25.15
+   ],
+   "tris": 684,
+   "holes": []
+  },
+  {
    "id": "spacer-025x",
    "name": "0.25x Spacer",
    "category": "spacer",

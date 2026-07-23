@@ -79,6 +79,31 @@ const PARTS = [
   ["shaft-20x", "shaft", "20x Axle", "kit", "20x Pitch Shaft (228-2500-267).step"],
   ["shaft-22x", "shaft", "22x Axle", "kit", "22x Pitch Shaft (228-2500-268).step"],
   ["shaft-24x", "shaft", "24x Axle", "kit", "24x Pitch Shaft (228-2500-269).step"],
+  // Capped axles — a molded cap on one end that snaps into a beam so the shaft
+  // can't slide out. (The plastic-capped variants are the same geometry, so
+  // they're omitted.)
+  ["shaft-cap-2x", "shaft", "2x Capped Axle", "kit", "2x Pitch Capped Shaft (228-2500-2219).step"],
+  ["shaft-cap-2_5x", "shaft", "2.5x Capped Axle", "kit", "2.5x Pitch Capped Shaft (228-2500-2220).step"],
+  ["shaft-cap-3x", "shaft", "3x Capped Axle", "kit", "3x Pitch Capped Shaft (228-2500-2221).step"],
+  ["shaft-cap-4x", "shaft", "4x Capped Axle", "kit", "4x Pitch Capped Shaft (228-2500-2223).step"],
+  ["shaft-cap-4_5x", "shaft", "4.5x Capped Axle", "kit", "4.5x Pitch Capped Shaft (228-2500-2224).step"],
+  ["shaft-cap-5x", "shaft", "5x Capped Axle", "kit", "5x Pitch Capped Shaft (228-2500-2225).step"],
+  ["shaft-cap-6x", "shaft", "6x Capped Axle", "kit", "6x Pitch Capped Shaft (228-2500-2226).step"],
+  ["shaft-cap-7x", "shaft", "7x Capped Axle", "kit", "7x Pitch Capped Shaft (228-2500-2227).step"],
+  ["shaft-cap-8x", "shaft", "8x Capped Axle", "kit", "8x Pitch Capped Shaft (228-2500-2228).step"],
+  ["shaft-cap-9x", "shaft", "9x Capped Axle", "kit", "9x Pitch Capped Shaft (228-2500-2229).step"],
+  ["shaft-cap-10x", "shaft", "10x Capped Axle", "kit", "10x Pitch Capped Shaft (228-2500-2230).step"],
+  ["shaft-cap-11x", "shaft", "11x Capped Axle", "kit", "11x Pitch Capped Shaft (228-2500-2231).step"],
+  ["shaft-cap-12x", "shaft", "12x Capped Axle", "kit", "12x Pitch Capped Shaft (228-2500-2232).step"],
+  // Motor axles — a shaped end that drives from a Smart Motor. (Plastic motor
+  // shafts share this envelope, so only one per length is kept.)
+  ["shaft-motor-2x", "shaft", "2x Motor Axle", "kit", "2x Pitch Motor Shaft (228-2500-2234).step"],
+  ["shaft-motor-3x", "shaft", "3x Motor Axle", "kit", "3x Pitch Motor Shaft (228-2500-2236).step"],
+  ["shaft-motor-4x", "shaft", "4x Motor Axle", "kit", "4x Pitch Motor Shaft (228-2500-2238).step"],
+  // Snap axles — short shafts that snap into a motor/gear.
+  ["shaft-snap-1x", "shaft", "1x Snap Axle", "kit", "1x Pitch Plastic Motor Snap Shaft (228-2500-328).step"],
+  ["shaft-snap-1_5x", "shaft", "1.5x Snap Axle", "kit", "1.5x Pitch Plastic Motor Snap Shaft v1 (228-2500-091).step"],
+  ["shaft-snap-2x", "shaft", "2x Snap Axle", "kit", "2x Pitch Plastic Motor Snap Shaft v1 (228-2500-092).step"],
   ["spacer-025x", "spacer", "0.25x Spacer", "kit", "0.25x Pitch Spacer (228-2500-114).step"],
   ["washer", "spacer", "Washer", "kit", "Washer (228-2500-112).step"],
   // electronics (real CAD)
