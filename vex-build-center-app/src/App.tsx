@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Editor, type EditorState, type SavedPart, type ConnectRequest } from "./editor";
+import { Editor, type EditorState, type SavedPart, type ConnectRequest, type PartMenu } from "./editor";
 import { loadManifest, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta } from "./lib/parts";
 
 const MM_PER_IN = 25.4;
@@ -21,6 +21,7 @@ export default function App() {
   const [status, setStatus] = useState("Loading parts…");
   const [error, setError] = useState("");
   const [connectReq, setConnectReq] = useState<ConnectRequest | null>(null);
+  const [partMenu, setPartMenu] = useState<PartMenu | null>(null);
 
   const metaById = useMemo(() => new Map((manifest?.parts || []).map((p) => [p.id, p])), [manifest]);
 
@@ -33,6 +34,7 @@ export default function App() {
     const ed = new Editor(mountRef.current);
     ed.onChange = setState;
     ed.onConnect = setConnectReq;
+    ed.onPartMenu = setPartMenu;
     editorRef.current = ed;
     setStatus("Pick a part on the left to start building.");
     return () => { ed.dispose(); editorRef.current = null; };
@@ -183,6 +185,24 @@ export default function App() {
             <div className="picker-grid">
               {connectors.map((c) => (
                 <button key={c.id} className="picker-item" onClick={() => { editorRef.current?.connect(connectReq.from, connectReq.to, c); setConnectReq(null); setStatus(`Placed ${c.name}.`); }}>
+                  <span className="pal-swatch" style={{ background: swatch(c) }} />{c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {partMenu && (
+        <>
+          <div className="picker-scrim" onClick={() => setPartMenu(null)} />
+          <div className="picker" style={{ left: Math.min(partMenu.screen.x, window.innerWidth - 210), top: Math.min(partMenu.screen.y, window.innerHeight - 300) }}>
+            <div className="picker-head">{partMenu.name}</div>
+            <button className="picker-item danger" onClick={() => { editorRef.current?.deletePartByUid(partMenu.uid); setPartMenu(null); setStatus("Removed the pin."); }}>Delete pin</button>
+            <div className="picker-head" style={{ paddingTop: 8 }}>Replace with…</div>
+            <div className="picker-grid">
+              {connectors.map((c) => (
+                <button key={c.id} className="picker-item" onClick={() => { editorRef.current?.replaceConnector(partMenu.uid, c); setPartMenu(null); setStatus(`Replaced with ${c.name}.`); }}>
                   <span className="pal-swatch" style={{ background: swatch(c) }} />{c.name}
                 </button>
               ))}

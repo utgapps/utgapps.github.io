@@ -145,6 +145,17 @@
    "tris": 2056
   },
   {
+   "id": "pin-connector-0x3",
+   "name": "0x3 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.35,
+    6.35,
+    18.75
+   ],
+   "tris": 1782
+  },
+  {
    "id": "pin-connector-1x2",
    "name": "1x2 Connector Pin",
    "category": "pin",
@@ -154,6 +165,28 @@
     18.63
    ],
    "tris": 2148
+  },
+  {
+   "id": "pin-connector-2x2",
+   "name": "2x2 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.35,
+    6.16,
+    24.98
+   ],
+   "tris": 2880
+  },
+  {
+   "id": "pin-connector-3x3",
+   "name": "3x3 Connector Pin",
+   "category": "pin",
+   "sizeMM": [
+    6.16,
+    6.35,
+    37.68
+   ],
+   "tris": 3356
   },
   {
    "id": "pin-idler-1x1",

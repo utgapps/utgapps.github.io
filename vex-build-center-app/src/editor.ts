@@ -8,6 +8,12 @@ const HALF = PITCH / 2; // snap step (mm)
 const PROUD = 0.6; // how far a hole marker sits off the face (mm), to avoid z-fighting
 const snap = (v: number) => Math.round(v / HALF) * HALF;
 
+// Categories that fill holes when placed (so those holes become occupied).
+const OCCUPIER = new Set(["pin", "shaft"]);
+// Pins with a cap on one end (0xN connector pins, sheet pins): the head goes on
+// the side the pin enters from.
+const isHeaded = (id: string) => id.startsWith("pin-connector-0x") || id.startsWith("pin-sheet");
+
 export type PlacedPart = { uid: string; meta: PartMeta; mesh: THREE.Mesh };
 export type SavedPart = { id: string; p: [number, number, number]; q: [number, number, number, number] };
 export type EditorState = {
@@ -22,6 +28,8 @@ export type EditorState = {
 type HoleRef = { partUid: string; holeIndex: number };
 // Emitted when the user clicks a hole (to === null) or drags between two holes.
 export type ConnectRequest = { from: HoleRef; to: HoleRef | null; screen: { x: number; y: number } };
+// Emitted when the user right-clicks a placed pin/connector.
+export type PartMenu = { uid: string; name: string; screen: { x: number; y: number } };
 
 let uidSeq = 1;
 
@@ -32,6 +40,10 @@ export class Editor {
   controls: OrbitControls;
   onChange: (s: EditorState) => void = () => {};
   onConnect: (req: ConnectRequest) => void = () => {};
+  onPartMenu: (m: PartMenu) => void = () => {};
+
+  private occupied = new Set<string>(); // core-keys "<partUid>:<coreIndex>" filled by a pin
+  private headAxisCache = new Map<string, THREE.Vector3>();
 
   private container: HTMLElement;
   private raycaster = new THREE.Raycaster();
@@ -125,6 +137,7 @@ export class Editor {
 
     const el = this.renderer.domElement;
     el.addEventListener("pointerdown", this.onPointerDown, { capture: true });
+    el.addEventListener("contextmenu", this.onContextMenu);
     window.addEventListener("pointermove", this.onPointerMove);
     window.addEventListener("pointerup", this.onPointerUp);
 
@@ -303,16 +316,31 @@ export class Editor {
 
   private emit() {
     this.helper?.update();
+    this.recomputeOccupancy();
     this.onChange(this.computeState());
   }
 
   // ---- interaction ----------------------------------------------------------
 
-  private setPointer(e: PointerEvent) {
+  private setPointer(e: { clientX: number; clientY: number }) {
     const r = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
   }
+
+  // Right-click a placed pin/connector to open its options menu.
+  private onContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    this.setPointer(e);
+    const hits = this.raycaster.intersectObjects([...this.parts.values()].map((p) => p.mesh), false);
+    for (const h of hits) {
+      const part = this.parts.get(h.object.userData.uid as string);
+      if (part && OCCUPIER.has(part.meta.category)) {
+        this.onPartMenu({ uid: part.uid, name: part.meta.name, screen: { x: e.clientX, y: e.clientY } });
+        return;
+      }
+    }
+  };
 
   private onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
@@ -438,15 +466,35 @@ export class Editor {
     return new THREE.Vector3(i === 0 ? 1 : 0, i === 1 ? 1 : 0, i === 2 ? 1 : 0);
   }
 
+  private coreKey(m: THREE.Mesh): string { const r = m.userData.holeRef as HoleRef; return `${r.partUid}:${Math.floor(r.holeIndex / 2)}`; }
+
+  // Unit vector (local) toward a headed pin's cap — detected as the wider end.
+  private headLocalAxis(meta: PartMeta, geo: THREE.BufferGeometry): THREE.Vector3 {
+    const cached = this.headAxisCache.get(meta.id); if (cached) return cached.clone();
+    const s = meta.sizeMM, li = s[0] >= s[1] && s[0] >= s[2] ? 0 : s[1] >= s[2] ? 1 : 2;
+    const o = [0, 1, 2].filter((i) => i !== li);
+    const pos = geo.attributes.position.array as ArrayLike<number>;
+    let maxPos = 0, maxNeg = 0;
+    for (let i = 0; i < pos.length; i += 3) {
+      const perp = Math.hypot(pos[i + o[0]], pos[i + o[1]]);
+      if (pos[i + li] > 0) maxPos = Math.max(maxPos, perp); else maxNeg = Math.max(maxNeg, perp);
+    }
+    const v = new THREE.Vector3().setComponent(li, maxPos >= maxNeg ? 1 : -1);
+    this.headAxisCache.set(meta.id, v.clone());
+    return v;
+  }
+
   // Connect two holes with a chosen connector (aligning the second part to the
   // first), or drop a connector into a single hole when toRef is null.
-  async connect(fromRef: HoleRef, toRef: HoleRef | null, connectorMeta: PartMeta) {
+  async connect(fromRef: HoleRef, toRef: HoleRef | null, meta: PartMeta) {
     const mFrom = this.markerFor(fromRef); if (!mFrom) return;
-    if (!this.parts.get(fromRef.partUid)) return;
+    const fromPart = this.parts.get(fromRef.partUid); if (!fromPart) return;
+    if (this.occupied.has(this.coreKey(mFrom))) return; // hole already filled
     const nA = this.axisOf(mFrom), pA = this.faceOf(mFrom);
+    const geo = await loadGeometry(meta);
     if (toRef) {
       const mTo = this.markerFor(toRef), partTo = this.parts.get(toRef.partUid);
-      if (mTo && partTo) {
+      if (mTo && partTo && !this.occupied.has(this.coreKey(mTo))) {
         // Rotate part 2 so its hole FRAME (normal + tangent) maps onto part 1's:
         // normal opposes (faces meet), tangent aligns (no unexpected mirroring).
         const nB = this.axisOf(mTo), tB = this.tanOf(mTo), tA = this.tanOf(mFrom);
@@ -456,30 +504,86 @@ export class Editor {
         const source = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u1, u2, u3));
         partTo.mesh.quaternion.premultiply(target.multiply(source.invert()));
         partTo.mesh.updateMatrixWorld(true);
-        // slide part 2 so the two grabbed faces coincide (holes coaxial, parts flush)
         partTo.mesh.position.add(pA.clone().sub(this.faceOf(mTo)));
         partTo.mesh.updateMatrixWorld(true);
-        await this.placeConnector(connectorMeta, pA, nA);
+        // headed pin: head on the from part's OUTER face; else centered at junction
+        if (isHeaded(meta.id)) await this.addHeadedPin(meta, geo, pA.clone().addScaledVector(nA, -this.extentAlong(fromPart, nA)), nA);
+        else await this.addCenteredConnector(meta, pA, nA);
         this.select(partTo); this.emit();
         return;
       }
     }
-    await this.placeConnector(connectorMeta, pA, nA);
+    // single hole: head at the grabbed (outer) face, shaft into the part
+    if (isHeaded(meta.id)) await this.addHeadedPin(meta, geo, pA, nA.clone().negate());
+    else await this.addCenteredConnector(meta, pA, nA);
     this.emit();
   }
 
-  private async placeConnector(meta: PartMeta, worldPos: THREE.Vector3, worldAxis: THREE.Vector3) {
+  private async addHeadedPin(meta: PartMeta, geo: THREE.BufferGeometry, mouthWorld: THREE.Vector3, shaftDir: THREE.Vector3) {
+    const half = Math.max(...meta.sizeMM) / 2;
+    const q = new THREE.Quaternion().setFromUnitVectors(this.headLocalAxis(meta, geo), shaftDir.clone().negate());
+    await this.addConnectorMesh(meta, mouthWorld.clone().addScaledVector(shaftDir, half), q);
+  }
+  private async addCenteredConnector(meta: PartMeta, centerWorld: THREE.Vector3, axisWorld: THREE.Vector3) {
+    await this.addConnectorMesh(meta, centerWorld, new THREE.Quaternion().setFromUnitVectors(this.longAxis(meta), axisWorld));
+  }
+  private async addConnectorMesh(meta: PartMeta, position: THREE.Vector3, quaternion: THREE.Quaternion) {
     const geo = await loadGeometry(meta);
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: CATEGORY_COLOR[meta.category] || "#e0a13a", metalness: 0.2, roughness: 0.5 }));
     mesh.castShadow = mesh.receiveShadow = true;
     const uid = `p${uidSeq++}`; mesh.userData.uid = uid;
-    mesh.quaternion.setFromUnitVectors(this.longAxis(meta), worldAxis);
-    mesh.position.copy(worldPos);
+    mesh.position.copy(position); mesh.quaternion.copy(quaternion);
     mesh.updateMatrixWorld(true);
     this.scene.add(mesh);
     const part: PlacedPart = { uid, meta, mesh };
     this.parts.set(uid, part);
     this.addMarkers(part);
+  }
+
+  // Recompute which holes are filled by a pin/shaft (so their markers hide and
+  // no second connector can be added). A long pin fills every coaxial hole it
+  // spans, from either side.
+  private recomputeOccupancy() {
+    this.occupied.clear();
+    const occupiers = [...this.parts.values()].filter((p) => OCCUPIER.has(p.meta.category));
+    if (!occupiers.length) return;
+    const byCore = new Map<string, THREE.Mesh[]>();
+    for (const m of this.markers) { const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m); }
+    const cores = [...byCore.entries()].map(([key, ms]) => {
+      const c = new THREE.Vector3();
+      for (const m of ms) c.add(m.getWorldPosition(new THREE.Vector3()));
+      return { key, c: c.multiplyScalar(1 / ms.length), a: this.axisOf(ms[0]) };
+    });
+    for (const pin of occupiers) {
+      const axis = this.longAxis(pin.meta).applyQuaternion(pin.mesh.getWorldQuaternion(new THREE.Quaternion())).normalize();
+      const pc = pin.mesh.getWorldPosition(new THREE.Vector3());
+      const half = this.extentAlong(pin, axis) / 2 + 1.5;
+      for (const core of cores) {
+        if (Math.abs(core.a.dot(axis)) < 0.9) continue;
+        const rel = core.c.clone().sub(pc), t = rel.dot(axis);
+        if (Math.abs(t) > half) continue;
+        if (rel.addScaledVector(axis, -t).length() > 3.5) continue;
+        this.occupied.add(core.key);
+      }
+    }
+    // hide filled holes right away; the per-frame facing cull refines the rest
+    for (const m of this.markers) if (this.occupied.has(this.coreKey(m))) m.visible = false;
+  }
+
+  deletePartByUid(uid: string) {
+    const part = this.parts.get(uid); if (!part) return;
+    if (this.selected === part) this.select(null);
+    this.removePart(part);
+    this.emit();
+  }
+  // Swap a placed connector for another at the same spot.
+  async replaceConnector(uid: string, meta: PartMeta) {
+    const old = this.parts.get(uid); if (!old) return;
+    const center = old.mesh.getWorldPosition(new THREE.Vector3());
+    const axis = this.longAxis(old.meta).applyQuaternion(old.mesh.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    this.removePart(old);
+    await this.addCenteredConnector(meta, center, axis);
+    this.select(null); this.emit();
   }
 
   private resize() {
@@ -500,7 +604,7 @@ export class Editor {
       m.getWorldPosition(wp);
       m.getWorldDirection(wd);
       toCam.subVectors(cam, wp);
-      m.visible = wd.dot(toCam) > 0;
+      m.visible = wd.dot(toCam) > 0 && !this.occupied.has(this.coreKey(m));
     }
   }
 
@@ -525,6 +629,7 @@ export class Editor {
     cancelAnimationFrame(this.raf);
     const el = this.renderer.domElement;
     el.removeEventListener("pointerdown", this.onPointerDown, { capture: true } as EventListenerOptions);
+    el.removeEventListener("contextmenu", this.onContextMenu);
     window.removeEventListener("pointermove", this.onPointerMove);
     window.removeEventListener("pointerup", this.onPointerUp);
     this.ro.disconnect();
