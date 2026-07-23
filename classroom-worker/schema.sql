@@ -93,6 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_access_lockouts_locked_until ON access_lockouts(l
 -- as hashes; the browser receives a profile only after it proves the code.
 CREATE TABLE IF NOT EXISTS site_access (
   code_hash           TEXT PRIMARY KEY,
+  code_plain          TEXT,                     -- the letter code, shown to the admin only
   label               TEXT NOT NULL,
   enabled             INTEGER NOT NULL DEFAULT 1,
   tools               TEXT NOT NULL,

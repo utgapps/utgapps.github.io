@@ -523,7 +523,7 @@ export default {
         if (path === "/admin/site-access" && request.method === "GET") {
           const rows = (await db.prepare("SELECT * FROM site_access ORDER BY classroom_class_id, label").all()).results;
           return response(request, env, { profiles: rows.map((row) => ({
-            id: row.code_hash, label: row.label, enabled: !!row.enabled, tools: JSON.parse(row.tools), print: !!row.print_allowed,
+            id: row.code_hash, code: row.code_plain || null, label: row.label, enabled: !!row.enabled, tools: JSON.parse(row.tools), print: !!row.print_allowed,
             play: JSON.parse(row.play), classroom: row.classroom_class_id ? { classId: row.classroom_class_id, role: row.classroom_role } : null,
             curriculumEnabled: !!row.classroom_class_id && profileAllows(row, "classroom"), hours: row.hours || "", updatedAt: row.updated_at,
           })) });
@@ -558,7 +558,7 @@ export default {
           if (!validCode(code)) throw new HttpError("Codes must be 4 letters/numbers, or 8-32 letters, numbers, or hyphens.");
           const nextSiteHash = await siteCodeHash(code);
           if (nextSiteHash !== current.code_hash && await db.prepare("SELECT code_hash FROM site_access WHERE code_hash = ?").bind(nextSiteHash).first()) throw new HttpError("That code is already in use.", 409);
-          const statements = [db.prepare("UPDATE site_access SET code_hash = ?, updated_at = ? WHERE code_hash = ?").bind(nextSiteHash, Date.now(), current.code_hash)];
+          const statements = [db.prepare("UPDATE site_access SET code_hash = ?, code_plain = ?, updated_at = ? WHERE code_hash = ?").bind(nextSiteHash, code, Date.now(), current.code_hash)];
           if (current.classroom_class_id && (current.classroom_role === "student" || current.classroom_role === "instructor")) {
             const column = current.classroom_role === "student" ? "student_code_hash" : "instructor_code_hash";
             statements.push(db.prepare(`UPDATE class_access SET ${column} = ?, updated_at = ? WHERE class_id = ?`).bind(await codeHash(current.classroom_role, code), Date.now(), current.classroom_class_id));
@@ -612,8 +612,8 @@ export default {
             const existing = await db.prepare("SELECT * FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).first();
             const profile = existing || { label: `${classId.toUpperCase()} ${role === "student" ? "Students" : "Instructor"}`, tools: JSON.stringify(["classroom"]), print_allowed: role === "instructor" ? 1 : 0, play: "[]", hours: null };
             await db.prepare("DELETE FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).run();
-            await db.prepare("INSERT INTO site_access (code_hash, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-              .bind(await siteCodeHash(code), profile.label, profile.enabled == null ? 1 : profile.enabled, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
+            await db.prepare("INSERT INTO site_access (code_hash, code_plain, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+              .bind(await siteCodeHash(code), code, profile.label, profile.enabled == null ? 1 : profile.enabled, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
           }
           return response(request, env, { ok: true });
         }

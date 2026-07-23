@@ -187,7 +187,7 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
   return <div className="admin-table">
     <div className="table-head">
       <h3>Access codes <span className="count">{rows.length}</span></h3>
-      <p className="muted">Each code has its own permissions. Codes are stored hashed and never shown — to change one, enter a replacement.</p>
+      <p className="muted">Each code has its own permissions. The current letter code is shown on each row; to change one, enter a replacement below.</p>
     </div>
     {rows.length === 0 ? <p className="empty">No codes yet.</p> : <div className="code-list">{rows.map((profile) => {
         const value = draft(profile);
@@ -198,6 +198,7 @@ function SiteAccessTable({ rows, onUpdate, onReplaceCode }: {
         return <details className="code-card" key={profile.id}>
           <summary className="code-summary">
             <span className="code-title"><strong>{profile.label}</strong><span className="code-kind">{role}</span></span>
+            {profile.code ? <span className="code-value" title="Current letter code">{profile.code}</span> : <span className="code-value none" title="Set a code below to show it here">— — — —</span>}
             <span className={value.enabled ? "pill on" : "pill off"}>{value.enabled ? "Active" : "Off"}</span>
           </summary>
           <div className="code-editor">
