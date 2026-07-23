@@ -5,6 +5,7 @@ import { holesFor, hasHoles } from "./lib/holes";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
+const PROUD = 0.6; // how far a hole marker sits off the face (mm), to avoid z-fighting
 const snap = (v: number) => Math.round(v / HALF) * HALF;
 
 export type PlacedPart = { uid: string; meta: PartMeta; mesh: THREE.Mesh };
@@ -42,8 +43,10 @@ export class Editor {
   // hole markers
   private markers: THREE.Mesh[] = [];
   private discGeo = new THREE.CircleGeometry(4.3, 24);
-  private markerMat = new THREE.MeshBasicMaterial({ color: 0x18a0ff, transparent: true, opacity: 0.5, depthTest: false, side: THREE.DoubleSide });
-  private markerHotMat = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide });
+  // depthTest so solids occlude markers; depthWrite off so translucent discs
+  // don't fight each other.
+  private markerMat = new THREE.MeshBasicMaterial({ color: 0x18a0ff, transparent: true, opacity: 0.6, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
+  private markerHotMat = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.95, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
   private hovered: THREE.Mesh | null = null;
   private markersVisible = true;
   // connect drag
@@ -174,11 +177,12 @@ export class Editor {
     const zAxis = new THREE.Vector3(0, 0, 1);
     holesFor(part.meta).forEach((h, i) => {
       const m = new THREE.Mesh(this.discGeo, this.markerMat);
-      m.position.set(h.p[0], h.p[1], h.p[2]);
-      m.quaternion.setFromUnitVectors(zAxis, new THREE.Vector3(h.axis[0], h.axis[1], h.axis[2]).normalize());
-      m.renderOrder = 998;
+      const axis = new THREE.Vector3(h.axis[0], h.axis[1], h.axis[2]).normalize();
+      m.position.set(h.p[0] + axis.x * PROUD, h.p[1] + axis.y * PROUD, h.p[2] + axis.z * PROUD);
+      m.quaternion.setFromUnitVectors(zAxis, axis);
       m.visible = this.markersVisible;
       m.userData.holeRef = { partUid: part.uid, holeIndex: i } as HoleRef;
+      m.userData.localTan = h.tan;
       part.mesh.add(m);
       this.markers.push(m);
     });
@@ -315,7 +319,7 @@ export class Editor {
     this.setPointer(e);
     // 1) a hole marker starts a connection
     if (this.markersVisible) {
-      const mh = this.raycaster.intersectObjects(this.markers, false);
+      const mh = this.raycaster.intersectObjects(this.visibleMarkers(), false);
       if (mh.length) {
         this.connectFrom = mh[0].object as THREE.Mesh;
         this.movedDuringDrag = false;
@@ -368,7 +372,7 @@ export class Editor {
     }
     // idle: hover-highlight a hole marker
     if (this.markersVisible) {
-      const m = (this.raycaster.intersectObjects(this.markers, false)[0]?.object as THREE.Mesh) || null;
+      const m = (this.raycaster.intersectObjects(this.visibleMarkers(), false)[0]?.object as THREE.Mesh) || null;
       if (m !== this.hovered) {
         if (this.hovered) this.setHot(this.hovered, false);
         this.hovered = m; if (m) this.setHot(m, true);
@@ -401,9 +405,18 @@ export class Editor {
   private markerFor(ref: HoleRef): THREE.Mesh | null {
     return this.markers.find((m) => { const r = m.userData.holeRef as HoleRef; return r.partUid === ref.partUid && r.holeIndex === ref.holeIndex; }) || null;
   }
+  private visibleMarkers(): THREE.Mesh[] { return this.markers.filter((m) => m.visible); }
   private markerUnderPointer(exclude: THREE.Mesh): THREE.Mesh | null {
-    for (const h of this.raycaster.intersectObjects(this.markers, false)) if (h.object !== exclude) return h.object as THREE.Mesh;
+    for (const h of this.raycaster.intersectObjects(this.visibleMarkers(), false)) if (h.object !== exclude) return h.object as THREE.Mesh;
     return null;
+  }
+  // World point of a hole's face (marker sits PROUD off it along the normal).
+  private faceOf(marker: THREE.Mesh): THREE.Vector3 { return this.worldOf(marker).addScaledVector(this.axisOf(marker), -PROUD); }
+  // World tangent (a fixed in-plane direction of the part) at this handle.
+  private tanOf(marker: THREE.Mesh): THREE.Vector3 {
+    const q = new THREE.Quaternion(); (marker.parent as THREE.Object3D).getWorldQuaternion(q);
+    const t = marker.userData.localTan as [number, number, number];
+    return new THREE.Vector3(t[0], t[1], t[2]).applyQuaternion(q).normalize();
   }
   private pointerOnPlane(through: THREE.Vector3): THREE.Vector3 {
     const n = this.camera.getWorldDirection(new THREE.Vector3()).negate();
@@ -429,19 +442,24 @@ export class Editor {
   // first), or drop a connector into a single hole when toRef is null.
   async connect(fromRef: HoleRef, toRef: HoleRef | null, connectorMeta: PartMeta) {
     const mFrom = this.markerFor(fromRef); if (!mFrom) return;
-    const partFrom = this.parts.get(fromRef.partUid); if (!partFrom) return;
-    const pA = this.worldOf(mFrom), nA = this.axisOf(mFrom);
+    if (!this.parts.get(fromRef.partUid)) return;
+    const nA = this.axisOf(mFrom), pA = this.faceOf(mFrom);
     if (toRef) {
       const mTo = this.markerFor(toRef), partTo = this.parts.get(toRef.partUid);
       if (mTo && partTo) {
-        const nB = this.axisOf(mTo);
-        partTo.mesh.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(nB, nA));
+        // Rotate part 2 so its hole FRAME (normal + tangent) maps onto part 1's:
+        // normal opposes (faces meet), tangent aligns (no unexpected mirroring).
+        const nB = this.axisOf(mTo), tB = this.tanOf(mTo), tA = this.tanOf(mFrom);
+        const v1 = nA.clone().negate(), v2 = tA.clone(), v3 = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        const u1 = nB.clone(), u2 = tB.clone(), u3 = new THREE.Vector3().crossVectors(u1, u2).normalize();
+        const target = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(v1, v2, v3));
+        const source = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(u1, u2, u3));
+        partTo.mesh.quaternion.premultiply(target.multiply(source.invert()));
         partTo.mesh.updateMatrixWorld(true);
-        const d = (this.extentAlong(partFrom, nA) + this.extentAlong(partTo, nA)) / 2;
-        const targetB = pA.clone().add(nA.clone().multiplyScalar(d));
-        partTo.mesh.position.add(targetB.sub(this.worldOf(mTo)));
+        // slide part 2 so the two grabbed faces coincide (holes coaxial, parts flush)
+        partTo.mesh.position.add(pA.clone().sub(this.faceOf(mTo)));
         partTo.mesh.updateMatrixWorld(true);
-        await this.placeConnector(connectorMeta, pA.clone().add(nA.clone().multiplyScalar(d / 2)), nA);
+        await this.placeConnector(connectorMeta, pA, nA);
         this.select(partTo); this.emit();
         return;
       }
@@ -472,9 +490,24 @@ export class Editor {
     this.renderer.setSize(w, h);
   }
 
+  // Hide hole markers whose face points away from the camera (the far side of
+  // a piece); depthTest hides the rest that sit behind other solid pieces.
+  private cullMarkers() {
+    if (!this.markersVisible || !this.markers.length) return;
+    const cam = this.camera.position;
+    const wp = new THREE.Vector3(), wd = new THREE.Vector3(), toCam = new THREE.Vector3();
+    for (const m of this.markers) {
+      m.getWorldPosition(wp);
+      m.getWorldDirection(wd);
+      toCam.subVectors(cam, wp);
+      m.visible = wd.dot(toCam) > 0;
+    }
+  }
+
   private animate = () => {
     this.raf = requestAnimationFrame(this.animate);
     this.controls.update();
+    this.cullMarkers();
     this.renderer.render(this.scene, this.camera);
   };
 
