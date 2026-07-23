@@ -1,77 +1,95 @@
 // STEP -> compact web-mesh pipeline for VEX Build Center.
-// Reads curated parts from the VEX IQ CAD zip, tessellates each with
-// occt-import-js, recenters to its bounding-box center, and writes a
-// base64-packed mesh JSON per part plus a manifest. Re-run to add parts:
-//   node tools/convert-parts.cjs "<path-to-VEX-IQ-All-Parts.zip>" public/parts
+// Tessellates curated parts from the VEX IQ CAD zips (structural kit +
+// electronics) with occt-import-js into base64 mesh JSON + a manifest.
+//   node tools/convert-parts.cjs "<downloads-dir>" public/parts
 const fs = require("fs"), path = require("path"), cp = require("child_process");
 
-const ZIP = process.argv[2];
+const DL = process.argv[2];
 const OUT = process.argv[3] || path.join(__dirname, "..", "public", "parts");
 const TMP = path.join(__dirname, "steps");
-const PITCH = 12.7; // VEX IQ grid pitch (mm)
+const PITCH = 12.7;
 
-// id, category, display name, source STEP filename
+// Zip files live in the Downloads dir. The kit name carries a date, so glob it.
+function zip(nameOrGlob) {
+  if (!/[*]/.test(nameOrGlob)) return path.join(DL, nameOrGlob);
+  const rx = new RegExp("^" + nameOrGlob.replace(/[.]/g, "\\.").replace(/[*]/g, ".*") + "$", "i");
+  const hit = fs.readdirSync(DL).find((f) => rx.test(f));
+  if (!hit) throw new Error("zip not found: " + nameOrGlob);
+  return path.join(DL, hit);
+}
+const ZIPS = {
+  kit: () => zip("VEX-IQ-All-Parts*.zip"),
+  motor: () => zip("*Smart-Motor-STEP.zip"),
+  brain: () => zip("*Robot-Brain-STEP.zip"),
+  sensors: () => zip("*Smart-Sensors-STEP.zip"),
+};
+
+// id, category, name, zipKey, internalPath (inside the zip), extra flags
 const PARTS = [
-  ["beam-1x1", "beam", "1x1 Beam", "1x1 Beam (228-2500-154).step"],
-  ["beam-1x2", "beam", "1x2 Beam", "1x2 Beam (228-2500-001).step"],
-  ["beam-1x3", "beam", "1x3 Beam", "1x3 Beam (228-2500-002).step"],
-  ["beam-1x4", "beam", "1x4 Beam", "1x4 Beam (228-2500-003).step"],
-  ["beam-1x5", "beam", "1x5 Beam", "1x5 Beam (228-2500-004).step"],
-  ["beam-1x6", "beam", "1x6 Beam", "1x6 Beam (228-2500-005).step"],
-  ["beam-1x8", "beam", "1x8 Beam", "1x8 Beam (228-2500-007).step"],
-  ["beam-1x12", "beam", "1x12 Beam", "1x12 Beam (228-2500-011).step"],
-  ["plate-3x3", "plate", "3x3 Plate", "3x3 Plate (228-2500-031).step"],
-  ["plate-3x6", "plate", "3x6 Plate", "3x6 Plate (228-2500-034).step"],
-  ["plate-3x12", "plate", "3x12 Plate", "3x12 Plate (228-2500-037).step"],
-  ["pin-connector-0x2", "pin", "0x2 Connector Pin", "0x2 Connector Pin (228-2500-086).step"],
-  ["pin-connector-1x1", "pin", "1x1 Connector Pin", "1x1 Connector Pin (228-2500-060).step"],
-  ["pin-connector-1x2", "pin", "1x2 Connector Pin", "1x2 Connector Pin (228-2500-061).step"],
-  ["pin-idler-1x1", "pin", "1x1 Idler Pin", "1x1 Idler Pin (228-2500-073).step"],
-  ["pin-sheet-0x1", "pin", "0x1 Sheet Pin", "0x1 Sheet Pin (228-2500-099).step"],
-  ["standoff-025x", "standoff", "0.25x Standoff", "0.25x Pitch Standoff (228-2500-063).step"],
-  ["standoff-05x", "standoff", "0.5x Standoff", "0.5x Pitch Standoff (228-2500-064).step"],
-  ["standoff-1x", "standoff", "1x Standoff", "1x Pitch Standoff (228-2500-065).step"],
-  ["standoff-15x", "standoff", "1.5x Standoff", "1.5x Pitch Standoff (228-2500-066).step"],
-  ["standoff-2x", "standoff", "2x Standoff", "2x Pitch Standoff (228-2500-067).step"],
-  ["corner-1x1", "corner", "1x1 Corner", "1x Wide, 1x1 Corner Connector (228-2500-129).step"],
-  ["corner-1x2", "corner", "1x2 Corner", "1x Wide, 1x2 Corner Connector (228-2500-279).step"],
-  ["corner-2x2", "corner", "2x2 Corner", "2x Wide, 2x2 Corner Connector (228-2500-134).step"],
-  ["gear-12t", "gear", "12T Gear", "12 Tooth Gear (228-2500-213).step"],
-  ["gear-24t", "gear", "24T Gear", "24 Tooth Gear (228-2500-227).step"],
-  ["gear-36t", "gear", "36T Gear", "36 Tooth Gear (228-2500-214).step"],
-  ["gear-48t", "gear", "48T Gear", "48 Tooth Gear (228-2500-228).step"],
-  ["gear-60t", "gear", "60T Gear", "60 Tooth Gear (228-2500-215).step"],
-  ["wheel-ant-86", "wheel", "Ant Wheel 86mm", "Ant Wheel - 86mm (228-2500-319).step"],
-  ["wheel-ant-96", "wheel", "Ant Wheel 96mm", "Ant Wheel - 96mm (228-2500-318).step"],
-  ["wheel-smooth-160", "wheel", "160mm Smooth Wheel", "4x Pitch Diameter (160mm Travel) Smooth Wheel (228-2500-1383).step"],
-  ["shaft-2x", "shaft", "2x Shaft", "2x Pitch Shaft (228-2500-117).step"],
-  ["shaft-3x", "shaft", "3x Shaft", "3x Pitch Shaft (228-2500-119).step"],
-  ["shaft-4x", "shaft", "4x Shaft", "4x Pitch Shaft (228-2500-120).step"],
-  ["spacer-025x", "spacer", "0.25x Spacer", "0.25x Pitch Spacer (228-2500-114).step"],
-  ["washer", "spacer", "Washer", "Washer (228-2500-112).step"],
-];
-
-// Synthetic electronics placeholders (not in the structural CAD kit).
-const SYNTH = [
-  ["smart-motor", "motor", "Smart Motor", { primitive: "box", sizeMM: [50.8, 38.1, 25.4], color: "#2b7de0", isMotor: true }],
-  ["robot-brain", "brain", "Robot Brain", { primitive: "box", sizeMM: [88.9, 63.5, 19.0], color: "#3a3f47" }],
+  ["beam-1x1", "beam", "1x1 Beam", "kit", "1x1 Beam (228-2500-154).step"],
+  ["beam-1x2", "beam", "1x2 Beam", "kit", "1x2 Beam (228-2500-001).step"],
+  ["beam-1x3", "beam", "1x3 Beam", "kit", "1x3 Beam (228-2500-002).step"],
+  ["beam-1x4", "beam", "1x4 Beam", "kit", "1x4 Beam (228-2500-003).step"],
+  ["beam-1x5", "beam", "1x5 Beam", "kit", "1x5 Beam (228-2500-004).step"],
+  ["beam-1x6", "beam", "1x6 Beam", "kit", "1x6 Beam (228-2500-005).step"],
+  ["beam-1x8", "beam", "1x8 Beam", "kit", "1x8 Beam (228-2500-007).step"],
+  ["beam-1x12", "beam", "1x12 Beam", "kit", "1x12 Beam (228-2500-011).step"],
+  ["plate-3x3", "plate", "3x3 Plate", "kit", "3x3 Plate (228-2500-031).step"],
+  ["plate-3x6", "plate", "3x6 Plate", "kit", "3x6 Plate (228-2500-034).step"],
+  ["plate-3x12", "plate", "3x12 Plate", "kit", "3x12 Plate (228-2500-037).step"],
+  ["pin-connector-0x2", "pin", "0x2 Connector Pin", "kit", "0x2 Connector Pin (228-2500-086).step"],
+  ["pin-connector-1x1", "pin", "1x1 Connector Pin", "kit", "1x1 Connector Pin (228-2500-060).step"],
+  ["pin-connector-1x2", "pin", "1x2 Connector Pin", "kit", "1x2 Connector Pin (228-2500-061).step"],
+  ["pin-idler-1x1", "pin", "1x1 Idler Pin", "kit", "1x1 Idler Pin (228-2500-073).step"],
+  ["pin-sheet-0x1", "pin", "0x1 Sheet Pin", "kit", "0x1 Sheet Pin (228-2500-099).step"],
+  ["standoff-025x", "standoff", "0.25x Standoff", "kit", "0.25x Pitch Standoff (228-2500-063).step"],
+  ["standoff-05x", "standoff", "0.5x Standoff", "kit", "0.5x Pitch Standoff (228-2500-064).step"],
+  ["standoff-1x", "standoff", "1x Standoff", "kit", "1x Pitch Standoff (228-2500-065).step"],
+  ["standoff-15x", "standoff", "1.5x Standoff", "kit", "1.5x Pitch Standoff (228-2500-066).step"],
+  ["standoff-2x", "standoff", "2x Standoff", "kit", "2x Pitch Standoff (228-2500-067).step"],
+  ["corner-1x1", "corner", "1x1 Corner", "kit", "1x Wide, 1x1 Corner Connector (228-2500-129).step"],
+  ["corner-1x2", "corner", "1x2 Corner", "kit", "1x Wide, 1x2 Corner Connector (228-2500-279).step"],
+  ["corner-2x2", "corner", "2x2 Corner", "kit", "2x Wide, 2x2 Corner Connector (228-2500-134).step"],
+  ["gear-12t", "gear", "12T Gear", "kit", "12 Tooth Gear (228-2500-213).step"],
+  ["gear-24t", "gear", "24T Gear", "kit", "24 Tooth Gear (228-2500-227).step"],
+  ["gear-36t", "gear", "36T Gear", "kit", "36 Tooth Gear (228-2500-214).step"],
+  ["gear-48t", "gear", "48T Gear", "kit", "48 Tooth Gear (228-2500-228).step"],
+  ["gear-60t", "gear", "60T Gear", "kit", "60 Tooth Gear (228-2500-215).step"],
+  ["wheel-ant-86", "wheel", "Ant Wheel 86mm", "kit", "Ant Wheel - 86mm (228-2500-319).step"],
+  ["wheel-ant-96", "wheel", "Ant Wheel 96mm", "kit", "Ant Wheel - 96mm (228-2500-318).step"],
+  ["wheel-smooth-160", "wheel", "160mm Smooth Wheel", "kit", "4x Pitch Diameter (160mm Travel) Smooth Wheel (228-2500-1383).step"],
+  ["shaft-2x", "shaft", "2x Shaft", "kit", "2x Pitch Shaft (228-2500-117).step"],
+  ["shaft-3x", "shaft", "3x Shaft", "kit", "3x Pitch Shaft (228-2500-119).step"],
+  ["shaft-4x", "shaft", "4x Shaft", "kit", "4x Pitch Shaft (228-2500-120).step"],
+  ["spacer-025x", "spacer", "0.25x Spacer", "kit", "0.25x Pitch Spacer (228-2500-114).step"],
+  ["washer", "spacer", "Washer", "kit", "Washer (228-2500-112).step"],
+  // electronics (real CAD)
+  ["smart-motor", "motor", "Smart Motor", "motor", "228-2560.STEP", { isMotor: true }],
+  ["robot-brain", "brain", "Robot Brain", "brain", "228-2540 VEX IQ Robot Brain/228-2540.STEP"],
+  ["robot-battery", "brain", "Robot Battery", "brain", "228-2604 VEX IQ Robot Battery/228-2604.STEP"],
+  ["sensor-touch", "sensor", "Touch LED", "sensors", "228-3010 VEX IQ Touch Sensor/228-3010.STEP"],
+  ["sensor-distance", "sensor", "Distance Sensor", "sensors", "228-3011 VEX IQ Distance Sensor/228-3011.STEP"],
+  ["sensor-color", "sensor", "Color Sensor", "sensors", "228-3012 VEX IQ Color Sensor/228-3012.STEP"],
+  ["sensor-gyro", "sensor", "Gyro Sensor", "sensors", "228-3014 VEX IQ Gyro Sensor/228-3014.STEP"],
+  ["sensor-bumper", "sensor", "Bumper Switch", "sensors", "228-2677 VEX IQ Bumper Switch/228-2677.STEP"],
 ];
 
 function b64(a) { return Buffer.from(a.buffer, a.byteOffset, a.byteLength).toString("base64"); }
 
 (async () => {
-  if (!ZIP) { console.error("usage: node convert-parts.cjs <zip> [outDir]"); process.exit(1); }
+  if (!DL) { console.error("usage: node convert-parts.cjs <downloadsDir> [outDir]"); process.exit(1); }
   fs.rmSync(TMP, { recursive: true, force: true }); fs.mkdirSync(TMP, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });
-  const names = PARTS.map((p) => p[3]);
-  cp.execSync(`unzip -j -o "${ZIP}" ${names.map((n) => `"${n}"`).join(" ")} -d "${TMP}"`, { stdio: "ignore" });
+  const zipPath = {};
+  for (const k of Object.keys(ZIPS)) zipPath[k] = ZIPS[k]();
 
   const occt = await require("occt-import-js")();
   const manifest = { pitchMM: PITCH, parts: [] };
   let ok = 0, fail = 0;
-  for (const [id, category, name, file] of PARTS) {
+  for (const [id, category, name, zipKey, internal, flags] of PARTS) {
     try {
-      const buf = new Uint8Array(fs.readFileSync(path.join(TMP, file)));
+      const stepBytes = cp.execSync(`unzip -p "${zipPath[zipKey]}" "${internal}"`, { maxBuffer: 1 << 28 });
+      const buf = new Uint8Array(stepBytes);
       const r = occt.ReadStepFile(buf, { linearDeflection: 0.08, angularDeflection: 0.4 });
       if (!r || !r.success || !r.meshes.length) { console.log("FAIL", id); fail++; continue; }
       let pos = [], nor = [], idx = [], base = 0;
@@ -90,11 +108,12 @@ function b64(a) { return Buffer.from(a.buffer, a.byteOffset, a.byteLength).toStr
       const sizeMM = mx.map((v, k) => +(v - mn[k]).toFixed(2));
       const P = new Float32Array(pos), N = nor.length === pos.length ? new Float32Array(nor) : null, I = new Uint32Array(idx);
       fs.writeFileSync(path.join(OUT, id + ".json"), JSON.stringify({ id, name, category, sizeMM, vertexCount: P.length / 3, position: b64(P), normal: N ? b64(N) : null, index: b64(I) }));
-      manifest.parts.push({ id, name, category, sizeMM, tris: I.length / 3 });
+      const entry = { id, name, category, sizeMM, tris: I.length / 3 };
+      if (flags && flags.isMotor) entry.isMotor = true;
+      manifest.parts.push(entry);
       ok++;
     } catch (e) { console.log("ERR", id, e.message); fail++; }
   }
-  for (const [id, category, name, spec] of SYNTH) manifest.parts.push({ id, name, category, primitive: spec.primitive, sizeMM: spec.sizeMM, color: spec.color, isMotor: !!spec.isMotor });
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
-  console.log(JSON.stringify({ converted: ok, failed: fail, synthetic: SYNTH.length, total: manifest.parts.length }));
+  console.log(JSON.stringify({ converted: ok, failed: fail, total: manifest.parts.length }));
 })();

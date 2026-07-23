@@ -412,27 +412,90 @@
    "id": "smart-motor",
    "name": "Smart Motor",
    "category": "motor",
-   "primitive": "box",
    "sizeMM": [
-    50.8,
-    38.1,
-    25.4
+    56.95,
+    50.48,
+    25.2
    ],
-   "color": "#2b7de0",
+   "tris": 7180,
    "isMotor": true
   },
   {
    "id": "robot-brain",
    "name": "Robot Brain",
    "category": "brain",
-   "primitive": "box",
    "sizeMM": [
-    88.9,
-    63.5,
-    19
+    106.7,
+    48.85,
+    76
    ],
-   "color": "#3a3f47",
-   "isMotor": false
+   "tris": 16034
+  },
+  {
+   "id": "robot-battery",
+   "name": "Robot Battery",
+   "category": "brain",
+   "sizeMM": [
+    57.6,
+    20.8,
+    105.1
+   ],
+   "tris": 1320
+  },
+  {
+   "id": "sensor-touch",
+   "name": "Touch LED",
+   "category": "sensor",
+   "sizeMM": [
+    25.1,
+    31.5,
+    25.1
+   ],
+   "tris": 2616
+  },
+  {
+   "id": "sensor-distance",
+   "name": "Distance Sensor",
+   "category": "sensor",
+   "sizeMM": [
+    50.5,
+    25.15,
+    25.1
+   ],
+   "tris": 4596
+  },
+  {
+   "id": "sensor-color",
+   "name": "Color Sensor",
+   "category": "sensor",
+   "sizeMM": [
+    25.1,
+    25.15,
+    25.1
+   ],
+   "tris": 3484
+  },
+  {
+   "id": "sensor-gyro",
+   "name": "Gyro Sensor",
+   "category": "sensor",
+   "sizeMM": [
+    25.1,
+    25.15,
+    25.1
+   ],
+   "tris": 2588
+  },
+  {
+   "id": "sensor-bumper",
+   "name": "Bumper Switch",
+   "category": "sensor",
+   "sizeMM": [
+    50.5,
+    26.89,
+    26.18
+   ],
+   "tris": 4556
   }
  ]
 }

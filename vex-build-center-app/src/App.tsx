@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Editor, type EditorState, type SavedPart } from "./editor";
+import { Editor, type EditorState, type SavedPart, type ConnectRequest } from "./editor";
 import { loadManifest, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta } from "./lib/parts";
 
 const MM_PER_IN = 25.4;
@@ -20,6 +20,7 @@ export default function App() {
   });
   const [status, setStatus] = useState("Loading parts…");
   const [error, setError] = useState("");
+  const [connectReq, setConnectReq] = useState<ConnectRequest | null>(null);
 
   const metaById = useMemo(() => new Map((manifest?.parts || []).map((p) => [p.id, p])), [manifest]);
 
@@ -31,6 +32,7 @@ export default function App() {
     if (!manifest || !mountRef.current) return;
     const ed = new Editor(mountRef.current);
     ed.onChange = setState;
+    ed.onConnect = setConnectReq;
     editorRef.current = ed;
     setStatus("Pick a part on the left to start building.");
     return () => { ed.dispose(); editorRef.current = null; };
@@ -79,6 +81,8 @@ export default function App() {
     return CATEGORY_ORDER.filter((c) => by.has(c)).map((c) => ({ category: c, parts: by.get(c)! }));
   }, [manifest]);
 
+  const connectors = useMemo(() => (manifest?.parts || []).filter((p) => p.category === "pin" || p.category === "shaft" || p.category === "standoff"), [manifest]);
+
   const sizeIn = { w: inch(state.bboxMM.w), h: inch(state.bboxMM.h), d: inch(state.bboxMM.d) };
   const over = { w: sizeIn.w > limits.w, h: sizeIn.h > limits.h, d: sizeIn.d > limits.d, motors: state.motors > limits.motors };
   const anyOver = over.w || over.h || over.d || over.motors;
@@ -114,7 +118,7 @@ export default function App() {
 
         <div className="stage">
           <div className="canvas-host" ref={mountRef} />
-          <div className="stage-hint">Drag a part to move · orbit with a drag on empty space · scroll to zoom</div>
+          <div className="stage-hint">Drag between hole dots to connect · click a hole for a connector · drag a part to move · scroll to zoom</div>
         </div>
 
         <aside className="inspector">
@@ -171,6 +175,22 @@ export default function App() {
         </aside>
       </div>
 
+      {connectReq && (
+        <>
+          <div className="picker-scrim" onClick={() => setConnectReq(null)} />
+          <div className="picker" style={{ left: Math.min(connectReq.screen.x, window.innerWidth - 210), top: Math.min(connectReq.screen.y, window.innerHeight - 260) }}>
+            <div className="picker-head">{connectReq.to ? "Connect the two holes with…" : "Put in this hole…"}</div>
+            <div className="picker-grid">
+              {connectors.map((c) => (
+                <button key={c.id} className="picker-item" onClick={() => { editorRef.current?.connect(connectReq.from, connectReq.to, c); setConnectReq(null); setStatus(`Placed ${c.name}.`); }}>
+                  <span className="pal-swatch" style={{ background: swatch(c) }} />{c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       <footer className="statusbar">{status}</footer>
     </main>
   );
@@ -187,6 +207,6 @@ function Dim({ label, mm, inV, limit, over, onLimit }: { label: string; mm: numb
 }
 
 function swatch(p: PartMeta): string {
-  const map: Record<string, string> = { beam: "#2f6fb0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8", gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47" };
+  const map: Record<string, string> = { beam: "#2f6fb0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8", gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0" };
   return p.color || map[p.category] || "#6b7787";
 }

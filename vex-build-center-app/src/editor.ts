@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { loadGeometry, CATEGORY_COLOR, type PartMeta } from "./lib/parts";
+import { holesFor, hasHoles } from "./lib/holes";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
@@ -16,6 +17,11 @@ export type EditorState = {
   motors: number;
 };
 
+// A hole marker identifies a hole on a placed part.
+type HoleRef = { partUid: string; holeIndex: number };
+// Emitted when the user clicks a hole (to === null) or drags between two holes.
+export type ConnectRequest = { from: HoleRef; to: HoleRef | null; screen: { x: number; y: number } };
+
 let uidSeq = 1;
 
 export class Editor {
@@ -24,6 +30,7 @@ export class Editor {
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   onChange: (s: EditorState) => void = () => {};
+  onConnect: (req: ConnectRequest) => void = () => {};
 
   private container: HTMLElement;
   private raycaster = new THREE.Raycaster();
@@ -31,6 +38,18 @@ export class Editor {
   private parts = new Map<string, PlacedPart>();
   private selected: PlacedPart | null = null;
   private helper: THREE.BoxHelper | null = null;
+
+  // hole markers
+  private markers: THREE.Mesh[] = [];
+  private discGeo = new THREE.CircleGeometry(4.3, 24);
+  private markerMat = new THREE.MeshBasicMaterial({ color: 0x18a0ff, transparent: true, opacity: 0.5, depthTest: false, side: THREE.DoubleSide });
+  private markerHotMat = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide });
+  private hovered: THREE.Mesh | null = null;
+  private markersVisible = true;
+  // connect drag
+  private connectFrom: THREE.Mesh | null = null;
+  private connectLine: THREE.Line;
+  private movedDuringDrag = false;
   private ground: THREE.Mesh;
   private dragging = false;
   private dragPlane = new THREE.Plane();
@@ -92,6 +111,15 @@ export class Editor {
     this.ground.name = "ground";
     this.scene.add(this.ground);
 
+    // rubber-band line shown while dragging a connection between holes
+    this.connectLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.9, depthTest: false }),
+    );
+    this.connectLine.visible = false;
+    this.connectLine.renderOrder = 999;
+    this.scene.add(this.connectLine);
+
     const el = this.renderer.domElement;
     el.addEventListener("pointerdown", this.onPointerDown, { capture: true });
     window.addEventListener("pointermove", this.onPointerMove);
@@ -123,17 +151,42 @@ export class Editor {
     this.scene.add(mesh);
     const part: PlacedPart = { uid, meta, mesh };
     this.parts.set(uid, part);
+    this.addMarkers(part);
     this.select(part);
     this.emit();
   }
 
   private restOnGrid(mesh: THREE.Mesh) {
     // Drop the part so its lowest point rests flush on the grid (y = 0).
+    // Uses the geometry box so hole-marker children don't skew it.
     mesh.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(mesh);
+    const box = mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld);
     mesh.position.y += -box.min.y;
     mesh.position.y = Math.max(0, mesh.position.y);
     mesh.updateMatrixWorld(true);
+  }
+
+  // Attach a clickable ring marker at every hole (as children, so they follow
+  // the part automatically). getWorldPosition/Direction of a marker give the
+  // hole's world point and axis.
+  private addMarkers(part: PlacedPart) {
+    if (!hasHoles(part.meta)) return;
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    holesFor(part.meta).forEach((h, i) => {
+      const m = new THREE.Mesh(this.discGeo, this.markerMat);
+      m.position.set(h.p[0], h.p[1], h.p[2]);
+      m.quaternion.setFromUnitVectors(zAxis, new THREE.Vector3(h.axis[0], h.axis[1], h.axis[2]).normalize());
+      m.renderOrder = 998;
+      m.visible = this.markersVisible;
+      m.userData.holeRef = { partUid: part.uid, holeIndex: i } as HoleRef;
+      part.mesh.add(m);
+      this.markers.push(m);
+    });
+  }
+
+  setMarkersVisible(v: boolean) {
+    this.markersVisible = v;
+    for (const m of this.markers) m.visible = v;
   }
 
   private select(part: PlacedPart | null) {
@@ -179,6 +232,7 @@ export class Editor {
   }
 
   private removePart(part: PlacedPart) {
+    this.markers = this.markers.filter((m) => (m.userData.holeRef as HoleRef).partUid !== part.uid);
     this.scene.remove(part.mesh);
     (part.mesh.material as THREE.Material).dispose();
     this.parts.delete(part.uid);
@@ -215,7 +269,9 @@ export class Editor {
       mesh.quaternion.set(s.q[0], s.q[1], s.q[2], s.q[3]);
       mesh.updateMatrixWorld(true);
       this.scene.add(mesh);
-      this.parts.set(uid, { uid, meta, mesh });
+      const part: PlacedPart = { uid, meta, mesh };
+      this.parts.set(uid, part);
+      this.addMarkers(part);
     }
     this.select(null);
     this.emit();
@@ -227,7 +283,8 @@ export class Editor {
     const box = new THREE.Box3();
     let motors = 0;
     for (const part of this.parts.values()) {
-      box.expandByObject(part.mesh);
+      part.mesh.updateMatrixWorld(true);
+      if (part.mesh.geometry.boundingBox) box.union(part.mesh.geometry.boundingBox.clone().applyMatrix4(part.mesh.matrixWorld));
       if (part.meta.isMotor) motors++;
     }
     const size = this.parts.size ? box.getSize(new THREE.Vector3()) : new THREE.Vector3();
@@ -254,47 +311,158 @@ export class Editor {
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return; // left button only starts a part drag
+    if (e.button !== 0) return;
     this.setPointer(e);
+    // 1) a hole marker starts a connection
+    if (this.markersVisible) {
+      const mh = this.raycaster.intersectObjects(this.markers, false);
+      if (mh.length) {
+        this.connectFrom = mh[0].object as THREE.Mesh;
+        this.movedDuringDrag = false;
+        this.controls.enabled = false;
+        this.setHot(this.connectFrom, true);
+        this.connectLine.visible = true;
+        this.updateConnectLine(this.worldOf(this.connectFrom));
+        e.stopPropagation();
+        return;
+      }
+    }
+    // 2) a part body starts a move
     const meshes = [...this.parts.values()].map((p) => p.mesh);
     const hits = this.raycaster.intersectObjects(meshes, false);
     if (hits.length) {
-      const uid = hits[0].object.userData.uid as string;
-      const part = this.parts.get(uid) || null;
+      const part = this.parts.get(hits[0].object.userData.uid as string) || null;
       this.select(part);
-      // begin drag on a horizontal plane through the hit point
       this.dragging = true;
       this.controls.enabled = false;
       this.dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hits[0].point);
       this.dragOffset.copy(hits[0].point).sub(part!.mesh.position);
       e.stopPropagation();
       this.emit();
-    } else {
-      // clicked empty space: deselect, let OrbitControls orbit
-      if (this.selected) { this.select(null); this.emit(); }
+    } else if (this.selected) {
+      this.select(null); this.emit();
     }
   };
 
   private onPointerMove = (e: PointerEvent) => {
-    if (!this.dragging || !this.selected) return;
     this.setPointer(e);
-    if (this.raycaster.ray.intersectPlane(this.dragPlane, this.hit)) {
-      const nx = snap(this.hit.x - this.dragOffset.x);
-      const nz = snap(this.hit.z - this.dragOffset.z);
-      this.selected.mesh.position.x = nx;
-      this.selected.mesh.position.z = nz;
-      this.selected.mesh.updateMatrixWorld(true);
-      this.helper?.update();
+    if (this.connectFrom) {
+      this.movedDuringDrag = true;
+      const target = this.markerUnderPointer(this.connectFrom);
+      if (target !== this.hovered) {
+        if (this.hovered && this.hovered !== this.connectFrom) this.setHot(this.hovered, false);
+        this.hovered = target; if (target) this.setHot(target, true);
+      }
+      const from = this.worldOf(this.connectFrom);
+      this.updateConnectLine(from, target ? this.worldOf(target) : this.pointerOnPlane(from));
+      return;
+    }
+    if (this.dragging && this.selected) {
+      if (this.raycaster.ray.intersectPlane(this.dragPlane, this.hit)) {
+        this.selected.mesh.position.x = snap(this.hit.x - this.dragOffset.x);
+        this.selected.mesh.position.z = snap(this.hit.z - this.dragOffset.z);
+        this.selected.mesh.updateMatrixWorld(true);
+        this.helper?.update();
+      }
+      return;
+    }
+    // idle: hover-highlight a hole marker
+    if (this.markersVisible) {
+      const m = (this.raycaster.intersectObjects(this.markers, false)[0]?.object as THREE.Mesh) || null;
+      if (m !== this.hovered) {
+        if (this.hovered) this.setHot(this.hovered, false);
+        this.hovered = m; if (m) this.setHot(m, true);
+      }
     }
   };
 
-  private onPointerUp = () => {
-    if (this.dragging) {
-      this.dragging = false;
+  private onPointerUp = (e: PointerEvent) => {
+    if (this.connectFrom) {
+      const fromRef = this.connectFrom.userData.holeRef as HoleRef;
+      const target = this.hovered && this.hovered !== this.connectFrom ? this.hovered : null;
+      const toRef = target ? (target.userData.holeRef as HoleRef) : null;
+      const to = toRef && toRef.partUid !== fromRef.partUid ? toRef : null;
+      this.setHot(this.connectFrom, false); if (this.hovered) this.setHot(this.hovered, false);
+      this.connectLine.visible = false;
       this.controls.enabled = true;
-      this.emit();
+      const clicked = !this.movedDuringDrag;
+      this.connectFrom = null; this.hovered = null;
+      if (to || clicked) this.onConnect({ from: fromRef, to, screen: { x: e.clientX, y: e.clientY } });
+      return;
     }
+    if (this.dragging) { this.dragging = false; this.controls.enabled = true; this.emit(); }
   };
+
+  // ---- connection helpers ---------------------------------------------------
+
+  private worldOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldPosition(new THREE.Vector3()); }
+  private axisOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldDirection(new THREE.Vector3()).normalize(); }
+  private setHot(marker: THREE.Mesh, hot: boolean) { marker.material = hot ? this.markerHotMat : this.markerMat; marker.scale.setScalar(hot ? 1.5 : 1); }
+  private markerFor(ref: HoleRef): THREE.Mesh | null {
+    return this.markers.find((m) => { const r = m.userData.holeRef as HoleRef; return r.partUid === ref.partUid && r.holeIndex === ref.holeIndex; }) || null;
+  }
+  private markerUnderPointer(exclude: THREE.Mesh): THREE.Mesh | null {
+    for (const h of this.raycaster.intersectObjects(this.markers, false)) if (h.object !== exclude) return h.object as THREE.Mesh;
+    return null;
+  }
+  private pointerOnPlane(through: THREE.Vector3): THREE.Vector3 {
+    const n = this.camera.getWorldDirection(new THREE.Vector3()).negate();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, through);
+    const out = new THREE.Vector3();
+    return this.raycaster.ray.intersectPlane(plane, out) ? out : through.clone();
+  }
+  private updateConnectLine(a: THREE.Vector3, b?: THREE.Vector3) {
+    const p = this.connectLine.geometry.attributes.position as THREE.BufferAttribute;
+    const e = b || a;
+    p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, e.x, e.y, e.z); p.needsUpdate = true;
+  }
+  private extentAlong(part: PlacedPart, axis: THREE.Vector3): number {
+    const size = part.mesh.geometry.boundingBox!.clone().applyMatrix4(part.mesh.matrixWorld).getSize(new THREE.Vector3());
+    return Math.abs(size.x * axis.x) + Math.abs(size.y * axis.y) + Math.abs(size.z * axis.z);
+  }
+  private longAxis(meta: PartMeta): THREE.Vector3 {
+    const s = meta.sizeMM, i = s[0] >= s[1] && s[0] >= s[2] ? 0 : s[1] >= s[2] ? 1 : 2;
+    return new THREE.Vector3(i === 0 ? 1 : 0, i === 1 ? 1 : 0, i === 2 ? 1 : 0);
+  }
+
+  // Connect two holes with a chosen connector (aligning the second part to the
+  // first), or drop a connector into a single hole when toRef is null.
+  async connect(fromRef: HoleRef, toRef: HoleRef | null, connectorMeta: PartMeta) {
+    const mFrom = this.markerFor(fromRef); if (!mFrom) return;
+    const partFrom = this.parts.get(fromRef.partUid); if (!partFrom) return;
+    const pA = this.worldOf(mFrom), nA = this.axisOf(mFrom);
+    if (toRef) {
+      const mTo = this.markerFor(toRef), partTo = this.parts.get(toRef.partUid);
+      if (mTo && partTo) {
+        const nB = this.axisOf(mTo);
+        partTo.mesh.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(nB, nA));
+        partTo.mesh.updateMatrixWorld(true);
+        const d = (this.extentAlong(partFrom, nA) + this.extentAlong(partTo, nA)) / 2;
+        const targetB = pA.clone().add(nA.clone().multiplyScalar(d));
+        partTo.mesh.position.add(targetB.sub(this.worldOf(mTo)));
+        partTo.mesh.updateMatrixWorld(true);
+        await this.placeConnector(connectorMeta, pA.clone().add(nA.clone().multiplyScalar(d / 2)), nA);
+        this.select(partTo); this.emit();
+        return;
+      }
+    }
+    await this.placeConnector(connectorMeta, pA, nA);
+    this.emit();
+  }
+
+  private async placeConnector(meta: PartMeta, worldPos: THREE.Vector3, worldAxis: THREE.Vector3) {
+    const geo = await loadGeometry(meta);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: CATEGORY_COLOR[meta.category] || "#e0a13a", metalness: 0.2, roughness: 0.5 }));
+    mesh.castShadow = mesh.receiveShadow = true;
+    const uid = `p${uidSeq++}`; mesh.userData.uid = uid;
+    mesh.quaternion.setFromUnitVectors(this.longAxis(meta), worldAxis);
+    mesh.position.copy(worldPos);
+    mesh.updateMatrixWorld(true);
+    this.scene.add(mesh);
+    const part: PlacedPart = { uid, meta, mesh };
+    this.parts.set(uid, part);
+    this.addMarkers(part);
+  }
 
   private resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight;

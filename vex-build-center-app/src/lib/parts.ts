@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 export type PartCategory =
   | "beam" | "plate" | "pin" | "standoff" | "corner"
-  | "gear" | "wheel" | "shaft" | "spacer" | "motor" | "brain";
+  | "gear" | "wheel" | "shaft" | "spacer" | "motor" | "brain" | "sensor";
 
 export type PartMeta = {
   id: string;
@@ -59,14 +59,14 @@ export function loadGeometry(meta: PartMeta): Promise<THREE.BufferGeometry> {
 
 export const CATEGORY_COLOR: Record<PartCategory, string> = {
   beam: "#2f6fb0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8",
-  gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47",
+  gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0",
 };
 
 export const CATEGORY_LABEL: Record<PartCategory, string> = {
   beam: "Beams", plate: "Plates", pin: "Pins", standoff: "Standoffs", corner: "Corners",
-  gear: "Gears", wheel: "Wheels", shaft: "Shafts", spacer: "Spacers", motor: "Motors", brain: "Brain",
+  gear: "Gears", wheel: "Wheels", shaft: "Shafts", spacer: "Spacers", motor: "Motors", brain: "Brain & Battery", sensor: "Sensors",
 };
 
 export const CATEGORY_ORDER: PartCategory[] = [
-  "beam", "plate", "corner", "pin", "standoff", "gear", "wheel", "shaft", "spacer", "motor", "brain",
+  "beam", "plate", "corner", "pin", "standoff", "gear", "wheel", "shaft", "spacer", "motor", "sensor", "brain",
 ];
