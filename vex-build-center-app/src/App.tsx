@@ -14,7 +14,7 @@ export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
-  const [state, setState] = useState<EditorState>({ count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 }, motors: 0, canPivot: false });
+  const [state, setState] = useState<EditorState>({ count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 }, motors: 0, canPivot: false, overlaps: 0 });
   const [limits, setLimits] = useState<Limits>(() => {
     try { return { ...DEFAULT_LIMITS, ...JSON.parse(localStorage.getItem("utg_vex_limits") || "{}") }; } catch { return DEFAULT_LIMITS; }
   });
@@ -99,7 +99,14 @@ export default function App() {
     <main className="shell">
       <header className="topbar">
         <a className="brand" href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /><span>VEX Build Center</span></a>
-        <div className={`legality ${anyOver ? "bad" : "good"}`}>{state.count ? (anyOver ? "Over the limits" : "Within the limits") : "Empty build"}</div>
+        <div className="badges">
+          {state.overlaps > 0 && (
+            <div className="legality warn" title="Parts highlighted red are clipping into each other">
+              ⚠ {state.overlaps} part{state.overlaps === 1 ? "" : "s"} overlapping
+            </div>
+          )}
+          <div className={`legality ${anyOver ? "bad" : "good"}`}>{state.count ? (anyOver ? "Over the limits" : "Within the limits") : "Empty build"}</div>
+        </div>
       </header>
 
       <div className="workspace">
@@ -154,7 +161,7 @@ export default function App() {
                 <p className="sel-name">{state.selectedName}</p>
                 {state.canPivot && (
                   <div className="btn-row">
-                    <button className="pivot" onClick={() => { const ok = editorRef.current?.pivotSelected(); setStatus(ok ? "Pivoted 90° around the pin." : "Can't turn there — it would hit another piece."); }}>⟳ Pivot on pin 90°</button>
+                    <button className="pivot" onClick={() => { editorRef.current?.pivotSelected(); setStatus("Pivoted 90° around the pin."); }}>⟳ Pivot on pin 90°</button>
                   </div>
                 )}
                 <div className="btn-row">

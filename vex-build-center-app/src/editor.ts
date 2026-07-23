@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OBB } from "three/examples/jsm/math/OBB.js";
 import { loadGeometry, CATEGORY_COLOR, type PartMeta } from "./lib/parts";
 import { holesFor, hasHoles } from "./lib/holes";
 
@@ -23,6 +24,7 @@ export type EditorState = {
   bboxMM: { w: number; h: number; d: number };
   motors: number;
   canPivot: boolean; // selected part is held by exactly one pin (a hinge)
+  overlaps: number; // parts currently clipping into another part (highlighted red)
 };
 
 // A hole marker identifies a hole on a placed part.
@@ -53,6 +55,8 @@ export class Editor {
   // A corner's built-in pin plugged straight into another part's hole. There's
   // no separate connector part, so the join is recorded here instead.
   private studJoins: { studPart: string; studCore: string; holePart: string; holeCore: string }[] = [];
+  private colliding = new Set<string>(); // part uids currently clipping another part
+  private obbCache = new Map<string, OBB>(); // per-geometry local OBB (center+halfSize)
   private dragGroup: { mesh: THREE.Mesh; start: THREE.Vector3 }[] = [];
   private dragGrabStart = new THREE.Vector3();
 
@@ -346,6 +350,7 @@ export class Editor {
       bboxMM: { w: +size.x.toFixed(1), h: +size.y.toFixed(1), d: +size.z.toFixed(1) },
       motors,
       canPivot: this.canPivot(this.selected?.uid),
+      overlaps: this.colliding.size,
     };
   }
 
@@ -369,6 +374,7 @@ export class Editor {
   private emit() {
     this.recomputeOccupancy(); // builds the connection graph settling relies on
     this.settleGroups();
+    this.recomputeCollisions(); // after settling, on final positions
     this.helper?.update();
     this.onChange(this.computeState());
   }
@@ -793,26 +799,59 @@ export class Editor {
     while (q.length) { const u = q.pop()!; for (const v of this.adj.get(u) || []) { if (v === excludeUid || comp.has(v)) continue; comp.add(v); q.push(v); } }
     return comp;
   }
-  private futureBox(part: PlacedPart, pos: THREE.Vector3, quat: THREE.Quaternion): THREE.Box3 {
-    const m = new THREE.Matrix4().compose(pos, quat, new THREE.Vector3(1, 1, 1));
-    return part.mesh.geometry.boundingBox!.clone().applyMatrix4(m);
-  }
   private worldBox(part: PlacedPart): THREE.Box3 {
     part.mesh.updateMatrixWorld(true);
     return part.mesh.geometry.boundingBox!.clone().applyMatrix4(part.mesh.matrixWorld);
   }
-  private flashRed(parts: PlacedPart[]) {
-    for (const p of parts) {
-      const mat = p.mesh.material as THREE.MeshStandardMaterial;
-      const orig = mat.emissive.clone();
-      mat.emissive.setHex(0xd23b2a); mat.needsUpdate = true;
-      window.setTimeout(() => { mat.emissive.copy(orig); mat.needsUpdate = true; }, 450);
+  // A part's oriented bounding box in world space, shrunk by COLLIDE_SLOP so
+  // parts that merely touch (flush faces, a pin snug in its hole) don't count.
+  private static COLLIDE_SLOP = 1.4; // mm trimmed off each half-extent
+  private obbWorld(part: PlacedPart): OBB {
+    let local = this.obbCache.get(part.meta.id);
+    if (!local) {
+      const box = part.mesh.geometry.boundingBox!;
+      const half = box.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+      const center = box.getCenter(new THREE.Vector3());
+      local = new OBB(center, half);
+      this.obbCache.set(part.meta.id, local.clone());
     }
+    const obb = local.clone();
+    obb.halfSize.subScalar(Editor.COLLIDE_SLOP).max(new THREE.Vector3(0.1, 0.1, 0.1));
+    part.mesh.updateMatrixWorld(true);
+    return obb.applyMatrix4(part.mesh.matrixWorld);
+  }
+
+  private setColliding(part: PlacedPart, on: boolean) {
+    const mat = part.mesh.material as THREE.MeshStandardMaterial;
+    mat.emissive.setHex(on ? 0xe53935 : 0x000000);
+    mat.emissiveIntensity = on ? 0.55 : 1;
+    mat.needsUpdate = true;
+  }
+
+  // Flag every part whose solid body clips into another part it isn't connected
+  // to — pins included. Parts that are directly pinned/studded together are
+  // meant to touch, so they're exempt. Highlight persists until it's resolved.
+  private recomputeCollisions() {
+    const parts = [...this.parts.values()];
+    const obbs = new Map<string, OBB>();
+    for (const p of parts) obbs.set(p.uid, this.obbWorld(p));
+    const hit = new Set<string>();
+    for (let i = 0; i < parts.length; i++) {
+      for (let j = i + 1; j < parts.length; j++) {
+        const a = parts[i], b = parts[j];
+        if (this.adj.get(a.uid)?.has(b.uid)) continue; // directly connected → allowed
+        if (obbs.get(a.uid)!.intersectsOBB(obbs.get(b.uid)!)) { hit.add(a.uid); hit.add(b.uid); }
+      }
+    }
+    for (const uid of this.colliding) if (!hit.has(uid)) { const p = this.parts.get(uid); if (p) this.setColliding(p, false); }
+    for (const uid of hit) if (!this.colliding.has(uid)) { const p = this.parts.get(uid); if (p) this.setColliding(p, true); }
+    this.colliding = hit;
   }
 
   // Rotate the selected part's movable sub-group 90° around its single pin.
-  // Blocked (returns false) if it would clip another part; the whole build
-  // lifts if the rotation would dip a part below the base plane.
+  // Always turns — if the new position clips another part, the overlapping
+  // pieces are highlighted red (by recomputeCollisions) rather than blocked.
+  // The whole build lifts if the rotation would dip a part below the base plane.
   pivotSelected(): boolean {
     const sel = this.selected; if (!sel) return false;
     const pins = this.pinsAdjacent(sel.uid); if (pins.length !== 1) return false;
@@ -821,24 +860,15 @@ export class Editor {
     const pivot = pin.mesh.getWorldPosition(new THREE.Vector3());
     const cut = this.componentWithout(sel.uid, pin.uid);
     const movable = [...cut].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
-    // exclude the hinge itself and the parts it directly joins (they share the
-    // pivot hole and are meant to touch there) from the clip test.
-    const hingeNeighbors = this.pinLinks.get(pin.uid) || new Set<string>();
-    const statics = [...this.parts.values()].filter((p) => !cut.has(p.uid) && p.uid !== pin.uid && !hingeNeighbors.has(p.uid));
 
     const q = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI / 2);
-    const nextPos = new Map<string, THREE.Vector3>(), nextQuat = new Map<string, THREE.Quaternion>();
     for (const p of movable) {
-      nextPos.set(p.uid, p.mesh.position.clone().sub(pivot).applyQuaternion(q).add(pivot));
-      nextQuat.set(p.uid, q.clone().multiply(p.mesh.quaternion));
+      p.mesh.position.copy(p.mesh.position.clone().sub(pivot).applyQuaternion(q).add(pivot));
+      p.mesh.quaternion.premultiply(q);
+      p.mesh.updateMatrixWorld(true);
     }
-    const movedBoxes = movable.map((p) => this.futureBox(p, nextPos.get(p.uid)!, nextQuat.get(p.uid)!).expandByScalar(-1.5));
-    const staticBoxes = statics.map((p) => this.worldBox(p).expandByScalar(-1.5));
-    if (movedBoxes.some((mb) => staticBoxes.some((sb) => mb.intersectsBox(sb)))) { this.flashRed(movable); return false; }
-
-    for (const p of movable) { p.mesh.position.copy(nextPos.get(p.uid)!); p.mesh.quaternion.copy(nextQuat.get(p.uid)!); p.mesh.updateMatrixWorld(true); }
     this.helper?.update();
-    this.emit(); // settles the group back onto the base plane (lifts it if the turn dipped below)
+    this.emit(); // settles the group onto the base plane + flags any overlaps
     return true;
   }
 

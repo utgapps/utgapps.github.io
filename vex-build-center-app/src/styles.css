@@ -19,6 +19,8 @@ input { font: inherit; }
 .legality { font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 20px; }
 .legality.good { color: var(--good); background: var(--good-bg); }
 .legality.bad { color: var(--bad); background: var(--bad-bg); }
+.legality.warn { color: #b23b16; background: #ffe6d6; }
+.badges { display: flex; align-items: center; gap: 8px; }
 
 .workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: 240px 1fr 288px; }
 
