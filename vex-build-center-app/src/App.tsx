@@ -14,7 +14,7 @@ export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const [manifest, setManifest] = useState<Manifest | null>(null);
-  const [state, setState] = useState<EditorState>({ count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 }, motors: 0 });
+  const [state, setState] = useState<EditorState>({ count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 }, motors: 0, canPivot: false });
   const [limits, setLimits] = useState<Limits>(() => {
     try { return { ...DEFAULT_LIMITS, ...JSON.parse(localStorage.getItem("utg_vex_limits") || "{}") }; } catch { return DEFAULT_LIMITS; }
   });
@@ -149,6 +149,11 @@ export default function App() {
             {hasSel ? (
               <>
                 <p className="sel-name">{state.selectedName}</p>
+                {state.canPivot && (
+                  <div className="btn-row">
+                    <button className="pivot" onClick={() => { const ok = editorRef.current?.pivotSelected(); setStatus(ok ? "Pivoted 90° around the pin." : "Can't turn there — it would hit another piece."); }}>⟳ Pivot on pin 90°</button>
+                  </div>
+                )}
                 <div className="btn-row">
                   <button onClick={() => editorRef.current?.rotateSelected("x")}>Rotate X</button>
                   <button onClick={() => editorRef.current?.rotateSelected("y")}>Rotate Y</button>
@@ -181,9 +186,9 @@ export default function App() {
         <>
           <div className="picker-scrim" onClick={() => setConnectReq(null)} />
           <div className="picker" style={{ left: Math.min(connectReq.screen.x, window.innerWidth - 210), top: Math.min(connectReq.screen.y, window.innerHeight - 260) }}>
-            <div className="picker-head">{connectReq.to ? "Connect the two holes with…" : "Put in this hole…"}</div>
+            <div className="picker-head">{connectReq.to ? `Connect ${connectReq.depth} stacked holes with…` : "Put in this hole…"}</div>
             <div className="picker-grid">
-              {connectors.map((c) => (
+              {connectors.filter((c) => c.category !== "pin" || holeSpan(c) >= connectReq.depth).map((c) => (
                 <button key={c.id} className="picker-item" onClick={() => { editorRef.current?.connect(connectReq.from, connectReq.to, c); setConnectReq(null); setStatus(`Placed ${c.name}.`); }}>
                   <span className="pal-swatch" style={{ background: swatch(c) }} />{c.name}
                 </button>
@@ -226,6 +231,9 @@ function Dim({ label, mm, inV, limit, over, onLimit }: { label: string; mm: numb
     </div>
   );
 }
+
+// How many aligned holes a connector spans (half-pitch = 6.35mm per hole).
+function holeSpan(m: PartMeta): number { return Math.round(Math.max(...m.sizeMM) / 6.35); }
 
 function swatch(p: PartMeta): string {
   const map: Record<string, string> = { beam: "#2f6fb0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8", gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0" };

@@ -59,6 +59,8 @@ input { font: inherit; }
 .btn-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .btn-row button { flex: 1; min-width: 62px; border: 1px solid var(--border); border-radius: 8px; background: #fff; padding: 8px 6px; font-size: 12.5px; font-weight: 600; color: var(--brand-ink); }
 .btn-row button:hover { border-color: var(--brand); background: #f2fbff; }
+.btn-row button.pivot { color: #6b46c1; border-color: #cdb8ef; background: #f5f0fc; }
+.btn-row button.pivot:hover { border-color: #6b46c1; background: #ede4fb; }
 .btn-row button.danger { color: var(--bad); }
 .btn-row button.danger:hover { border-color: var(--bad); background: var(--bad-bg); }
 

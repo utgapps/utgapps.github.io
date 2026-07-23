@@ -22,12 +22,14 @@ export type EditorState = {
   selectedName: string | null;
   bboxMM: { w: number; h: number; d: number };
   motors: number;
+  canPivot: boolean; // selected part is held by exactly one pin (a hinge)
 };
 
 // A hole marker identifies a hole on a placed part.
 type HoleRef = { partUid: string; holeIndex: number };
 // Emitted when the user clicks a hole (to === null) or drags between two holes.
-export type ConnectRequest = { from: HoleRef; to: HoleRef | null; screen: { x: number; y: number } };
+// depth = how many aligned holes the connector must span (for filtering pins).
+export type ConnectRequest = { from: HoleRef; to: HoleRef | null; depth: number; screen: { x: number; y: number } };
 // Emitted when the user right-clicks a placed pin/connector.
 export type PartMenu = { uid: string; name: string; disabled: boolean; screen: { x: number; y: number } };
 
@@ -317,6 +319,7 @@ export class Editor {
       selectedName: this.selected?.meta.name ?? null,
       bboxMM: { w: +size.x.toFixed(1), h: +size.y.toFixed(1), d: +size.z.toFixed(1) },
       motors,
+      canPivot: this.canPivot(this.selected?.uid),
     };
   }
 
@@ -429,7 +432,10 @@ export class Editor {
       this.controls.enabled = true;
       const clicked = !this.movedDuringDrag;
       this.connectFrom = null; this.hovered = null;
-      if (to || clicked) this.onConnect({ from: fromRef, to, screen: { x: e.clientX, y: e.clientY } });
+      if (to || clicked) {
+        const depth = to ? this.connectionDepth(fromRef, to) : this.stackAtHole(fromRef);
+        this.onConnect({ from: fromRef, to, depth, screen: { x: e.clientX, y: e.clientY } });
+      }
       return;
     }
     if (this.dragging) { this.dragging = false; this.controls.enabled = true; this.emit(); }
@@ -605,6 +611,97 @@ export class Editor {
     this.emit();
   }
   isPinDisabled(uid: string): boolean { return this.disabledPins.has(uid); }
+
+  // ---- connection depth (how many holed parts a pin must span) --------------
+  // Distinct parts with a hole coaxial with (point, axis) within a stack window.
+  private stackAt(point: THREE.Vector3, axis: THREE.Vector3): number {
+    const parts = new Set<string>();
+    const byCore = new Map<string, THREE.Mesh[]>();
+    for (const m of this.markers) { const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m); }
+    for (const [key, ms] of byCore) {
+      const c = new THREE.Vector3();
+      for (const m of ms) c.add(m.getWorldPosition(new THREE.Vector3()));
+      c.multiplyScalar(1 / ms.length);
+      if (Math.abs(this.axisOf(ms[0]).dot(axis)) < 0.9) continue;
+      const rel = c.sub(point), t = rel.dot(axis);
+      if (Math.abs(t) > 45) continue;
+      if (rel.addScaledVector(axis, -t).length() > 3.5) continue;
+      parts.add(key.slice(0, key.lastIndexOf(":")));
+    }
+    return Math.max(1, parts.size);
+  }
+  private connectionDepth(from: HoleRef, to: HoleRef): number {
+    const mF = this.markerFor(from), mT = this.markerFor(to);
+    if (!mF || !mT) return 2;
+    return this.stackAt(this.faceOf(mF), this.axisOf(mF)) + this.stackAt(this.faceOf(mT), this.axisOf(mT));
+  }
+  private stackAtHole(ref: HoleRef): number {
+    const m = this.markerFor(ref);
+    return m ? this.stackAt(this.faceOf(m), this.axisOf(m)) : 1;
+  }
+
+  // ---- single-pin hinge (pivot) ---------------------------------------------
+  private pinsAdjacent(uid: string): string[] {
+    return [...(this.adj.get(uid) || [])].filter((u) => { const p = this.parts.get(u); return p && OCCUPIER.has(p.meta.category); });
+  }
+  private canPivot(uid: string | undefined): boolean {
+    return !!uid && this.pinsAdjacent(uid).length === 1;
+  }
+  private componentWithout(startUid: string, excludeUid: string): Set<string> {
+    const comp = new Set<string>([startUid]), q = [startUid];
+    while (q.length) { const u = q.pop()!; for (const v of this.adj.get(u) || []) { if (v === excludeUid || comp.has(v)) continue; comp.add(v); q.push(v); } }
+    return comp;
+  }
+  private futureBox(part: PlacedPart, pos: THREE.Vector3, quat: THREE.Quaternion): THREE.Box3 {
+    const m = new THREE.Matrix4().compose(pos, quat, new THREE.Vector3(1, 1, 1));
+    return part.mesh.geometry.boundingBox!.clone().applyMatrix4(m);
+  }
+  private worldBox(part: PlacedPart): THREE.Box3 {
+    part.mesh.updateMatrixWorld(true);
+    return part.mesh.geometry.boundingBox!.clone().applyMatrix4(part.mesh.matrixWorld);
+  }
+  private flashRed(parts: PlacedPart[]) {
+    for (const p of parts) {
+      const mat = p.mesh.material as THREE.MeshStandardMaterial;
+      const orig = mat.emissive.clone();
+      mat.emissive.setHex(0xd23b2a); mat.needsUpdate = true;
+      window.setTimeout(() => { mat.emissive.copy(orig); mat.needsUpdate = true; }, 450);
+    }
+  }
+
+  // Rotate the selected part's movable sub-group 90° around its single pin.
+  // Blocked (returns false) if it would clip another part; the whole build
+  // lifts if the rotation would dip a part below the base plane.
+  pivotSelected(): boolean {
+    const sel = this.selected; if (!sel) return false;
+    const pins = this.pinsAdjacent(sel.uid); if (pins.length !== 1) return false;
+    const pin = this.parts.get(pins[0])!;
+    const axis = this.longAxis(pin.meta).applyQuaternion(pin.mesh.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    const pivot = pin.mesh.getWorldPosition(new THREE.Vector3());
+    const cut = this.componentWithout(sel.uid, pin.uid);
+    const movable = [...cut].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
+    // exclude the hinge itself and the parts it directly joins (they share the
+    // pivot hole and are meant to touch there) from the clip test.
+    const hingeNeighbors = this.pinLinks.get(pin.uid) || new Set<string>();
+    const statics = [...this.parts.values()].filter((p) => !cut.has(p.uid) && p.uid !== pin.uid && !hingeNeighbors.has(p.uid));
+
+    const q = new THREE.Quaternion().setFromAxisAngle(axis, Math.PI / 2);
+    const nextPos = new Map<string, THREE.Vector3>(), nextQuat = new Map<string, THREE.Quaternion>();
+    for (const p of movable) {
+      nextPos.set(p.uid, p.mesh.position.clone().sub(pivot).applyQuaternion(q).add(pivot));
+      nextQuat.set(p.uid, q.clone().multiply(p.mesh.quaternion));
+    }
+    const movedBoxes = movable.map((p) => this.futureBox(p, nextPos.get(p.uid)!, nextQuat.get(p.uid)!).expandByScalar(-1.5));
+    const staticBoxes = statics.map((p) => this.worldBox(p).expandByScalar(-1.5));
+    if (movedBoxes.some((mb) => staticBoxes.some((sb) => mb.intersectsBox(sb)))) { this.flashRed(movable); return false; }
+
+    for (const p of movable) { p.mesh.position.copy(nextPos.get(p.uid)!); p.mesh.quaternion.copy(nextQuat.get(p.uid)!); p.mesh.updateMatrixWorld(true); }
+    let minY = Infinity;
+    for (const p of this.parts.values()) minY = Math.min(minY, this.worldBox(p).min.y);
+    if (minY < -0.05) for (const p of this.parts.values()) { p.mesh.position.y -= minY; p.mesh.updateMatrixWorld(true); }
+    this.helper?.update(); this.emit();
+    return true;
+  }
 
   deletePartByUid(uid: string) {
     const part = this.parts.get(uid); if (!part) return;
