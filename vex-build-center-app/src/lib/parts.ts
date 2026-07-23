@@ -28,7 +28,9 @@ export type Manifest = { pitchMM: number; parts: PartMeta[] };
 const BASE = import.meta.env.BASE_URL; // "/vex-build-center/"
 
 export async function loadManifest(): Promise<Manifest> {
-  const r = await fetch(`${BASE}parts/manifest.json`, { cache: "force-cache" });
+  // Revalidate (not force-cache): the manifest is the parts index, so adding
+  // parts must show up. It's tiny, and an unchanged fetch is a cheap 304.
+  const r = await fetch(`${BASE}parts/manifest.json`, { cache: "no-cache" });
   if (!r.ok) throw new Error("Could not load the parts library.");
   return r.json();
 }
@@ -72,7 +74,7 @@ export const CATEGORY_COLOR: Record<PartCategory, string> = {
 
 export const CATEGORY_LABEL: Record<PartCategory, string> = {
   beam: "Beams", plate: "Plates", pin: "Pins", standoff: "Standoffs", corner: "Corners",
-  gear: "Gears", wheel: "Wheels", shaft: "Shafts", spacer: "Spacers", motor: "Motors", brain: "Brain & Battery", sensor: "Sensors",
+  gear: "Gears", wheel: "Wheels", shaft: "Axles", spacer: "Spacers", motor: "Motors", brain: "Brain & Battery", sensor: "Sensors",
 };
 
 export const CATEGORY_ORDER: PartCategory[] = [

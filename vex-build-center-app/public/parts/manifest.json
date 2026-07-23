@@ -5099,7 +5099,7 @@
   },
   {
    "id": "shaft-2x",
-   "name": "2x Shaft",
+   "name": "2x Axle",
    "category": "shaft",
    "sizeMM": [
     3.18,
@@ -5111,7 +5111,7 @@
   },
   {
    "id": "shaft-3x",
-   "name": "3x Shaft",
+   "name": "3x Axle",
    "category": "shaft",
    "sizeMM": [
     3.18,
@@ -5123,7 +5123,7 @@
   },
   {
    "id": "shaft-4x",
-   "name": "4x Shaft",
+   "name": "4x Axle",
    "category": "shaft",
    "sizeMM": [
     3.18,
@@ -5131,6 +5131,174 @@
     49.02
    ],
    "tris": 396,
+   "holes": []
+  },
+  {
+   "id": "shaft-5x",
+   "name": "5x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    61.72
+   ],
+   "tris": 396,
+   "holes": []
+  },
+  {
+   "id": "shaft-6x",
+   "name": "6x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    74.42
+   ],
+   "tris": 396,
+   "holes": []
+  },
+  {
+   "id": "shaft-7x",
+   "name": "7x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    87.12
+   ],
+   "tris": 388,
+   "holes": []
+  },
+  {
+   "id": "shaft-8x",
+   "name": "8x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    99.82
+   ],
+   "tris": 380,
+   "holes": []
+  },
+  {
+   "id": "shaft-9x",
+   "name": "9x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    112.52
+   ],
+   "tris": 364,
+   "holes": []
+  },
+  {
+   "id": "shaft-10x",
+   "name": "10x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    125.22
+   ],
+   "tris": 356,
+   "holes": []
+  },
+  {
+   "id": "shaft-11x",
+   "name": "11x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    137.92
+   ],
+   "tris": 348,
+   "holes": []
+  },
+  {
+   "id": "shaft-12x",
+   "name": "12x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    150.62
+   ],
+   "tris": 332,
+   "holes": []
+  },
+  {
+   "id": "shaft-14x",
+   "name": "14x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    176.02
+   ],
+   "tris": 332,
+   "holes": []
+  },
+  {
+   "id": "shaft-16x",
+   "name": "16x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.23,
+    3.18,
+    201.42
+   ],
+   "tris": 300,
+   "holes": []
+  },
+  {
+   "id": "shaft-18x",
+   "name": "18x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    226.82
+   ],
+   "tris": 236,
+   "holes": []
+  },
+  {
+   "id": "shaft-20x",
+   "name": "20x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    252.22
+   ],
+   "tris": 228,
+   "holes": []
+  },
+  {
+   "id": "shaft-22x",
+   "name": "22x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    277.62
+   ],
+   "tris": 228,
+   "holes": []
+  },
+  {
+   "id": "shaft-24x",
+   "name": "24x Axle",
+   "category": "shaft",
+   "sizeMM": [
+    3.18,
+    3.18,
+    303.02
+   ],
+   "tris": 220,
    "holes": []
   },
   {
