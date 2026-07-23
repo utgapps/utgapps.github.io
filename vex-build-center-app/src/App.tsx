@@ -197,7 +197,8 @@ export default function App() {
         <>
           <div className="picker-scrim" onClick={() => setPartMenu(null)} />
           <div className="picker" style={{ left: Math.min(partMenu.screen.x, window.innerWidth - 210), top: Math.min(partMenu.screen.y, window.innerHeight - 300) }}>
-            <div className="picker-head">{partMenu.name}</div>
+            <div className="picker-head">{partMenu.name}{partMenu.disabled ? " · disabled" : ""}</div>
+            <button className="picker-item" onClick={() => { editorRef.current?.setPinEnabled(partMenu.uid, partMenu.disabled); setPartMenu(null); setStatus(partMenu.disabled ? "Pin enabled — parts are stuck together." : "Pin disabled — you can pull the parts apart."); }}>{partMenu.disabled ? "Enable (stick parts)" : "Disable (release parts)"}</button>
             <button className="picker-item danger" onClick={() => { editorRef.current?.deletePartByUid(partMenu.uid); setPartMenu(null); setStatus("Removed the pin."); }}>Delete pin</button>
             <div className="picker-head" style={{ paddingTop: 8 }}>Replace with…</div>
             <div className="picker-grid">

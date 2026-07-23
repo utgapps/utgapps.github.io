@@ -29,7 +29,7 @@ type HoleRef = { partUid: string; holeIndex: number };
 // Emitted when the user clicks a hole (to === null) or drags between two holes.
 export type ConnectRequest = { from: HoleRef; to: HoleRef | null; screen: { x: number; y: number } };
 // Emitted when the user right-clicks a placed pin/connector.
-export type PartMenu = { uid: string; name: string; screen: { x: number; y: number } };
+export type PartMenu = { uid: string; name: string; disabled: boolean; screen: { x: number; y: number } };
 
 let uidSeq = 1;
 
@@ -44,6 +44,11 @@ export class Editor {
 
   private occupied = new Set<string>(); // core-keys "<partUid>:<coreIndex>" filled by a pin
   private headAxisCache = new Map<string, THREE.Vector3>();
+  private disabledPins = new Set<string>(); // pins that don't bind their parts
+  private pinLinks = new Map<string, Set<string>>(); // pin uid -> part uids it fills
+  private adj = new Map<string, Set<string>>(); // rigid-connection graph (enabled pins only)
+  private dragGroup: { mesh: THREE.Mesh; start: THREE.Vector3 }[] = [];
+  private dragGrabStart = new THREE.Vector3();
 
   private container: HTMLElement;
   private raycaster = new THREE.Raycaster();
@@ -253,6 +258,7 @@ export class Editor {
     this.scene.remove(part.mesh);
     (part.mesh.material as THREE.Material).dispose();
     this.parts.delete(part.uid);
+    this.disabledPins.delete(part.uid);
   }
 
   clear() {
@@ -336,7 +342,7 @@ export class Editor {
     for (const h of hits) {
       const part = this.parts.get(h.object.userData.uid as string);
       if (part && OCCUPIER.has(part.meta.category)) {
-        this.onPartMenu({ uid: part.uid, name: part.meta.name, screen: { x: e.clientX, y: e.clientY } });
+        this.onPartMenu({ uid: part.uid, name: part.meta.name, disabled: this.disabledPins.has(part.uid), screen: { x: e.clientX, y: e.clientY } });
         return;
       }
     }
@@ -369,6 +375,10 @@ export class Editor {
       this.controls.enabled = false;
       this.dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hits[0].point);
       this.dragOffset.copy(hits[0].point).sub(part!.mesh.position);
+      this.dragGrabStart.copy(part!.mesh.position);
+      // drag the whole rigid group (connected parts + their pins) together
+      this.dragGroup = [...this.componentOf(part!.uid)].map((u) => this.parts.get(u)).filter(Boolean)
+        .map((p) => ({ mesh: p!.mesh, start: p!.mesh.position.clone() }));
       e.stopPropagation();
       this.emit();
     } else if (this.selected) {
@@ -391,9 +401,9 @@ export class Editor {
     }
     if (this.dragging && this.selected) {
       if (this.raycaster.ray.intersectPlane(this.dragPlane, this.hit)) {
-        this.selected.mesh.position.x = snap(this.hit.x - this.dragOffset.x);
-        this.selected.mesh.position.z = snap(this.hit.z - this.dragOffset.z);
-        this.selected.mesh.updateMatrixWorld(true);
+        const dx = snap(this.hit.x - this.dragOffset.x) - this.dragGrabStart.x;
+        const dz = snap(this.hit.z - this.dragOffset.z) - this.dragGrabStart.z;
+        for (const g of this.dragGroup) { g.mesh.position.set(g.start.x + dx, g.start.y, g.start.z + dz); g.mesh.updateMatrixWorld(true); }
         this.helper?.update();
       }
       return;
@@ -544,9 +554,8 @@ export class Editor {
   // no second connector can be added). A long pin fills every coaxial hole it
   // spans, from either side.
   private recomputeOccupancy() {
-    this.occupied.clear();
+    this.occupied.clear(); this.pinLinks.clear(); this.adj.clear();
     const occupiers = [...this.parts.values()].filter((p) => OCCUPIER.has(p.meta.category));
-    if (!occupiers.length) return;
     const byCore = new Map<string, THREE.Mesh[]>();
     for (const m of this.markers) { const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m); }
     const cores = [...byCore.entries()].map(([key, ms]) => {
@@ -558,17 +567,44 @@ export class Editor {
       const axis = this.longAxis(pin.meta).applyQuaternion(pin.mesh.getWorldQuaternion(new THREE.Quaternion())).normalize();
       const pc = pin.mesh.getWorldPosition(new THREE.Vector3());
       const half = this.extentAlong(pin, axis) / 2 + 1.5;
+      const links = new Set<string>();
       for (const core of cores) {
         if (Math.abs(core.a.dot(axis)) < 0.9) continue;
         const rel = core.c.clone().sub(pc), t = rel.dot(axis);
         if (Math.abs(t) > half) continue;
         if (rel.addScaledVector(axis, -t).length() > 3.5) continue;
         this.occupied.add(core.key);
+        links.add(core.key.slice(0, core.key.lastIndexOf(":")));
       }
+      this.pinLinks.set(pin.uid, links);
+    }
+    // rigid-connection graph: an enabled pin binds itself to the parts it fills
+    for (const [pinUid, parts] of this.pinLinks) {
+      if (this.disabledPins.has(pinUid)) continue;
+      for (const partUid of parts) this.link(pinUid, partUid);
     }
     // hide filled holes right away; the per-frame facing cull refines the rest
     for (const m of this.markers) if (this.occupied.has(this.coreKey(m))) m.visible = false;
   }
+
+  private link(a: string, b: string) {
+    (this.adj.get(a) || this.adj.set(a, new Set()).get(a)!).add(b);
+    (this.adj.get(b) || this.adj.set(b, new Set()).get(b)!).add(a);
+  }
+  // All parts rigidly connected to `uid` (through enabled pins), including it.
+  private componentOf(uid: string): Set<string> {
+    const comp = new Set<string>([uid]), q = [uid];
+    while (q.length) { const u = q.pop()!; for (const v of this.adj.get(u) || []) if (!comp.has(v)) { comp.add(v); q.push(v); } }
+    return comp;
+  }
+  setPinEnabled(uid: string, enabled: boolean) {
+    const part = this.parts.get(uid); if (!part) return;
+    if (enabled) this.disabledPins.delete(uid); else this.disabledPins.add(uid);
+    const mat = part.mesh.material as THREE.MeshStandardMaterial;
+    mat.transparent = !enabled; mat.opacity = enabled ? 1 : 0.35; mat.needsUpdate = true;
+    this.emit();
+  }
+  isPinDisabled(uid: string): boolean { return this.disabledPins.has(uid); }
 
   deletePartByUid(uid: string) {
     const part = this.parts.get(uid); if (!part) return;
