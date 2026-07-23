@@ -71,6 +71,7 @@ export class Editor {
   private markersVisible = true;
   // connect drag
   private armed: THREE.Mesh | null = null; // first hole picked in a click-click connect
+  private emptyDown: { x: number; y: number } | null = null; // press started on empty space
   private connectFrom: THREE.Mesh | null = null;
   private connectLine: THREE.Line;
   private movedDuringDrag = false;
@@ -230,16 +231,26 @@ export class Editor {
     this.emit();
   }
 
+  // Rotate the selected part together with everything it's connected to,
+  // about the group's centre (so an assembly turns as one piece).
   rotateSelected(axis: "x" | "y" | "z") {
     if (!this.selected) return;
+    const members = [...this.componentOf(this.selected.uid)].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
+    if (!members.length) return;
+    const box = new THREE.Box3();
+    for (const m of members) box.union(this.worldBox(m));
+    const pivot = box.getCenter(new THREE.Vector3());
     const q = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0),
       Math.PI / 2,
     );
-    this.selected.mesh.quaternion.premultiply(q);
-    this.restOnGrid(this.selected.mesh);
+    for (const m of members) {
+      m.mesh.position.sub(pivot).applyQuaternion(q).add(pivot);
+      m.mesh.quaternion.premultiply(q);
+      m.mesh.updateMatrixWorld(true);
+    }
     this.helper?.update();
-    this.emit();
+    this.emit(); // emit settles the group back onto the base plane
   }
 
   nudgeSelectedY(dir: 1 | -1) {
@@ -325,9 +336,27 @@ export class Editor {
     };
   }
 
+  // Shift each connected group in Y so its lowest point rests on the base
+  // plane — dropping it if it floats, lifting it if it clips through.
+  private settleGroups() {
+    const seen = new Set<string>();
+    for (const part of this.parts.values()) {
+      if (seen.has(part.uid)) continue;
+      const comp = this.componentOf(part.uid);
+      for (const u of comp) seen.add(u);
+      const members = [...comp].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
+      if (!members.length) continue;
+      let minY = Infinity;
+      for (const m of members) minY = Math.min(minY, this.worldBox(m).min.y);
+      if (!isFinite(minY) || Math.abs(minY) < 0.01) continue;
+      for (const m of members) { m.mesh.position.y -= minY; m.mesh.updateMatrixWorld(true); }
+    }
+  }
+
   private emit() {
+    this.recomputeOccupancy(); // builds the connection graph settling relies on
+    this.settleGroups();
     this.helper?.update();
-    this.recomputeOccupancy();
     this.onChange(this.computeState());
   }
 
@@ -376,6 +405,7 @@ export class Editor {
     if (hits.length) {
       const part = this.parts.get(hits[0].object.userData.uid as string) || null;
       this.select(part);
+      this.emit(); // refresh graph + settle first, so the starts below are final
       this.dragging = true;
       this.controls.enabled = false;
       this.dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), hits[0].point);
@@ -385,11 +415,10 @@ export class Editor {
       this.dragGroup = [...this.componentOf(part!.uid)].map((u) => this.parts.get(u)).filter(Boolean)
         .map((p) => ({ mesh: p!.mesh, start: p!.mesh.position.clone() }));
       e.stopPropagation();
-      this.emit();
     } else {
-      // empty space: cancel any armed hole and clear the selection
-      this.clearArm();
-      if (this.selected) { this.select(null); this.emit(); }
+      // Empty space: don't cancel yet — this may be the start of an orbit drag.
+      // Decided on pointerup (a click cancels, a drag just orbits).
+      this.emptyDown = { x: e.clientX, y: e.clientY };
     }
   };
 
@@ -457,7 +486,16 @@ export class Editor {
       else this.setArm(fromMarker); // another hole on the same part — start over from it
       return;
     }
-    if (this.dragging) { this.dragging = false; this.controls.enabled = true; this.emit(); }
+    if (this.dragging) { this.dragging = false; this.controls.enabled = true; this.emit(); return; }
+    // a click (not an orbit drag) on empty space cancels the armed hole
+    if (this.emptyDown) {
+      const moved = Math.hypot(e.clientX - this.emptyDown.x, e.clientY - this.emptyDown.y);
+      this.emptyDown = null;
+      if (moved < 4) {
+        this.clearArm();
+        if (this.selected) { this.select(null); this.emit(); }
+      }
+    }
   };
 
   // ---- connection helpers ---------------------------------------------------
@@ -717,10 +755,8 @@ export class Editor {
     if (movedBoxes.some((mb) => staticBoxes.some((sb) => mb.intersectsBox(sb)))) { this.flashRed(movable); return false; }
 
     for (const p of movable) { p.mesh.position.copy(nextPos.get(p.uid)!); p.mesh.quaternion.copy(nextQuat.get(p.uid)!); p.mesh.updateMatrixWorld(true); }
-    let minY = Infinity;
-    for (const p of this.parts.values()) minY = Math.min(minY, this.worldBox(p).min.y);
-    if (minY < -0.05) for (const p of this.parts.values()) { p.mesh.position.y -= minY; p.mesh.updateMatrixWorld(true); }
-    this.helper?.update(); this.emit();
+    this.helper?.update();
+    this.emit(); // settles the group back onto the base plane (lifts it if the turn dipped below)
     return true;
   }
 
