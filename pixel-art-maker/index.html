@@ -66,6 +66,13 @@
           <button class="tileBtn" data-tile="64" title="Each pixel is 64 px — 8×8 grid">64px<small>8×8</small></button>
         </div>
         <button id="gridBtn" class="tbtn active" title="Show / hide grid">Grid</button>
+        <button id="bgBtn" class="tbtn" title="Switch the see-through background between white and black. This only changes what you see — the saved PNG stays see-through.">◐ See-through: White</button>
+        <span class="divider"></span>
+        <div class="zoom-group">
+          <button id="zoomOutBtn" class="tbtn zbtn" title="Zoom out (−)">−</button>
+          <button id="zoomFitBtn" class="tbtn zlabel" title="Reset the zoom and centre the picture (0)">100%</button>
+          <button id="zoomInBtn" class="tbtn zbtn" title="Zoom in (+)">+</button>
+        </div>
         <button id="canvasBtn" class="tbtn" title="Change the canvas size">Canvas</button>
         <button id="previewBtn" class="tbtn" title="Press and hold to see your art at game scale (1280 × 720)">👁 Preview</button>
         <span class="divider"></span>
@@ -88,7 +95,17 @@
           <button class="tool" data-tool="ellipse" title="Circle">⬭<span>Circle</span></button>
           <button class="tool" data-tool="mirror"  title="Mirror pen">🪞<span>Mirror</span></button>
           <button class="tool" data-tool="move"    title="Move everything">✋<span>Move</span></button>
+          <button class="tool" data-tool="select"  title="Drag a box around some pixels, then drag them anywhere. Esc clears it, Delete rubs it out.">⬚<span>Select</span></button>
+          <button class="tool" data-tool="pan"     title="Drag to move around the canvas. You can also hold Space, or drag with the middle mouse button, at any time.">🤚<span>Pan</span></button>
         </div>
+
+        <h2 class="panel-title">Brush size</h2>
+        <div class="brush-row" id="brushRow">
+          <input type="range" id="brushSize" min="1" max="8" step="1" value="1"
+                 title="How many pixels wide the brush paints" aria-label="Brush size" />
+          <span class="brush-val" id="brushVal">1</span>
+        </div>
+        <p class="brush-hint">Used by pencil, eraser, mirror, line, box and circle.</p>
 
         <h2 class="panel-title">Transform</h2>
         <div class="tool-grid transforms">

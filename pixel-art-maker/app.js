@@ -32,6 +32,18 @@
   const DEFAULT_TILE = 16;
   const DEFAULT_NAME = "my-art";
 
+  // See-through areas are drawn as a checkerboard. The switch flips it between
+  // a light and a dark pair — this is display only, the saved PNG stays transparent.
+  const CHECKER = {
+    light: ["#ffffff", "#eef0f3"],
+    dark:  ["#2b2b2b", "#1b1b1b"],
+  };
+  const ZOOM_MIN = 0.25, ZOOM_MAX = 12;
+  const ZOOM_STEP = 1.25;
+  const MAX_BRUSH = 8;
+  // Tools where a bigger brush makes sense (fill / picker / select / pan ignore it).
+  const BRUSH_TOOLS = ["pencil", "eraser", "mirror", "line", "rect", "ellipse"];
+
   // ---------- State ----------
   const state = {
     canvasW: DEFAULT_CANVAS,   // picture size in real pixels
@@ -45,6 +57,12 @@
     name: DEFAULT_NAME,        // sprite file name (editable title; used on export)
     color: "#ff4d6d",
     showGrid: true,
+    darkBg: false,             // see-through checkerboard: false = white, true = black
+    brush: 1,                  // brush size in tiles (square, 1..MAX_BRUSH)
+    zoom: 1,                   // 1 = fit the window; multiplies the fitted pixel size
+    panX: 0, panY: 0,          // canvas offset in screen px
+    sel: null,                 // rectangle selection {x, y, w, h} in grid tiles
+    float: null,               // pixels lifted out of the selection while dragging
     exportW: null,             // saved-picture size (defaults to canvas size)
     exportH: null,
     undo: [],
@@ -84,6 +102,148 @@
     return clamp(size, MIN_PIXEL, MAX_PIXEL);
   }
 
+  // ---------- Zoom & pan ----------
+  // fitPixelSize() is the "everything visible" size; zoom multiplies it. Panning is a
+  // plain translate on the wrapper, so it works the same whatever the zoom.
+  function recomputePixelSize() {
+    const base = fitPixelSize();
+    state.pixelSize = clamp(Math.round(base * state.zoom) || 1, 1, 96);
+  }
+
+  let previewScale = 0;   // set only while the press-and-hold preview is up
+
+  // animate = let the CSS transition run (used by the press-and-hold preview).
+  // Panning and zooming must be instant or they feel like they lag the pointer.
+  function applyTransform(animate) {
+    const wrap = $("canvasWrap");
+    const t = `translate(${Math.round(state.panX)}px, ${Math.round(state.panY)}px)`;
+    wrap.style.transition = animate ? "" : "none";
+    wrap.style.transform = previewScale ? `${t} scale(${previewScale})` : t;
+  }
+
+  // Keep at least a corner of the picture on screen so it can never be lost.
+  function clampPan() {
+    const area = document.querySelector(".canvas-area");
+    if (!area) return;
+    const limX = Math.max(80, area.clientWidth / 2 + canvas.width / 2 - 60);
+    const limY = Math.max(80, area.clientHeight / 2 + canvas.height / 2 - 60);
+    state.panX = clamp(state.panX, -limX, limX);
+    state.panY = clamp(state.panY, -limY, limY);
+  }
+
+  // anchor = {x, y} in client coords; the picture point under it stays put.
+  function setZoom(z, anchor) {
+    const next = clamp(z, ZOOM_MIN, ZOOM_MAX);
+    if (Math.abs(next - state.zoom) < 1e-4) return;
+    const before = state.pixelSize;
+    state.zoom = next;
+    recomputePixelSize();
+    const factor = before > 0 ? state.pixelSize / before : 1;
+    if (anchor) {
+      // The wrapper stays centred by the flex layout, so it grows about its own
+      // centre: a point d away from that centre ends up at d * factor.
+      const r = $("canvasWrap").getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      state.panX += (anchor.x - cx) * (1 - factor);
+      state.panY += (anchor.y - cy) * (1 - factor);
+    }
+    resizeCanvas();
+    clampPan();
+    applyTransform();
+    updateZoomLabel();
+  }
+  function zoomBy(mult, anchor) { setZoom(state.zoom * mult, anchor); }
+  function resetView() {
+    state.zoom = 1; state.panX = 0; state.panY = 0;
+    recomputePixelSize();
+    resizeCanvas();
+    applyTransform();
+    updateZoomLabel();
+  }
+  function updateZoomLabel() {
+    const el = $("zoomFitBtn");
+    if (el) el.textContent = Math.round(state.zoom * 100) + "%";
+  }
+
+  // ---------- Brush ----------
+  function brushApplies(tool) { return BRUSH_TOOLS.includes(tool); }
+
+  // A square brush, centred as well as an even size allows.
+  function brushCells(x, y) {
+    const n = brushApplies(state.tool) ? clamp(state.brush | 0, 1, MAX_BRUSH) : 1;
+    if (n <= 1) return [{ x, y }];
+    const off = Math.floor((n - 1) / 2);
+    const out = [];
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) out.push({ x: x - off + i, y: y - off + j });
+    return out;
+  }
+  function stamp(x, y, color) { for (const c of brushCells(x, y)) setPixel(c.x, c.y, color); }
+  function stampAll(points, color) { for (const p of points) stamp(p.x, p.y, color); }
+  // widen a preview path by the brush so what you see is what you get
+  function widen(points, color) {
+    const seen = new Set(), out = [];
+    for (const p of points) {
+      for (const c of brushCells(p.x, p.y)) {
+        const k = c.y * 4096 + c.x;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ x: c.x, y: c.y, color });
+      }
+    }
+    return out;
+  }
+
+  // ---------- Selection ----------
+  function normRect(x0, y0, x1, y1) {
+    const xa = clamp(Math.min(x0, x1), 0, state.w - 1), xb = clamp(Math.max(x0, x1), 0, state.w - 1);
+    const ya = clamp(Math.min(y0, y1), 0, state.h - 1), yb = clamp(Math.max(y0, y1), 0, state.h - 1);
+    return { x: xa, y: ya, w: xb - xa + 1, h: yb - ya + 1 };
+  }
+  function inRect(r, x, y) { return r && x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h; }
+
+  // Cut the selected pixels out of the picture so they can be dragged as one piece.
+  function liftSelection() {
+    const s = state.sel;
+    if (!s || state.float) return;
+    const cells = new Array(s.w * s.h).fill(null);
+    for (let y = 0; y < s.h; y++) {
+      for (let x = 0; x < s.w; x++) {
+        const gx = s.x + x, gy = s.y + y;
+        if (!inBounds(gx, gy)) continue;
+        cells[y * s.w + x] = state.data[idx(gx, gy)];
+        state.data[idx(gx, gy)] = null;
+      }
+    }
+    state.float = { x: s.x, y: s.y, w: s.w, h: s.h, cells };
+  }
+
+  // Put the dragged pixels back down wherever they ended up.
+  function dropFloat() {
+    const f = state.float;
+    if (!f) return;
+    for (let y = 0; y < f.h; y++) {
+      for (let x = 0; x < f.w; x++) {
+        const col = f.cells[y * f.w + x];
+        if (col === null) continue;              // keep see-through holes see-through
+        setPixel(f.x + x, f.y + y, col);
+      }
+    }
+    state.sel = { x: f.x, y: f.y, w: f.w, h: f.h };
+    state.float = null;
+  }
+
+  function clearSelection() {
+    if (state.float) dropFloat();
+    state.sel = null;
+  }
+  function deleteSelection() {
+    if (!state.sel) return;
+    pushUndo();
+    const s = state.sel;
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) setPixel(s.x + x, s.y + y, null);
+    render();
+  }
+
   // nearest-neighbour resample of the current grid into a new grid
   function resampleTo(newW, newH) {
     if (state.data.length !== state.w * state.h) return blankData(newW, newH);
@@ -107,14 +267,37 @@
     render();
   }
 
+  function checkerColor(x, y) {
+    const pair = state.darkBg ? CHECKER.dark : CHECKER.light;
+    return ((x + y) % 2 === 0) ? pair[0] : pair[1];
+  }
+
   function drawChecker() {
     const ps = state.pixelSize;
     for (let y = 0; y < state.h; y++) {
       for (let x = 0; x < state.w; x++) {
-        ctx.fillStyle = ((x + y) % 2 === 0) ? "#ffffff" : "#eef0f3";
+        ctx.fillStyle = checkerColor(x, y);
         ctx.fillRect(x * ps, y * ps, ps, ps);
       }
     }
+  }
+
+  // The dashed selection outline needs to read against both checkerboards, so it
+  // is drawn as a white dash on top of a dark one.
+  function drawSelection() {
+    const r = state.float ? state.float : state.sel;
+    if (!r) return;
+    const ps = state.pixelSize;
+    const x = r.x * ps, y = r.y * ps, w = r.w * ps, h = r.h * ps;
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(0,0,0,.75)";
+    ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    ctx.restore();
   }
 
   function render(preview) {
@@ -128,24 +311,39 @@
       }
     }
 
+    // pixels lifted out of a selection ride above the picture while they are dragged
+    const f = state.float;
+    if (f) {
+      for (let y = 0; y < f.h; y++) {
+        for (let x = 0; x < f.w; x++) {
+          const col = f.cells[y * f.w + x];
+          if (!col) continue;
+          const gx = f.x + x, gy = f.y + y;
+          if (!inBounds(gx, gy)) continue;
+          ctx.fillStyle = col;
+          ctx.fillRect(gx * ps, gy * ps, ps, ps);
+        }
+      }
+    }
+
     if (preview) {
       for (const p of preview) {
         if (!inBounds(p.x, p.y)) continue;
-        ctx.fillStyle = p.color === null
-          ? (((p.x + p.y) % 2 === 0) ? "#ffffff" : "#eef0f3")
-          : p.color;
+        ctx.fillStyle = p.color === null ? checkerColor(p.x, p.y) : p.color;
         ctx.fillRect(p.x * ps, p.y * ps, ps, ps);
       }
     }
 
     if (state.showGrid && ps >= 6) {
-      ctx.strokeStyle = "rgba(58,44,70,.10)";
+      ctx.strokeStyle = state.darkBg ? "rgba(255,255,255,.14)" : "rgba(58,44,70,.10)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = 0; x <= state.w; x++) { ctx.moveTo(x * ps + .5, 0); ctx.lineTo(x * ps + .5, canvas.height); }
       for (let y = 0; y <= state.h; y++) { ctx.moveTo(0, y * ps + .5); ctx.lineTo(canvas.width, y * ps + .5); }
       ctx.stroke();
     }
+
+    drawSelection();
   }
 
   // ============================================================
@@ -164,7 +362,8 @@
     state.canvasW = s.canvasW; state.canvasH = s.canvasH;
     state.exportW = s.exportW; state.exportH = s.exportH;
     state.data = s.data.slice();
-    state.pixelSize = fitPixelSize();
+    resetSelection();          // a snapshot has no selection to come back to
+    recomputePixelSize();
     resizeCanvas();
     updateTileButtons();
     updateStatus();
@@ -239,7 +438,10 @@
   //  Pointer interaction
   // ============================================================
   let drawing = false, startCell = null, lastCell = null;
+  let panning = false, panStart = null, selMode = null, spaceDown = false;
 
+  // getBoundingClientRect() already includes the pan/zoom transform, so this stays
+  // correct at any zoom without extra maths.
   function cellFromEvent(e) {
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left) / (rect.width / state.w));
@@ -248,8 +450,30 @@
   }
   function paintColor() { return state.tool === "eraser" ? null : state.color; }
 
+  function updateCursor() {
+    canvas.style.cursor =
+      panning ? "grabbing" :
+      (spaceDown || state.tool === "pan") ? "grab" :
+      state.tool === "picker" ? "copy" :
+      state.tool === "select" ? "cell" : "crosshair";
+  }
+
+  function startPan(e) {
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY, px: state.panX, py: state.panY };
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    updateCursor();
+  }
+  function movePan(e) {
+    state.panX = panStart.px + (e.clientX - panStart.x);
+    state.panY = panStart.py + (e.clientY - panStart.y);
+    clampPan(); applyTransform();
+  }
+
   function onDown(e) {
     e.preventDefault();
+    // Middle-drag or holding Space pans no matter which tool is chosen.
+    if (e.button === 1 || spaceDown || state.tool === "pan") { startPan(e); return; }
     const cell = cellFromEvent(e);
     const t = state.tool;
     if (t === "picker") {
@@ -257,42 +481,81 @@
       if (col) selectColor(col);
       return;
     }
+    if (t === "select") {
+      drawing = true; startCell = cell; lastCell = cell;
+      if (inRect(state.sel, cell.x, cell.y)) {
+        selMode = "move";
+        pushUndo();
+        liftSelection();          // cut the pixels out so they can ride with the pointer
+      } else {
+        selMode = "new";
+        clearSelection();
+        state.sel = normRect(cell.x, cell.y, cell.x, cell.y);
+      }
+      render();
+      return;
+    }
     drawing = true; startCell = cell; lastCell = cell; pushUndo();
-    if (t === "pencil" || t === "eraser") { setPixel(cell.x, cell.y, paintColor()); render(); }
-    else if (t === "mirror") { setPixel(cell.x, cell.y, paintColor()); setPixel(state.w - 1 - cell.x, cell.y, paintColor()); render(); }
+    if (t === "pencil" || t === "eraser") { stamp(cell.x, cell.y, paintColor()); render(); }
+    else if (t === "mirror") { stamp(cell.x, cell.y, paintColor()); stamp(state.w - 1 - cell.x, cell.y, paintColor()); render(); }
     else if (t === "fill") { floodFill(cell.x, cell.y, paintColor()); render(); drawing = false; }
   }
+
   function onMove(e) {
+    if (panning) { e.preventDefault(); movePan(e); return; }
     if (!drawing) return;
     e.preventDefault();
     const cell = cellFromEvent(e);
     const t = state.tool;
+    if (t === "select") {
+      if (selMode === "new") {
+        state.sel = normRect(startCell.x, startCell.y, cell.x, cell.y);
+      } else if (selMode === "move" && state.float) {
+        state.float.x += cell.x - lastCell.x;
+        state.float.y += cell.y - lastCell.y;
+        lastCell = cell;
+      }
+      render();
+      return;
+    }
     if (t === "pencil" || t === "eraser") {
-      for (const p of linePoints(lastCell.x, lastCell.y, cell.x, cell.y)) setPixel(p.x, p.y, paintColor());
+      stampAll(linePoints(lastCell.x, lastCell.y, cell.x, cell.y), paintColor());
       lastCell = cell; render();
     } else if (t === "mirror") {
       for (const p of linePoints(lastCell.x, lastCell.y, cell.x, cell.y)) {
-        setPixel(p.x, p.y, paintColor());
-        setPixel(state.w - 1 - p.x, p.y, paintColor());
+        stamp(p.x, p.y, paintColor());
+        stamp(state.w - 1 - p.x, p.y, paintColor());
       }
       lastCell = cell; render();
     } else if (t === "line") {
-      render(linePoints(startCell.x, startCell.y, cell.x, cell.y).map(p => ({ ...p, color: paintColor() })));
+      render(widen(linePoints(startCell.x, startCell.y, cell.x, cell.y), paintColor()));
     } else if (t === "rect") {
-      render(rectPoints(startCell.x, startCell.y, cell.x, cell.y).map(p => ({ ...p, color: paintColor() })));
+      render(widen(rectPoints(startCell.x, startCell.y, cell.x, cell.y), paintColor()));
     } else if (t === "ellipse") {
-      render(ellipsePoints(startCell.x, startCell.y, cell.x, cell.y).map(p => ({ ...p, color: paintColor() })));
+      render(widen(ellipsePoints(startCell.x, startCell.y, cell.x, cell.y), paintColor()));
     } else if (t === "move") {
       render(movedPreview(cell.x - startCell.x, cell.y - startCell.y));
     }
   }
+
   function onUp(e) {
+    if (panning) { panning = false; updateCursor(); return; }
     if (!drawing) return;
     const cell = cellFromEvent(e);
     const t = state.tool;
-    if (t === "line") for (const p of linePoints(startCell.x, startCell.y, cell.x, cell.y)) setPixel(p.x, p.y, paintColor());
-    else if (t === "rect") for (const p of rectPoints(startCell.x, startCell.y, cell.x, cell.y)) setPixel(p.x, p.y, paintColor());
-    else if (t === "ellipse") for (const p of ellipsePoints(startCell.x, startCell.y, cell.x, cell.y)) setPixel(p.x, p.y, paintColor());
+    if (t === "select") {
+      if (selMode === "new") {
+        const r = normRect(startCell.x, startCell.y, cell.x, cell.y);
+        // a plain click (no drag) means "put the selection away"
+        state.sel = (r.w === 1 && r.h === 1 && cell.x === startCell.x && cell.y === startCell.y) ? null : r;
+      } else if (selMode === "move") {
+        dropFloat();
+      }
+      selMode = null; drawing = false; render(); updateStatus(); return;
+    }
+    if (t === "line") stampAll(linePoints(startCell.x, startCell.y, cell.x, cell.y), paintColor());
+    else if (t === "rect") stampAll(rectPoints(startCell.x, startCell.y, cell.x, cell.y), paintColor());
+    else if (t === "ellipse") stampAll(ellipsePoints(startCell.x, startCell.y, cell.x, cell.y), paintColor());
     else if (t === "move") commitMove(cell.x - startCell.x, cell.y - startCell.y);
     drawing = false; render();
   }
@@ -332,6 +595,7 @@
     state.data = next; render();
   }
   function rotate(dir) {
+    clearSelection();
     pushUndo();
     const nw = state.h, nh = state.w;
     const next = new Array(nw * nh).fill(null);
@@ -344,11 +608,11 @@
     // rotating swaps the picture's width/height too
     let t = state.canvasW; state.canvasW = state.canvasH; state.canvasH = t;
     t = state.exportW; state.exportW = state.exportH; state.exportH = t;
-    state.pixelSize = fitPixelSize();
+    recomputePixelSize();
     resizeCanvas();
     updateStatus();
   }
-  function clearAll() { pushUndo(); state.data = blankData(state.w, state.h); render(); }
+  function clearAll() { pushUndo(); resetSelection(); state.data = blankData(state.w, state.h); render(); }
 
   // ============================================================
   //  Colors
@@ -381,8 +645,41 @@
   //  Tools UI
   // ============================================================
   function selectTool(tool) {
+    // leaving the select tool puts any dragged pixels down and drops the marquee
+    if (state.tool === "select" && tool !== "select") clearSelection();
+    // abandon anything half-drawn, so a late pointerup can't finish a stroke
+    // that was started with the previous tool
+    if (state.tool !== tool) { drawing = false; selMode = null; panning = false; }
     state.tool = tool;
     document.querySelectorAll(".tool[data-tool]").forEach(b => b.classList.toggle("selected", b.dataset.tool === tool));
+    updateBrushUI();
+    updateCursor();
+    if (!editor.classList.contains("hidden")) { render(); updateStatus(); }
+  }
+
+  function updateBrushUI() {
+    const on = brushApplies(state.tool);
+    const row = $("brushRow"), sl = $("brushSize"), val = $("brushVal");
+    if (sl) sl.disabled = !on;
+    if (row) row.classList.toggle("disabled", !on);
+    if (val) val.textContent = state.brush;
+  }
+  function setBrush(n) {
+    state.brush = clamp(n | 0, 1, MAX_BRUSH);
+    const sl = $("brushSize");
+    if (sl && +sl.value !== state.brush) sl.value = state.brush;
+    updateBrushUI();
+  }
+  function resetSelection() { state.sel = null; state.float = null; }
+
+  function setDarkBg(on) {
+    state.darkBg = !!on;
+    const b = $("bgBtn");
+    if (b) {
+      b.classList.toggle("active", state.darkBg);
+      b.textContent = state.darkBg ? "◑ See-through: Black" : "◐ See-through: White";
+    }
+    render();
   }
 
   // ============================================================
@@ -391,12 +688,13 @@
   // ============================================================
   function setTile(tile) {
     if (tile === state.tile) { updateTileButtons(); return; }
+    clearSelection();      // grid indices are about to change under it
     pushUndo();
     state.tile = tile;
     const g = gridFor(state.canvasW, state.canvasH, tile);
     state.data = resampleTo(g.w, g.h);
     state.w = g.w; state.h = g.h;
-    state.pixelSize = fitPixelSize();
+    recomputePixelSize();
     resizeCanvas();
     updateTileButtons();
     updateStatus();
@@ -413,7 +711,11 @@
   }
   function updateStatus() {
     const el = $("statusBar");
-    if (el) el.textContent = `${state.canvasW}×${state.canvasH} canvas · ${state.tile}px pixels · ${state.w}×${state.h} grid`;
+    if (!el) return;
+    let s = `${state.canvasW}×${state.canvasH} canvas · ${state.tile}px pixels · ${state.w}×${state.h} grid`;
+    const r = state.float || state.sel;
+    if (r) s += ` · selected ${r.w}×${r.h} — drag it, or press Delete`;
+    el.textContent = s;
   }
 
   // ============================================================
@@ -435,13 +737,15 @@
     // scale the art so it shows at its true size inside the game window
     const shown = state.w * state.pixelSize;                // current art display width
     const factor = shown > 0 ? (state.canvasW * s) / shown : 1;
-    $("canvasWrap").style.transform = `scale(${factor})`;
+    previewScale = factor;
+    applyTransform(true);
     area.classList.add("previewing");
   }
   function exitPreview() {
     if (!previewing) return;
     previewing = false;
-    $("canvasWrap").style.transform = "";
+    previewScale = 0;
+    applyTransform(true);
     document.querySelector(".canvas-area").classList.remove("previewing");
   }
 
@@ -453,13 +757,14 @@
     cw = clamp(cw | 0, 8, 4096);
     ch = clamp(ch | 0, 8, 4096);
     if (cw === state.canvasW && ch === state.canvasH) return;
+    clearSelection();
     pushUndo();
     state.canvasW = cw; state.canvasH = ch;
     const g = gridFor(cw, ch, state.tile);
     state.data = resampleTo(g.w, g.h);
     state.w = g.w; state.h = g.h;
     state.exportW = cw; state.exportH = ch;   // export default tracks the picture size
-    state.pixelSize = fitPixelSize();
+    recomputePixelSize();
     resizeCanvas();
     updateTileButtons();
     updateStatus();
@@ -542,6 +847,8 @@
     state.w = g.w; state.h = g.h;
     state.data = blankData(state.w, state.h);
     state.undo.length = 0; state.redo.length = 0;
+    resetSelection();
+    state.zoom = 1; state.panX = 0; state.panY = 0;
 
     // export size: query string wins, otherwise = the picture size
     state.exportW = opts.exportW ? clamp(opts.exportW | 0, 1, 8192) : state.canvasW;
@@ -551,11 +858,15 @@
 
     welcome.classList.add("hidden");
     editor.classList.remove("hidden");
-    state.pixelSize = fitPixelSize();   // measure after the editor is visible
+    recomputePixelSize();   // measure after the editor is visible
     resizeCanvas();
     updateTileButtons();
     updateStatus();
     updateHistoryButtons();
+    applyTransform();
+    updateZoomLabel();
+    setBrush(state.brush);
+    setDarkBg(state.darkBg);
     selectColor(state.color);
     selectTool("pencil");
   }
@@ -638,6 +949,21 @@
       $("gridBtn").classList.toggle("active", state.showGrid);
       render();
     });
+    $("bgBtn").addEventListener("click", () => setDarkBg(!state.darkBg));
+
+    // zoom + pan
+    $("zoomInBtn").addEventListener("click", () => zoomBy(ZOOM_STEP));
+    $("zoomOutBtn").addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
+    $("zoomFitBtn").addEventListener("click", resetView);
+    document.querySelector(".canvas-area").addEventListener("wheel", (e) => {
+      if (editor.classList.contains("hidden")) return;
+      e.preventDefault();
+      zoomBy(e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, { x: e.clientX, y: e.clientY });
+    }, { passive: false });
+
+    // brush size
+    $("brushSize").addEventListener("input", (e) => setBrush(+e.target.value));
+
     $("exportBtn").addEventListener("click", doDownload);
     $("canvasBtn").addEventListener("click", openCanvas);
     $("newBtn").addEventListener("click", () => { if (confirm("Start a new drawing? Your current one will be cleared.")) goToWelcome(); });
@@ -680,16 +1006,31 @@
     window.addEventListener("keydown", (e) => {
       if (editor.classList.contains("hidden")) return;
       if (e.target.tagName === "INPUT") return;
-      const map = { b: "pencil", e: "eraser", g: "fill", i: "picker", l: "line", r: "rect", c: "ellipse", m: "mirror", v: "move" };
+      const map = { b: "pencil", e: "eraser", g: "fill", i: "picker", l: "line", r: "rect", c: "ellipse", m: "mirror", v: "move", s: "select", h: "pan" };
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); return; }
+      if (e.code === "Space" && !spaceDown) { spaceDown = true; updateCursor(); e.preventDefault(); return; }
+      if (e.key === "Escape") { clearSelection(); render(); updateStatus(); return; }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (state.sel || state.float) { e.preventDefault(); if (state.float) dropFloat(); deleteSelection(); updateStatus(); }
+        return;
+      }
+      if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomBy(ZOOM_STEP); return; }
+      if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomBy(1 / ZOOM_STEP); return; }
+      if (e.key === "0") { e.preventDefault(); resetView(); return; }
       if (map[e.key.toLowerCase()]) selectTool(map[e.key.toLowerCase()]);
     });
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") { spaceDown = false; updateCursor(); }
+    });
+    window.addEventListener("blur", () => { spaceDown = false; updateCursor(); });
 
     window.addEventListener("resize", () => {
       if (editor.classList.contains("hidden")) return;
-      state.pixelSize = fitPixelSize();
+      recomputePixelSize();
       resizeCanvas();
+      clampPan();
+      applyTransform();
     });
   }
 

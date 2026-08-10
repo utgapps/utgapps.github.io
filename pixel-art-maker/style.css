@@ -168,6 +168,14 @@ html, body {
 .tileBtn.active { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-ink); }
 .tileBtn.active small { color: var(--brand-ink); }
 
+/* Zoom stepper — three buttons that read as one control */
+.zoom-group { display: flex; align-items: stretch; }
+.zoom-group .tbtn { border-radius: 0; margin-left: -1px; }
+.zoom-group .tbtn:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); margin-left: 0; }
+.zoom-group .tbtn:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.zbtn { font-size: 17px; line-height: 1; padding: 8px 12px; font-weight: 600; }
+.zlabel { min-width: 62px; text-align: center; font-variant-numeric: tabular-nums; font-size: 13px; }
+
 .workspace { flex: 1; display: grid; grid-template-columns: auto 1fr auto; min-height: 0; }
 
 .panel-title {
@@ -195,10 +203,23 @@ html, body {
 .tool.act:hover { background: var(--surface-2); }
 .tool.danger:hover { background: #fdecec; border-color: #f0b4b4; }
 
+/* Brush size slider */
+.brush-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.brush-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--brand); cursor: pointer; }
+.brush-val {
+  min-width: 26px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--brand-ink);
+  background: var(--brand-tint); border-radius: var(--radius-sm); padding: 3px 0;
+}
+.brush-row.disabled { opacity: .45; }
+.brush-row.disabled input[type="range"] { cursor: default; }
+.brush-row.disabled .brush-val { background: var(--surface-2); color: var(--muted); }
+.brush-hint { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0 2px 18px; }
+
 .canvas-area {
   position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 12px; padding: 22px; overflow: auto; min-width: 0;
+  gap: 12px; padding: 22px; overflow: hidden; min-width: 0;
   background:
     radial-gradient(680px 420px at 50% 0%, rgba(1,174,253,.06), transparent 70%),
     var(--bg);
@@ -333,4 +354,7 @@ html, body {
   .tileBtn small { display: none; }
   .tileBtn { padding: 6px 9px; }
   .status-bar { font-size: 11px; }
+  .brush-hint { display: none; }          /* the 96px rail has no room for it */
+  .brush-row { margin-bottom: 18px; }
+  .zlabel { min-width: 52px; }
 }
