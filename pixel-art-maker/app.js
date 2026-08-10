@@ -787,24 +787,50 @@
     const top = $("spriteName"); if (top && top.value !== state.name) top.value = state.name;
   }
 
-  // Save = download a transparent PNG straight away (no popup). The image is the
-  // canvas size; the file name is the editable sprite title (with .png added).
+  // The smallest box that still holds every coloured tile, or null on a blank
+  // picture. Used to trim the empty border off the saved PNG.
+  function contentBounds() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let y = 0; y < state.h; y++) {
+      for (let x = 0; x < state.w; x++) {
+        if (!state.data[idx(x, y)]) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return maxX < minX ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  }
+
+  // Save = download a transparent PNG straight away (no popup). The picture is
+  // cropped to the art, so the empty border around it is not saved; a blank
+  // picture falls back to the full canvas rather than a zero-sized file. The
+  // file name is the editable sprite title (with .png added).
   function doDownload() {
+    if (state.float) dropFloat();          // never save without pixels being dragged
     const ew = clamp(state.exportW || state.canvasW, 1, 8192);
     const eh = clamp(state.exportH || state.canvasH, 1, 8192);
+    const cw = ew / state.w, ch = eh / state.h;      // real pixels per tile
+
+    const box = contentBounds() || { x: 0, y: 0, w: state.w, h: state.h };
 
     const off = document.createElement("canvas");
-    off.width = ew; off.height = eh;
+    off.width = Math.max(1, Math.round(box.w * cw));
+    off.height = Math.max(1, Math.round(box.h * ch));
     const octx = off.getContext("2d");
     octx.imageSmoothingEnabled = false;
 
-    const cw = ew / state.w, ch = eh / state.h;
-    for (let y = 0; y < state.h; y++) for (let x = 0; x < state.w; x++) {
-      const col = state.data[idx(x, y)];
-      if (col) {
-        octx.fillStyle = col;
-        octx.fillRect(Math.floor(x * cw), Math.floor(y * ch), Math.ceil(cw) + 1, Math.ceil(ch) + 1);
-      }
+    // Each tile is filled from one exact boundary to the next, so tiles meet with
+    // no seam and no overlap. (Padding the size instead would smear a pixel of
+    // colour into any see-through tile next door.)
+    for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {
+      const col = state.data[idx(box.x + x, box.y + y)];
+      if (!col) continue;
+      const x0 = Math.floor(x * cw), x1 = Math.floor((x + 1) * cw);
+      const y0 = Math.floor(y * ch), y1 = Math.floor((y + 1) * ch);
+      octx.fillStyle = col;
+      octx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
     }
 
     const a = document.createElement("a");
