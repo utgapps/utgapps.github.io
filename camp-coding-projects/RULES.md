@@ -93,10 +93,15 @@ These are enforced automatically by `workbooks.py` so we never break them by acc
 - **Collision** is by bounding box: `get_collision(self, 'Class')` returns the object or
   `False`.
 - **Rooms = levels/screens.** Changing room destroys non-persistent objects. **A level is just
-  a room** — to add a level you add another room (see Platformer's `Level1` / `Level2`), point
-  the previous level's `Game.nextLevel` at it, and `set_room(Game.nextLevel)` on reaching the goal.
-- **Never call `set_room()` from a dying object's own `loop`** — it crashes the engine. Instead
-  set a `Game.dead = True` flag and do the `set_room('GameOver')` from `Game.loop` (proven safe).
+  a room** — to add a level you add another room (see Platformer's `Level1` / `Level2`) and point
+  the previous level's `Game.nextLevel` at it. On reaching the goal the hero sets a
+  `Game.goNext = True` flag; **`Game.loop` does the actual `set_room(Game.nextLevel)`** — see the
+  next rule for why the hero must not do it itself.
+- **Never call `set_room()` from an object's own `loop`** — the room change destroys that object
+  halfway through the step it is still executing, which crashes the engine. This applies to *any*
+  object the room change will destroy, not only a dying one. Always set a flag on `Game`
+  (`Game.dead = True`, `Game.goNext = True`) and do the `set_room()` from `Game.loop`, which is
+  persistent and therefore survives the switch (proven safe).
 - **Lives + a real GameOver room.** Where it makes sense a game tracks `Game.lives` and, on
   losing, switches to a separate **`GameOver` room** (not just on-screen text). Tapping there
   resets state and `set_room('Play')` (or `Level1`). Timer games (Whack-a-Mole, Cookie Clicker)

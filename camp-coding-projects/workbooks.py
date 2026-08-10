@@ -408,7 +408,7 @@ GAMES.append({
     ["t = text()","t.color = \"white\"","t.fontSize = 40","t.halign = \"center\"","t.text = 'GAME OVER - tap to play again'"]),
   SCORELINE(),
   S("GameOver","loop","Tap to play again: reset and go back to Play. Press Play!",
-    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.lives = 3","    set_room('Play')"], play=True),
+    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.lives = 3","    Game.spawnTimer = 0","    set_room('Play')"], play=True),
  ]})
 
 # --- 7) PONG ---------------------------------------------------------------
@@ -452,8 +452,10 @@ GAMES.append({
     ["Game.label.text = str(Game.you) + ' : ' + str(Game.cpu)","if Game.you > 4 or Game.cpu > 4:","    Game.dead = True"], play=True),
   S("Game","loop","When you lose, switch to the GameOver room. Press Play - lose to see it!",
     ["if self.dead:","    self.dead = False","    set_room('GameOver')"], play=True),
-  S("GameOver","start","In the GameOver room, show a big white message.",
-    ["t = text()","t.color = \"white\"","t.fontSize = 40","t.halign = \"center\"","t.text = 'GAME OVER - tap to play again'"]),
+  S("GameOver","start","In the GameOver room, show WIN if you got to 5 first, otherwise GAME OVER.",
+    ["t = text()","t.color = \"white\"","t.fontSize = 40","t.halign = \"center\"",
+     "if Game.you > 4:","    t.text = 'YOU WIN! - tap to play again'",
+     "if Game.cpu > 4:","    t.text = 'GAME OVER - tap to play again'"]),
   SCORELINE("'You ' + str(Game.you) + '   Cpu ' + str(Game.cpu)"),
   S("GameOver","loop","Tap to play a new match. Press Play - first to 5 wins!",
     ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.you = 0","    Game.cpu = 0","    set_room('Play')"], play=True),
@@ -735,8 +737,9 @@ GAMES.append({
     ["Game.lastX = 0","Game.pileY = -200","Game.blockW = 1.0","Game.mover = Mover()"], play=True),
   S("Mover","loop","Slide left and right, and shrink to the current block width. Press Play - back and forth!",
     ["self.x = self.x + self.moveSpeed","self.scaleX = Game.blockW","if self.x > 250:","    self.moveSpeed = -5","if self.x < -250:","    self.moveSpeed = 5"], play=True),
-  S("Slab","start","Add a Class called Slab. It takes the current width, then makes the NEXT block a bit smaller.",
-    ["self.image = sprite('slab.png')","self.scaleX = 90","self.scaleY = 24","self.scaleX = Game.blockW","Game.blockW = Game.blockW - 0.06"]),
+  S("Slab","start","Add a Class called Slab. It takes the current width, then makes the NEXT block a bit smaller - but never smaller than a third.",
+    ["self.image = sprite('slab.png')","self.scaleX = 90","self.scaleY = 24","self.scaleX = Game.blockW",
+     "Game.blockW = Game.blockW - 0.06","if Game.blockW < 0.3:","    Game.blockW = 0.3"]),
   S("Mover","loop","Tap to drop! If it lines up with the last block, stack it and score. Press Play - tap!",
     ["if mouse_was_pressed('left') or key_was_pressed(' '):","    near = self.x - Game.lastX < 60 and self.x - Game.lastX > -60",
      "    if near:","        s = Slab()","        s.x = self.x","        s.y = Game.pileY"], play=True),
@@ -840,8 +843,8 @@ GAMES.append({
  "title":"Platformer","slug":"platformer","classes":["Game","Sky","Hero","Platform","Goal"],"rooms":["Level1","Level2","GameOver"],
  "textures": tex({"hero.png":"green","platform.png":"brown","goal.png":"yellow","sky.png":"cyan"}),
  "steps":[
-  S("Game","start","Set up: a score, 3 lives, then go to the first level.",
-    ["self.score = 0","self.lives = 3","self.dead = False","set_room('Level1')"]),
+  S("Game","start","Set up: a score, 3 lives, a 'go to the next level' flag, then go to the first level.",
+    ["self.score = 0","self.lives = 3","self.dead = False","self.goNext = False","set_room('Level1')"]),
   S("Sky","start","Add a Class called Sky.",["self.image = sprite('sky.png')","self.scaleX = 760","self.scaleY = 560","self.z = -10"]),
   S("Level1","start","Level1 is a room - your first level! Make the sky. Press Play.",["Game.sky = Sky()"], play=True),
   S("Hero","start","Add a Class called Hero with gravity, a jump strength, a picture and size.",
@@ -865,8 +868,8 @@ GAMES.append({
     ["if self.y < -260:","    Game.lives = Game.lives - 1","    self.x = -280","    self.y = 0","    if Game.lives < 1: Game.dead = True"], play=True),
   S("Level1","start","Say which room comes next, and add a white label. Press Play.",
     ["Game.nextLevel = 'Level2'","Game.label = text()","Game.label.color = \"white\"","Game.label.y = 250","Game.label.text = 'Level 1'"], play=True),
-  S("Hero","loop","Touch the flag to score and go to the next level. Press Play - reach the flag!",
-    ["if get_collision(self, 'Goal'):","    Game.score = Game.score + 1","    set_room(Game.nextLevel)"], play=True),
+  S("Hero","loop","Touch the flag to score, and raise the flag that asks for the next level. Press Play - reach the flag!",
+    ["if get_collision(self, 'Goal') and not Game.goNext:","    Game.score = Game.score + 1","    Game.goNext = True"], play=True),
   S("Level1","loop","Keep the Level 1 label updated. Press Play.",
     ["Game.label.text = 'Level 1   Score: ' + str(Game.score) + '   Lives: ' + str(Game.lives)"], play=True),
   S("Level2","start","Level2 is ANOTHER room - that is how you add a level! Make the sky and hero. Press Play - finish Level 1 to see it!",
@@ -881,11 +884,13 @@ GAMES.append({
     ["Game.label.text = 'Level 2   Score: ' + str(Game.score) + '   Lives: ' + str(Game.lives)"], play=True),
   S("Game","loop","When you run out of lives, switch to the GameOver room. Press Play.",
     ["if self.dead:","    self.dead = False","    set_room('GameOver')"], play=True),
+  S("Game","loop","The GAME changes the level, not the hero - swapping rooms from inside the hero would delete it halfway through its own step.",
+    ["if self.goNext:","    self.goNext = False","    set_room(self.nextLevel)"], play=True),
   S("GameOver","start","In the GameOver room, show a big white message.",
     ["t = text()","t.color = \"white\"","t.fontSize = 40","t.halign = \"center\"","t.text = 'GAME OVER - tap to play again'"]),
   SCORELINE(),
   S("GameOver","loop","Tap to play again: reset and start back at Level 1. Press Play!",
-    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.lives = 3","    set_room('Level1')"], play=True),
+    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.lives = 3","    Game.goNext = False","    set_room('Level1')"], play=True),
  ]})
 
 # 19) COOKIE CLICKER (click-pop feedback + 2 stackable powerups; timer game-over)
@@ -904,7 +909,7 @@ GAMES.append({
     ["near = mouse_x() > self.x - 90 and mouse_x() < self.x + 90","close = mouse_y() > self.y - 90 and mouse_y() < self.y + 90",
      "if mouse_was_pressed('left') and near and close:","    Game.score = Game.score + Game.clickPower","    self.pop = 0.4"], play=True),
   S("Cookie","loop","Shrink the cookie back down so each click gives a little bounce. Press Play - squishy!",
-    ["if self.pop > 0:","    self.pop = self.pop - 0.05","    self.scaleX = 1 + self.pop","    self.scaleY = 1 + self.pop"], play=True),
+    ["if self.pop > 0:","    self.pop = self.pop - 0.05","if self.pop < 0:","    self.pop = 0","self.scaleX = 1 + self.pop","self.scaleY = 1 + self.pop"], play=True),
   S("Play","start","Add a white label.",["Game.label = text()","Game.label.color = \"white\"","Game.label.y = 250","Game.label.text = 'Cookies: 0'"], play=True),
   S("Play","loop","Show cookies, click power, and auto power. Press Play.",
     ["Game.label.text = 'Cookies: ' + str(Game.score) + '   Click: ' + str(Game.clickPower) + '   Auto: ' + str(Game.autoRate)"], play=True),
@@ -932,7 +937,7 @@ GAMES.append({
     ["t = text()","t.color = \"white\"","t.fontSize = 40","t.halign = \"center\"","t.text = 'TIME UP - tap to play again'"]),
   SCORELINE("'Cookies: ' + str(Game.score)"),
   S("GameOver","loop","Tap to play again: reset everything. Press Play!",
-    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.timeLeft = 1800","    Game.clickPower = 1","    Game.autoRate = 0","    set_room('Play')"], play=True),
+    ["if key_was_pressed(' ') or mouse_was_pressed('left'):","    Game.score = 0","    Game.timeLeft = 1800","    Game.clickPower = 1","    Game.autoRate = 0","    Game.bakeTimer = 0","    set_room('Play')"], play=True),
  ]})
 
 # 20) PAC-MAN
