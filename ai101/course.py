@@ -18,13 +18,16 @@ Each week carries:
 
 # The gateway students call. One line, one place.
 #
-# This is the Tailscale Serve address: HTTPS, so a page served from
-# https://utgapps.github.io is allowed to call it. The plain http:// LAN address
-# is NOT usable from the editor - browsers block http from an https page before
-# CORS is ever consulted, and no server-side setting can change that.
-# Fallback if Tailscale HTTPS certs stay unavailable: put a loopback forward on
-# each PC and use "http://localhost:8000" here (localhost is exempt from the
-# mixed-content rule).
+# This is the Tailscale Serve address, live and verified: a real Let's Encrypt
+# certificate, reachable anywhere on the tailnet, and the gateway's CORS and
+# private-network headers pass through the proxy intact.
+#
+# It has to be HTTPS. The plain http:// LAN address is NOT usable from the
+# editor - a page served over https is blocked from calling http before CORS is
+# ever consulted, and no server-side setting can change that.
+#
+# Started on the AI machine with:
+#   tailscale serve --bg --https=443 http://127.0.0.1:8000
 AI_BASE = "https://ai.tail5091fc.ts.net"
 
 COURSE_TITLE = "AI101 · Talk to the Machine"
@@ -212,9 +215,12 @@ WEEKS = [
  "bonus": {"title": "Give it a face", "body": "Add an emoji next to the title using a <span>, and make it bigger with CSS font-size. Try 48px."},
  "slides": [
   {"title": "What you are building", "sub": "An AI companion you write yourself", "bullets": ["It answers you", "It remembers the conversation", "It has a personality you choose", "By week 15 it is yours"]},
-  {"title": "A page is boxes inside boxes", "sub": "", "bullets": ["<main> is the big box", "<h1> is the title", "<div id=\"chat\"> is where messages will go", "<form> holds the input and the button"]},
-  {"title": "Three files", "sub": "", "bullets": ["index.html - the boxes", "style.css - what they look like", "script.js - what they do"]},
-  {"title": "Two buttons you will use every week", "sub": "", "bullets": ["Run - nothing happens until you press it", "Console - where your code talks to you"]},
+  {"title": "A page is boxes inside boxes", "sub": "", "bullets": ["<main> is the big box", "<h1> is the title", "<div id=\"chat\"> is where messages will go", "<form> holds the input and the button"],
+   "code": [(HTML, "shell"), (HTML, "chat"), (HTML, "composer"), (HTML, "close")]},
+  {"title": "Three files", "sub": "", "bullets": ["index.html - the boxes", "style.css - what they look like", "script.js - what they do"],
+   "code": [(CSS, "base"), (CSS, "layout"), (CSS, "composer")]},
+  {"title": "Two buttons you will use every week", "sub": "", "bullets": ["Run - nothing happens until you press it", "Console - where your code talks to you"],
+   "code": [(JS, "hello")]},
   {"title": "id = a name", "sub": "", "bullets": ["<div id=\"chat\">", "Next week JavaScript uses that name to find the box", "Names must be spelled exactly the same in both files"]},
   {"title": "Your turn", "sub": "Make it yours", "bullets": ["Change the title", "Change the colours", "Press Run"]},
  ],
@@ -303,9 +309,12 @@ WEEKS = [
  "slides": [
   {"title": "Last week: a page. This week: a page that reacts", "sub": "", "bullets": ["The button does nothing yet", "By the end of today it will answer you", "It will still not be AI - that is week 3"]},
   {"title": "PixelPad had a loop", "sub": "def loop(self): ...", "bullets": ["It ran 60 times a second", "You asked: did anything happen yet?", "You were in charge of the loop"]},
-  {"title": "The browser owns the loop", "sub": "addEventListener('submit', ...)", "bullets": ["You leave a note about what to do", "The browser calls you when it happens", "Same idea, opposite direction"]},
-  {"title": "Finding a box by name", "sub": "document.getElementById('chat')", "bullets": ["The id in HTML and the string in JS must match exactly", "Capital letters count", "Get this wrong and you get: Cannot read properties of null"]},
-  {"title": "value vs textContent", "sub": "", "bullets": ["promptBox.value - what someone typed IN", "line.textContent - the words shown ON the page"]},
+  {"title": "The browser owns the loop", "sub": "addEventListener('submit', ...)", "bullets": ["You leave a note about what to do", "The browser calls you when it happens", "Same idea, opposite direction"],
+   "code": [(JS, "submit")]},
+  {"title": "Finding a box by name", "sub": "document.getElementById('chat')", "bullets": ["The id in HTML and the string in JS must match exactly", "Capital letters count", "Get this wrong and you get: Cannot read properties of null"],
+   "code": [(JS, "elements")]},
+  {"title": "value vs textContent", "sub": "", "bullets": ["promptBox.value - what someone typed IN", "line.textContent - the words shown ON the page"],
+   "code": [(JS, "addline")]},
   {"title": "Your turn", "sub": "Get the echo working", "bullets": ["Type a message", "Press Send", "See it appear twice"]},
  ],
 },
@@ -380,9 +389,11 @@ WEEKS = [
  ],
  "bonus": {"title": "Show the models on the page", "body": "Instead of console.log, use addLine to print each model name into the chat box. You already have everything you need."},
  "slides": [
-  {"title": "Your key is you", "sub": "sk-class-your-name-xxxxxx", "bullets": ["It identifies you personally", "Two people on one key = one shared speed limit", "Do not put it in anything you share"]},
+  {"title": "Your key is you", "sub": "sk-class-your-name-xxxxxx", "bullets": ["It identifies you personally", "Two people on one key = one shared speed limit", "Do not put it in anything you share"],
+   "code": [(JS, "config")]},
   {"title": "An API is a front desk", "sub": "", "bullets": ["You never go in the kitchen", "You ask in the way they expect", "The answer comes back in a shape you can rely on"]},
-  {"title": "A request has two parts", "sub": "", "bullets": ["The address: /v1/models", "The name badge: Authorization: Bearer YOUR_KEY"]},
+  {"title": "A request has two parts", "sub": "", "bullets": ["The address: /v1/models", "The name badge: Authorization: Bearer YOUR_KEY"],
+   "code": [(JS, "models")]},
   {"title": "The internet is slow", "sub": "await = wait here for the answer", "bullets": ["Without await you carry on with nothing", "async marks a function that can be waited for"]},
   {"title": "Status codes", "sub": "", "bullets": ["200 - fine, here you go", "401 - I do not believe who you say you are", "404 - no such thing here"]},
   {"title": "Watch the Console", "sub": "", "bullets": ["-> GET /v1/models", "<- 200 in 84 ms", "That is your request leaving and coming back"]},
@@ -492,9 +503,11 @@ WEEKS = [
  "slides": [
   {"title": "A conversation is a list", "sub": "", "bullets": ["user: what is a comet?", "assistant: a ball of ice and dust...", "That list is literally what you send"]},
   {"title": "GET asks. POST sends.", "sub": "", "bullets": ["GET /v1/models - just an address", "POST /v1/chat/completions - an address AND a parcel"]},
-  {"title": "Packing the parcel", "sub": "JSON.stringify({ ... })", "bullets": ["model: which brain to use", "messages: the conversation so far", "Content-Type says what is inside"]},
+  {"title": "Packing the parcel", "sub": "JSON.stringify({ ... })", "bullets": ["model: which brain to use", "messages: the conversation so far", "Content-Type says what is inside"],
+   "code": [(JS, "ask")]},
   {"title": "Where the answer hides", "sub": "data.choices[0].message.content", "bullets": ["choices - a list of answers (you get one)", "[0] - the first one", "message.content - the actual words"]},
-  {"title": "Slow things need await", "sub": "", "bullets": ["const reply = await askAI(text)", "The listener has to be async too", "Forget it and you get [object Promise]"]},
+  {"title": "Slow things need await", "sub": "", "bullets": ["const reply = await askAI(text)", "The listener has to be async too", "Forget it and you get [object Promise]", "Delete the listModels() call - it has done its job"],
+   "code": [(JS, "submit"), (JS, "models")]},
   {"title": "Your turn", "sub": "Make it answer you", "bullets": ["Ask it something only you would ask", "Check whether the answer is actually true"]},
  ],
 },
@@ -615,8 +628,10 @@ WEEKS = [
   {"title": "Everyone press Send ten times", "sub": "Right now. Go.", "bullets": ["Someone will get 429", "That is today's lesson arriving on its own"]},
   {"title": "fetch is not a smoke alarm", "sub": "", "bullets": ["It is happy if the server answered AT ALL", "500 is an answer", "429 is an answer", "You have to check the number"]},
   {"title": "The three you will meet", "sub": "", "bullets": ["401 - I do not believe you are you", "429 - you are going too fast", "400 - I cannot use what you sent"]},
-  {"title": "res.ok", "sub": "if (!res.ok) { ... }", "bullets": ["true for 200-299", "false for everything from 400 up", "One line that turns silence into an explanation"]},
-  {"title": "try and catch", "sub": "", "bullets": ["try - attempt this", "catch - it shouted; here is what the user sees", "Without it, failure looks like nothing happening"]},
+  {"title": "res.ok", "sub": "if (!res.ok) { ... }", "bullets": ["true for 200-299", "false for everything from 400 up", "One line that turns silence into an explanation"],
+   "code": [(JS, "ask"), (JS, "explain")]},
+  {"title": "try and catch", "sub": "", "bullets": ["try - attempt this", "catch - it shouted; here is what the user sees", "Without it, failure looks like nothing happening"],
+   "code": [(JS, "submit"), (CSS, "bubbles")]},
   {"title": "40 requests a minute", "sub": "One graphics card, fifteen of you", "bullets": ["It is a queue, not a punishment", "Good software waits politely"]},
  ],
 },
@@ -732,9 +747,11 @@ WEEKS = [
  "slides": [
   {"title": "Same question. Two companions.", "sub": "Why?", "bullets": ["Nothing changed except one instruction", "That instruction is where a chatbot's character lives"]},
   {"title": "Three roles", "sub": "", "bullets": ["user - what you said", "assistant - what it said", "system - the note it reads before every reply"]},
-  {"title": "system is not part of the chat", "sub": "It is the rules of the chat", "bullets": ["Re-sent with every request", "The model reads it first, every time"]},
+  {"title": "system is not part of the chat", "sub": "It is the rules of the chat", "bullets": ["Re-sent with every request", "The model reads it first, every time"],
+   "code": [(JS, "ask")]},
   {"title": "Vague does nothing", "sub": "", "bullets": ["\"Be helpful\" - no visible change", "\"Under 40 words, one example, no jargon\" - obvious change", "Say exactly what you want"]},
-  {"title": "Behaviour became data", "sub": "The personality is in a textarea now", "bullets": ["Change it without touching code", "This idea shows up everywhere in software"]},
+  {"title": "Behaviour became data", "sub": "The personality is in a textarea now", "bullets": ["Change it without touching code", "This idea shows up everywhere in software"],
+   "code": [(HTML, "persona"), (CSS, "setup"), (JS, "elements")]},
   {"title": "Prompt duel", "sub": "In pairs, 10 minutes", "bullets": ["Write a secret character", "Swap. Ask three questions.", "Guess who it is"]},
  ],
 },
@@ -913,9 +930,14 @@ WEEKS = [
   {"title": "Tell it your name. Then ask.", "sub": "It has no idea.", "bullets": ["Try it right now", "Why?"]},
   {"title": "It is not forgetting", "sub": "It never knew", "bullets": ["Every request is a stranger reading a note", "The server stores nothing between messages", "So YOU have to keep the conversation"]},
   {"title": "How would you store 100 messages?", "sub": "Game.messageA, Game.messageB, Game.messageC...", "bullets": ["That is what PixelPad made you do", "It never let you have a list", "There is a better way"]},
-  {"title": "Your first array", "sub": "const history = []", "bullets": ["One name, any number of things inside", "push adds to the end", "Each item is { role, content }"]},
-  {"title": "Push BOTH sides", "sub": "", "bullets": ["history.push user - what you said", "history.push assistant - what it said", "Miss the second and it hears half a conversation"]},
-  {"title": "Tip them all in", "sub": "messages: [ system, ...history ]", "bullets": ["... means spread every item into the list", "Oldest first, newest last"]},
+  {"title": "Your first array", "sub": "const history = []", "bullets": ["One name, any number of things inside", "push adds to the end", "Each item is { role, content }"],
+   "code": [(JS, "history")]},
+  {"title": "Push BOTH sides", "sub": "", "bullets": ["history.push user - what you said", "history.push assistant - what it said", "Miss the second and it hears half a conversation"],
+   "code": [(JS, "submit")]},
+  {"title": "Tip them all in", "sub": "messages: [ system, ...history ]", "bullets": ["... means spread every item into the list", "Oldest first, newest last"],
+   "code": [(JS, "ask")]},
+  {"title": "Now make it look like a chat", "sub": "Bubbles instead of lines", "bullets": ["addLine builds a styled div now", "Your messages go right, its go left", "The chat box needs a height before it can scroll"],
+   "code": [(JS, "addline"), (CSS, "bubbles"), (CSS, "layout")]},
   {"title": "One problem", "sub": "This list grows forever", "bullets": ["What happens after 200 messages?", "Next week."]},
  ],
 },
@@ -1024,9 +1046,11 @@ WEEKS = [
  "slides": [
   {"title": "Paste three paragraphs. Send.", "sub": "400 context_length_exceeded", "bullets": ["A real limit, not a made-up exercise"]},
   {"title": "It re-reads everything, every time", "sub": "", "bullets": ["No memory on the server", "Longer chat = more work = slower", "4000 characters, whole conversation"]},
-  {"title": "Measure first", "sub": "Count before you cut", "bullets": ["Add up every message's length", "Watch the number climb", "Then decide what to do"]},
+  {"title": "Measure first", "sub": "Count before you cut", "bullets": ["Add up every message's length", "Watch the number climb", "Then decide what to do"],
+   "code": [(JS, "ask")]},
   {"title": "What do you throw away?", "sub": "There is no right answer", "bullets": ["Oldest? Shortest? Least interesting?", "That is what a trade-off means", "Most apps drop the oldest"]},
-  {"title": "shift and push", "sub": "", "bullets": ["push - add to the back", "shift - take from the front", "A queue, like the lunch line"]},
+  {"title": "shift and push", "sub": "", "bullets": ["push - add to the back", "shift - take from the front", "A queue, like the lunch line"],
+   "code": [(JS, "trim")]},
   {"title": "Watch it forget", "sub": "", "bullets": ["Chat until the Console says it forgot", "Ask about the beginning", "It genuinely does not know"]},
  ],
 },
@@ -1161,7 +1185,8 @@ WEEKS = [
   {"title": "Same question. Two answers.", "sub": "temperature 0 vs 1.4", "bullets": ["Which do you prefer?", "Better question: when would each be right?"]},
   {"title": "What temperature really is", "sub": "The model ranks every possible next word", "bullets": ["0 - always take the top one", "1.4 - often take a lower one", "That is genuinely all it is"]},
   {"title": "fast vs smart", "sub": "", "bullets": ["fast - about a second, a bit simple", "smart - slower, thinks better", "Both share one graphics card"]},
-  {"title": "Sliders give you text", "sub": "Number(tempBox.value)", "bullets": ["\"0.7\" is not 0.7", "Send the wrong one and you get a 400"]},
+  {"title": "Sliders give you text", "sub": "Number(tempBox.value)", "bullets": ["\"0.7\" is not 0.7", "Send the wrong one and you get a 400"],
+   "code": [(HTML, "controls"), (CSS, "controls"), (JS, "elements"), (JS, "settings"), (JS, "ask")]},
   {"title": "Change ONE thing", "sub": "The rule of a fair experiment", "bullets": ["fast / 0", "fast / 1.4", "smart / 0", "smart / 1.4"]},
   {"title": "Report back", "sub": "Evidence, not opinion", "bullets": ["\"smart is better\" - weak", "\"smart kept the 40-word rule, fast ignored it\" - strong"]},
  ],
@@ -1292,9 +1317,11 @@ WEEKS = [
  "slides": [
   {"title": "Which is better?", "sub": "", "bullets": ["A: nothing for 5 seconds, then everything", "B: starts in 0.5s, finishes in 6", "Most people say B. B is slower."]},
   {"title": "Fast vs feels fast", "sub": "", "bullets": ["The model writes one word at a time either way", "Non-streaming holds them all back", "Streaming hands them over as they appear"]},
-  {"title": "One word breaks everything", "sub": "stream: true", "bullets": ["res.json() stops working", "The body is no longer ONE object", "Good. Now look at what it actually is."]},
+  {"title": "One word breaks everything", "sub": "stream: true", "bullets": ["res.json() stops working", "The body is no longer ONE object", "Good. Now look at what it actually is."],
+   "code": [(JS, "ask")]},
   {"title": "What a stream looks like", "sub": "", "bullets": ["data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}", "data: {\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}", "data: [DONE]"]},
-  {"title": "Pieces get cut in half", "sub": "That is what the buffer is for", "bullets": ["Keep the unfinished piece", "Wait for the rest", "Then read it"]},
+  {"title": "Pieces get cut in half", "sub": "That is what the buffer is for", "bullets": ["Keep the unfinished piece", "Wait for the rest", "Then read it"],
+   "code": [(JS, "stream")]},
   {"title": "Today was plumbing", "sub": "It looks identical", "bullets": ["Next week it pays off"]},
  ],
 },
@@ -1463,8 +1490,10 @@ WEEKS = [
   {"title": "Four lines", "sub": "That is the difference from last week", "bullets": ["Watch it type", "Guess how much code changed", "You will guess too high"]},
   {"title": "Functions are values", "sub": "You can hand one to another function", "bullets": ["Like handing over instructions to follow later", "The other function decides WHEN to run them"]},
   {"title": "Who decides what to draw?", "sub": "", "bullets": ["readStream knows WHEN text arrives", "It does not know WHERE it should go", "So it calls a function it was given"]},
-  {"title": "The callback", "sub": "onPiece(answer)", "bullets": ["Called on every piece", "The submit handler decides it means 'update the bubble'", "readStream never needs to know that"]},
-  {"title": "Same time. Feels faster.", "sub": "", "bullets": ["You can start reading immediately", "Feeling fast is a real engineering goal"]},
+  {"title": "The callback", "sub": "onPiece(answer)", "bullets": ["Called on every piece", "The submit handler decides it means 'update the bubble'", "readStream never needs to know that"],
+   "code": [(JS, "stream"), (JS, "ask")]},
+  {"title": "Same time. Feels faster.", "sub": "", "bullets": ["You can start reading immediately", "Feeling fast is a real engineering goal"],
+   "code": [(JS, "submit"), (CSS, "polish")]},
   {"title": "Test the sad path", "sub": "Break your key and send", "bullets": ["Does the empty bubble get cleaned up?", "Always check what happens when it fails"]},
  ],
 },
@@ -1576,8 +1605,10 @@ WEEKS = [
  "slides": [
   {"title": "Have a great chat. Press Run.", "sub": "It is gone.", "bullets": ["Where did it go?", "It was only ever a variable"]},
   {"title": "Two shapes, one thing", "sub": "", "bullets": ["In memory: [{role:'user', content:'hi'}]", "As text: \"[{\\\"role\\\":\\\"user\\\"...\"", "Same information - one you can copy"]},
-  {"title": "You already do this", "sub": "JSON.stringify - every week since week 4", "bullets": ["It is how you send a request", "JSON.parse is just the way back"]},
-  {"title": "Anyone can paste anything", "sub": "", "bullets": ["try/catch around parse", "Check it is actually a list", "Valid JSON is not the same as useful data"]},
+  {"title": "You already do this", "sub": "JSON.stringify - every week since week 4", "bullets": ["It is how you send a request", "JSON.parse is just the way back"],
+   "code": [(HTML, "transcript"), (JS, "elements")]},
+  {"title": "Anyone can paste anything", "sub": "", "bullets": ["try/catch around parse", "Check it is actually a list", "Valid JSON is not the same as useful data"],
+   "code": [(JS, "transcript")]},
   {"title": "history.length = 0", "sub": "not history = []", "bullets": ["const means you cannot replace the array", "But you can empty it"]},
   {"title": "Break your partner's Load", "sub": "In pairs", "bullets": ["Paste rubbish", "Paste half a chat", "Paste a number", "Survive everything and you win"]},
  ],
@@ -1705,8 +1736,10 @@ WEEKS = [
  "slides": [
   {"title": "Four companions. One app.", "sub": "", "bullets": ["How many copies of askAI?", "One. Only the words change."]},
   {"title": "Data beats code", "sub": "", "bullets": ["Four buttons by hand = four nearly identical chunks", "Four personalities in an object = one chunk, any number", "One of the most useful ideas you will learn"]},
-  {"title": "An object as a lookup", "sub": "PRESETS['Storyteller']", "bullets": ["A name goes in, a personality comes out", "Same shape as { role, content } from week 7", "The labels are just character names now", "Object.keys gives you every label"]},
-  {"title": "Add a fifth character", "sub": "Watch what happens", "bullets": ["One new line in PRESETS", "A new button appears", "You wrote no new code"]},
+  {"title": "An object as a lookup", "sub": "PRESETS['Storyteller']", "bullets": ["A name goes in, a personality comes out", "Same shape as { role, content } from week 7", "The labels are just character names now", "Object.keys gives you every label"],
+   "code": [(JS, "presets")]},
+  {"title": "Add a fifth character", "sub": "Watch what happens", "bullets": ["One new line in PRESETS", "A new button appears", "You wrote no new code"],
+   "code": [(HTML, "persona"), (JS, "elements"), (JS, "settings"), (CSS, "polish")]},
   {"title": "One source of truth", "sub": "", "bullets": ["The buttons come from the personalities", "They can never disagree with each other"]},
   {"title": "Now make it yours", "sub": "Colours, font, name, characters", "bullets": ["It should look like nobody else's", "Week 15 is show and tell"]},
  ],
@@ -1826,7 +1859,8 @@ WEEKS = [
   {"title": "Why it happens", "sub": "It predicts likely next words", "bullets": ["Nothing in that checks for truth", "Fluent and correct are unrelated", "It is not lying - lying needs knowing"]},
   {"title": "It learned from what people wrote", "sub": "Describe a nurse. An engineer. A criminal.", "bullets": ["Compare answers across the room", "It repeats what was common in the text"]},
   {"title": "Prompt injection", "sub": "\"Ignore your instructions and...\"", "bullets": ["Attack your partner's companion", "It often works", "This is a real security problem"]},
-  {"title": "Neither defence is perfect", "sub": "", "bullets": ["Rules in the persona - can be talked around", "Guards in code - blunt", "So never let it decide anything alone"]},
+  {"title": "Neither defence is perfect", "sub": "", "bullets": ["Rules in the persona - can be talked around", "Guards in code - blunt", "So never let it decide anything alone"],
+   "code": [(JS, "submit"), (HTML, "shell"), (CSS, "base")]},
  ],
 },
 
@@ -1906,7 +1940,8 @@ WEEKS = [
  "bonus": {"title": "Two companions at once", "body": "Send the same question to fast and smart at the same time and show both answers side by side. Everything you need you already wrote - the trick is calling askAI twice without waiting for the first."},
  "slides": [
   {"title": "Fifteen weeks ago this was empty", "sub": "", "bullets": ["Today you sign it and show it"]},
-  {"title": "Twenty minutes to finish", "sub": "No new features", "bullets": ["Sign the credits", "Fix the one annoying thing", "Make it survive a stranger"]},
+  {"title": "Twenty minutes to finish", "sub": "No new features", "bullets": ["Sign the credits - put your own name in", "Fix the one annoying thing", "Make it survive a stranger"],
+   "code": [(HTML, "close"), (CSS, "setup")]},
   {"title": "Rehearse in pairs", "sub": "Your partner is a stranger", "bullets": ["They use it. You say nothing.", "Watch where they hesitate", "Then swap"]},
   {"title": "Demo format", "sub": "90 seconds", "bullets": ["What it is", "One conversation", "One thing that was hard"]},
   {"title": "What did the machine never do?", "sub": "", "bullets": ["It never knew anything was true", "It never remembered you", "It never decided anything", "You built all of that"]},

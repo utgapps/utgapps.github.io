@@ -96,6 +96,37 @@ def week_ops(week):
     return {(filename, block_id): kind for kind, filename, block_id, _ in week["ops"]}
 
 
+def block_code(week_n, filename, block_id):
+    """(first_line_number, lines, set_of_changed_line_numbers) for one block."""
+    start, end = block_spans(week_n)[filename][block_id]
+    lines = state_at(week_n)[filename].split("\n")[start - 1:end]
+    return start, lines, changed_lines(week_n)[filename]
+
+
+def snippet(week_n, refs):
+    """The actual code for a plan row, at real line numbers, changes in green.
+
+    A teacher should not have to hold the week page open in another tab to see
+    what "type the config" means. Showing the whole block with only the changed
+    lines highlighted also handles the awkward case - week 9 touches two lines
+    inside a thirty-line function, and the surrounding lines are the context
+    that makes the two make sense.
+    """
+    out = []
+    for filename, block_id in refs:
+        start, lines, marks = block_code(week_n, filename, block_id)
+        rows = []
+        for offset, line in enumerate(lines):
+            number = start + offset
+            cls = ' class="new"' if number in marks else ""
+            rows.append(f'<tr{cls}><td class="ln">{number}</td>'
+                        f'<td class="src">{esc(line) or "&nbsp;"}</td></tr>')
+        out.append(f'<div class="filebar"><span>{esc(filename)}</span>'
+                   f'<span class="muted">green = new this week</span></div>'
+                   f'<div class="code"><table>{"".join(rows)}</table></div>')
+    return "".join(out)
+
+
 def where(week, refs):
     """Human phrase for a plan row: which file, which lines, new or replacing."""
     spans, ops = block_spans(week["n"]), week_ops(week)
@@ -212,6 +243,9 @@ table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text
 table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
 table.plan td.code-ref{width:210px;font-size:12.5px;line-height:1.45}
+table.plan tr.snippet-row td{padding:0;border-top:0}
+table.plan tr.snippet-row .filebar{border-radius:0}
+table.plan tr.snippet-row .code{border-radius:0;max-height:none}
 table.plan td.code-ref b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
 ul.tight li{margin-bottom:5px}
 .say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
@@ -365,6 +399,9 @@ def build_teacher():
             cell = where(week, refs) if refs else '<span class="muted">no typing</span>'
             rows += (f'<tr><td class="t">{esc(moment)}</td><td>{esc(what)}</td>'
                      f'<td>{detail}</td><td class="code-ref">{cell}</td></tr>')
+            if refs:
+                rows += (f'<tr class="snippet-row"><td colspan="4">'
+                         f'{snippet(week["n"], refs)}</td></tr>')
 
         # An at-a-glance list of every edit the week makes, straight from the ops.
         typed = "".join(
@@ -460,6 +497,25 @@ The green lines are the ones added that week.</p>
     write("workbook.html", page("Student homework book", body))
 
 
+CODE_LINES_PER_SLIDE = 15   # beyond this the type is too small to read from the back
+
+
+def code_chunks(week_n, refs):
+    """[(filename, first_line, lines, changed)] split into slide-sized pieces.
+
+    A thirty-line function will not fit on one readable slide, so it becomes two
+    slides rather than shrinking to eight point. Line numbers keep running, so
+    a student can always match the slide against their own file.
+    """
+    chunks = []
+    for filename, block_id in refs:
+        start, lines, marks = block_code(week_n, filename, block_id)
+        for offset in range(0, len(lines), CODE_LINES_PER_SLIDE):
+            piece = lines[offset:offset + CODE_LINES_PER_SLIDE]
+            chunks.append((filename, start + offset, piece, marks))
+    return chunks
+
+
 def build_slides():
     try:
         from pptx import Presentation
@@ -469,32 +525,76 @@ def build_slides():
         print("  slides SKIPPED - run: pip install python-pptx")
         return 0
     os.makedirs(SLIDES_DIR, exist_ok=True)
-    brand = RGBColor(0x01, 0xAE, 0xFD)
-    ink = RGBColor(0x1F, 0x2A, 0x37)
+    BRAND = RGBColor(0x01, 0xAE, 0xFD)
+    INK = RGBColor(0x1F, 0x2A, 0x37)
+    PAPER = RGBColor(0xDC, 0xEC, 0xEF)
+    NEW = RGBColor(0x7F, 0xE0, 0xA0)
+    GUTTER = RGBColor(0x6D, 0x8C, 0x97)
+    DARK = RGBColor(0x10, 0x21, 0x27)
+
+    def concept_slide(deck, spec):
+        slide = deck.slides.add_slide(deck.slide_layouts[5])
+        slide.shapes.title.text = spec["title"]
+        run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
+        run.font.size, run.font.bold, run.font.color.rgb = Pt(38), True, INK
+        body = ([spec["sub"]] if spec.get("sub") else []) + spec.get("bullets", [])
+        if not body:
+            return
+        box = slide.shapes.add_textbox(Inches(0.9), Inches(2.0), Inches(11.5), Inches(4.6))
+        frame = box.text_frame
+        frame.word_wrap = True
+        for i, line in enumerate(body):
+            para = frame.paragraphs[0] if i == 0 else frame.add_paragraph()
+            is_bullet = line in spec.get("bullets", [])
+            para.text = ("• " + line) if is_bullet else line
+            para.runs[0].font.size = Pt(24 if is_bullet else 28)
+            para.runs[0].font.color.rgb = INK if is_bullet else BRAND
+            para.space_after = Pt(14)
+
+    def code_slide(deck, filename, start, lines, marks, part, parts):
+        """A dark, monospaced 'type this now' slide, matching the editor."""
+        slide = deck.slides.add_slide(deck.slide_layouts[6])   # blank
+        bg = slide.background.fill
+        bg.solid()
+        bg.fore_color.rgb = DARK
+
+        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.8))
+        label = f"Type this into {filename}"
+        if parts > 1:
+            label += f"  ({part} of {parts})"
+        head.text_frame.text = label
+        run = head.text_frame.paragraphs[0].runs[0]
+        run.font.size, run.font.bold, run.font.color.rgb = Pt(26), True, BRAND
+
+        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.15), Inches(12.2), Inches(5.9))
+        frame = box.text_frame
+        frame.word_wrap = False
+        size = Pt(17) if len(lines) <= 11 else Pt(14)
+        for i, line in enumerate(lines):
+            number = start + i
+            para = frame.paragraphs[0] if i == 0 else frame.add_paragraph()
+            para.space_after = Pt(0)
+            gutter = para.add_run()
+            gutter.text = f"{number:>4}  "
+            gutter.font.name, gutter.font.size, gutter.font.color.rgb = "Consolas", size, GUTTER
+            code = para.add_run()
+            code.text = line if line.strip() else " "
+            code.font.name, code.font.size = "Consolas", size
+            # green = new this week, matching the workbook and the week pages
+            code.font.color.rgb = NEW if number in marks else PAPER
+
     made = 0
     for week in course.WEEKS:
         deck = Presentation()
         deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
-        for slide_def in [{"title": f"Week {week['n']}", "sub": week["title"], "bullets": []}] + week["slides"]:
-            layout = deck.slide_layouts[5 if slide_def.get("bullets") else 5]
-            slide = deck.slides.add_slide(layout)
-            slide.shapes.title.text = slide_def["title"]
-            title_run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
-            title_run.font.size = Pt(38)
-            title_run.font.bold = True
-            title_run.font.color.rgb = ink
-            body_lines = ([slide_def["sub"]] if slide_def.get("sub") else []) + slide_def.get("bullets", [])
-            if body_lines:
-                box = slide.shapes.add_textbox(Inches(0.9), Inches(2.0), Inches(11.5), Inches(4.6))
-                frame = box.text_frame
-                frame.word_wrap = True
-                for i, line in enumerate(body_lines):
-                    para = frame.paragraphs[0] if i == 0 else frame.add_paragraph()
-                    para.text = ("• " + line) if slide_def.get("bullets") and line in slide_def["bullets"] else line
-                    run = para.runs[0]
-                    run.font.size = Pt(24 if line in slide_def.get("bullets", []) else 28)
-                    run.font.color.rgb = ink if line in slide_def.get("bullets", []) else brand
-                    para.space_after = Pt(14)
+        concept_slide(deck, {"title": f"Week {week['n']}", "sub": week["title"], "bullets": []})
+        for spec in week["slides"]:
+            concept_slide(deck, spec)
+            refs = spec.get("code")
+            if refs:
+                chunks = code_chunks(week["n"], refs)
+                for index, (filename, start, lines, marks) in enumerate(chunks, start=1):
+                    code_slide(deck, filename, start, lines, marks, index, len(chunks))
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
         made += 1
     return made
@@ -539,6 +639,17 @@ def main():
         ghosts = {ref for ref in cited if ref[0] not in FILES}
         if ghosts:
             raise SystemExit(f"week {week['n']}: plan cites unknown file(s) {sorted(ghosts)}")
+
+        # The deck is what is on the projector while students type, so every
+        # edit has to be on a slide too - not only in the teacher's own notes.
+        on_slides = {ref for spec in week["slides"] for ref in spec.get("code", [])}
+        unshown = touched - on_slides
+        if unshown:
+            raise SystemExit(
+                f"week {week['n']}: no slide shows "
+                + ", ".join(f"{f}:{b}" for f, b in sorted(unshown))
+                + " - add a \"code\" key to one of that week's slides"
+            )
         grew = line_count(state_at(week["n"])) - (line_count(state_at(week["n"] - 1)) if week["n"] > 1 else 0)
         print(f"  week {week['n']:2d}  +{grew:3d} lines  {week['title']}")
 
