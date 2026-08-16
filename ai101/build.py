@@ -96,6 +96,103 @@ def week_ops(week):
     return {(filename, block_id): kind for kind, filename, block_id, _ in week["ops"]}
 
 
+MAX_STEP_LINES = 6   # the PixelPad workbooks' rule, and it holds up here too
+
+# A trailing comma is NOT here on purpose: between two object properties it is a
+# natural place to stop, and without that askAI's fetch call has no legal break
+# point at all and lands as one fourteen-line wall.
+_OPENERS = ("{", "(", "[", "=>", "&&", "||", "+")
+_HEADERS = ("if", "for", "while", "function", "async", "try", "catch", "else", "return")
+
+
+def _is_code(line):
+    """Does this line count toward the six? Blanks and comments do not -
+    they are the explanation, not the thing a student has to get right."""
+    stripped = line.strip()
+    return bool(stripped) and not stripped.startswith("//") and not stripped.startswith("/*")
+
+
+def _depth_before(lines):
+    """Nesting depth at the start of each line, relative to the block."""
+    depth, out = 0, []
+    for line in lines:
+        code = line.split("//")[0]
+        out.append(depth)
+        depth += code.count("{") + code.count("(") + code.count("[")
+        depth -= code.count("}") + code.count(")") + code.count("]")
+    return out
+
+
+def _can_break_before(lines, index, depths, css):
+    """Never strand an `if` from its body, cut a half-finished expression, or
+    start a piece on a bare closing brace."""
+    if index == 0 or index >= len(lines):
+        return False
+
+    # A CSS rule is one idea to a beginner - never cut one open.
+    if css and depths[index] > 0:
+        return False
+
+    # Starting a chunk with "}," or "})" reads as gibberish on a slide.
+    following = lines[index].strip()
+    if following.startswith(("}", ")", "]")):
+        return False
+
+    previous = lines[index - 1].strip()
+    if not previous:
+        return True                       # a blank line is the nicest place to stop
+    if previous.endswith(_OPENERS):
+        return False
+    if previous.startswith("//"):
+        return False                      # a comment belongs with what it describes
+    first_word = previous.split("(")[0].split()[0] if previous.split() else ""
+    if first_word in _HEADERS and not previous.endswith((";", "}")):
+        return False
+    return True
+
+
+def chunk_block(lines, filename=""):
+    """Split a block into pieces of at most six code lines each.
+
+    Six is the cap the PixelPad workbooks use, and the reason is the same: past
+    that a student is copying rather than following. Split points are chosen so
+    an `if` never gets separated from the body it runs, a comment always travels
+    with the code it explains, a CSS rule is never cut open, and no piece opens
+    on a bare closing brace.
+
+    An indivisible run with no legal break point may exceed six - the same
+    allowance RULES.md makes for a single long `if` block.
+    """
+    css = filename.endswith(".css")
+    depths = _depth_before(lines)
+    chunks, current, code_count = [], [], 0
+    for index, line in enumerate(lines):
+        if code_count >= MAX_STEP_LINES and _can_break_before(lines, index, depths, css):
+            # A chunk should not END on blank lines - they introduce whatever
+            # comes next, so they travel forward rather than being dropped.
+            carry = []
+            while current and not current[-1].strip():
+                carry.insert(0, current.pop())
+            chunks.append(current)
+            current, code_count = list(carry), 0
+        current.append(line)
+        if _is_code(line):
+            code_count += 1
+    if current:
+        chunks.append(current)
+
+    # Fold any all-blank chunk into its neighbour so no line is ever lost.
+    merged = []
+    for chunk in chunks:
+        if merged and not any(line.strip() for line in chunk):
+            merged[-1].extend(chunk)
+        else:
+            merged.append(list(chunk))
+    assert [line for chunk in merged for line in chunk] == list(lines), \
+        "chunking lost or reordered lines"
+    return merged
+
+
 def block_code(week_n, filename, block_id):
     """(first_line_number, lines, set_of_changed_line_numbers) for one block."""
     start, end = block_spans(week_n)[filename][block_id]
@@ -103,45 +200,80 @@ def block_code(week_n, filename, block_id):
     return start, lines, changed_lines(week_n)[filename]
 
 
-def snippet(week_n, refs):
-    """The actual code for a plan row, at real line numbers, changes in green.
+def code_table(filename, start, lines, marks, ident=None, tag=""):
+    """One styled snippet: file chip, line range, the code, changes accented."""
+    rows = []
+    for offset, line in enumerate(lines):
+        number = start + offset
+        cls = ' class="new"' if number in marks else ""
+        rows.append(f'<tr{cls}><td class="ln">{number}</td>'
+                    f'<td class="src">{esc(line) or "&nbsp;"}</td></tr>')
+    end = start + len(lines) - 1
+    rng = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
+    copy = f'<button data-copy="{ident}">Copy</button>' if ident else ""
+    table_id = f' id="{ident}"' if ident else ""
+    return (f'<div class="snip"><div class="snip-head">'
+            f'<span class="file">{esc(filename)}</span><span class="rng">{rng}</span>'
+            f'<span class="tag">{tag}</span>{copy}</div>'
+            f'<div class="code"><table{table_id}>{"".join(rows)}</table></div></div>')
 
-    A teacher should not have to hold the week page open in another tab to see
-    what "type the config" means. Showing the whole block with only the changed
-    lines highlighted also handles the awkward case - week 9 touches two lines
-    inside a thirty-line function, and the surrounding lines are the context
-    that makes the two make sense.
+
+def render_ask(ask):
+    if not ask:
+        return ""
+    question, listening = ask
+    return (f'<div class="say"><b>Ask the room:</b> {esc(question)}'
+            f'<span class="listen">Listening for: {esc(listening)}</span></div>')
+
+
+def render_step(week, beat):
+    """A typing beat, broken into pieces of at most six code lines.
+
+    Each piece gets its own sentence of explanation, so the room stops and
+    talks roughly every half-dozen lines instead of copying twenty in silence.
     """
-    out = []
-    for filename, block_id in refs:
-        start, lines, marks = block_code(week_n, filename, block_id)
-        rows = []
-        for offset, line in enumerate(lines):
-            number = start + offset
-            cls = ' class="new"' if number in marks else ""
-            rows.append(f'<tr{cls}><td class="ln">{number}</td>'
-                        f'<td class="src">{esc(line) or "&nbsp;"}</td></tr>')
-        out.append(f'<div class="filebar"><span>{esc(filename)}</span>'
-                   f'<span class="muted">green = new this week</span></div>'
-                   f'<div class="code"><table>{"".join(rows)}</table></div>')
-    return "".join(out)
+    filename, block_id = beat["file"], beat["block"]
+    start, lines, marks = block_code(week["n"], filename, block_id)
+    chunks = chunk_block(lines, filename)
+    notes = beat.get("notes") or []
+
+    if len(notes) != len(chunks):
+        offsets, cursor = [], start
+        for chunk in chunks:
+            offsets.append(f"{cursor}-{cursor + len(chunk) - 1}")
+            cursor += len(chunk)
+        raise SystemExit(
+            f"week {week['n']} STEP {filename}:{block_id} splits into {len(chunks)} "
+            f"chunk(s) at lines {', '.join(offsets)}, but you wrote {len(notes)} note(s). "
+            f"Add one short note per chunk."
+        )
+
+    kind = week_ops(week).get((filename, block_id))
+    tag = {"add": "new this week", "set": "replaces what is there"}.get(kind, "already written")
+    pieces, cursor = [], start
+    for chunk, note in zip(chunks, notes):
+        pieces.append(code_table(filename, cursor, chunk, marks, tag=tag))
+        pieces.append(f'<p class="chunk-note">{note}</p>')
+        cursor += len(chunk)
+
+    at = f'<span class="at">{esc(beat["at"])}</span>' if beat.get("at") else ""
+    doing = "typed fresh" if kind == "add" else "replacing what is already there"
+    lead = f'<p class="step-lead">{esc(filename)} &middot; {doing}</p>'
+    return (f'<section class="beat step"><h4>{at}{esc(beat["title"])}</h4>{lead}'
+            f'{"".join(pieces)}{render_ask(beat.get("ask"))}</section>')
 
 
-def where(week, refs):
-    """Human phrase for a plan row: which file, which lines, new or replacing."""
-    spans, ops = block_spans(week["n"]), week_ops(week)
+def render_flow(week):
     out = []
-    for filename, block_id in refs:
-        start, end = spans[filename][block_id]
-        kind = ops.get((filename, block_id))
-        rng = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
-        if kind == "add":
-            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(new)</span>")
-        elif kind == "set":
-            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(replaces what is there)</span>")
+    for beat in week["flow"]:
+        if beat["kind"] == "step":
+            out.append(render_step(week, beat))
         else:
-            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(already written &mdash; just look at it)</span>")
-    return " &middot; ".join(out)
+            at = f'<span class="at">{esc(beat["at"])}</span>' if beat.get("at") else ""
+            body = "".join(f"<p>{para}</p>" for para in beat["body"])
+            out.append(f'<section class="beat"><h4>{at}{esc(beat["title"])}</h4>'
+                       f'{body}{render_ask(beat.get("ask"))}</section>')
+    return "".join(out)
 
 
 def changed_lines(upto):
@@ -223,15 +355,37 @@ h3{font-size:17px;margin:22px 0 8px}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
 .tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
 .tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
-.code{background:#102127;border-radius:0 0 8px 8px;overflow:auto;margin:0}
-.code table{border-collapse:collapse;width:100%;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.code td{padding:0 10px;white-space:pre;vertical-align:top}
-.code td.ln{width:1%;text-align:right;color:#4d6b76;user-select:none;background:rgba(255,255,255,.03)}
-.code td.src{color:#dcecef}
-.code tr.new td.src{background:rgba(55,169,93,.18)}
-.code tr.new td.ln{background:rgba(55,169,93,.28);color:#a9e8bf}
-.filebar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#16303a;color:#cfe3e8;padding:7px 12px;font-size:12px}
-.filebar button{border:1px solid #3c6272;background:transparent;color:#cfe3e8;border-radius:5px;padding:4px 9px;font:600 11px Rubik,sans-serif;cursor:pointer}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
 .note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
@@ -242,18 +396,17 @@ table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
 table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
 table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
-table.plan td.code-ref{width:210px;font-size:12.5px;line-height:1.45}
-table.plan tr.snippet-row td{padding:0;border-top:0}
-table.plan tr.snippet-row .filebar{border-radius:0}
-table.plan tr.snippet-row .code{border-radius:0;max-height:none}
-table.plan td.code-ref b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
 ul.tight li{margin-bottom:5px}
-.say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
 .say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
 @media print{
   @page{size:letter;margin:14mm}
   body{background:#fff}
-  header.site,.nav,.filebar button,.noprint{display:none}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
   .chapter{page-break-before:always;page-break-inside:avoid}
   .chapter:first-of-type{page-break-before:avoid}
   .card,.note,.warn,.bonus{page-break-inside:avoid}
@@ -302,16 +455,9 @@ def page(title, body, extra_js="", tool="ai101"):
 
 
 def code_block(filename, text, marks, ident):
-    """A file rendered with line numbers, this week's lines highlighted."""
-    rows = []
-    for i, line in enumerate(text.split("\n"), start=1):
-        cls = ' class="new"' if i in marks else ""
-        rows.append(f'<tr{cls}><td class="ln">{i}</td><td class="src">{esc(line) or "&nbsp;"}</td></tr>')
-    return (
-        f'<div class="filebar"><span>{esc(filename)}</span>'
-        f'<button data-copy="{ident}">Copy this file</button></div>'
-        f'<div class="code"><table id="{ident}">{"".join(rows)}</table></div>'
-    )
+    """A whole file rendered with line numbers, this week's lines accented."""
+    return code_table(filename, 1, text.split("\n"), marks,
+                      ident=ident, tag="green = new this week")
 
 
 def files_view(upto, ident_prefix):
@@ -392,17 +538,6 @@ def build_teacher():
     sections = []
     for week in course.WEEKS:
         spans = block_spans(week["n"])
-        rows = ""
-        for row in week["plan"]:
-            moment, what, detail = row[0], row[1], row[2]
-            refs = row[3] if len(row) > 3 else None
-            cell = where(week, refs) if refs else '<span class="muted">no typing</span>'
-            rows += (f'<tr><td class="t">{esc(moment)}</td><td>{esc(what)}</td>'
-                     f'<td>{detail}</td><td class="code-ref">{cell}</td></tr>')
-            if refs:
-                rows += (f'<tr class="snippet-row"><td colspan="4">'
-                         f'{snippet(week["n"], refs)}</td></tr>')
-
         # An at-a-glance list of every edit the week makes, straight from the ops.
         typed = "".join(
             '<tr><td><b>{f}</b></td><td>{r}</td><td>{k}</td></tr>'.format(
@@ -422,10 +557,6 @@ def build_teacher():
             'Work top to bottom and they will line up.</p></div>'
             if typed else '<div class="card"><strong>No new code this week.</strong></div>'
         )
-        asks = "".join(
-            f'<div class="say"><b>Ask:</b> {esc(q)}<br><span class="muted">Listening for: {esc(a)}</span></div>'
-            for q, a in week["ask"]
-        )
         errors = "".join(
             f"<li><strong>{esc(sym)}</strong> &mdash; {esc(fix)}</li>" for sym, fix in week["errors"]
         )
@@ -439,10 +570,8 @@ def build_teacher():
 <div class="card"><strong>They leave today able to:</strong>
 <ul class="tight">{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul></div>
 {typed_table}
-<h3>The hour</h3>
-<table class="plan"><tr><th>Time</th><th>What</th><th>How</th><th>Type this</th></tr>{rows}</table>
-<h3>Questions to throw at the room</h3>
-{asks}
+<h3>How the hour goes</h3>
+{render_flow(week)}
 <h3>What will go wrong</h3>
 <ul class="tight">{errors}</ul>
 {bonus}
@@ -629,16 +758,24 @@ def main():
         # Every edit must be pinned to a moment in the lesson, or the teacher is
         # left guessing when in the hour it happens.
         touched = {(filename, block_id) for _, filename, block_id, _ in week["ops"]}
-        cited = {ref for row in week["plan"] if len(row) > 3 for ref in row[3]}
+        cited = {(beat["file"], beat["block"]) for beat in week["flow"] if beat["kind"] == "step"}
         orphans = touched - cited
         if orphans:
             raise SystemExit(
-                f"week {week['n']}: no plan row says when to type "
+                f"week {week['n']}: no STEP in the flow types "
                 + ", ".join(f"{f}:{b}" for f, b in sorted(orphans))
             )
         ghosts = {ref for ref in cited if ref[0] not in FILES}
         if ghosts:
-            raise SystemExit(f"week {week['n']}: plan cites unknown file(s) {sorted(ghosts)}")
+            raise SystemExit(f"week {week['n']}: flow cites unknown file(s) {sorted(ghosts)}")
+
+        # A whole hour with nothing to say back is a lecture, not a lesson.
+        prompts = sum(1 for beat in week["flow"] if beat.get("ask"))
+        if prompts < 3:
+            raise SystemExit(
+                f"week {week['n']}: only {prompts} call-and-response prompt(s) in the flow; "
+                f"aim for at least 3 spread through the hour"
+            )
 
         # The deck is what is on the projector while students type, so every
         # edit has to be on a slide too - not only in the teacher's own notes.
