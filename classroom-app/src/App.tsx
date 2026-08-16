@@ -7,7 +7,7 @@ import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userCol
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
@@ -406,6 +406,43 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
 /* The teacher's view of an offline student's last save. This used to mount the
    iframe the instant a student was selected, so clicking down a roster of
    fifteen ran fifteen students' API-calling code from the teacher's browser. */
+/* Sharing publishes a snapshot at a link with no name in it. Re-pressing Share
+   is how you publish newer work, so the button says so rather than pretending
+   the link is live. */
+function ShareBox({ token, projectId, initialSlug }: { token: string; projectId: string; initialSlug: string | null }) {
+  const [slug, setSlug] = useState<string | null>(initialSlug);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  useEffect(() => { setSlug(initialSlug); setNote(""); }, [initialSlug, projectId]);
+  const link = slug ? `${window.location.origin}/${slug}/` : "";
+
+  async function share() {
+    setBusy(true);
+    try { setSlug(await apiShareProject(token, projectId)); setNote("Anyone with this link can see your project."); }
+    catch (error) { setNote((error as Error).message || "Could not make a link."); }
+    setBusy(false);
+  }
+  async function unshare() {
+    if (!window.confirm("Turn off the link? Anyone who has it will stop being able to open it.")) return;
+    setBusy(true);
+    try { await apiUnshareProject(token, projectId); setSlug(null); setNote("The link is switched off."); }
+    catch (error) { setNote((error as Error).message || "Could not switch the link off."); }
+    setBusy(false);
+  }
+
+  return <div className="share-box">
+    {slug ? <>
+      <input readOnly value={link} onFocus={(event) => event.target.select()} />
+      <button className="text-button" onClick={() => { navigator.clipboard?.writeText(link); setNote("Link copied."); }}>Copy</button>
+      <button className="text-button" disabled={busy} onClick={share}>Update</button>
+      <button className="text-button danger" disabled={busy} onClick={unshare}>Turn off</button>
+    </> : (
+      <button className="text-button" disabled={busy} onClick={share}>{busy ? "Working..." : "Share a link"}</button>
+    )}
+    {note && <span className="share-note">{note}</span>}
+  </div>;
+}
+
 function StaticPreview({ files, kind }: { files: Record<string, string>; kind: ProjectKind }) {
   const [nonce, setNonce] = useState("");
   if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
@@ -442,6 +479,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const titleRef = useRef<string>("My project");
   const kindRef = useRef<ProjectKind>("web");
   const epochRef = useRef<string>("");
+  const [shareSlug, setShareSlug] = useState<string | null>(null);
   const sessionRef = useRef<{ token: string; name: string; className: string; classId: string } | null>(null);
   const [files, setFiles] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<ProjectKind>("web");
@@ -542,6 +580,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     // save that overwrites good work with an empty document.
     apiTokenRef.current = session.token;
     setFiles(docToFiles(doc)); setTitle(project.title); setKind(project.kind);
+    setShareSlug(project.shareSlug ?? null);
     setStep("room"); setStatus("Your work is saved to your account.");
     announceProject();
   }
@@ -639,7 +678,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
 
   if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={openProject} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1>{savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}<p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter your student code and name. Sign in with the same name next time to return to your saved project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={backToPicker}>My projects</button><button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
+  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={backToPicker}>My projects</button><button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div>{accountToken && kind === "web" && <ShareBox token={accountToken} projectId={localProjectIdRef.current} initialSlug={shareSlug} />}<CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 
 function MediaPanel({ token }: { token: string }) {

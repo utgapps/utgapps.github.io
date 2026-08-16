@@ -22,10 +22,13 @@ CREATE TABLE IF NOT EXISTS projects (
   files      TEXT NOT NULL,                 -- JSON: { filename: contents }
   created_at INTEGER NOT NULL DEFAULT 0,    -- picker order; updated_at reshuffles on every autosave
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER                        -- soft delete, reaped after 30 days
+  deleted_at INTEGER,                       -- soft delete, reaped after 30 days
+  share_slug TEXT,                          -- NULL = private. No username in it, on purpose.
+  shared_at  INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_projects_account ON projects(account_id);
 CREATE INDEX IF NOT EXISTS idx_projects_account_updated ON projects(account_id, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_share_slug ON projects(share_slug);
 
 CREATE TABLE IF NOT EXISTS sessions (
   token      TEXT PRIMARY KEY,

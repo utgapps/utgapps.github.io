@@ -94,11 +94,84 @@ async function readJson(request, maxBytes = JSON_LIMIT) {
   catch { throw new HttpError("Invalid JSON."); }
 }
 
+/* ---- sharing ----------------------------------------------------------
+   A shared page is a static snapshot rendered from the project's own files.
+   Three rules it must never break:
+     1. No username anywhere in the slug or the page. A stranger who finds a
+        link learns what was built, not who built it.
+     2. API keys are stripped. A student's script.js has their class key in it
+        and the whole point of a share link is that other people read it.
+     3. The page is assembled here rather than in the browser, so the redaction
+        cannot be skipped by whoever is doing the rendering.
+   The <link>/<script src> resolution below intentionally mirrors
+   classroom-app/src/lib/preview.ts - change one, change the other. */
+
+const SLUG_RANDOM = "abcdefghjkmnpqrstuvwxyz23456789";   // no look-alike characters
+function shareSlug(title) {
+  const stem = String(title || "project").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32) || "project";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  let tail = "";
+  for (const byte of bytes) tail += SLUG_RANDOM[byte % SLUG_RANDOM.length];
+  return `${stem}-${tail}`;
+}
+
+/* Anything shaped like an API key goes. Deliberately broad - a false positive
+   costs a shared demo one working request, a false negative leaks a key. */
+function redactKeys(text) {
+  return String(text)
+    .replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-REDACTED-BEFORE-SHARING")
+    .replace(/\b(api[_-]?key|apikey|token|secret)(\s*[:=]\s*)(["'])(?:(?!\3).){8,}\3/gi,
+             (_m, name, mid, quote) => `${name}${mid}${quote}REDACTED${quote}`);
+}
+
+function resolveSharedPath(reference, fromDir) {
+  const raw = String(reference || "").trim().split(/[?#]/)[0];
+  if (!raw) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("//")) return null;
+  const out = raw.startsWith("/") ? [] : fromDir.split("/").filter(Boolean);
+  for (const part of raw.replace(/\\/g, "/").split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") { out.pop(); continue; }
+    out.push(part);
+  }
+  return out.join("/") || null;
+}
+function sharedAttr(tagText, name) {
+  const match = tagText.match(new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+  return match ? (match[2] ?? match[3] ?? match[4] ?? null) : null;
+}
+
+function assembleSharedPage(files) {
+  const source = files["index.html"];
+  if (source === undefined) return null;
+  const safe = {};
+  for (const name of Object.keys(files)) safe[name] = redactKeys(files[name]);
+
+  let html = safe["index.html"].replace(/<link\b[^>]*>/gi, (tag) => {
+    const rel = (sharedAttr(tag, "rel") || "").toLowerCase();
+    if (!rel.split(/\s+/).includes("stylesheet")) return tag;
+    const href = sharedAttr(tag, "href");
+    if (href === null) return tag;
+    const name = resolveSharedPath(href, "");
+    if (!name || !(name in safe)) return tag;
+    return `<style>${safe[name].replaceAll("</style", "<\\/style")}</style>`;
+  });
+  html = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (tag, attrs) => {
+    const src = sharedAttr(`<script${attrs}>`, "src");
+    if (src === null) return tag;
+    const name = resolveSharedPath(src, "");
+    if (!name || !(name in safe)) return tag;
+    return `<script>${safe[name].replaceAll("</script", "<\\/script")}<\/script>`;
+  });
+  return html;
+}
+
 function projectTitle(value) { return String(value || "My project").trim().slice(0, 80) || "My project"; }
 function projectKind(value) { return PROJECT_KINDS.includes(value) ? value : "web"; }
 /* Rows written before multi-project support have kind NULL and created_at 0. */
 function projectSummary(row) {
-  return { id: row.id, title: row.title, kind: projectKind(row.kind), size: row.size || 0, createdAt: row.created_at || row.updated_at, updatedAt: row.updated_at };
+  return { id: row.id, title: row.title, kind: projectKind(row.kind), size: row.size || 0, createdAt: row.created_at || row.updated_at, updatedAt: row.updated_at, shareSlug: row.share_slug || null };
 }
 function projectFull(row) {
   return { ...projectSummary({ ...row, size: row.files.length }), files: JSON.parse(row.files) };
@@ -426,6 +499,19 @@ export default {
         return account ? response(request, env, { ok: true }) : bad(request, env, "Not signed in.", 401);
       }
 
+      /* Public, deliberately: a share link has to work for someone with no
+         account. It returns an assembled, key-redacted page and nothing about
+         who made it - no account id, no name, no class. */
+      const sharedMatch = path.match(/^\/shared\/([A-Za-z0-9-]{3,64})$/);
+      if (sharedMatch && request.method === "GET") {
+        const row = await db.prepare("SELECT title, kind, files, updated_at FROM projects WHERE share_slug = ? AND deleted_at IS NULL").bind(sharedMatch[1]).first();
+        if (!row) throw new HttpError("That shared project is not there any more.", 404);
+        if (row.kind !== "web") throw new HttpError("Only web projects can be shared.", 404);
+        const html = assembleSharedPage(JSON.parse(row.files));
+        if (html === null) throw new HttpError("That project has no index.html to show.", 404);
+        return response(request, env, { title: row.title, html, updatedAt: row.updated_at });
+      }
+
       const me = await accountFromRequest(db, request);
       if (path === "/me") return me ? response(request, env, { account: publicAccount(me) }) : bad(request, env, "Not signed in.", 401);
 
@@ -478,7 +564,7 @@ export default {
       /* The list never carries files: at 750 KB a project, a class set would be
          megabytes on every visit to the picker. length() is computed in SQLite. */
       if (path === "/projects" && request.method === "GET") {
-        const rows = (await db.prepare("SELECT id, title, kind, created_at, updated_at, length(files) AS size FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC").bind(me.id).all()).results;
+        const rows = (await db.prepare("SELECT id, title, kind, created_at, updated_at, share_slug, length(files) AS size FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC").bind(me.id).all()).results;
         return response(request, env, { projects: rows.map(projectSummary) });
       }
       if (path === "/projects" && request.method === "POST") {
@@ -495,6 +581,31 @@ export default {
       /* Every per-id route scopes on account_id in the WHERE rather than checking
          ownership afterwards, and answers 404 rather than 403 - a guessed id must
          not confirm that somebody else's project exists. */
+      /* Sharing is off until a student turns it on, and revoking really revokes:
+         the slug is cleared, so the old link 404s rather than going stale. */
+      const shareMatch = path.match(/^\/projects\/([^/]+)\/share$/);
+      if (shareMatch) {
+        const row = await db.prepare("SELECT id, title, kind, share_slug FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(shareMatch[1], me.id).first();
+        if (!row) throw new HttpError("No such project.", 404);
+        if (request.method === "POST") {
+          if (row.kind !== "web") throw new HttpError("Only web projects can be shared.");
+          if (row.share_slug) return response(request, env, { slug: row.share_slug });
+          // Retry on the astronomically unlikely slug collision rather than 500.
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const slug = shareSlug(row.title);
+            try {
+              await db.prepare("UPDATE projects SET share_slug = ?, shared_at = ? WHERE id = ?").bind(slug, Date.now(), row.id).run();
+              return response(request, env, { slug });
+            } catch { /* UNIQUE clash - try another */ }
+          }
+          throw new HttpError("Could not make a share link. Try again.", 500);
+        }
+        if (request.method === "DELETE") {
+          await db.prepare("UPDATE projects SET share_slug = NULL, shared_at = NULL WHERE id = ?").bind(row.id).run();
+          return response(request, env, { ok: true });
+        }
+      }
+
       const projectMatch = path.match(/^\/projects\/([^/]+)$/);
       if (projectMatch) {
         const projectId = projectMatch[1];

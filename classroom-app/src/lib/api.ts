@@ -17,8 +17,9 @@ function accessDevice() {
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
 export type ProjectKind = "web" | "java";
 // The picker list deliberately carries no files - see the worker's GET /projects.
-export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number };
+export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null };
 export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
+export type ApiSharedProject = { title: string; html: string; updatedAt: number };
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {
   const headers: Record<string, string> = { "content-type": "application/json", "x-utg-access-device": accessDevice(), ...(opts.headers as Record<string, string>) };
@@ -67,6 +68,13 @@ export async function apiSaveProjectById(token: string, id: string, body: { titl
 }
 export async function apiDeleteProject(token: string, id: string): Promise<void> {
   await req(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" }, token);
+}
+/** Publish a snapshot at an unguessable link. Off until a student asks for it. */
+export async function apiShareProject(token: string, id: string): Promise<string> {
+  return (await req(`/projects/${encodeURIComponent(id)}/share`, { method: "POST" }, token)).slug;
+}
+export async function apiUnshareProject(token: string, id: string): Promise<void> {
+  await req(`/projects/${encodeURIComponent(id)}/share`, { method: "DELETE" }, token);
 }
 /* Leaving the tab must not lose up to 8 seconds of the autosave debounce.
    sendBeacon cannot set an Authorization header, so this is fetch + keepalive. */

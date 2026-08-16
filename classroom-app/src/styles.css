@@ -71,6 +71,11 @@ i.offline, .student i.offline { background: #aebcc0; }
 @media (max-width: 1050px) { .class-layout { grid-template-columns: 230px minmax(0,1fr); }.details { display: none; }.teacher-options { grid-template-columns: 1fr; }.editor-grid { grid-template-columns: 150px minmax(0,1fr); height: auto; }.filetree { grid-row: span 2; }.code-panel { height: 380px; border-right: 0; border-bottom: 1px solid #d4e0e3; }.preview-panel { height: 320px; } }
 @media (max-width: 680px) { .welcome { padding: 22px; }.teacher-entry { padding: 45px 0; }.class-banner, .workspace-top { align-items: flex-start; flex-direction: column; }.class-layout { display: block; }.roster { border-right: 0; border-bottom: 1px solid #dce5e8; }.student-list { grid-template-columns: repeat(2, minmax(0,1fr)); }.roster-footer { display: none; }.workspace { padding: 16px; }.room-header, .class-banner, .pending-strip { padding-left: 16px; padding-right: 16px; }.connection { font-size: 11px; }.student-project { padding: 16px; } }
 
+/* ---- share link ---- */
+.share-box { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; padding: 9px 12px; background: #f2fafc; border: 1px solid #cfe6ee; border-radius: 7px; font-size: 13px; }
+.share-box input { flex: 1; min-width: 220px; padding: 6px 9px; border: 1px solid #cbd9dd; border-radius: 5px; font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #fff; color: #23434e; }
+.share-note { color: #4d7a52; font-size: 12px; }
+
 /* ---- file tree ---- */
 /* Three columns now: the project's files, the editor, the running page. */
 .editor-grid { grid-template-columns: 190px minmax(0, 1.05fr) minmax(260px, .95fr); }

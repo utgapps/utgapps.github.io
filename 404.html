@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Shared student work. Never index it: the whole point of the random suffix
+     is that these pages are found by being given the link, not by searching. -->
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --brand:#01aefd; --ink:#1f2a37; --muted:#6b7787; --bg:#eef2f7; --border:#dbe3ec; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { display:flex; align-items:center; gap:12px; padding:12px 20px; background:#fff; border-bottom:1px solid var(--border); }
+  header img { height:24px; }
+  header .slash { color:#b8c8ce; }
+  header h1 { font-size:15px; margin:0; font-weight:700; }
+  header .by { margin-left:auto; color:var(--muted); font-size:12px; }
+  #stage { height:calc(100vh - 49px); }
+  #stage iframe { width:100%; height:100%; border:0; background:#fff; display:block; }
+  .msg { max-width:520px; margin:14vh auto; padding:0 22px; text-align:center; }
+  .msg h2 { font-size:24px; margin:0 0 10px; }
+  .msg p { color:var(--muted); margin:0 0 8px; }
+  .msg a { color:var(--brand); text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a>
+  <span class="slash">/</span>
+  <h1 id="title">Loading…</h1>
+  <span class="by">Made by a UTG Academy student</span>
+</header>
+<div id="stage"><div class="msg"><h2>Loading…</h2></div></div>
+
+<script>
+(function () {
+  var API = "https://utg-classroom-api.utgapps.workers.dev";
+  var stage = document.getElementById("stage");
+
+  function show(heading, detail) {
+    document.getElementById("title").textContent = "UTG Academy";
+    document.title = heading + " · UTG Academy";
+    stage.innerHTML = "";
+    var box = document.createElement("div");
+    box.className = "msg";
+    var h = document.createElement("h2"); h.textContent = heading; box.appendChild(h);
+    var p = document.createElement("p"); p.textContent = detail; box.appendChild(p);
+    var a = document.createElement("a"); a.href = "/"; a.textContent = "Go to UTG Academy →"; box.appendChild(a);
+    stage.appendChild(box);
+  }
+
+  // GitHub Pages serves this file for any path that is not a real file, which
+  // is what lets a share link look like a normal folder. The first path
+  // segment is the slug; there is no username in it by design.
+  var slug = (location.pathname.split("/").filter(Boolean)[0] || "");
+  if (!/^[A-Za-z0-9-]{3,64}$/.test(slug)) {
+    show("Page not found", "There is nothing at this address.");
+    return;
+  }
+
+  fetch(API + "/shared/" + encodeURIComponent(slug), { cache: "no-store" })
+    .then(function (res) {
+      if (res.status === 404) throw new Error("gone");
+      if (!res.ok) throw new Error("bad");
+      return res.json();
+    })
+    .then(function (data) {
+      document.getElementById("title").textContent = data.title || "Shared project";
+      document.title = (data.title || "Shared project") + " · UTG Academy";
+      // Sandboxed with no allow-same-origin: one student's shared code must not
+      // be able to read another visitor's storage on this domain. The worker has
+      // already stripped API keys and assembled the page.
+      var frame = document.createElement("iframe");
+      frame.setAttribute("sandbox", "allow-scripts");
+      frame.setAttribute("title", data.title || "Shared project");
+      frame.srcdoc = data.html;
+      stage.innerHTML = "";
+      stage.appendChild(frame);
+    })
+    .catch(function (err) {
+      if (err && err.message === "gone") show("This link is switched off", "The student who made this project turned the link off, or the project was deleted.");
+      else show("Page not found", "There is nothing at this address.");
+    });
+})();
+</script>
+</body>
+</html>
