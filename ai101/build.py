@@ -226,6 +226,36 @@ def render_ask(ask):
             f'<span class="listen">Listening for: {esc(listening)}</span></div>')
 
 
+def placement(week_n, filename, block_id, kind):
+    """Where in the file this block goes, said in a way you can act on.
+
+    A teacher works down the guide, but the guide's order is the order things
+    make sense in, not the order they sit in the file - week 5 teaches the
+    error check inside askAI and only then the explain() function that lives
+    above it. Line numbers alone do not help there, because they are the
+    end-of-week numbers and the file is still growing. Naming the neighbour
+    does: "goes just above function explain" is unambiguous at any point.
+    """
+    if kind == "set":
+        start, end = block_spans(week_n)[filename][block_id]
+        where = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
+        return (f"Already in <b>{esc(filename)}</b> at {where}. "
+                f"<b>Only the green lines change</b> &mdash; everything else stays exactly as it is.")
+
+    ordered = [bid for bid, _ in blocks_at(week_n)[filename]]
+    index = ordered.index(block_id)
+    if index == 0:
+        return f"New. Goes at the very top of <b>{esc(filename)}</b>, above everything else."
+    if index == len(ordered) - 1:
+        return f"New. Goes at the end of <b>{esc(filename)}</b>."
+    following = dict(blocks_at(week_n)[filename])[ordered[index + 1]]
+    anchor = next((line.strip() for line in following if line.strip()), "")
+    # Trim on a word boundary so the anchor never ends mid-word.
+    trimmed = esc(anchor) if len(anchor) <= 62 else esc(anchor[:62].rsplit(" ", 1)[0]) + "&hellip;"
+    return (f"New. Goes in <b>{esc(filename)}</b>, just above the line "
+            f"<code>{trimmed}</code>")
+
+
 def render_step(week, beat):
     """A typing beat, broken into pieces of at most six code lines.
 
@@ -252,13 +282,21 @@ def render_step(week, beat):
     tag = {"add": "new this week", "set": "replaces what is there"}.get(kind, "already written")
     pieces, cursor = [], start
     for chunk, note in zip(chunks, notes):
-        pieces.append(code_table(filename, cursor, chunk, marks, tag=tag))
-        pieces.append(f'<p class="chunk-note">{note}</p>')
+        last = cursor + len(chunk) - 1
+        touched = any(number in marks for number in range(cursor, last + 1))
+        if kind == "set" and not touched:
+            # Do not print twenty lines a student already has just to reach the
+            # six that changed. Say what is there, say to leave it, move on.
+            span = f"Line {cursor}" if cursor == last else f"Lines {cursor}&ndash;{last}"
+            pieces.append(f'<p class="unchanged"><b>{span} do not change</b> &mdash; '
+                          f'skip past them. <span class="muted">{note}</span></p>')
+        else:
+            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag))
+            pieces.append(f'<p class="chunk-note">{note}</p>')
         cursor += len(chunk)
 
     at = f'<span class="at">{esc(beat["at"])}</span>' if beat.get("at") else ""
-    doing = "typed fresh" if kind == "add" else "replacing what is already there"
-    lead = f'<p class="step-lead">{esc(filename)} &middot; {doing}</p>'
+    lead = f'<p class="step-lead">{placement(week["n"], filename, block_id, kind)}</p>'
     return (f'<section class="beat step"><h4>{at}{esc(beat["title"])}</h4>{lead}'
             f'{"".join(pieces)}{render_ask(beat.get("ask"))}</section>')
 
@@ -385,6 +423,8 @@ h3{font-size:17px;margin:22px 0 8px}
 .beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
 .beat p:last-child{margin-bottom:0}
 .chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
 .step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
 .note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}

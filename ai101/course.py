@@ -1271,7 +1271,7 @@ WEEKS = [
        "Then drop from the front until it fits. <code>shift</code> takes from the front the way <code>push</code> adds to the back - it is a queue, like the lunch line.",
   ], ask=("Why keep the last two messages no matter what?",
           "Otherwise it could throw away the question you just asked and answer nothing. Let someone work that out rather than telling them.")),
-  STEP(JS, "ask", "Call it before you send", notes=[
+  STEP(JS, "ask", "Call it before you send", at="0:36", notes=[
        "One new line at the very top of the function. It has to run before the request is built, not after.",
        "Everything below is unchanged.",
        "Still unchanged.",
@@ -1427,14 +1427,14 @@ WEEKS = [
        "<code>flex-wrap</code> so they drop onto two rows on a narrow screen instead of overflowing.",
        "Two more lines and it looks intentional.",
   ]),
-  STEP(JS, "elements", "Find the knobs", notes=[
+  STEP(JS, "elements", "Find the knobs", at="0:26", notes=[
        "Same pattern as always, two more lookups.",
        "And the third.",
   ]),
   STEP(JS, "settings", "Show the slider's value", notes=[
        "Without this the slider is a mystery - you can move it but never know where it is. <code>input</code> fires as it moves; <code>change</code> would only fire when they let go.",
   ]),
-  STEP(JS, "ask", "Read them when you send", notes=[
+  STEP(JS, "ask", "Read them when you send", at="0:30", notes=[
        "Unchanged to the top of the body.",
        "Still unchanged.",
        "Here. The model now comes from the dropdown, and the temperature from the slider. <code>Number()</code> matters: the page hands you the text \"0.7\", not the number 0.7.",
@@ -2329,7 +2329,9 @@ WEEKS = [
        "AI102 makes pictures, voices and video. Same server, same skills, and every line they wrote this term still applies.",
        ask=("What would you add with another five weeks?",
             "Collect the answers. Several of them will turn out to be AI102's syllabus, which is a satisfying way to finish.")),
-  TALK("0:58", "Save your work", "Everyone exports a backup and saves a favourite conversation before they leave."),
+  TALK("0:58", "No homework, and say so",
+       "There is nothing to set - the course is finished. Say that out loud, because a class that has had homework for fourteen weeks will assume you forgot.",
+       "Everyone exports a backup and saves a favourite conversation before they leave. Point them at the Share button if they want to show someone at home."),
  ],
  "errors": [
   ("It breaks during the demo", "Almost always a rate limit from everyone demoing at once. Say so out loud - it is a real production problem and they now know what a 429 is."),
