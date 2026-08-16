@@ -103,6 +103,34 @@ html:not(.utg-can-print) .printbtn{display:none}
      <a class="pill" href="workbook.html">Student homework book</a>
      <a class="pill" href="../classroom/">Open the code editor</a></p>
 </div>
+<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>
+<p><strong>The school AI only answers on the school network.</strong> The address in
+<code>AI_BASE</code> is a machine in this building. At home, on a phone, or on any network
+that is not the school's, requests to it will simply fail to connect - that is expected, and
+it is not a bug in anybody's code.</p>
+
+<p><strong>Everything here is written to the OpenAI standard.</strong> That is deliberate. The
+school server speaks the same request and response format that OpenAI's API does, so the code
+students write in this course is not throwaway - it is the same code a real product would use.</p>
+
+<p><strong>Swapping to your own OpenAI account takes three edits.</strong> We do not cover
+signing up, and it costs money, so nobody has to. But if you get your own key, this is all
+that changes:</p>
+<ol class="tight">
+  <li><code>AI_BASE</code> in <code>script.js</code> becomes <code>https://api.openai.com</code></li>
+  <li><code>API_KEY</code> in <code>script.js</code> becomes your own key</li>
+  <li>the two <code>value=""</code> model names in <code>index.html</code> become OpenAI's model
+      names, since <code>fast</code> and <code>smart</code> are this school's nicknames</li>
+</ol>
+<p>Nothing else moves. Same endpoint path, same headers, same message list, same
+<code>choices[0].message.content</code>, same streaming format, same status codes.</p>
+
+<p><strong>One honest warning.</strong> A key written into a web page can be read by anyone who
+opens that page. That is fine for a class key on a school network with a request limit and no
+bill attached. It is <em>not</em> fine for a personal key with your card behind it - real apps
+keep the key on a server and never send it to the browser. If a student swaps in their own
+paid key, tell them this first.</p>
+</div>
 <h2>The weeks</h2>
 <div class="grid"><a class="wk-card" href="week-01.html"><span class="n">Week 1</span><h3>The page</h3><p>A web page is a set of nested boxes you describe in HTML. Today you make the shape of your app and learn the two buttons you will press every week: Run and Console.</p></a><a class="wk-card" href="week-02.html"><span class="n">Week 2</span><h3>Making it react</h3><p>In PixelPad your loop() ran sixty times a second asking &#x27;did anything happen yet?&#x27;. The browser flips that around: you leave a note saying what to do, and it calls you when it happens. Today the Send button finally works.</p></a><a class="wk-card" href="week-03.html"><span class="n">Week 3</span><h3>What is an API?</h3><p>An API is a program&#x27;s front desk: you send a request in an agreed shape, you get an answer back in an agreed shape. Today you make your first request to a real server and prove you can reach it.</p></a><a class="wk-card" href="week-04.html"><span class="n">Week 4</span><h3>First conversation</h3><p>Today the pretend answer becomes a real one. A chat request is a list of messages, each with a role, and the model writes the next one.</p></a><a class="wk-card" href="week-05.html"><span class="n">Week 5</span><h3>When things break</h3><p>fetch does not throw when the server says no. A 429 looks like a success until you check. Today you make failure visible instead of mysterious.</p></a><a class="wk-card" href="week-06.html"><span class="n">Week 6</span><h3>Giving it a personality</h3><p>There is a third role. A system message is a standing instruction the model reads before every reply - it is where a chatbot&#x27;s whole character lives.</p></a><a class="wk-card" href="week-07.html"><span class="n">Week 7</span><h3>Memory</h3><p>Your companion has amnesia: ask &#x27;what did I just say?&#x27; and it has no idea. It only knows what you send. So send the whole conversation every time.</p></a><a class="wk-card" href="week-08.html"><span class="n">Week 8</span><h3>The 4000-character wall</h3><p>Every model has a limit on how much it can read at once. Ours is 4000 characters for the whole conversation. Today you hit a real engineering constraint and decide what to throw away.</p></a><a class="wk-card" href="week-09.html"><span class="n">Week 9</span><h3>Knobs</h3><p>Two settings change everything about how your companion feels: which brain it uses, and how adventurous it is allowed to be. Today you put both on the page and run experiments.</p></a><a class="wk-card" href="week-10.html"><span class="n">Week 10</span><h3>Why streaming</h3><p>ChatGPT does not think faster than your companion - it just starts showing you the answer while it is still being written. Today you switch to streaming and see the raw pieces arriving.</p></a><a class="wk-card" href="week-11.html"><span class="n">Week 11</span><h3>The typing effect</h3><p>The pieces are already arriving. Today you stop hoarding them and put each one on the screen the moment it lands - and your companion starts to feel alive.</p></a><a class="wk-card" href="week-12.html"><span class="n">Week 12</span><h3>Saving a chat</h3><p>Press Run and your whole conversation vanishes, because it only ever lived in a variable. Today you turn that list into text you can keep, and turn text back into a conversation.</p></a><a class="wk-card" href="week-13.html"><span class="n">Week 13</span><h3>Characters</h3><p>One companion is a demo. Several, chosen with a click, is a product. Today you store personalities as data and make the whole thing look finished.</p></a><a class="wk-card" href="week-14.html"><span class="n">Week 14</span><h3>When it is confidently wrong</h3><p>Your companion will state false things in exactly the same tone it states true ones. Today you find that out for yourselves, and then defend your own app against people trying to misuse it.</p></a><a class="wk-card" href="week-15.html"><span class="n">Week 15</span><h3>Demo day</h3><p>Fifteen weeks ago this was an empty file. Today you sign your work, show it to people, and explain how it works to someone who has never seen it.</p></a></div>
 </div>

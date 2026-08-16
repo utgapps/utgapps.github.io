@@ -97,16 +97,44 @@ html:not(.utg-can-print) .printbtn{display:none}
 <h1>AI101 &#183; Talk to the Machine</h1>
 <p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>The school AI only answers on the school network.</strong> The address in
+<code>AI_BASE</code> is a machine in this building. At home, on a phone, or on any network
+that is not the school's, requests to it will simply fail to connect - that is expected, and
+it is not a bug in anybody's code.</p>
+
+<p><strong>Everything here is written to the OpenAI standard.</strong> That is deliberate. The
+school server speaks the same request and response format that OpenAI's API does, so the code
+students write in this course is not throwaway - it is the same code a real product would use.</p>
+
+<p><strong>Swapping to your own OpenAI account takes three edits.</strong> We do not cover
+signing up, and it costs money, so nobody has to. But if you get your own key, this is all
+that changes:</p>
+<ol class="tight">
+  <li><code>AI_BASE</code> in <code>script.js</code> becomes <code>https://api.openai.com</code></li>
+  <li><code>API_KEY</code> in <code>script.js</code> becomes your own key</li>
+  <li>the two <code>value=""</code> model names in <code>index.html</code> become OpenAI's model
+      names, since <code>fast</code> and <code>smart</code> are this school's nicknames</li>
+</ol>
+<p>Nothing else moves. Same endpoint path, same headers, same message list, same
+<code>choices[0].message.content</code>, same streaming format, same status codes.</p>
+
+<p><strong>One honest warning.</strong> A key written into a web page can be read by anyone who
+opens that page. That is fine for a class key on a school network with a request limit and no
+bill attached. It is <em>not</em> fine for a personal key with your card behind it - real apps
+keep the key on a server and never send it to the browser. If a student swaps in their own
+paid key, tell them this first.</p>
+</div>
 <section class="chapter">
 <p class="eyebrow">Chapter 1</p>
 <h2>The page</h2>
 <p class="lead">A web page is a set of nested boxes you describe in HTML. Today you make the shape of your app and learn the two buttons you will press every week: Run and Console.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>HTML describes boxes inside boxes; the browser draws them.</li><li>CSS decides what those boxes look like.</li><li>An id is a name so JavaScript can find an element later.</li><li>console.log prints into the Console panel so you can see what your code is doing.</li><li>Nothing runs until you press Run.</li></ul>
+<ul class="tight"><li>HTML describes boxes inside boxes; the browser draws them.</li><li>CSS decides what those boxes look like.</li><li>A page does not know your other files exist until you tell it: &lt;link&gt; for CSS, &lt;script src&gt; for JavaScript.</li><li>The script tag goes at the BOTTOM, because a script cannot find a page that has not been made yet.</li><li>An id is a name so JavaScript can find an element later.</li><li>console.log prints into the Console panel so you can see what your code is doing.</li><li>Nothing runs until you press Run.</li></ul>
 <h3>Words to know</h3>
-<p><span class="pill">HTML element</span><span class="pill">tag</span><span class="pill">id</span><span class="pill">CSS rule</span><span class="pill">console.log</span><span class="pill">Run</span></p>
+<p><span class="pill">HTML element</span><span class="pill">tag</span><span class="pill">id</span><span class="pill">CSS rule</span><span class="pill">link</span><span class="pill">script src</span><span class="pill">console.log</span><span class="pill">Run</span></p>
 <h3>Challenges</h3>
-<div class="card"><strong>Challenge 1. Make it yours</strong><p style="margin:8px 0 0">Change the title to your companion&#x27;s name, and change the background and button colours in style.css to a set you actually like.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Run and the page looks like yours, not the example.</p></div><div class="card"><strong>Challenge 2. Add a subtitle</strong><p style="margin:8px 0 0">Add one more &lt;p&gt; under the title saying what your companion is for - a homework helper, a story writer, a joke machine.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The new line appears on the page after Run.</p></div><div class="card"><strong>Challenge 3. Break it on purpose, then fix it</strong><p style="margin:8px 0 0">Delete one closing tag and press Run. Write down what you see. Put it back. Delete a quote in the console.log line instead and Run. Write down what the Console says.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can describe, in your own words, what each break looked like.</p></div>
+<div class="card"><strong>Challenge 1. Make it yours</strong><p style="margin:8px 0 0">Change the title to your companion&#x27;s name, and change the background and button colours in style.css to a set you actually like.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Run and the page looks like yours, not the example.</p></div><div class="card"><strong>Challenge 2. Add a subtitle</strong><p style="margin:8px 0 0">Add one more &lt;p&gt; under the title saying what your companion is for - a homework helper, a story writer, a joke machine.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The new line appears on the page after Run.</p></div><div class="card"><strong>Challenge 3. Break it on purpose, then fix it</strong><p style="margin:8px 0 0">Delete one closing tag and press Run. Write down what you see. Put it back. Delete a quote in the console.log line instead and Run. Write down what the Console says.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can describe, in your own words, what each break looked like.</p></div><div class="card"><strong>Challenge 4. Move the script tag</strong><p style="margin:8px 0 0">Move the &lt;script src=&quot;script.js&quot;&gt; line to the very top of index.html, above everything. Press Run. Then put it back at the bottom. Write down what was different.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain in one sentence why the bottom is the right place.</p></div>
 <h3>Stuck?</h3>
 <p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
 The green lines are the ones added that week.</p>

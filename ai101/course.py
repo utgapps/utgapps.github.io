@@ -42,6 +42,35 @@ PROJECT_BLURB = (
     "and can be saved and reloaded. Plain HTML, CSS and JavaScript - no libraries."
 )
 
+DISCLAIMER = """
+<p><strong>The school AI only answers on the school network.</strong> The address in
+<code>AI_BASE</code> is a machine in this building. At home, on a phone, or on any network
+that is not the school's, requests to it will simply fail to connect - that is expected, and
+it is not a bug in anybody's code.</p>
+
+<p><strong>Everything here is written to the OpenAI standard.</strong> That is deliberate. The
+school server speaks the same request and response format that OpenAI's API does, so the code
+students write in this course is not throwaway - it is the same code a real product would use.</p>
+
+<p><strong>Swapping to your own OpenAI account takes three edits.</strong> We do not cover
+signing up, and it costs money, so nobody has to. But if you get your own key, this is all
+that changes:</p>
+<ol class="tight">
+  <li><code>AI_BASE</code> in <code>script.js</code> becomes <code>https://api.openai.com</code></li>
+  <li><code>API_KEY</code> in <code>script.js</code> becomes your own key</li>
+  <li>the two <code>value=""</code> model names in <code>index.html</code> become OpenAI's model
+      names, since <code>fast</code> and <code>smart</code> are this school's nicknames</li>
+</ol>
+<p>Nothing else moves. Same endpoint path, same headers, same message list, same
+<code>choices[0].message.content</code>, same streaming format, same status codes.</p>
+
+<p><strong>One honest warning.</strong> A key written into a web page can be read by anyone who
+opens that page. That is fine for a class key on a school network with a request limit and no
+bill attached. It is <em>not</em> fine for a personal key with your card behind it - real apps
+keep the key on a server and never send it to the browser. If a student swaps in their own
+paid key, tell them this first.</p>
+"""
+
 TEACHER_PREAMBLE = """
 <p><strong>Where students write code.</strong> The browser editor at
 <a href="../classroom/">/classroom/</a>. They sign in with the class student code, create a
@@ -102,7 +131,11 @@ HTML, CSS, JS = "index.html", "style.css", "script.js"
 # read a file that uses askAI, history and explain long before defining them.
 # A block missing from this list is an authoring error and build.py will say so.
 ORDER = {
-    HTML: ["shell", "persona", "controls", "chat", "composer", "transcript", "close"],
+    # The stylesheet link goes at the very top and the script tag after
+    # everything else, because the preview honours where they are put: a script
+    # above the page it talks to genuinely cannot find it.
+    HTML: ["stylelink", "shell", "persona", "controls", "chat", "composer",
+           "transcript", "close", "scripttag"],
     CSS:  ["base", "layout", "setup", "bubbles", "composer", "controls", "polish"],
     JS:   ["hello", "config", "elements", "history", "presets", "addline", "explain",
            "models", "trim", "stream", "ask", "settings", "submit", "transcript"],
@@ -115,14 +148,19 @@ WEEKS = [
  "n": 1,
  "title": "The page",
  "big_idea": "A web page is a set of nested boxes you describe in HTML. Today you make the shape of your app and learn the two buttons you will press every week: Run and Console.",
- "new_concepts": ["HTML element", "tag", "id", "CSS rule", "console.log", "Run"],
+ "new_concepts": ["HTML element", "tag", "id", "CSS rule", "link", "script src", "console.log", "Run"],
  "objectives": [
-   "Create a project in the classroom editor and find the three files",
+   "Create a project and add their own files to it",
    "Write HTML elements that nest inside each other",
+   "Link a stylesheet and load a script, and say why the script goes at the bottom",
    "Press Run and see their own page appear",
    "Print a message to the Console on purpose",
  ],
  "ops": [
+  ADD(HTML, "stylelink", [
+    '<link rel="stylesheet" href="style.css">',
+    '',
+  ]),
   ADD(HTML, "shell", [
     '<main class="app">',
     '  <header class="top">',
@@ -141,6 +179,10 @@ WEEKS = [
   ]),
   ADD(HTML, "close", [
     '</main>',
+  ]),
+  ADD(HTML, "scripttag", [
+    '',
+    '<script src="script.js"></script>',
   ]),
   ADD(CSS, "base", [
     'body {',
@@ -216,8 +258,18 @@ WEEKS = [
        "One line, easy to forget, and forgetting it is the most common reason a page comes out blank. Worth saying out loud now so it is not a mystery later.",
   ], ask=("I pressed Send and nothing happened. Is it broken?",
           "No - nobody has told the button what to do yet. That is next week. Let them sit with the incompleteness.")),
-  TALK("0:32", "Now make it stop being ugly",
-       "Switch to <code>style.css</code>. Before typing anything, change one number in front of them - the padding - and press Run so they see cause and effect immediately."),
+  TALK("0:30", "A project starts with one file, and that is on purpose",
+       "Look at the Files panel on the left. There is one file in there: <code>index.html</code>. No stylesheet, no JavaScript.",
+       "That is not the editor being unhelpful. On a real website you make those files yourself and tell the page about them, and that is what you are about to do.",
+       ask=("How does a page know a stylesheet exists?",
+            "Somebody told it. Nothing is automatic - and this is the misconception to kill now, because it causes silent failures all term.")),
+  TALK("0:33", "Make style.css",
+       "Press <strong>+ File</strong> in the Files panel and name it <code>style.css</code>. It appears in the list and opens, empty.",
+       "Then switch back to <code>index.html</code> - you have to tell the page it exists before it will do anything."),
+  STEP(HTML, "stylelink", "Tell the page about your stylesheet", notes=[
+       "One line at the very top. <code>rel</code> says what kind of thing it is; <code>href</code> is the file name, spelled exactly as it appears in the Files panel.",
+  ], ask=("What do you think happens if you spell the file name wrong here?",
+          "Nothing visible - which is the worst kind of bug. Show them: misspell it, Run, and read the red line in the Console that names the missing file.")),
   STEP(CSS, "base", "Colours for the whole page", notes=[
        "This is the background and the text colour for everything. Change the background to something loud, Run, change it back. Two seconds, and it makes the connection.",
   ]),
@@ -232,11 +284,21 @@ WEEKS = [
   TALK("0:44", "Two minutes to make it yours",
        "Let them change colours and sizes freely. This is the hook of the whole course - the first time it is <em>their</em> app rather than yours.",
        "Circulate and admire things. Do not correct taste."),
-  STEP(JS, "hello", "Make the page talk to you", at="0:48", notes=[
+  TALK("0:47", "Now make script.js the same way",
+       "<strong>+ File</strong> again, named <code>script.js</code>. Same as before: making the file is not enough, the page has to be told about it."),
+  STEP(HTML, "scripttag", "Load your script - at the bottom", notes=[
+       "After <code>&lt;/main&gt;</code>, not before it. This is the one placement rule worth memorising, and the next two minutes are about why.",
+  ]),
+  TALK("0:50", "Move it to the top and watch it break",
+       "Deliberately cut that line and paste it above <code>&lt;main&gt;</code>. Press Run.",
+       "Next week's code will fail outright when it is up there, because a script that runs before the page exists cannot find anything on it. Put it back at the bottom.",
+       ask=("Why does the same line work at the bottom and not at the top?",
+            "The browser reads top to bottom. At the top, the boxes have not been made yet. This one idea prevents a whole category of week-2 confusion.")),
+  STEP(JS, "hello", "Make the page talk to you", at="0:53", notes=[
        "Two lines in <code>script.js</code>. Press Run and point at the <strong>Console</strong> panel underneath the preview - that is where the message appears.",
   ], ask=("Where did that sentence go? It is not on the page.",
           "Into the Console. Establish now that the Console is for the programmer and the page is for the user - they will lean on this every week.")),
-  TALK("0:52", "Break it on purpose",
+  TALK("0:56", "Break it on purpose",
        "Everyone deletes one quote mark from that line and presses Run. Read the red error together.",
        "Do this now, deliberately, while nothing is at stake. A student who has seen a red error on purpose is far less likely to freeze when they see one by accident in week 4.",
        ask=("What is the Console telling you?",
@@ -251,6 +313,8 @@ WEEKS = [
  "recap": [
    "HTML describes boxes inside boxes; the browser draws them.",
    "CSS decides what those boxes look like.",
+   "A page does not know your other files exist until you tell it: <link> for CSS, <script src> for JavaScript.",
+   "The script tag goes at the BOTTOM, because a script cannot find a page that has not been made yet.",
    "An id is a name so JavaScript can find an element later.",
    "console.log prints into the Console panel so you can see what your code is doing.",
    "Nothing runs until you press Run.",
@@ -259,14 +323,19 @@ WEEKS = [
   {"task": "Make it yours", "detail": "Change the title to your companion's name, and change the background and button colours in style.css to a set you actually like.", "done": "You press Run and the page looks like yours, not the example."},
   {"task": "Add a subtitle", "detail": "Add one more <p> under the title saying what your companion is for - a homework helper, a story writer, a joke machine.", "done": "The new line appears on the page after Run."},
   {"task": "Break it on purpose, then fix it", "detail": "Delete one closing tag and press Run. Write down what you see. Put it back. Delete a quote in the console.log line instead and Run. Write down what the Console says.", "done": "You can describe, in your own words, what each break looked like."},
+  {"task": "Move the script tag", "detail": "Move the <script src=\"script.js\"> line to the very top of index.html, above everything. Press Run. Then put it back at the bottom. Write down what was different.", "done": "You can explain in one sentence why the bottom is the right place."},
  ],
  "bonus": {"title": "Give it a face", "body": "Add an emoji next to the title using a <span>, and make it bigger with CSS font-size. Try 48px."},
  "slides": [
   {"title": "What you are building", "sub": "An AI companion you write yourself", "bullets": ["It answers you", "It remembers the conversation", "It has a personality you choose", "By week 15 it is yours"]},
   {"title": "A page is boxes inside boxes", "sub": "", "bullets": ["<main> is the big box", "<h1> is the title", "<div id=\"chat\"> is where messages will go", "<form> holds the input and the button"],
    "code": [(HTML, "shell"), (HTML, "chat"), (HTML, "composer"), (HTML, "close")]},
+  {"title": "You make the other files yourself", "sub": "A project starts with just index.html", "bullets": ["+ File in the Files panel", "style.css - what things look like", "script.js - what things do", "Making the file is not enough. The page has to be told."],
+   "code": [(HTML, "stylelink")]},
   {"title": "Three files", "sub": "", "bullets": ["index.html - the boxes", "style.css - what they look like", "script.js - what they do"],
    "code": [(CSS, "base"), (CSS, "layout"), (CSS, "composer")]},
+  {"title": "The script goes at the BOTTOM", "sub": "", "bullets": ["The browser reads top to bottom", "At the top, the boxes do not exist yet", "A script cannot find a page that has not been made", "Move it up, press Run, watch it break"],
+   "code": [(HTML, "scripttag")]},
   {"title": "Two buttons you will use every week", "sub": "", "bullets": ["Run - nothing happens until you press it", "Console - where your code talks to you"],
    "code": [(JS, "hello")]},
   {"title": "id = a name", "sub": "", "bullets": ["<div id=\"chat\">", "Next week JavaScript uses that name to find the box", "Names must be spelled exactly the same in both files"]},
@@ -398,6 +467,9 @@ WEEKS = [
     "",
     "// Week 3: where the AI lives, and who you are.",
     "// The key identifies YOU. Two people using one key share one speed limit.",
+    "//",
+    "// This address only works on the school network. To run this at home you",
+    "// change these two lines and the model names in index.html - nothing else.",
     "const AI_BASE = '" + AI_BASE + "';",
     "const API_KEY = 'sk-class-put-your-own-key-here';",
   ]),
@@ -433,6 +505,12 @@ WEEKS = [
   STEP(JS, "config", "Where the AI lives, and who you are", at="0:24", notes=[
        "Two constants at the top of the file. Everyone types their <em>own</em> key. Retyping it by hand beats pasting - a copied space at the end causes a 401 that looks like nothing at all.",
   ]),
+  TALK("0:30", "Say the two things about this address",
+       "First: <strong>it only works at school.</strong> That machine is in this building. At home it will not connect, and that is expected rather than broken - somebody will try it tonight, so say it now.",
+       "Second: <strong>the code is not throwaway.</strong> This server speaks the same format as OpenAI's, on purpose. If they ever get their own OpenAI key, they change this line, the key line, and the two model names in index.html. Nothing else moves.",
+       "Do not teach signing up, and do not imply anyone should - it costs money. Just make it clear the skill transfers.",
+       ask=("If a key sits in a web page, who can read it?",
+            "Anyone who opens the page. Fine for a class key with a request limit and no bill. Not fine for a personal card-backed key - real apps keep it on a server. Say this before anyone goes home and tries it.")),
   STEP(JS, "models", "Ask the server what it has", notes=[
        "The smallest useful request there is. <code>async</code> marks a function that does something slow; <code>await</code> is where it waits.",
        "That last line actually runs it. Press Run, then look at the Console: a <code>&rarr; GET</code> line going out, a <code>&larr; 200</code> coming back, and then the list.",
@@ -472,6 +550,9 @@ WEEKS = [
   {"title": "A request has two parts", "sub": "", "bullets": ["The address: /v1/models", "The name badge: Authorization: Bearer YOUR_KEY"],
    "code": [(JS, "models")]},
   {"title": "The internet is slow", "sub": "await = wait here for the answer", "bullets": ["Without await you carry on with nothing", "async marks a function that can be waited for"]},
+  {"title": "This address only works at school", "sub": "", "bullets": ["That machine is in this building", "At home it will not connect - that is expected", "But the code is not throwaway"]},
+  {"title": "Same format as OpenAI", "sub": "On purpose", "bullets": ["Got your own OpenAI key? Change AI_BASE", "Change API_KEY", "Change the two model names in index.html", "Nothing else moves"]},
+  {"title": "A key in a web page is public", "sub": "", "bullets": ["Anyone who opens the page can read it", "Fine for a class key: limited, no bill", "NOT fine for a personal paid key", "Real apps keep the key on a server"]},
   {"title": "Status codes", "sub": "", "bullets": ["200 - fine, here you go", "401 - I do not believe who you say you are", "404 - no such thing here"]},
   {"title": "Watch the Console", "sub": "", "bullets": ["-> GET /v1/models", "<- 200 in 84 ms", "That is your request leaving and coming back"]},
  ],
@@ -1249,6 +1330,7 @@ WEEKS = [
  "ops": [
   ADD(HTML, "controls", [
     '  <div class="controls">',
+    '    <!-- The two value="" names are the only model names in the project. -->',
     '    <label>Brain',
     '      <select id="model">',
     '        <option value="fast">fast &ndash; quick, a bit simple</option>',

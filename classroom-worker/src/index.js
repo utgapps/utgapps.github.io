@@ -103,9 +103,20 @@ function projectSummary(row) {
 function projectFull(row) {
   return { ...projectSummary({ ...row, size: row.files.length }), files: JSON.parse(row.files) };
 }
-/* Shared by the legacy /project PUT and the per-id PUT so the size rule is stated once. */
+/* Shared by the legacy /project PUT and the per-id PUT so the size rule is stated once.
+   Paths are checked here as well as in the editor: the editor's check is there to
+   give a helpful message, this one is there because anything can call the API. */
+const MAX_PROJECT_FILES = 40;
+const PATH_OK = /^(?!\/)(?!.*\/\/)(?!.*(^|\/)\.\.?(\/|$))[A-Za-z0-9._/-]{1,120}$/;
 function projectFilesJson(files) {
   if (!files || typeof files !== "object" || Array.isArray(files)) throw new HttpError("Missing project files.");
+  const names = Object.keys(files);
+  if (names.length > MAX_PROJECT_FILES) throw new HttpError(`A project can hold at most ${MAX_PROJECT_FILES} files.`);
+  for (const name of names) {
+    if (!PATH_OK.test(name) || name.endsWith("/")) throw new HttpError(`"${name}" is not a usable file name.`);
+    if (name.split("/").length > 4) throw new HttpError(`"${name}" is nested too deeply.`);
+    if (typeof files[name] !== "string") throw new HttpError(`"${name}" does not contain text.`);
+  }
   const json = JSON.stringify(files);
   if (enc.encode(json).byteLength > JSON_LIMIT) throw new HttpError("Project is too large.", 413);
   return json;

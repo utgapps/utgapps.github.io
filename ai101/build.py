@@ -497,6 +497,7 @@ def build_index():
      <a class="pill" href="workbook.html">Student homework book</a>
      <a class="pill" href="../classroom/">Open the code editor</a></p>
 </div>
+<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>{course.DISCLAIMER}</div>
 <h2>The weeks</h2>
 <div class="grid">{cards}</div>
 </div>"""
@@ -583,6 +584,7 @@ def build_teacher():
 <h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">Fifteen one-hour lessons. Every hour is built so you are talking for well under half of it.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Say this in week 1</h3>{course.DISCLAIMER}</div>
 <div class="card">
   <h3 style="margin-top:0">How to run this course</h3>
   {course.TEACHER_PREAMBLE}
@@ -621,6 +623,7 @@ The green lines are the ones added that week.</p>
 <h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>{course.DISCLAIMER}</div>
 {"".join(chapters)}
 </div>"""
     write("workbook.html", page("Student homework book", body))

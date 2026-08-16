@@ -3,14 +3,15 @@ import Peer, { DataConnection } from "peerjs";
 import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
-import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
+import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userColor } from "./lib/collab";
+import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
 import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
-import { buildPreview, isPreviewMessage, type PreviewMessage } from "./lib/preview";
+import { buildPreview, isPreviewMessage, ENTRY_FILE, type PreviewMessage } from "./lib/preview";
 import { ProjectPicker } from "./ProjectPicker";
 import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
 
@@ -684,11 +685,43 @@ function MediaPanel({ token }: { token: string }) {
 
 function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
-  const [file, setFile] = useState(names[0] || (kind === "java" ? "Main.java" : "index.html"));
+  const [file, setFile] = useState(names.includes(ENTRY_FILE) ? ENTRY_FILE : (names[0] || ENTRY_FILE));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
+
+  /* File operations edit the shared document directly, so they sync to the
+     teacher and reach autosave through the same update handler as typing.
+     Folders are implicit: creating "css/style.css" creates the folder. */
+  function addFile(path: string) {
+    const map = filesMap(doc);
+    if (!map.has(path)) map.set(path, new Y.Text());
+    setFile(path);
+  }
+  function renameFile(from: string, to: string) {
+    const map = filesMap(doc);
+    const existing = map.get(from);
+    if (!existing || map.has(to)) return;
+    const contents = existing.toString();
+    doc.transact(() => {
+      const moved = new Y.Text();
+      map.set(to, moved);
+      moved.insert(0, contents);
+      map.delete(from);
+    });
+    if (file === from) setFile(to);
+  }
+  function removeFile(path: string) {
+    const warning = path === ENTRY_FILE
+      ? `${ENTRY_FILE} is the page the preview shows. Delete it and there is nothing to run. Are you sure?`
+      : `Delete ${path}? This cannot be undone.`;
+    if (!window.confirm(warning)) return;
+    filesMap(doc).delete(path);
+  }
+
   return <div className="editor-grid">
+    <FileTree files={names} active={file} onOpen={setFile} onAdd={addFile}
+              onRename={renameFile} onDelete={removeFile} readOnly={readOnly} />
     <section className="code-panel">
-      <div className="tabs">{names.map((name) => <button key={name} className={name === file ? "tab active" : "tab"} onClick={() => setFile(name)}>{name}</button>)}</div>
+      <div className="code-head"><span className="code-path">{file}</span></div>
       <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
     </section>
     {kind === "java"

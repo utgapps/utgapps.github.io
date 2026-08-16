@@ -66,10 +66,22 @@ export type PendingJoin = {
 export const starterFiles = (kind: ProjectKind): Record<string, string> =>
   kind === "java" ? javaStarter() : webStarter();
 
+// Only the page to start with. Making a stylesheet and a script - and wiring
+// them up yourself - is worth learning, so the editor no longer does it behind
+// the student's back by gluing three fixed filenames together.
 const webStarter = (): Record<string, string> => ({
-  "index.html": "<main>\n  <h1>Hello, UTG!</h1>\n  <p>Change this file, then press Run.</p>\n</main>",
-  "style.css": "body {\n  font-family: Arial, sans-serif;\n  padding: 2rem;\n  color: #133040;\n}\n",
-  "script.js": "// Write JavaScript here.\n// Anything you console.log() shows up in the Console panel.\nconsole.log('My project is ready!');\n",
+  "index.html":
+    "<h1>Hello, UTG!</h1>\n" +
+    "<p>Change this file, then press Run.</p>\n" +
+    "\n" +
+    "<!--\n" +
+    "  Want styling? Add a file called style.css, then link it here:\n" +
+    '    <link rel="stylesheet" href="style.css">\n' +
+    "\n" +
+    "  Want JavaScript? Add script.js, then load it at the BOTTOM of this file:\n" +
+    '    <script src="script.js"><\\/script>\n' +
+    "  The bottom matters. A script that runs before the page exists cannot find it.\n" +
+    "-->\n",
 });
 
 const javaStarter = (): Record<string, string> => ({

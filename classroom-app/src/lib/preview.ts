@@ -12,11 +12,76 @@ export type PreviewMessage = { __utg: string; kind: PreviewMessageKind; text: st
 
 const MAX_MESSAGES = 500;
 
-/** Escapes a closing script tag so student content cannot break out of the
- *  <script> or <style> block it is being embedded in. The original only did
- *  this for JS; HTML and CSS could both end a block early and blank the page. */
-function safe(source: string): string {
-  return String(source ?? "").replaceAll("</script", "<\\/script");
+export const ENTRY_FILE = "index.html";
+
+/** Escape a closing tag so file contents cannot end early the block they are
+ *  being inlined into. JS goes inside <script>, CSS inside <style>. */
+function safeIn(source: string, tag: "script" | "style"): string {
+  return String(source ?? "").replaceAll(`</${tag}`, `<\\/${tag}`);
+}
+
+export function dirOf(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut === -1 ? "" : path.slice(0, cut);
+}
+
+/** Resolve an href/src the way a browser would, against the folder the page
+ *  is in: "style.css", "./css/style.css", "../shared/app.js", "/css/style.css".
+ *  Returns null for anything aimed at the real internet, which is left alone. */
+export function resolvePath(reference: string, fromDir: string): string | null {
+  const raw = String(reference || "").trim().split(/[?#]/)[0];
+  if (!raw) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("//")) return null;  // http:, data:, //cdn
+  const parts = raw.replace(/\\/g, "/").split("/");
+  const out = raw.startsWith("/") ? [] : fromDir.split("/").filter(Boolean);
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") { out.pop(); continue; }
+    out.push(part);
+  }
+  return out.join("/") || null;
+}
+
+function attr(tagText: string, name: string): string | null {
+  const match = tagText.match(new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+  if (!match) return null;
+  return match[2] ?? match[3] ?? match[4] ?? null;
+}
+
+/** Replace <link rel="stylesheet" href="x.css"> and <script src="x.js"> with
+ *  the contents of those project files, in place.
+ *
+ *  This is what lets students wire their own files together instead of the
+ *  preview silently gluing three fixed names in a fixed order. It matters
+ *  pedagogically: a <script> in the <head> now really does run before the
+ *  page exists, and getElementById really does come back null - which is a
+ *  lesson, not a bug. It also matters technically: the frame is an opaque
+ *  origin with no server behind it, so a relative href would never load. */
+function inlineAssets(source: string, files: Record<string, string>, fromDir: string): { html: string; missing: string[] } {
+  const missing: string[] = [];
+
+  let html = source.replace(/<link\b[^>]*>/gi, (tag) => {
+    const rel = (attr(tag, "rel") || "").toLowerCase();
+    if (!rel.split(/\s+/).includes("stylesheet")) return tag;
+    const href = attr(tag, "href");
+    if (href === null) return tag;
+    const name = resolvePath(href, fromDir);
+    if (!name) return tag;                                  // a real URL: leave it
+    if (!(name in files)) { missing.push(href); return tag; }
+    return `<style data-from="${name}">${safeIn(files[name], "style")}</style>`;
+  });
+
+  html = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (tag, attrs, body) => {
+    const src = attr(`<script${attrs}>`, "src");
+    if (src === null) return tag;                           // already inline
+    const name = resolvePath(src, fromDir);
+    if (!name) return tag;
+    if (!(name in files)) { missing.push(src); return tag; }
+    void body;
+    return `<script data-from="${name}">${safeIn(files[name], "script")}<\/script>`;
+  });
+
+  return { html, missing };
 }
 
 /* The shim is injected as the FIRST script so it captures errors thrown by the
@@ -124,15 +189,35 @@ try {
 `.trim();
 }
 
-/** Assembles the three web files into one document, shim first.
+/** Assembles the project into one document, shim first.
+ *
+ *  index.html is the page. Whatever it links to with <link> or <script src>
+ *  gets pulled in from the project's own files, wherever the student put the
+ *  tag. Nothing is added behind their back - a stylesheet they never linked
+ *  is a stylesheet that does not apply, exactly as on the real web.
+ *
  *  `nonce` identifies this run: a setTimeout scheduled by an earlier run can
  *  fire after Stop and after the next run has mounted, and the parent uses the
  *  nonce to drop that stale output instead of showing it under the new run. */
 export function buildPreview(files: Record<string, string>, nonce: string): string {
-  const html = files["index.html"] || "<main><h1>Start your project</h1></main>";
-  const css = files["style.css"] || "";
-  const js = files["script.js"] || "";
-  return `<script>${shim(nonce)}<\/script>${safe(html)}<style>${safe(css)}<\/style><script>${safe(js)}<\/script>`;
+  const source = files[ENTRY_FILE];
+  if (source === undefined) {
+    return `<script>${shim(nonce)}<\/script>` +
+      `<main style="font:16px/1.6 system-ui;padding:2rem;color:#5b7178">` +
+      `<h1 style="font-size:20px;color:#1f2a37">No ${ENTRY_FILE} yet</h1>` +
+      `<p>The preview shows <b>${ENTRY_FILE}</b>. Make a file with that exact name and press Run again.</p>` +
+      `</main>`;
+  }
+  const { html, missing } = inlineAssets(source, files, dirOf(ENTRY_FILE));
+  // Reported through the console panel, because a stylesheet that silently
+  // does nothing is the single most baffling thing that can happen to a
+  // beginner. Naming the file turns it into a two-second fix.
+  const warn = missing.length
+    ? `<script>${missing.map((name) =>
+        `console.error(${JSON.stringify(`${ENTRY_FILE} asks for "${name}", but this project has no file at that path.`)});`
+      ).join("")}<\/script>`
+    : "";
+  return `<script>${shim(nonce)}<\/script>${warn}${html}`;
 }
 
 /** True when the message really came from the running preview.
