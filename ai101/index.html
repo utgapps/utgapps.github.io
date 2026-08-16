@@ -1,0 +1,106 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI101 · Talk to the Machine · UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+.code{background:#102127;border-radius:0 0 8px 8px;overflow:auto;margin:0}
+.code table{border-collapse:collapse;width:100%;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.code td{padding:0 10px;white-space:pre;vertical-align:top}
+.code td.ln{width:1%;text-align:right;color:#4d6b76;user-select:none;background:rgba(255,255,255,.03)}
+.code td.src{color:#dcecef}
+.code tr.new td.src{background:rgba(55,169,93,.18)}
+.code tr.new td.ln{background:rgba(55,169,93,.28);color:#a9e8bf}
+.filebar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#16303a;color:#cfe3e8;padding:7px 12px;font-size:12px}
+.filebar button{border:1px solid #3c6272;background:transparent;color:#cfe3e8;border-radius:5px;padding:4px 9px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
+.say b{color:#5b3fa0}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.filebar button,.noprint{display:none}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="ai101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>AI101</strong></header>
+<div class="wrap">
+<p class="eyebrow">15-week course</p>
+<h1>AI101 · Talk to the Machine</h1>
+<p class="lead">Fifteen weeks turning a blank page into an AI chat companion you wrote yourself. You will learn how programs talk to each other over the internet, how to ask a language model for what you actually want, and why it is sometimes confidently wrong.</p>
+<div class="card">
+  <h3 style="margin-top:0">What you are building</h3>
+  <p class="muted">A chat companion with a personality you design. It remembers the conversation, types its answers out live instead of making you wait, survives being rate-limited, and can be saved and reloaded. Plain HTML, CSS and JavaScript - no libraries.</p>
+  <p><a class="pill" href="teacher.html">Teacher curriculum</a>
+     <a class="pill" href="workbook.html">Student homework book</a>
+     <a class="pill" href="../classroom/">Open the code editor</a></p>
+</div>
+<h2>The weeks</h2>
+<div class="grid"><a class="wk-card" href="week-01.html"><span class="n">Week 1</span><h3>The page</h3><p>A web page is a set of nested boxes you describe in HTML. Today you make the shape of your app and learn the two buttons you will press every week: Run and Console.</p></a><a class="wk-card" href="week-02.html"><span class="n">Week 2</span><h3>Making it react</h3><p>Your pygame games ran a loop that asked &#x27;did anything happen?&#x27; sixty times a second. The browser flips that around: you leave a note saying what to do, and the browser calls you. Today the Send button finally works.</p></a><a class="wk-card" href="week-03.html"><span class="n">Week 3</span><h3>What is an API?</h3><p>An API is a program&#x27;s front desk: you send a request in an agreed shape, you get an answer back in an agreed shape. Today you make your first request to a real server and prove you can reach it.</p></a><a class="wk-card" href="week-04.html"><span class="n">Week 4</span><h3>First conversation</h3><p>Today the pretend answer becomes a real one. A chat request is a list of messages, each with a role, and the model writes the next one.</p></a><a class="wk-card" href="week-05.html"><span class="n">Week 5</span><h3>When things break</h3><p>fetch does not throw when the server says no. A 429 looks like a success until you check. Today you make failure visible instead of mysterious.</p></a><a class="wk-card" href="week-06.html"><span class="n">Week 6</span><h3>Giving it a personality</h3><p>There is a third role. A system message is a standing instruction the model reads before every reply - it is where a chatbot&#x27;s whole character lives.</p></a><a class="wk-card" href="week-07.html"><span class="n">Week 7</span><h3>Memory</h3><p>Your companion has amnesia: ask &#x27;what did I just say?&#x27; and it has no idea. It only knows what you send. So send the whole conversation every time.</p></a><a class="wk-card" href="week-08.html"><span class="n">Week 8</span><h3>The 4000-character wall</h3><p>Every model has a limit on how much it can read at once. Ours is 4000 characters for the whole conversation. Today you hit a real engineering constraint and decide what to throw away.</p></a><a class="wk-card" href="week-09.html"><span class="n">Week 9</span><h3>Knobs</h3><p>Two settings change everything about how your companion feels: which brain it uses, and how adventurous it is allowed to be. Today you put both on the page and run experiments.</p></a><a class="wk-card" href="week-10.html"><span class="n">Week 10</span><h3>Why streaming</h3><p>ChatGPT does not think faster than your companion - it just starts showing you the answer while it is still being written. Today you switch to streaming and see the raw pieces arriving.</p></a><a class="wk-card" href="week-11.html"><span class="n">Week 11</span><h3>The typing effect</h3><p>The pieces are already arriving. Today you stop hoarding them and put each one on the screen the moment it lands - and your companion starts to feel alive.</p></a><a class="wk-card" href="week-12.html"><span class="n">Week 12</span><h3>Saving a chat</h3><p>Press Run and your whole conversation vanishes, because it only ever lived in a variable. Today you turn that list into text you can keep, and turn text back into a conversation.</p></a><a class="wk-card" href="week-13.html"><span class="n">Week 13</span><h3>Characters</h3><p>One companion is a demo. Several, chosen with a click, is a product. Today you store personalities as data and make the whole thing look finished.</p></a><a class="wk-card" href="week-14.html"><span class="n">Week 14</span><h3>When it is confidently wrong</h3><p>Your companion will state false things in exactly the same tone it states true ones. Today you find that out for yourselves, and then defend your own app against people trying to misuse it.</p></a><a class="wk-card" href="week-15.html"><span class="n">Week 15</span><h3>Demo day</h3><p>Fifteen weeks ago this was an empty file. Today you sign your work, show it to people, and explain how it works to someone who has never seen it.</p></a></div>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>

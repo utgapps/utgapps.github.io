@@ -1,0 +1,294 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book · UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+.code{background:#102127;border-radius:0 0 8px 8px;overflow:auto;margin:0}
+.code table{border-collapse:collapse;width:100%;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.code td{padding:0 10px;white-space:pre;vertical-align:top}
+.code td.ln{width:1%;text-align:right;color:#4d6b76;user-select:none;background:rgba(255,255,255,.03)}
+.code td.src{color:#dcecef}
+.code tr.new td.src{background:rgba(55,169,93,.18)}
+.code tr.new td.ln{background:rgba(55,169,93,.28);color:#a9e8bf}
+.filebar{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#16303a;color:#cfe3e8;padding:7px 12px;font-size:12px}
+.filebar button{border:1px solid #3c6272;background:transparent;color:#cfe3e8;border-radius:5px;padding:4px 9px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
+.say b{color:#5b3fa0}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.filebar button,.noprint{display:none}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="ai101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>AI101</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>AI101 · Talk to the Machine</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>The page</h2>
+<p class="lead">A web page is a set of nested boxes you describe in HTML. Today you make the shape of your app and learn the two buttons you will press every week: Run and Console.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>HTML describes boxes inside boxes; the browser draws them.</li><li>CSS decides what those boxes look like.</li><li>An id is a name so JavaScript can find an element later.</li><li>console.log prints into the Console panel so you can see what your code is doing.</li><li>Nothing runs until you press Run.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">HTML element</span><span class="pill">tag</span><span class="pill">id</span><span class="pill">CSS rule</span><span class="pill">console.log</span><span class="pill">Run</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make it yours</strong><p style="margin:8px 0 0">Change the title to your companion&#x27;s name, and change the background and button colours in style.css to a set you actually like.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Run and the page looks like yours, not the example.</p></div><div class="card"><strong>Challenge 2. Add a subtitle</strong><p style="margin:8px 0 0">Add one more &lt;p&gt; under the title saying what your companion is for - a homework helper, a story writer, a joke machine.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The new line appears on the page after Run.</p></div><div class="card"><strong>Challenge 3. Break it on purpose, then fix it</strong><p style="margin:8px 0 0">Delete one closing tag and press Run. Write down what you see. Put it back. Delete a quote in the console.log line instead and Run. Write down what the Console says.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can describe, in your own words, what each break looked like.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>Making it react</h2>
+<p class="lead">Your pygame games ran a loop that asked &#x27;did anything happen?&#x27; sixty times a second. The browser flips that around: you leave a note saying what to do, and the browser calls you. Today the Send button finally works.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>getElementById finds an element by the name you gave it in the HTML.</li><li>A function is a set of instructions with a name, so you can use it again.</li><li>addEventListener leaves a note: when this happens, run this.</li><li>event.preventDefault() stops the browser&#x27;s old default behaviour.</li><li>.value is what someone typed; .textContent is the words shown on the page.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">variable</span><span class="pill">function</span><span class="pill">event</span><span class="pill">addEventListener</span><span class="pill">value</span><span class="pill">textContent</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make the echo cheekier</strong><p style="margin:8px 0 0">Change the pretend answer so it does something more interesting than repeating you - put the words in capitals, add it backwards, or reply with a random line from three you choose.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Sending the same message twice gives a reply that is clearly not a plain echo.</p></div><div class="card"><strong>Challenge 2. Count the messages</strong><p style="margin:8px 0 0">Add a variable at the top of script.js that starts at 0, add 1 to it every time someone sends a message, and console.log it.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The Console shows 1, 2, 3... as you send messages.</p></div><div class="card"><strong>Challenge 3. Empty message guard</strong><p style="margin:8px 0 0">Find the line that stops empty messages. Delete it, Run, and press Send with an empty box a few times. Describe what happens, then put it back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain in one sentence why that line is there.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 3</p>
+<h2>What is an API?</h2>
+<p class="lead">An API is a program&#x27;s front desk: you send a request in an agreed shape, you get an answer back in an agreed shape. Today you make your first request to a real server and prove you can reach it.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An API is an agreed way for one program to ask another program for something.</li><li>Your API key identifies you personally - it is not a password to share.</li><li>fetch sends a request; await waits for the answer instead of racing ahead.</li><li>.json() turns the reply text into something JavaScript can use.</li><li>200 means fine. 401 means the server does not believe who you say you are.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">API</span><span class="pill">request</span><span class="pill">response</span><span class="pill">API key</span><span class="pill">fetch</span><span class="pill">async</span><span class="pill">await</span><span class="pill">JSON</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Print just the names</strong><p style="margin:8px 0 0">data.data is a list. Loop over it and console.log only each model&#x27;s id, one per line, instead of the whole object.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The Console shows a tidy list: fast, smart, image, and so on.</p></div><div class="card"><strong>Challenge 2. Collect the status codes</strong><p style="margin:8px 0 0">Try three things and write down the status code each gives: your correct key; a key with one letter changed; the address /v1/modelsz instead of /v1/models.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have three numbers written down and can say what each means.</p></div><div class="card"><strong>Challenge 3. Explain it to someone at home</strong><p style="margin:8px 0 0">In four sentences or fewer, explain what an API is to someone who does not code. Write it in your book. Do not use the word API in the explanation.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Someone who does not code reads it and says &#x27;oh, right&#x27;.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-03.html">week 3's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 4</p>
+<h2>First conversation</h2>
+<p class="lead">Today the pretend answer becomes a real one. A chat request is a list of messages, each with a role, and the model writes the next one.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>GET asks for something; POST sends something.</li><li>A chat request is a list of messages, each with a role and content.</li><li>JSON.stringify packs a JavaScript object into text to send.</li><li>The reply is at data.choices[0].message.content.</li><li>Anything that talks to the internet needs async and await.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">POST</span><span class="pill">request body</span><span class="pill">messages</span><span class="pill">role</span><span class="pill">model</span><span class="pill">choices</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Ask it five hard questions</strong><p style="margin:8px 0 0">Write down five questions and the answers you got. Mark each answer: right, wrong, or cannot tell. Keep this page - you will need it in week 14.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Five questions and five verdicts written in your book.</p></div><div class="card"><strong>Challenge 2. Try the smart model</strong><p style="margin:8px 0 0">Change model: &#x27;fast&#x27; to model: &#x27;smart&#x27; and ask the same question you asked before. Note what is different - the wait, the length, the quality.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say in one sentence when you would pick each one.</p></div><div class="card"><strong>Challenge 3. Print the whole answer object</strong><p style="margin:8px 0 0">Add console.log(data) inside askAI before the return. Look at everything the server sent back, not just the reply.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can name two other things in the response besides the message.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-04.html">week 4's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 5</p>
+<h2>When things break</h2>
+<p class="lead">fetch does not throw when the server says no. A 429 looks like a success until you check. Today you make failure visible instead of mysterious.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>fetch only fails if the server could not be reached at all.</li><li>res.ok is false for any status from 400 upwards - you must check it.</li><li>throw stops and reports; catch is where you decide what the user sees.</li><li>401 = wrong key. 429 = too fast. 400 = the request itself was unusable.</li><li>A good error message says what to do next, not just what broke.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">status code</span><span class="pill">res.ok</span><span class="pill">try / catch</span><span class="pill">429</span><span class="pill">rate limit</span><span class="pill">Retry-After</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Collect all three</strong><p style="margin:8px 0 0">Deliberately cause a 401, a 429 and a 400. Screenshot or write down what your companion said each time.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Three different friendly messages, none of them a red Console error.</p></div><div class="card"><strong>Challenge 2. Make the messages yours</strong><p style="margin:8px 0 0">Rewrite the three sentences in explain() in your own voice, as your companion would say them. Keep them useful - they still have to say what to do.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A friend could read the message and know what to try next.</p></div><div class="card"><strong>Challenge 3. The disappearing dots</strong><p style="margin:8px 0 0">There is a bug: if askAI fails before &#x27;thinking...&#x27; is added, chat.lastChild.remove() removes the wrong line. Find a message that triggers it, or explain in writing why it is hard to trigger.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain what lastChild actually points at.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Giving it a personality</h2>
+<p class="lead">There is a third role. A system message is a standing instruction the model reads before every reply - it is where a chatbot&#x27;s whole character lives.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>system is a standing instruction the model reads before every reply.</li><li>user is what you said; assistant is what it said back.</li><li>Specific instructions work; vague ones do almost nothing.</li><li>Putting the prompt in the page means changing behaviour without changing code.</li><li>The system message is re-sent with every single request.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">system role</span><span class="pill">prompt</span><span class="pill">prompt engineering</span><span class="pill">specific vs vague</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Three personalities</strong><p style="margin:8px 0 0">Write three genuinely different system prompts and ask all three the same question: &#x27;why is the sky blue?&#x27;. Write down the three answers.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The three answers are obviously from three different characters.</p></div><div class="card"><strong>Challenge 2. Make one rule stick</strong><p style="margin:8px 0 0">Write a system prompt with a rule you can check, such as &#x27;always end with a question&#x27;. Send five messages. Count how many obeyed.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have a number out of five, and an opinion about why it is not five.</p></div><div class="card"><strong>Challenge 3. Vague versus specific</strong><p style="margin:8px 0 0">Write the vaguest useful prompt you can, then the most specific version of the same idea. Compare three answers from each.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain which worked better with an example, not just an opinion.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>Memory</h2>
+<p class="lead">Your companion has amnesia: ask &#x27;what did I just say?&#x27; and it has no idea. It only knows what you send. So send the whole conversation every time.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The model remembers nothing - every request starts from zero.</li><li>An array is a list; push adds to the end.</li><li>Each message is an object with a role and content.</li><li>You must save what the AI said too, not just what you said.</li><li>...history means &#x27;tip every item in here&#x27;.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">array</span><span class="pill">push</span><span class="pill">object</span><span class="pill">conversation history</span><span class="pill">stateless</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Test the memory properly</strong><p style="margin:8px 0 0">Have a five-message conversation where each message depends on the one before. Write down the point where it stops making sense, if it does.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Five real follow-ups, and a note about whether it kept up.</p></div><div class="card"><strong>Challenge 2. Watch the history grow</strong><p style="margin:8px 0 0">console.log(history.length) after every message. Send fifteen messages and note the number.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say how many items are in the list after fifteen messages, and why it is not fifteen.</p></div><div class="card"><strong>Challenge 3. Break it on purpose</strong><p style="margin:8px 0 0">Comment out the line that pushes the assistant reply. Have a four-message conversation. Describe exactly how it goes wrong, then put it back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain why the AI needs to hear its own words.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>The 4000-character wall</h2>
+<p class="lead">Every model has a limit on how much it can read at once. Ours is 4000 characters for the whole conversation. Today you hit a real engineering constraint and decide what to throw away.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The model reads the whole conversation again for every reply.</li><li>Ours accepts at most 4000 characters, and refuses beyond that.</li><li>shift() removes from the front; push() adds to the back.</li><li>Measure the problem before you write the fix.</li><li>Choosing what to forget is a trade-off with no perfect answer.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">context limit</span><span class="pill">shift</span><span class="pill">loop with a condition</span><span class="pill">trade-off</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Find the wall</strong><p style="margin:8px 0 0">Set MAX_CHARS very high (say 6000) and have a long conversation until the server refuses. Write down roughly how many messages that took.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have a number, and you saw the 400 message yourself.</p></div><div class="card"><strong>Challenge 2. Show the size on the page</strong><p style="margin:8px 0 0">Display the current conversation size somewhere on the page, updating after every message, so you can watch it grow and drop.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A number on screen that goes up as you chat and down when it trims.</p></div><div class="card"><strong>Challenge 3. Keep the first message</strong><p style="margin:8px 0 0">Change trimHistory so it never drops the very first user message, only the ones after it. Explain in your book when that would be a good idea and when it would be a bad one.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The first thing you said survives a long conversation.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>Knobs</h2>
+<p class="lead">Two settings change everything about how your companion feels: which brain it uses, and how adventurous it is allowed to be. Today you put both on the page and run experiments.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Temperature decides how often the model picks a less-likely next word.</li><li>Low temperature is careful and repetitive; high is creative and risky.</li><li>fast is small and quick; smart is bigger, better and slower.</li><li>A slider gives you text - use Number() before sending it.</li><li>A fair experiment changes one thing at a time.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">temperature</span><span class="pill">model choice</span><span class="pill">select</span><span class="pill">range input</span><span class="pill">controlled experiment</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. The four-square experiment</strong><p style="margin:8px 0 0">One question. Four runs: fast/0, fast/1.4, smart/0, smart/1.4. Write all four answers in your book.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Four answers written out, and one sentence saying which you would ship and why.</p></div><div class="card"><strong>Challenge 2. Find where it falls apart</strong><p style="margin:8px 0 0">Push temperature up in steps of 0.1 until the answers stop making sense. Record the number where it broke for your question.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A number, and an example of a broken answer.</p></div><div class="card"><strong>Challenge 3. Right tool, right job</strong><p style="margin:8px 0 0">Name three tasks and say which model and temperature you would use for each, with a reason.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Three rows with a reason, not just a preference.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Why streaming</h2>
+<p class="lead">ChatGPT does not think faster than your companion - it just starts showing you the answer while it is still being written. Today you switch to streaming and see the raw pieces arriving.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Streaming does not make the answer faster; it makes it start sooner.</li><li>stream: true changes the reply from one JSON object into many small pieces.</li><li>Pieces look like data: {...} separated by blank lines, ending with [DONE].</li><li>A buffer holds a piece that arrived cut in half until the rest turns up.</li><li>delta.content is the little bit of new text in each piece.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">stream</span><span class="pill">chunk</span><span class="pill">reader</span><span class="pill">TextDecoder</span><span class="pill">buffer</span><span class="pill">perceived speed</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Watch the pieces</strong><p style="margin:8px 0 0">Add console.log(bit) inside the loop. Ask a long question and watch the Console fill up with fragments.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can describe how big a typical piece is - a word? a few letters?</p></div><div class="card"><strong>Challenge 2. Count them</strong><p style="margin:8px 0 0">Count how many pieces arrive for a short answer and for a long one. Write both numbers down.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Two numbers, and a sentence about what they tell you.</p></div><div class="card"><strong>Challenge 3. Break the buffer on purpose</strong><p style="margin:8px 0 0">Delete the line `buffer = parts.pop();` and replace it with `buffer = &#x27;&#x27;;`. Run it several times. Write down what goes wrong and, more importantly, why it does not go wrong every time.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain why this bug is intermittent - the hardest kind to find.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>The typing effect</h2>
+<p class="lead">The pieces are already arriving. Today you stop hoarding them and put each one on the screen the moment it lands - and your companion starts to feel alive.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A function can be passed into another function and called later.</li><li>readStream decides WHEN; the function you pass decides WHAT.</li><li>Setting textContent as each piece arrives creates the typing effect.</li><li>The answer takes exactly as long - it just starts appearing sooner.</li><li>Always test what happens when it fails, not only when it works.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">callback</span><span class="pill">passing a function</span><span class="pill">incremental rendering</span><span class="pill">UX</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Slow it down</strong><p style="margin:8px 0 0">Add a short pause inside onPiece so the text appears more slowly. Decide whether it feels better or worse and write down why.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have an opinion backed by having actually tried it.</p></div><div class="card"><strong>Challenge 2. Reuse readStream</strong><p style="margin:8px 0 0">Call askAI twice with two different functions - one that fills the bubble, one that only counts pieces and logs the number. Same function, two jobs.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Both work without changing readStream at all.</p></div><div class="card"><strong>Challenge 3. Kill the callback</strong><p style="margin:8px 0 0">Pass a function that does nothing at all. Run it. Explain what you see and why the app still technically works.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain what the callback was actually buying you.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>Saving a chat</h2>
+<p class="lead">Press Run and your whole conversation vanishes, because it only ever lived in a variable. Today you turn that list into text you can keep, and turn text back into a conversation.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>JSON.stringify turns data into text; JSON.parse turns text back into data.</li><li>You have been using stringify since week 4 to send requests.</li><li>history.length = 0 empties a const array; history = [] is not allowed.</li><li>Anything a user can paste in must be checked before you trust it.</li><li>Rebuilding the screen is not enough - the history array has to be rebuilt too.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">JSON.stringify</span><span class="pill">JSON.parse</span><span class="pill">serialise</span><span class="pill">round trip</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Save a good conversation</strong><p style="margin:8px 0 0">Have a conversation you actually like, save it, and keep the text in a note somewhere. Load it back next week.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can restore a conversation from a week ago.</p></div><div class="card"><strong>Challenge 2. Break your own Load</strong><p style="margin:8px 0 0">Find three different things you can paste that break it or behave oddly. Fix the two worst ones.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Three things written down and two of them handled.</p></div><div class="card"><strong>Challenge 3. Save the settings too</strong><p style="margin:8px 0 0">Change Save so the text also includes your persona, model and temperature - not just the messages. Make Load put them back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Loading an old chat restores the whole companion, not only the words.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>Characters</h2>
+<p class="lead">One companion is a demo. Several, chosen with a click, is a product. Today you store personalities as data and make the whole thing look finished.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An object can act as a lookup table: a name in, a value out.</li><li>Object.keys gives you every name in an object.</li><li>Building elements in a loop means adding data, not writing code.</li><li>One source of truth: the buttons come from the same place as the personalities.</li><li>Design is a real part of software, not decoration added at the end.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">object as lookup</span><span class="pill">dataset</span><span class="pill">loop over keys</span><span class="pill">design polish</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Invent two characters</strong><p style="margin:8px 0 0">Add two of your own to PRESETS. Test each with three questions to check the personality actually holds.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Two new buttons appear, and each behaves clearly differently.</p></div><div class="card"><strong>Challenge 2. Make it yours properly</strong><p style="margin:8px 0 0">Choose a colour scheme, a font and a name for your companion, and apply them. It should look like nobody else&#x27;s.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Someone could pick your app out of the class lineup.</p></div><div class="card"><strong>Challenge 3. Highlight the active character</strong><p style="margin:8px 0 0">Make the button of the currently selected personality look different from the others.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can tell at a glance which character is active.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>When it is confidently wrong</h2>
+<p class="lead">Your companion will state false things in exactly the same tone it states true ones. Today you find that out for yourselves, and then defend your own app against people trying to misuse it.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The model predicts likely words; nothing in that checks whether they are true.</li><li>A wrong answer sounds exactly as confident as a right one.</li><li>It repeats patterns from the text it learned from, including unfair ones.</li><li>Prompt injection means a user&#x27;s message overriding your instructions.</li><li>You cannot fully prevent either - so never let it decide anything that matters alone.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">hallucination</span><span class="pill">bias</span><span class="pill">prompt injection</span><span class="pill">input validation</span><span class="pill">trust</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Three confident falsehoods</strong><p style="margin:8px 0 0">Get three answers you can prove are wrong. Write down the question, the answer, and how you know it is false.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Three examples with evidence - not just &#x27;it seemed off&#x27;.</p></div><div class="card"><strong>Challenge 2. Attack and defend</strong><p style="margin:8px 0 0">Write a message that breaks your own companion&#x27;s personality. Then change the personality so that message stops working. Then break it again.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can describe one attack that still works after your defence.</p></div><div class="card"><strong>Challenge 3. Where would this be dangerous?</strong><p style="margin:8px 0 0">Name three real situations where a confidently wrong answer would cause actual harm. For each, say what a person should do instead of trusting it.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Three situations, each with a specific safer alternative.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>Demo day</h2>
+<p class="lead">Fifteen weeks ago this was an empty file. Today you sign your work, show it to people, and explain how it works to someone who has never seen it.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>You built a real application from an empty file in fifteen hours.</li><li>The AI server only predicts text - every other feature is yours.</li><li>You can send a request, handle a failure, stream a response and keep state.</li><li>You know why a confident answer is not necessarily a true one.</li><li>Those skills are not about AI - they are how all web software works.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">shipping</span><span class="pill">credits</span><span class="pill">explaining your own work</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Write the README</strong><p style="margin:8px 0 0">One page: what your companion is for, how to use it, what it cannot do, and one thing you would improve.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Someone who has never seen it could use it from your page alone.</p></div><div class="card"><strong>Challenge 2. Teach one part</strong><p style="margin:8px 0 0">Pick one function in your code and explain it line by line in writing, as if to a student starting AI101 next term.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A beginner could read your explanation and follow the code.</p></div><div class="card"><strong>Challenge 3. Plan version two</strong><p style="margin:8px 0 0">List five features you would add, and mark each one: easy, hard, or you do not know yet. Bring the list to AI102.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Five features, each honestly rated.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
