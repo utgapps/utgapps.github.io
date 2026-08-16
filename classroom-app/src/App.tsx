@@ -6,18 +6,23 @@ import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./l
 import { seedDoc, docToFiles, fileNames, b64encode, b64decode, userColor } from "./lib/collab";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetProject, apiSaveProject, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
-import { starterFiles } from "./lib/types";
-import type { ClassRecord, PendingJoin, Project, Student } from "./lib/types";
+import { buildPreview, isPreviewMessage, type PreviewMessage } from "./lib/preview";
+import { ProjectPicker } from "./ProjectPicker";
+import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
 
 type Mode = "home" | "instructor" | "student";
 type WireMessage =
   | { type: "join"; name: string; deviceId: string; deviceLabel: string; fingerprint: string }
   | { type: "approved"; studentId: string; projectId: string; title: string; className: string }
   | { type: "wait"; message: string }
+  // Sent by the student immediately BEFORE the full state, on approval and on
+  // every project switch. Without it the teacher applies a second project's
+  // state onto the first project's Y.Doc and both files interleave.
+  | { type: "project"; projectId: string; title: string; kind: ProjectKind; epoch: string }
   | { type: "ydoc"; projectId: string; u: string }        // base64 Yjs document update
   | { type: "awareness"; projectId: string; u: string }   // base64 awareness (cursors/presence) update
   | { type: "close"; message: string };
@@ -43,11 +48,9 @@ function localDevice() {
   return device;
 }
 
-function buildPreview(files: Record<string, string>) {
-  const html = files["index.html"] || "<main><h1>Start your project</h1></main>";
-  const css = files["style.css"] || "";
-  const js = files["script.js"] || "";
-  return `${html}<style>${css}</style><script>${js.replaceAll("</script>", "<\\/script>")}<\/script>`;
+function sameFiles(a: Record<string, string>, b: Record<string, string>) {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }
 
 function App() {
@@ -226,7 +229,9 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   const peerRef = useRef<Peer | null>(null);
   const connections = useRef(new Map<string, DataConnection>());
   const roomRef = useRef(room);
-  const docs = useRef(new Map<string, { doc: Y.Doc; awareness: Awareness }>()); // projectId -> live shared doc
+  // projectId -> live shared doc. `epoch` identifies WHICH of the student's
+  // projects the doc currently holds; see the "project" message in receive().
+  const docs = useRef(new Map<string, { doc: Y.Doc; awareness: Awareness; epoch: string }>());
   const connMeta = useRef(new Map<string, string>()); // connection.peer -> projectId (routing + authorization)
   const deriveTimers = useRef(new Map<string, number>());
   const [docsTick, setDocsTick] = useState(0); // bump to re-render when a doc is (de)registered
@@ -275,7 +280,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   }
   // A live shared doc per project, seeded ONCE from the stored files. Students
   // receive it as an encoded state (they never re-seed), so text can't duplicate.
-  function getDoc(projectId: string) {
+  function getDoc(projectId: string, epoch = "") {
     let entry = docs.current.get(projectId);
     if (!entry) {
       const doc = new Y.Doc(); // empty — the student (owner) sends the initial state
@@ -288,11 +293,21 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
       awareness.on("update", ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
         sendToOwner(projectId, { type: "awareness", projectId, u: b64encode(encodeAwarenessUpdate(awareness, added.concat(updated, removed))) });
       });
-      entry = { doc, awareness };
+      entry = { doc, awareness, epoch };
       docs.current.set(projectId, entry);
       setDocsTick((n) => n + 1);
     }
     return entry;
+  }
+  /* Yjs merges, it does not replace. Applying a second project's state onto the
+     doc that already holds the first gives you both projects' text interleaved
+     inside every file. So when the student says they have switched, throw the
+     doc away and build an empty one for their next full state to land in. */
+  function resetDoc(projectId: string, epoch: string) {
+    const prior = docs.current.get(projectId);
+    if (prior && prior.epoch === epoch) return prior;
+    if (prior) { prior.awareness.destroy(); prior.doc.destroy(); docs.current.delete(projectId); }
+    return getDoc(projectId, epoch);
   }
   function sendToOwner(projectId: string, msg: WireMessage) {
     const owner = roomRef.current.students.find((s) => s.projectId === projectId);
@@ -318,6 +333,16 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
       if (recognized) approve({ connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }, recognized.studentId, connection);
       else if (currentRoom.admissionsOpen) { setPending((items) => [...items.filter((item) => item.connectionId !== connection.peer), { connectionId: connection.peer, studentName: data.name, deviceId: data.deviceId, deviceLabel: data.deviceLabel, fingerprint: data.fingerprint }]); connection.send({ type: "wait", message: "Your teacher needs to approve this device." } satisfies WireMessage); }
       else connection.send({ type: "wait", message: "Admissions are closed. Ask your teacher to open admissions." } satisfies WireMessage);
+    }
+    if (data.type === "project") {
+      const pid = connMeta.current.get(connection.peer);
+      if (!pid || pid !== data.projectId) return; // same authorization rule as ydoc
+      resetDoc(pid, data.epoch);
+      setDocsTick((n) => n + 1);
+      // Adopt the student's real title and kind; the teacher's slot was a placeholder.
+      updateRoom((current) => current.projects[pid]
+        ? { ...current, projects: { ...current.projects, [pid]: { ...current.projects[pid], title: data.title, kind: data.kind, files: {}, updatedAt: new Date().toISOString() } } }
+        : current);
     }
     if (data.type === "ydoc" || data.type === "awareness") {
       const pid = connMeta.current.get(connection.peer);
@@ -370,15 +395,26 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
     <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
-      <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry && fileNames(selectedEntry.doc).length > 0 ? <CollabWorkspace doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} /> : <div className="offline-view"><p className="empty">{selectedEntry ? "Connected — loading this student's code…" : "This student is offline. Their last saved work is shown here; live co-editing resumes when they open their project."}</p><iframe title="Last saved preview" sandbox="allow-scripts" srcDoc={buildPreview(selectedProject.files)} /></div>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
+      <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry && fileNames(selectedEntry.doc).length > 0 ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} /> : <div className="offline-view"><p className="empty">{selectedEntry ? "Connected — loading this student's code…" : "This student is offline. Their last saved work is shown here; live co-editing resumes when they open their project."}</p><StaticPreview files={selectedProject.files} kind={selectedProject.kind ?? "web"} /></div>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
       <aside className="details"><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>Four-character instructor code</dd><dt>Student login</dt><dd>Four-character student code</dd><dt>Room address</dt><dd className="small-code">Fresh and private for each live class</dd><dt>Class record</dt><dd>Saved to the shared classroom</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. The shared class record is also available to authorized instructor devices.</p></div></aside>
     </div>
     <footer className="room-footer">{status}</footer>
   </main>;
 }
 
+/* The teacher's view of an offline student's last save. This used to mount the
+   iframe the instant a student was selected, so clicking down a roster of
+   fifteen ran fifteen students' API-calling code from the teacher's browser. */
+function StaticPreview({ files, kind }: { files: Record<string, string>; kind: ProjectKind }) {
+  const [nonce, setNonce] = useState("");
+  if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
+  return nonce
+    ? <iframe title="Last saved preview" sandbox="allow-scripts" srcDoc={buildPreview(files, nonce)} />
+    : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
+}
+
 function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void; initialCode: string; initialGrant: string }) {
-  const [step, setStep] = useState<"join" | "waiting" | "room">("join");
+  const [step, setStep] = useState<"join" | "waiting" | "picker" | "room">("join");
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState("");
   const [status, setStatus] = useState("Enter the private student code from your teacher.");
@@ -396,10 +432,18 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   // --- the student's own project doc (source of truth), backed by D1 ---
   const docRef = useRef<Y.Doc | null>(null);
   const awarenessRef = useRef<Awareness | null>(null);
+  // The teacher's slot id, used for wire routing and authorization. Deliberately
+  // NOT the same value as the D1 project id below - connMeta authorizes against
+  // this one, and collapsing the two breaks that check in a hard-to-see way.
   const projectIdRef = useRef<string>("");
+  const localProjectIdRef = useRef<string>("");   // the D1 project actually open
   const apiTokenRef = useRef<string | null>(null);
   const titleRef = useRef<string>("My project");
+  const kindRef = useRef<ProjectKind>("web");
+  const epochRef = useRef<string>("");
+  const sessionRef = useRef<{ token: string; name: string; className: string; classId: string } | null>(null);
   const [files, setFiles] = useState<Record<string, string>>({});
+  const [kind, setKind] = useState<ProjectKind>("web");
   const [title, setTitle] = useState("My project");
   const [live, setLive] = useState(false);
   const [accountToken, setAccountToken] = useState<string | null>(null);
@@ -410,17 +454,37 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (deriveTimer.current !== null) return;
     deriveTimer.current = window.setTimeout(() => { deriveTimer.current = null; if (docRef.current) setFiles(docToFiles(docRef.current)); }, 300);
   }
+  async function saveNow() {
+    const token = apiTokenRef.current, doc = docRef.current, id = localProjectIdRef.current;
+    if (!token || !doc || !id) return;
+    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setStatus("Saved to your account."); }
+    catch { /* keep working; retry on next change */ }
+  }
   function scheduleSave() {
     if (!apiTokenRef.current || saveTimer.current !== null) return;
-    saveTimer.current = window.setTimeout(async () => {
-      saveTimer.current = null;
-      const token = apiTokenRef.current, doc = docRef.current;
-      if (!token || !doc) return;
-      try { await apiSaveProject(token, titleRef.current, docToFiles(doc)); setStatus("Saved to your account."); }
-      catch { /* keep working; retry on next change */ }
-    }, 8000);
+    saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void saveNow(); }, 8000);
+  }
+  /* Anything that leaves the current project has to flush first. With one
+     project per account the 8-second debounce only ever lost work if the tab
+     closed; with a picker, "type then switch" is a normal move that would
+     silently drop up to 8 seconds. */
+  async function flushSave() {
+    if (saveTimer.current !== null) { window.clearTimeout(saveTimer.current); saveTimer.current = null; await saveNow(); }
   }
   useEffect(() => () => { if (saveTimer.current) window.clearTimeout(saveTimer.current); awarenessRef.current?.destroy(); docRef.current?.destroy(); }, []);
+  useEffect(() => {
+    function onHidden() {
+      if (document.visibilityState !== "hidden") return;
+      const token = apiTokenRef.current, doc = docRef.current, id = localProjectIdRef.current;
+      // keepalive rather than sendBeacon: a beacon cannot set Authorization.
+      if (token && doc && id && saveTimer.current !== null) {
+        window.clearTimeout(saveTimer.current); saveTimer.current = null;
+        apiSaveProjectBeacon(token, id, docToFiles(doc));
+      }
+    }
+    document.addEventListener("visibilitychange", onHidden);
+    return () => document.removeEventListener("visibilitychange", onHidden);
+  }, []);
 
   async function join() {
     if ((!code.trim() && !initialGrant) || !name.trim()) { setStatus(initialGrant ? "Add your name first." : "Add your name and student class code first."); return; }
@@ -434,21 +498,33 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     } catch (e) { setStep("join"); setStatus((e as Error).message || "Could not sign in. Try again."); }
   }
 
-  // Open the editor for a signed-in session (guest OR a real account from the root login).
+  // Sign-in lands on the project picker, not straight in the editor. Connecting
+  // to the teacher happens here so the student shows as present while choosing.
   async function openSession(token: string, displayName: string, cls: string, classId: string) {
+    sessionRef.current = { token, name: displayName || "Student", className: cls, classId };
+    setAccountToken(token); setClassName(cls);
+    setStep("picker"); setStatus("Choose a project, or start a new one.");
+    if (classId) connectToTeacher(classId, token, displayName);
+  }
+
+  async function openProject(id: string) {
+    const session = sessionRef.current;
+    if (!session) return;
+    await flushSave();
     setStep("waiting"); setStatus("Opening your project…");
-    let startFiles: Record<string, string> = starterFiles();
-    let loaded = false;
-    try {
-      const saved = await apiGetProject(token); loaded = true;
-      if (saved && saved.files && Object.keys(saved.files).length) { startFiles = saved.files; titleRef.current = saved.title || titleRef.current; }
-    } catch { loaded = false; }
-    apiTokenRef.current = loaded ? token : null; // only autosave once we know the saved state (never clobber on a failed load)
-    setAccountToken(loaded ? token : null);
+    let project;
+    try { project = await apiGetProjectById(session.token, id); }
+    catch { setStep("picker"); setStatus("That project could not be opened. Try again."); return; }
+    if (!project) { setStep("picker"); setStatus("That project is not there any more."); return; }
+
+    // Explicit teardown: the unmount cleanup only fires when the whole component
+    // goes away, so without this every switch leaks a Y.Doc and its listeners.
+    awarenessRef.current?.destroy(); docRef.current?.destroy();
+
     const doc = new Y.Doc();
-    seedDoc(doc, startFiles);
+    seedDoc(doc, project.files);
     const awareness = new Awareness(doc);
-    awareness.setLocalStateField("user", { name: displayName || "Student", color: userColor(device.id) });
+    awareness.setLocalStateField("user", { name: session.name, color: userColor(device.id) });
     doc.on("update", (u: Uint8Array, origin: unknown) => {
       if (origin !== "remote") sendConn({ type: "ydoc", projectId: projectIdRef.current, u: b64encode(u) });
       scheduleDerive(); scheduleSave();
@@ -457,9 +533,30 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
       sendConn({ type: "awareness", projectId: projectIdRef.current, u: b64encode(encodeAwarenessUpdate(awareness, added.concat(updated, removed))) });
     });
     docRef.current = doc; awarenessRef.current = awareness;
-    setFiles(docToFiles(doc)); setTitle(titleRef.current); setClassName(cls);
-    setStep("room"); setStatus(apiTokenRef.current ? "Your work is saved to your account." : "Working on this device.");
-    if (classId) connectToTeacher(classId, token, displayName);
+    localProjectIdRef.current = project.id;
+    titleRef.current = project.title;
+    kindRef.current = project.kind;
+    epochRef.current = crypto.randomUUID();
+    // Only armed after a successful load, so a failed read can never lead to a
+    // save that overwrites good work with an empty document.
+    apiTokenRef.current = session.token;
+    setFiles(docToFiles(doc)); setTitle(project.title); setKind(project.kind);
+    setStep("room"); setStatus("Your work is saved to your account.");
+    announceProject();
+  }
+
+  // Tell the teacher which project this is BEFORE sending its state, so they
+  // drop the previous doc rather than merging two projects into one.
+  function announceProject() {
+    const doc = docRef.current;
+    if (!doc || !projectIdRef.current) return;
+    sendConn({ type: "project", projectId: projectIdRef.current, title: titleRef.current, kind: kindRef.current, epoch: epochRef.current });
+    sendConn({ type: "ydoc", projectId: projectIdRef.current, u: b64encode(Y.encodeStateAsUpdate(doc)) });
+  }
+
+  async function backToPicker() {
+    await flushSave();
+    setStep("picker"); setStatus("Choose a project, or start a new one.");
   }
 
   // A signed-in student sees their saved classrooms (rendered below) and picks
@@ -531,8 +628,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (data.type === "approved") {
       // teacher is helping live: send them MY project so they join my doc
       projectIdRef.current = data.projectId;
-      const doc = docRef.current;
-      if (doc) sendConn({ type: "ydoc", projectId: data.projectId, u: b64encode(Y.encodeStateAsUpdate(doc)) });
+      announceProject(); // no-op while the student is still on the picker
       setLive(true); setStatus("Live with your teacher — they can see and help.");
     }
     if (data.type === "ydoc") { if (docRef.current && data.projectId === projectIdRef.current) { Y.applyUpdate(docRef.current, b64decode(data.u), "remote"); scheduleDerive(); scheduleSave(); } }
@@ -540,8 +636,9 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (data.type === "close") setStatus(data.message);
   }
 
+  if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={openProject} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1>{savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}<p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter your student code and name. Sign in with the same name next time to return to your saved project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
+  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={backToPicker}>My projects</button><button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div><CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 
 function MediaPanel({ token }: { token: string }) {
@@ -585,12 +682,97 @@ function MediaPanel({ token }: { token: string }) {
   </div>;
 }
 
-function CollabWorkspace({ doc, awareness, files, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; readOnly?: boolean }) {
+function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
-  const [file, setFile] = useState(names[0] || "index.html");
-  const [running, setRunning] = useState(true);
+  const [file, setFile] = useState(names[0] || (kind === "java" ? "Main.java" : "index.html"));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
-  return <div className="editor-grid"><section className="code-panel"><div className="tabs">{names.map((name) => <button key={name} className={name === file ? "tab active" : "tab"} onClick={() => setFile(name)}>{name}</button>)}</div><CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} /></section><section className="preview-panel"><div className="preview-top"><strong>Preview</strong><button className="text-button" onClick={() => setRunning((value) => !value)}>{running ? "Refresh" : "Run project"}</button></div>{running && <iframe title="Project preview" sandbox="allow-scripts" srcDoc={buildPreview(files)} />}</section></div>;
+  return <div className="editor-grid">
+    <section className="code-panel">
+      <div className="tabs">{names.map((name) => <button key={name} className={name === file ? "tab active" : "tab"} onClick={() => setFile(name)}>{name}</button>)}</div>
+      <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
+    </section>
+    {kind === "java"
+      ? <section className="preview-panel"><div className="preview-top"><strong>Java</strong></div><div className="not-runnable">
+          <h3>This is a Java project</h3>
+          <p>Your code saves as you type, syncs to your account, and your teacher can see it live — everything works except running it here.</p>
+          <p className="muted">Running Java in the browser is not built yet. Use this for writing practice and for code you will run somewhere else.</p>
+        </div></section>
+      : <RunPanel files={files} />}
+  </div>;
+}
+
+/* Execution is manual and runs a SNAPSHOT of the files, not the live `files`
+   object. The old preview re-read `files` - refreshed on a 300ms debounce by
+   scheduleDerive - so script.js re-executed on essentially every keystroke.
+   For a course whose whole point is calling a rate-limited API, that spends a
+   student's 40-requests-per-minute budget while they are still typing the call. */
+function RunPanel({ files }: { files: Record<string, string> }) {
+  const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
+  const [runId, setRunId] = useState(0);       // key bump: forces a real unmount
+  const [nonce, setNonce] = useState("");      // identifies this run's messages
+  const [log, setLog] = useState<PreviewMessage[]>([]);
+  const [onlyErrors, setOnlyErrors] = useState(false);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const tailRef = useRef<HTMLDivElement | null>(null);
+  const stale = runFiles !== null && !sameFiles(runFiles, files);
+  const errorCount = log.filter((entry) => entry.kind === "error").length;
+
+  function run() {
+    const next = crypto.randomUUID();
+    setLog([]); setNonce(next); setRunFiles({ ...files }); setRunId((id) => id + 1);
+  }
+  function stop() {
+    // Unmounting is the only reliable way to stop a page's timers, listeners
+    // and in-flight requests. Clearing srcDoc would leave them running.
+    setRunFiles(null); setNonce("");
+    setLog((prev) => [...prev, { __utg: "", kind: "system", text: "Stopped.", at: Date.now() }]);
+  }
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const msg = isPreviewMessage(event, frameRef.current, nonce);
+      if (!msg) return; // includes stale output from a previous run, dropped by nonce
+      setLog((prev) => (prev.length >= 300 ? [...prev.slice(-299), msg] : [...prev, msg]));
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [nonce]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); run(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  useEffect(() => { tailRef.current?.scrollIntoView({ block: "end" }); }, [log.length]);
+
+  const shown = onlyErrors ? log.filter((entry) => entry.kind === "error") : log;
+  return <section className="preview-panel">
+    <div className="preview-top">
+      <strong>Preview</strong>
+      {stale && <span className="stale-hint">Your code changed since you last ran it</span>}
+      <button className={stale || !runFiles ? "primary compact" : "text-button"} onClick={run}>{runFiles ? "Run again" : "▶ Run"}</button>
+      {runFiles && <button className="text-button" onClick={stop}>Stop</button>}
+    </div>
+    {runFiles
+      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox="allow-scripts" srcDoc={buildPreview(runFiles, nonce)} />
+      : <div className="preview-idle"><p>Press <strong>▶ Run</strong> to see your project.</p><p className="muted">Nothing runs until you ask it to, so your project never sends a request you did not mean to send.</p></div>}
+    <div className="console-panel">
+      <div className="console-head">
+        <strong>Console</strong>
+        {errorCount > 0 && <span className="console-badge">{errorCount}</span>}
+        <label className="console-filter"><input type="checkbox" checked={onlyErrors} onChange={(event) => setOnlyErrors(event.target.checked)} />Errors only</label>
+        <button className="text-button" onClick={() => setLog([])}>Clear</button>
+      </div>
+      <div className="console-body">
+        {shown.length === 0
+          ? <span className="muted">Anything you <code>console.log()</code> shows up here, along with errors and network requests.</span>
+          : shown.map((entry, index) => <div className={`console-row ${entry.kind}`} key={index}>{entry.text}</div>)}
+        <div ref={tailRef} />
+      </div>
+    </div>
+  </section>;
 }
 
 export default App;

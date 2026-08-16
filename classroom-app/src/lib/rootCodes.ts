@@ -36,8 +36,11 @@ export async function peerOptions(token?: string): Promise<import("peerjs").Peer
 }
 
 export function classroomForId(classId: string) {
+  // Kept in step with window.UTG_CLASSROOMS in /class-codes.js. A class missing
+  // from here cannot sign in at all - StudentJoin rejects the login outright.
   const known: ClassroomDefinition[] = [
-    { id: "ai102", courseId: "AI102", className: "AI102 - Introduction to AI Integration" },
+    { id: "ai101", courseId: "AI101", className: "AI101 - Talk to the Machine" },
+    { id: "ai102", courseId: "AI102", className: "AI102 - AI Creative Studio" },
   ];
   return known.find((item) => item.id === classId) || null;
 }

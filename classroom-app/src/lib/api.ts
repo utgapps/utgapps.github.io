@@ -15,7 +15,10 @@ function accessDevice() {
 }
 
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
-export type ApiProject = { id: string; title: string; files: Record<string, string>; updatedAt: number };
+export type ProjectKind = "web" | "java";
+// The picker list deliberately carries no files - see the worker's GET /projects.
+export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number };
+export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {
   const headers: Record<string, string> = { "content-type": "application/json", "x-utg-access-device": accessDevice(), ...(opts.headers as Record<string, string>) };
@@ -38,12 +41,41 @@ export async function apiLoginAccount(username: string, password: string): Promi
 export async function apiBootstrapAdmin(body: { setupSecret: string; classId: string; name: string; username: string; password: string }): Promise<{ token: string; account: ApiAccount }> {
   return req("/admin/bootstrap", { method: "POST", body: JSON.stringify(body) });
 }
+/** @deprecated Single-project routes. Kept so a browser holding a cached
+ *  pre-picker bundle keeps saving; nothing in this app calls them any more.
+ *  Remove once that cache cannot plausibly still exist. */
 export async function apiGetProject(token: string): Promise<ApiProject | null> {
   const d = await req("/project", {}, token);
   return d.project || null;
 }
+/** @deprecated See apiGetProject. */
 export async function apiSaveProject(token: string, title: string, files: Record<string, string>): Promise<void> {
   await req("/project", { method: "PUT", body: JSON.stringify({ title, files }) }, token);
+}
+
+export async function apiListProjects(token: string): Promise<ApiProjectSummary[]> {
+  return (await req("/projects", {}, token)).projects || [];
+}
+export async function apiCreateProject(token: string, body: { title: string; kind: ProjectKind; files: Record<string, string> }): Promise<ApiProject> {
+  return (await req("/projects", { method: "POST", body: JSON.stringify(body) }, token)).project;
+}
+export async function apiGetProjectById(token: string, id: string): Promise<ApiProject | null> {
+  return (await req(`/projects/${encodeURIComponent(id)}`, {}, token)).project || null;
+}
+export async function apiSaveProjectById(token: string, id: string, body: { title?: string; files?: Record<string, string> }): Promise<void> {
+  await req(`/projects/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) }, token);
+}
+export async function apiDeleteProject(token: string, id: string): Promise<void> {
+  await req(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" }, token);
+}
+/* Leaving the tab must not lose up to 8 seconds of the autosave debounce.
+   sendBeacon cannot set an Authorization header, so this is fetch + keepalive. */
+export function apiSaveProjectBeacon(token: string, id: string, files: Record<string, string>): void {
+  fetch(`${API}/projects/${encodeURIComponent(id)}`, {
+    method: "PUT", keepalive: true, cache: "no-store",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ files }),
+  }).catch(() => {});
 }
 
 export type ApiClassroomLink = { classId: string; role: "student" | "instructor"; label: string; lastUsed: number };

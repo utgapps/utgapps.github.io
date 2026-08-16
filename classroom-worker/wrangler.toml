@@ -10,8 +10,9 @@ database_name = "utg-classroom"
 database_id = "167a4fab-42d8-453a-8a91-ce62c2a014ef"
 
 [vars]
-# Class ids that may create guest accounts (comma separated). "*" allows any.
-ALLOWED_CLASSES = "ai102,ai201"
+# ALLOWED_CLASSES used to live here. It was never read by src/index.js, so it
+# gated nothing while looking like it did. Which classes exist is decided by
+# class_access rows (created from /admin) plus classroomForId() in the frontend.
 # Days a guest account (and all its data) lives before the nightly cron wipes it.
 GUEST_TTL_DAYS = "120"
 # Max size (bytes) of a single compressed upload.

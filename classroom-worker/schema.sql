@@ -18,10 +18,14 @@ CREATE TABLE IF NOT EXISTS projects (
   id         TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
   title      TEXT NOT NULL,
+  kind       TEXT NOT NULL DEFAULT 'web',   -- 'web' | 'java'; fixed at creation
   files      TEXT NOT NULL,                 -- JSON: { filename: contents }
-  updated_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL DEFAULT 0,    -- picker order; updated_at reshuffles on every autosave
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER                        -- soft delete, reaped after 30 days
 );
 CREATE INDEX IF NOT EXISTS idx_projects_account ON projects(account_id);
+CREATE INDEX IF NOT EXISTS idx_projects_account_updated ON projects(account_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS sessions (
   token      TEXT PRIMARY KEY,

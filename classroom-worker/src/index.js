@@ -6,7 +6,9 @@ const DAY = 86400000;
 const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
-const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "classroom"];
+const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102"];
+const PROJECT_KINDS = ["web", "java"];
+const PROJECT_LIMIT = 30;
 const PLAY_GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 
 class HttpError extends Error {
@@ -90,6 +92,23 @@ async function readJson(request, maxBytes = JSON_LIMIT) {
   const bytes = await readBytes(request, maxBytes);
   try { return JSON.parse(dec.decode(bytes)); }
   catch { throw new HttpError("Invalid JSON."); }
+}
+
+function projectTitle(value) { return String(value || "My project").trim().slice(0, 80) || "My project"; }
+function projectKind(value) { return PROJECT_KINDS.includes(value) ? value : "web"; }
+/* Rows written before multi-project support have kind NULL and created_at 0. */
+function projectSummary(row) {
+  return { id: row.id, title: row.title, kind: projectKind(row.kind), size: row.size || 0, createdAt: row.created_at || row.updated_at, updatedAt: row.updated_at };
+}
+function projectFull(row) {
+  return { ...projectSummary({ ...row, size: row.files.length }), files: JSON.parse(row.files) };
+}
+/* Shared by the legacy /project PUT and the per-id PUT so the size rule is stated once. */
+function projectFilesJson(files) {
+  if (!files || typeof files !== "object" || Array.isArray(files)) throw new HttpError("Missing project files.");
+  const json = JSON.stringify(files);
+  if (enc.encode(json).byteLength > JSON_LIMIT) throw new HttpError("Project is too large.", 413);
+  return json;
 }
 
 async function newSession(db, accountId, days) {
@@ -425,21 +444,72 @@ export default {
       }
       if (!me) return bad(request, env, "Not signed in.", 401);
 
+      /* Legacy single-project routes. A browser holding a cached pre-picker bundle
+         still autosaves through these, so they stay until that cache cannot exist.
+         Both ends deliberately target the SAME row - most recently updated - so a
+         stale bundle round-trips its own project instead of overwriting whichever
+         row SQLite happened to return for an unordered LIMIT 1. */
       if (path === "/project" && request.method === "GET") {
-        const project = await db.prepare("SELECT * FROM projects WHERE account_id = ? ORDER BY updated_at DESC LIMIT 1").bind(me.id).first();
-        return response(request, env, { project: project ? { id: project.id, title: project.title, files: JSON.parse(project.files), updatedAt: project.updated_at } : null });
+        const project = await db.prepare("SELECT * FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1").bind(me.id).first();
+        return response(request, env, { project: project ? projectFull(project) : null });
       }
       if (path === "/project" && request.method === "PUT") {
         const { title, files } = await readJson(request, JSON_LIMIT);
-        if (!files || typeof files !== "object" || Array.isArray(files)) throw new HttpError("Missing project files.");
-        const filesJson = JSON.stringify(files);
-        if (enc.encode(filesJson).byteLength > JSON_LIMIT) throw new HttpError("Project is too large.", 413);
+        const filesJson = projectFilesJson(files);
         const now = Date.now();
-        const existing = await db.prepare("SELECT id FROM projects WHERE account_id = ? LIMIT 1").bind(me.id).first();
-        if (existing) await db.prepare("UPDATE projects SET title = ?, files = ?, updated_at = ? WHERE id = ?").bind(String(title || "My project").slice(0, 80), filesJson, now, existing.id).run();
-        else await db.prepare("INSERT INTO projects (id, account_id, title, files, updated_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(), me.id, String(title || "My project").slice(0, 80), filesJson, now).run();
+        const existing = await db.prepare("SELECT id FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1").bind(me.id).first();
+        if (existing) await db.prepare("UPDATE projects SET title = ?, files = ?, updated_at = ? WHERE id = ?").bind(projectTitle(title), filesJson, now, existing.id).run();
+        else await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), me.id, projectTitle(title), "web", filesJson, now, now).run();
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
         return response(request, env, { ok: true, updatedAt: now });
+      }
+
+      /* The list never carries files: at 750 KB a project, a class set would be
+         megabytes on every visit to the picker. length() is computed in SQLite. */
+      if (path === "/projects" && request.method === "GET") {
+        const rows = (await db.prepare("SELECT id, title, kind, created_at, updated_at, length(files) AS size FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC").bind(me.id).all()).results;
+        return response(request, env, { projects: rows.map(projectSummary) });
+      }
+      if (path === "/projects" && request.method === "POST") {
+        const { title, kind, files } = await readJson(request, JSON_LIMIT);
+        const filesJson = projectFilesJson(files);
+        const open = await db.prepare("SELECT COUNT(*) AS total FROM projects WHERE account_id = ? AND deleted_at IS NULL").bind(me.id).first();
+        if ((open?.total || 0) >= PROJECT_LIMIT) throw new HttpError(`That is ${PROJECT_LIMIT} projects already. Delete one to make room for a new one.`);
+        const id = crypto.randomUUID(), now = Date.now();
+        await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(id, me.id, projectTitle(title), projectKind(kind), filesJson, now, now).run();
+        await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
+        return response(request, env, { project: { id, title: projectTitle(title), kind: projectKind(kind), files: JSON.parse(filesJson), size: filesJson.length, createdAt: now, updatedAt: now } });
+      }
+      /* Every per-id route scopes on account_id in the WHERE rather than checking
+         ownership afterwards, and answers 404 rather than 403 - a guessed id must
+         not confirm that somebody else's project exists. */
+      const projectMatch = path.match(/^\/projects\/([^/]+)$/);
+      if (projectMatch) {
+        const projectId = projectMatch[1];
+        if (request.method === "GET") {
+          const row = await db.prepare("SELECT * FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          if (!row) throw new HttpError("No such project.", 404);
+          return response(request, env, { project: projectFull(row) });
+        }
+        if (request.method === "PUT") {
+          const body = await readJson(request, JSON_LIMIT);
+          const row = await db.prepare("SELECT id FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          if (!row) throw new HttpError("No such project.", 404);
+          const now = Date.now();
+          // kind is fixed at creation: a Java project must not quietly become a web one.
+          if (body.files !== undefined) await db.prepare("UPDATE projects SET files = ?, updated_at = ? WHERE id = ?").bind(projectFilesJson(body.files), now, projectId).run();
+          if (body.title !== undefined) await db.prepare("UPDATE projects SET title = ?, updated_at = ? WHERE id = ?").bind(projectTitle(body.title), now, projectId).run();
+          await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
+          return response(request, env, { ok: true, updatedAt: now });
+        }
+        if (request.method === "DELETE") {
+          const row = await db.prepare("SELECT id FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          if (!row) throw new HttpError("No such project.", 404);
+          // Soft delete. A 12-year-old deleting the wrong card has 30 days of grace.
+          await db.prepare("UPDATE projects SET deleted_at = ? WHERE id = ?").bind(Date.now(), projectId).run();
+          return response(request, env, { ok: true });
+        }
       }
 
       if (path === "/media" && request.method === "GET") {
@@ -660,7 +730,7 @@ export default {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
         await env.DB.batch([env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
-      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now)]);
+      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now), env.DB.prepare("DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?").bind(now - 30 * DAY)]);
     })());
   },
 };

@@ -6,6 +6,7 @@ const MODULES = [
   { id: "pixel-art", label: "Pixel Art" }, { id: "animator", label: "Animator" },
   { id: "digital-art", label: "Digital Art" }, { id: "modeling", label: "Modeling" },
   { id: "camp", label: "Camp Coding" }, { id: "vex", label: "VEX Build Center" }, { id: "classroom", label: "Curriculum Classroom" },
+  { id: "ai101", label: "AI101 Course" }, { id: "ai102", label: "AI102 Course" },
 ];
 const GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 type CodeDraft = { label: string; enabled: boolean; tools: string[]; print: boolean; play: string[]; hours: string; newCode: string };

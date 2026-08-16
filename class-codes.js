@@ -6,9 +6,14 @@
    the TURN relay URL used by the live classroom. */
 window.UTG_CLASSROOMS = [
   {
+    id: "ai101",
+    courseId: "AI101",
+    className: "AI101 - Talk to the Machine"
+  },
+  {
     id: "ai102",
     courseId: "AI102",
-    className: "AI102 - Introduction to AI Integration"
+    className: "AI102 - AI Creative Studio"
   }
 ];
 

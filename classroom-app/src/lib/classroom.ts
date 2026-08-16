@@ -1,4 +1,4 @@
-import type { ClassRecord, Project, Student } from "./types";
+import type { ClassRecord, Project, ProjectKind, Student } from "./types";
 import { starterFiles } from "./types";
 
 export function normalizeCode(value: string) {
@@ -27,11 +27,14 @@ export function makeClass(name: string, courseId: string, classId: string): Clas
   };
 }
 
-export function makeStudent(name: string): { student: Student; project: Project } {
+// The project here is the teacher's placeholder slot for a student. The student's
+// own "project" wire message replaces the title and kind with whatever they
+// actually open, so "web" is a starting guess rather than a decision.
+export function makeStudent(name: string, kind: ProjectKind = "web"): { student: Student; project: Project } {
   const projectId = crypto.randomUUID();
   return {
     student: { id: crypto.randomUUID(), name, projectId, status: "offline", deviceIds: [] },
-    project: { id: projectId, title: `${name}'s project`, files: starterFiles(), updatedAt: new Date().toISOString() },
+    project: { id: projectId, title: `${name}'s project`, kind, files: starterFiles(kind), updatedAt: new Date().toISOString() },
   };
 }
 
