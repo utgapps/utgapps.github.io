@@ -39,8 +39,8 @@ LINE_BUDGET = 1000
 # replaying the weeks
 # --------------------------------------------------------------------------
 
-def state_at(upto):
-    """File contents as they stand at the END of week `upto` (1-based)."""
+def blocks_at(upto):
+    """Ordered [(block_id, lines)] per file at the END of week `upto` (1-based)."""
     blocks = {name: [] for name in FILES}
     for week in course.WEEKS[:upto]:
         for kind, filename, block_id, lines in week["ops"]:
@@ -64,9 +64,53 @@ def state_at(upto):
         unknown = [bid for bid, _ in blocks[name] if bid not in order]
         if unknown:
             raise SystemExit(f"{name}: block(s) {unknown} missing from course.ORDER[{name!r}]")
-        ordered = sorted(blocks[name], key=lambda pair: order.index(pair[0]))
-        out[name] = "\n".join(line for _, lines in ordered for line in lines)
+        out[name] = sorted(blocks[name], key=lambda pair: order.index(pair[0]))
     return out
+
+
+def state_at(upto):
+    """File contents as they stand at the END of week `upto`."""
+    return {name: "\n".join(line for _, lines in ordered for line in lines)
+            for name, ordered in blocks_at(upto).items()}
+
+
+def block_spans(upto):
+    """{filename: {block_id: (first_line, last_line)}} at the end of week `upto`.
+
+    This is what lets the teacher guide say "type into script.js, lines 34-52"
+    and be right. The numbers come out of the same replay that produces the
+    milestone pages, so they cannot drift from what students actually see.
+    """
+    spans = {}
+    for name, ordered in blocks_at(upto).items():
+        spans[name] = {}
+        line = 1
+        for block_id, lines in ordered:
+            spans[name][block_id] = (line, line + len(lines) - 1)
+            line += len(lines)
+    return spans
+
+
+def week_ops(week):
+    """{(filename, block_id): 'add' | 'set'} for one week."""
+    return {(filename, block_id): kind for kind, filename, block_id, _ in week["ops"]}
+
+
+def where(week, refs):
+    """Human phrase for a plan row: which file, which lines, new or replacing."""
+    spans, ops = block_spans(week["n"]), week_ops(week)
+    out = []
+    for filename, block_id in refs:
+        start, end = spans[filename][block_id]
+        kind = ops.get((filename, block_id))
+        rng = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
+        if kind == "add":
+            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(new)</span>")
+        elif kind == "set":
+            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(replaces what is there)</span>")
+        else:
+            out.append(f"<b>{esc(filename)}</b> {rng} <span class='muted'>(already written &mdash; just look at it)</span>")
+    return " &middot; ".join(out)
 
 
 def changed_lines(upto):
@@ -98,6 +142,19 @@ def line_count(files):
 # --------------------------------------------------------------------------
 # shared page furniture
 # --------------------------------------------------------------------------
+
+def esc(text):
+    """HTML-escape, and force the result to pure ASCII.
+
+    Every page this builder writes is 7-bit clean. Non-ASCII becomes a numeric
+    character reference, which renders identically but survives being opened by
+    something that guesses the encoding wrong - Word, an old editor, a
+    PowerShell round-trip. These files get printed, emailed and dropped into
+    Google Drive, so that is a real risk, and a mojibake page in front of a
+    class is worse than a slightly longer file.
+    """
+    return html.escape(str(text)).encode("ascii", "xmlcharrefreplace").decode("ascii")
+
 
 def guard(tool="ai101"):
     return (
@@ -154,6 +211,8 @@ table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
 table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
 table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+table.plan td.code-ref{width:210px;font-size:12.5px;line-height:1.45}
+table.plan td.code-ref b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
 ul.tight li{margin-bottom:5px}
 .say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
 .say b{color:#5b3fa0}
@@ -197,7 +256,7 @@ document.querySelectorAll('[data-tabs]').forEach(function(group){
 def page(title, body, extra_js="", tool="ai101"):
     return f"""<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(title)} · UTG Academy</title>
+<title>{esc(title)} &middot; UTG Academy</title>
 {FONT}
 <style>{CSS}</style>
 {guard(tool)}
@@ -213,9 +272,9 @@ def code_block(filename, text, marks, ident):
     rows = []
     for i, line in enumerate(text.split("\n"), start=1):
         cls = ' class="new"' if i in marks else ""
-        rows.append(f'<tr{cls}><td class="ln">{i}</td><td class="src">{html.escape(line) or "&nbsp;"}</td></tr>')
+        rows.append(f'<tr{cls}><td class="ln">{i}</td><td class="src">{esc(line) or "&nbsp;"}</td></tr>')
     return (
-        f'<div class="filebar"><span>{html.escape(filename)}</span>'
+        f'<div class="filebar"><span>{esc(filename)}</span>'
         f'<button data-copy="{ident}">Copy this file</button></div>'
         f'<div class="code"><table id="{ident}">{"".join(rows)}</table></div>'
     )
@@ -226,7 +285,7 @@ def files_view(upto, ident_prefix):
     files = state_at(upto)
     marks = changed_lines(upto)
     tabs = "".join(
-        f'<button class="tab{" active" if i == 0 else ""}" data-for="{ident_prefix}-{i}">{html.escape(name)}</button>'
+        f'<button class="tab{" active" if i == 0 else ""}" data-for="{ident_prefix}-{i}">{esc(name)}</button>'
         for i, name in enumerate(FILES)
     )
     panes = "".join(
@@ -244,16 +303,16 @@ def files_view(upto, ident_prefix):
 def build_index():
     cards = "".join(
         f'<a class="wk-card" href="week-{w["n"]:02d}.html"><span class="n">Week {w["n"]}</span>'
-        f'<h3>{html.escape(w["title"])}</h3><p>{html.escape(w["big_idea"])}</p></a>'
+        f'<h3>{esc(w["title"])}</h3><p>{esc(w["big_idea"])}</p></a>'
         for w in course.WEEKS
     )
     body = f"""<div class="wrap">
 <p class="eyebrow">15-week course</p>
-<h1>{html.escape(course.COURSE_TITLE)}</h1>
-<p class="lead">{html.escape(course.COURSE_BLURB)}</p>
+<h1>{esc(course.COURSE_TITLE)}</h1>
+<p class="lead">{esc(course.COURSE_BLURB)}</p>
 <div class="card">
   <h3 style="margin-top:0">What you are building</h3>
-  <p class="muted">{html.escape(course.PROJECT_BLURB)}</p>
+  <p class="muted">{esc(course.PROJECT_BLURB)}</p>
   <p><a class="pill" href="teacher.html">Teacher curriculum</a>
      <a class="pill" href="workbook.html">Student homework book</a>
      <a class="pill" href="../classroom/">Open the code editor</a></p>
@@ -269,20 +328,20 @@ def build_weeks():
         n = week["n"]
         prev = f'<a href="week-{n-1:02d}.html">&larr; Week {n-1}</a>' if n > 1 else "<span></span>"
         nxt = f'<a href="week-{n+1:02d}.html">Week {n+1} &rarr;</a>' if n < len(course.WEEKS) else "<span></span>"
-        concepts = "".join(f'<span class="pill">{html.escape(c)}</span>' for c in week["new_concepts"])
+        concepts = "".join(f'<span class="pill">{esc(c)}</span>' for c in week["new_concepts"])
         total = line_count(state_at(n))
         bonus = ""
         if week.get("bonus"):
             bonus = (
-                f'<div class="bonus"><strong>Finished early? {html.escape(week["bonus"]["title"])}</strong>'
-                f'<p style="margin:6px 0 0">{html.escape(week["bonus"]["body"])}</p>'
+                f'<div class="bonus"><strong>Finished early? {esc(week["bonus"]["title"])}</strong>'
+                f'<p style="margin:6px 0 0">{esc(week["bonus"]["body"])}</p>'
                 '<p class="muted" style="margin:6px 0 0;font-size:13px">Nothing in a later week depends on this, '
                 'so it is safe to skip and safe to keep.</p></div>'
             )
         body = f"""<div class="wrap">
 <p class="eyebrow">Week {n} of {len(course.WEEKS)}</p>
-<h1>{html.escape(week["title"])}</h1>
-<p class="lead">{html.escape(week["big_idea"])}</p>
+<h1>{esc(week["title"])}</h1>
+<p class="lead">{esc(week["big_idea"])}</p>
 <p>{concepts}</p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
 The green lines are what is new since week {n-1 if n > 1 else 0}. Everything else you already had.
@@ -298,39 +357,64 @@ Your project is now {total} lines.</div>
 def build_teacher():
     sections = []
     for week in course.WEEKS:
-        rows = "".join(
-            f'<tr><td class="t">{html.escape(t)}</td><td>{html.escape(what)}</td><td>{detail}</td></tr>'
-            for t, what, detail in week["plan"]
+        spans = block_spans(week["n"])
+        rows = ""
+        for row in week["plan"]:
+            moment, what, detail = row[0], row[1], row[2]
+            refs = row[3] if len(row) > 3 else None
+            cell = where(week, refs) if refs else '<span class="muted">no typing</span>'
+            rows += (f'<tr><td class="t">{esc(moment)}</td><td>{esc(what)}</td>'
+                     f'<td>{detail}</td><td class="code-ref">{cell}</td></tr>')
+
+        # An at-a-glance list of every edit the week makes, straight from the ops.
+        typed = "".join(
+            '<tr><td><b>{f}</b></td><td>{r}</td><td>{k}</td></tr>'.format(
+                f=esc(filename),
+                r=("line {0}".format(spans[filename][block_id][0])
+                   if spans[filename][block_id][0] == spans[filename][block_id][1]
+                   else "lines {0}&ndash;{1}".format(*spans[filename][block_id])),
+                k="type it in fresh" if kind == "add" else "replace what is already there")
+            for kind, filename, block_id, _ in week["ops"]
+        )
+        typed_table = (
+            '<div class="card"><strong>Everything typed this week</strong>'
+            '<table class="plan"><tr><th>File</th><th>Where</th><th>What to do</th></tr>'
+            f'{typed}</table>'
+            '<p class="muted" style="margin:8px 0 0;font-size:13px">Line numbers are as the file '
+            'stands at the END of this week, which is what the student sees on the week page. '
+            'Work top to bottom and they will line up.</p></div>'
+            if typed else '<div class="card"><strong>No new code this week.</strong></div>'
         )
         asks = "".join(
-            f'<div class="say"><b>Ask:</b> {html.escape(q)}<br><span class="muted">Listening for: {html.escape(a)}</span></div>'
+            f'<div class="say"><b>Ask:</b> {esc(q)}<br><span class="muted">Listening for: {esc(a)}</span></div>'
             for q, a in week["ask"]
         )
         errors = "".join(
-            f"<li><strong>{html.escape(sym)}</strong> — {html.escape(fix)}</li>" for sym, fix in week["errors"]
+            f"<li><strong>{esc(sym)}</strong> &mdash; {esc(fix)}</li>" for sym, fix in week["errors"]
         )
         bonus = ""
         if week.get("bonus"):
-            bonus = (f'<div class="bonus"><strong>Bonus for fast finishers: {html.escape(week["bonus"]["title"])}</strong>'
-                     f'<p style="margin:6px 0 0">{html.escape(week["bonus"]["body"])}</p></div>')
+            bonus = (f'<div class="bonus"><strong>Bonus for fast finishers: {esc(week["bonus"]["title"])}</strong>'
+                     f'<p style="margin:6px 0 0">{esc(week["bonus"]["body"])}</p></div>')
         sections.append(f"""<section class="chapter">
-<h2>Week {week["n"]} &middot; {html.escape(week["title"])}</h2>
-<p class="lead">{html.escape(week["big_idea"])}</p>
+<h2>Week {week["n"]} &middot; {esc(week["title"])}</h2>
+<p class="lead">{esc(week["big_idea"])}</p>
 <div class="card"><strong>They leave today able to:</strong>
-<ul class="tight">{"".join(f"<li>{html.escape(o)}</li>" for o in week["objectives"])}</ul></div>
+<ul class="tight">{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul></div>
+{typed_table}
 <h3>The hour</h3>
-<table class="plan"><tr><th>Time</th><th>What</th><th>How</th></tr>{rows}</table>
+<table class="plan"><tr><th>Time</th><th>What</th><th>How</th><th>Type this</th></tr>{rows}</table>
 <h3>Questions to throw at the room</h3>
 {asks}
 <h3>What will go wrong</h3>
 <ul class="tight">{errors}</ul>
 {bonus}
 <h3>Homework set today</h3>
-<ul class="tight">{"".join(f"<li>{html.escape(c['task'])}</li>" for c in week["homework"])}</ul>
+<ul class="tight">{"".join(f"<li>{esc(c['task'])}</li>" for c in week["homework"])}</ul>
 </section>""")
     body = f"""<div class="wrap">
 <p class="eyebrow">Teacher curriculum</p>
-<h1>{html.escape(course.COURSE_TITLE)}</h1>
+<h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">Fifteen one-hour lessons. Every hour is built so you are talking for well under half of it.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 <div class="card">
@@ -346,20 +430,20 @@ def build_workbook():
     chapters = []
     for week in course.WEEKS:
         challenges = "".join(
-            f'<div class="card"><strong>Challenge {i}. {html.escape(c["task"])}</strong>'
-            f'<p style="margin:8px 0 0">{html.escape(c["detail"])}</p>'
-            f'<p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> {html.escape(c["done"])}</p></div>'
+            f'<div class="card"><strong>Challenge {i}. {esc(c["task"])}</strong>'
+            f'<p style="margin:8px 0 0">{esc(c["detail"])}</p>'
+            f'<p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> {esc(c["done"])}</p></div>'
             for i, c in enumerate(week["homework"], start=1)
         )
-        recap = "".join(f"<li>{html.escape(r)}</li>" for r in week["recap"])
+        recap = "".join(f"<li>{esc(r)}</li>" for r in week["recap"])
         chapters.append(f"""<section class="chapter">
 <p class="eyebrow">Chapter {week["n"]}</p>
-<h2>{html.escape(week["title"])}</h2>
-<p class="lead">{html.escape(week["big_idea"])}</p>
+<h2>{esc(week["title"])}</h2>
+<p class="lead">{esc(week["big_idea"])}</p>
 <h3>What you learned</h3>
 <ul class="tight">{recap}</ul>
 <h3>Words to know</h3>
-<p>{"".join(f'<span class="pill">{html.escape(c)}</span>' for c in week["new_concepts"])}</p>
+<p>{"".join(f'<span class="pill">{esc(c)}</span>' for c in week["new_concepts"])}</p>
 <h3>Challenges</h3>
 {challenges}
 <h3>Stuck?</h3>
@@ -368,7 +452,7 @@ The green lines are the ones added that week.</p>
 </section>""")
     body = f"""<div class="wrap">
 <p class="eyebrow">Student homework book</p>
-<h1>{html.escape(course.COURSE_TITLE)}</h1>
+<h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 {"".join(chapters)}
@@ -441,6 +525,20 @@ def main():
     for week in course.WEEKS:
         if not week["ops"] and not week.get("no_code_ok"):
             raise SystemExit(f"week {week['n']} changes no code; set no_code_ok=True if that is deliberate")
+
+        # Every edit must be pinned to a moment in the lesson, or the teacher is
+        # left guessing when in the hour it happens.
+        touched = {(filename, block_id) for _, filename, block_id, _ in week["ops"]}
+        cited = {ref for row in week["plan"] if len(row) > 3 for ref in row[3]}
+        orphans = touched - cited
+        if orphans:
+            raise SystemExit(
+                f"week {week['n']}: no plan row says when to type "
+                + ", ".join(f"{f}:{b}" for f, b in sorted(orphans))
+            )
+        ghosts = {ref for ref in cited if ref[0] not in FILES}
+        if ghosts:
+            raise SystemExit(f"week {week['n']}: plan cites unknown file(s) {sorted(ghosts)}")
         grew = line_count(state_at(week["n"])) - (line_count(state_at(week["n"] - 1)) if week["n"] > 1 else 0)
         print(f"  week {week['n']:2d}  +{grew:3d} lines  {week['title']}")
 

@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Student homework book · UTG Academy</title>
+<title>Student homework book &middot; UTG Academy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
@@ -49,6 +49,8 @@ table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
 table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
 table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+table.plan td.code-ref{width:210px;font-size:12.5px;line-height:1.45}
+table.plan td.code-ref b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
 ul.tight li{margin-bottom:5px}
 .say{border-left:3px solid #8e6bd4;background:#f6f2fd;padding:10px 13px;margin:9px 0;border-radius:0 6px 6px 0;font-size:14px}
 .say b{color:#5b3fa0}
@@ -68,7 +70,7 @@ html:not(.utg-can-print) .printbtn{display:none}
 <header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>AI101</strong></header>
 <div class="wrap">
 <p class="eyebrow">Student homework book</p>
-<h1>AI101 · Talk to the Machine</h1>
+<h1>AI101 &#183; Talk to the Machine</h1>
 <p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 <section class="chapter">
@@ -87,7 +89,7 @@ The green lines are the ones added that week.</p>
 </section><section class="chapter">
 <p class="eyebrow">Chapter 2</p>
 <h2>Making it react</h2>
-<p class="lead">Your pygame games ran a loop that asked &#x27;did anything happen?&#x27; sixty times a second. The browser flips that around: you leave a note saying what to do, and the browser calls you. Today the Send button finally works.</p>
+<p class="lead">In PixelPad your loop() ran sixty times a second asking &#x27;did anything happen yet?&#x27;. The browser flips that around: you leave a note saying what to do, and it calls you when it happens. Today the Send button finally works.</p>
 <h3>What you learned</h3>
 <ul class="tight"><li>getElementById finds an element by the name you gave it in the HTML.</li><li>A function is a set of instructions with a name, so you can use it again.</li><li>addEventListener leaves a note: when this happens, run this.</li><li>event.preventDefault() stops the browser&#x27;s old default behaviour.</li><li>.value is what someone typed; .textContent is the words shown on the page.</li></ul>
 <h3>Words to know</h3>
@@ -154,9 +156,9 @@ The green lines are the ones added that week.</p>
 <h2>Memory</h2>
 <p class="lead">Your companion has amnesia: ask &#x27;what did I just say?&#x27; and it has no idea. It only knows what you send. So send the whole conversation every time.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>The model remembers nothing - every request starts from zero.</li><li>An array is a list; push adds to the end.</li><li>Each message is an object with a role and content.</li><li>You must save what the AI said too, not just what you said.</li><li>...history means &#x27;tip every item in here&#x27;.</li></ul>
+<ul class="tight"><li>The model remembers nothing - every request starts from zero.</li><li>An array holds any number of things under one name - your first one.</li><li>push adds to the end of an array.</li><li>Each message is an object with a role and content.</li><li>You must save what the AI said too, not just what you said.</li><li>...history means &#x27;tip every item in here&#x27;.</li></ul>
 <h3>Words to know</h3>
-<p><span class="pill">array</span><span class="pill">push</span><span class="pill">object</span><span class="pill">conversation history</span><span class="pill">stateless</span></p>
+<p><span class="pill">array (your first)</span><span class="pill">push</span><span class="pill">object</span><span class="pill">conversation history</span><span class="pill">stateless</span></p>
 <h3>Challenges</h3>
 <div class="card"><strong>Challenge 1. Test the memory properly</strong><p style="margin:8px 0 0">Have a five-message conversation where each message depends on the one before. Write down the point where it stops making sense, if it does.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Five real follow-ups, and a note about whether it kept up.</p></div><div class="card"><strong>Challenge 2. Watch the history grow</strong><p style="margin:8px 0 0">console.log(history.length) after every message. Send fifteen messages and note the number.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say how many items are in the list after fifteen messages, and why it is not fifteen.</p></div><div class="card"><strong>Challenge 3. Break it on purpose</strong><p style="margin:8px 0 0">Comment out the line that pushes the assistant reply. Have a four-message conversation. Describe exactly how it goes wrong, then put it back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain why the AI needs to hear its own words.</p></div>
 <h3>Stuck?</h3>
