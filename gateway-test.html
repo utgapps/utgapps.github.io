@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Gateway diagnostic</title>
+<style>
+  body { font: 15px/1.55 system-ui, sans-serif; margin: 0; padding: 22px; color: #1f2a37; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #6b7787; margin: 0 0 18px; }
+  table { border-collapse: collapse; width: 100%; max-width: 1000px; }
+  th, td { border: 1px solid #dbe3ec; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #eef4f8; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  td.v { font-weight: 700; white-space: nowrap; }
+  .pass { color: #17794a; } .fail { color: #b3261e; } .wait { color: #8a6d1f; }
+  code { font: 12.5px ui-monospace, Consolas, monospace; color: #0a6299; }
+  #summary { margin: 20px 0 0; padding: 14px 16px; border-radius: 8px; background: #f4f7f9;
+             border-left: 4px solid #01aefd; max-width: 1000px; font-size: 15px; }
+  iframe { display: none; }
+</style>
+</head>
+<body>
+<h1>Gateway diagnostic</h1>
+<p class="sub">Each row is the same request made a different way. The pattern of passes and
+failures identifies which browser rule is blocking student code.</p>
+
+<table>
+  <thead><tr><th>#</th><th>What it tests</th><th>Result</th><th>Detail</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div id="summary">Running…</div>
+
+<script>
+var GW = "https://ai.tail5091fc.ts.net";
+var TESTS = [
+  ["A", "Top-level page, simple GET (no preflight)", "top-simple"],
+  ["B", "Top-level page, GET with Authorization (forces a preflight)", "top-preflight"],
+  ["C", "Top-level page, mode:'no-cors' (bypasses CORS entirely)", "top-nocors"],
+  ["D", "Sandboxed iframe, allow-scripts only - what the editor uses today", "sandbox-opaque"],
+  ["E", "Sandboxed iframe, allow-scripts + allow-same-origin", "sandbox-sameorigin"]
+];
+var results = {};
+var tbody = document.getElementById("rows");
+
+TESTS.forEach(function (t) {
+  var tr = document.createElement("tr");
+  tr.innerHTML = '<td>' + t[0] + '</td><td>' + t[1] +
+    '</td><td class="v wait" id="v-' + t[2] + '">running</td>' +
+    '<td><code id="d-' + t[2] + '"></code></td>';
+  tbody.appendChild(tr);
+});
+
+function record(id, ok, detail) {
+  results[id] = ok;
+  var v = document.getElementById("v-" + id);
+  v.textContent = ok ? "reached" : "blocked";
+  v.className = "v " + (ok ? "pass" : "fail");
+  document.getElementById("d-" + id).textContent = detail;
+  if (Object.keys(results).length === TESTS.length) explain();
+}
+
+// ---- top-level tests, run on this page's real origin ----
+fetch(GW + "/healthz")
+  .then(function (r) { record("top-simple", true, "HTTP " + r.status); })
+  .catch(function (e) { record("top-simple", false, e.name + ": " + e.message); });
+
+fetch(GW + "/v1/models", { headers: { "Authorization": "Bearer probe-not-real" } })
+  .then(function (r) { record("top-preflight", true, "HTTP " + r.status + " (401 is expected)"); })
+  .catch(function (e) { record("top-preflight", false, e.name + ": " + e.message); });
+
+fetch(GW + "/healthz", { mode: "no-cors" })
+  .then(function (r) { record("top-nocors", true, "opaque response, type=" + r.type); })
+  .catch(function (e) { record("top-nocors", false, e.name + ": " + e.message); });
+
+// ---- iframe tests ----
+var FRAME = '<script>' +
+  'fetch("' + GW + '/v1/models",{headers:{"Authorization":"Bearer probe-not-real"}})' +
+  '.then(function(r){parent.postMessage({id:ID,ok:true,d:"HTTP "+r.status+" (401 is expected)"},"*");})' +
+  '.catch(function(e){parent.postMessage({id:ID,ok:false,d:e.name+": "+e.message},"*");});' +
+  '<\/script>';
+
+function runFrame(id, sandbox) {
+  var f = document.createElement("iframe");
+  f.setAttribute("sandbox", sandbox);
+  f.srcdoc = "<script>var ID=" + JSON.stringify(id) + ";<\/script>" + FRAME;
+  document.body.appendChild(f);
+  setTimeout(function () {
+    if (!(id in results)) record(id, false, "no answer after 12s - treat as blocked");
+  }, 12000);
+}
+window.addEventListener("message", function (e) {
+  if (e.data && e.data.id && !(e.data.id in results)) record(e.data.id, e.data.ok, e.data.d);
+});
+runFrame("sandbox-opaque", "allow-scripts");
+runFrame("sandbox-sameorigin", "allow-scripts allow-same-origin");
+
+// ---- read the pattern ----
+function explain() {
+  var s = document.getElementById("summary");
+  var A = results["top-simple"], B = results["top-preflight"], C = results["top-nocors"];
+  var D = results["sandbox-opaque"], E = results["sandbox-sameorigin"];
+  var msg;
+  if (D) {
+    msg = "GOOD: the editor's current sandbox can reach the gateway. Whatever went wrong " +
+          "before was not this.";
+  } else if (E && !D) {
+    msg = "DIAGNOSIS: the opaque origin is the problem. The same request works from an " +
+          "iframe that keeps its origin and fails from one that does not. Chrome will not " +
+          "let a null-origin document reach a private-network address, and an opaque origin " +
+          "cannot hold the permission that would allow it. FIX: serve the preview from a " +
+          "separate real origin instead of a null one, or allowlist the site with Chrome's " +
+          "LocalNetworkAccessAllowedForUrls policy on the fleet.";
+  } else if (A && B && !D && !E) {
+    msg = "DIAGNOSIS: the top-level page can reach the gateway but no iframe can. The block " +
+          "follows the frame, not the origin. FIX: a Chrome policy allowlist, or move the " +
+          "preview to a separate origin.";
+  } else if (A && !B) {
+    msg = "DIAGNOSIS: simple requests pass and preflighted ones do not. Chrome is refusing " +
+          "the preflight for a private-network target. The Access-Control-Allow-Private-" +
+          "Network header is not enough on this Chrome version. FIX: the " +
+          "LocalNetworkAccessAllowedForUrls policy on the fleet.";
+  } else if (!A && !B && !C) {
+    msg = "DIAGNOSIS: nothing on this page can reach the gateway at all, not even a no-cors " +
+          "request. That points at the network or a policy blocking the host outright, not " +
+          "at CORS. Check Tailscale on THIS machine and any extension or filtering software.";
+  } else {
+    msg = "Mixed result - send the whole table back rather than a summary.";
+  }
+  s.textContent = msg;
+}
+</script>
+</body>
+</html>
