@@ -10,6 +10,9 @@ __pycache__/
 
 # Classroom development output
 classroom-app/node_modules/
+ai101/test/node_modules/
+ai101/test/milestones.json
+ai101/test/package-lock.json
 classroom-app/*.tsbuildinfo
 classroom-worker/.dev.vars
 .wrangler/
