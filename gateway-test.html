@@ -38,7 +38,8 @@ var TESTS = [
   ["B", "Top-level page, GET with Authorization (forces a preflight)", "top-preflight"],
   ["C", "Top-level page, mode:'no-cors' (bypasses CORS entirely)", "top-nocors"],
   ["D", "Sandboxed iframe, allow-scripts only - what the editor uses today", "sandbox-opaque"],
-  ["E", "Sandboxed iframe, allow-scripts + allow-same-origin", "sandbox-sameorigin"]
+  ["E", "Sandboxed iframe, allow-scripts + allow-same-origin", "sandbox-sameorigin"],
+  ["F", "Sandboxed iframe reaching a PUBLIC address (control)", "sandbox-public"]
 ];
 var results = {};
 var tbody = document.getElementById("rows");
@@ -74,16 +75,18 @@ fetch(GW + "/healthz", { mode: "no-cors" })
   .catch(function (e) { record("top-nocors", false, e.name + ": " + e.message); });
 
 // ---- iframe tests ----
-var FRAME = '<script>' +
-  'fetch("' + GW + '/v1/models",{headers:{"Authorization":"Bearer probe-not-real"}})' +
-  '.then(function(r){parent.postMessage({id:ID,ok:true,d:"HTTP "+r.status+" (401 is expected)"},"*");})' +
-  '.catch(function(e){parent.postMessage({id:ID,ok:false,d:e.name+": "+e.message},"*");});' +
-  '<\/script>';
+function frameBody(url, withAuth) {
+  return '<scr'+'ipt>' +
+    'fetch(' + JSON.stringify(url) + (withAuth ? ',{headers:{"Authorization":"Bearer probe-not-real"}}' : '') + ')' +
+    '.then(function(r){parent.postMessage({id:ID,ok:true,d:"HTTP "+r.status},"*");})' +
+    '.catch(function(e){parent.postMessage({id:ID,ok:false,d:e.name+": "+e.message},"*");});' +
+    '</scr'+'ipt>';
+}
 
-function runFrame(id, sandbox) {
+function runFrame(id, sandbox, url, withAuth) {
   var f = document.createElement("iframe");
   f.setAttribute("sandbox", sandbox);
-  f.srcdoc = "<script>var ID=" + JSON.stringify(id) + ";<\/script>" + FRAME;
+  f.srcdoc = "<scr"+"ipt>var ID=" + JSON.stringify(id) + ";</scr"+"ipt>" + frameBody(url, withAuth);
   document.body.appendChild(f);
   setTimeout(function () {
     if (!(id in results)) record(id, false, "no answer after 12s - treat as blocked");
@@ -92,40 +95,48 @@ function runFrame(id, sandbox) {
 window.addEventListener("message", function (e) {
   if (e.data && e.data.id && !(e.data.id in results)) record(e.data.id, e.data.ok, e.data.d);
 });
-runFrame("sandbox-opaque", "allow-scripts");
-runFrame("sandbox-sameorigin", "allow-scripts allow-same-origin");
+runFrame("sandbox-opaque", "allow-scripts", GW + "/v1/models", true);
+runFrame("sandbox-sameorigin", "allow-scripts allow-same-origin", GW + "/v1/models", true);
+// Control: same sandbox, but a PUBLIC target. GitHub Pages sends ACAO:* so an
+// opaque origin is allowed. If this passes and D fails, the sandbox is fine and
+// the problem is specifically that the gateway sits on a private address.
+runFrame("sandbox-public", "allow-scripts", "https://utgapps.github.io/class-codes.js", false);
 
 // ---- read the pattern ----
 function explain() {
   var s = document.getElementById("summary");
   var A = results["top-simple"], B = results["top-preflight"], C = results["top-nocors"];
-  var D = results["sandbox-opaque"], E = results["sandbox-sameorigin"];
+  var D = results["sandbox-opaque"], E = results["sandbox-sameorigin"], F = results["sandbox-public"];
   var msg;
   if (D) {
-    msg = "GOOD: the editor's current sandbox can reach the gateway. Whatever went wrong " +
-          "before was not this.";
-  } else if (E && !D) {
-    msg = "DIAGNOSIS: the opaque origin is the problem. The same request works from an " +
-          "iframe that keeps its origin and fails from one that does not. Chrome will not " +
-          "let a null-origin document reach a private-network address, and an opaque origin " +
-          "cannot hold the permission that would allow it. FIX: serve the preview from a " +
-          "separate real origin instead of a null one, or allowlist the site with Chrome's " +
-          "LocalNetworkAccessAllowedForUrls policy on the fleet.";
-  } else if (A && B && !D && !E) {
-    msg = "DIAGNOSIS: the top-level page can reach the gateway but no iframe can. The block " +
-          "follows the frame, not the origin. FIX: a Chrome policy allowlist, or move the " +
-          "preview to a separate origin.";
+    msg = "GOOD: the editor's sandbox reaches the gateway. Whatever failed before was not this.";
+  } else if (!F) {
+    msg = "DIAGNOSIS: the sandboxed iframe cannot reach ANY cross-origin address, public ones " +
+          "included. So this is not about the gateway or its network at all - something is " +
+          "stopping the sandboxed frame from making requests. Suspect an extension or " +
+          "filtering software on this machine. Send the whole table.";
+  } else if (F && !D && !E && !A) {
+    msg = "DIAGNOSIS: the sandbox is fine - it reaches public addresses happily - and NOTHING " +
+          "on this page reaches the gateway, not even the top-level page. Chrome is blocking " +
+          "requests to the gateway because it sits on a private (Tailscale 100.x) address. " +
+          "This is Local Network Access. The Access-Control-Allow-Private-Network header does " +
+          "not fix it on this Chrome. FIX: give the gateway a PUBLIC address the browser can " +
+          "reach (Cloudflare Tunnel on the AI machine is the usual answer), or push Chrome's " +
+          "LocalNetworkAccessAllowedForUrls policy to the fleet.";
+  } else if (F && !D && A) {
+    msg = "DIAGNOSIS: the top-level page reaches the gateway but the sandboxed frame does not, " +
+          "and the frame is otherwise healthy (it reaches public addresses). The null origin " +
+          "is what Chrome is refusing - an opaque origin cannot hold the local-network " +
+          "permission. FIX: serve the preview from a separate REAL origin instead of a null " +
+          "one, or push the Chrome policy to the fleet." +
+          (E ? " Note E passed, which confirms it: same frame, real origin, works." : "");
   } else if (A && !B) {
-    msg = "DIAGNOSIS: simple requests pass and preflighted ones do not. Chrome is refusing " +
-          "the preflight for a private-network target. The Access-Control-Allow-Private-" +
-          "Network header is not enough on this Chrome version. FIX: the " +
-          "LocalNetworkAccessAllowedForUrls policy on the fleet.";
-  } else if (!A && !B && !C) {
-    msg = "DIAGNOSIS: nothing on this page can reach the gateway at all, not even a no-cors " +
-          "request. That points at the network or a policy blocking the host outright, not " +
-          "at CORS. Check Tailscale on THIS machine and any extension or filtering software.";
+    msg = "DIAGNOSIS: simple requests pass and preflighted ones do not. Chrome is refusing the " +
+          "preflight for a private-network target, so the Access-Control-Allow-Private-Network " +
+          "header is not enough on this version. FIX: the LocalNetworkAccessAllowedForUrls " +
+          "policy, or move the gateway to a public address.";
   } else {
-    msg = "Mixed result - send the whole table back rather than a summary.";
+    msg = "Mixed result - send the whole table back rather than this summary.";
   }
   s.textContent = msg;
 }
