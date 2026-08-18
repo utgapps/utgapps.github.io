@@ -76,6 +76,9 @@
       // already stripped API keys and assembled the page.
       var frame = document.createElement("iframe");
       frame.setAttribute("sandbox", "allow-scripts");
+      // Same reason as the editor preview: an opaque origin cannot inherit the
+      // permission to reach the gateway's private address, so hand it over.
+      frame.setAttribute("allow", "local-network-access *");
       frame.setAttribute("title", data.title || "Shared project");
       frame.srcdoc = data.html;
       stage.innerHTML = "";

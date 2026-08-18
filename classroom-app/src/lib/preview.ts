@@ -14,6 +14,23 @@ const MAX_MESSAGES = 500;
 
 export const ENTRY_FILE = "index.html";
 
+/** Delegates permission to reach the school AI gateway into the preview frame.
+ *
+ *  The gateway sits on a Tailscale 100.x address, which Chrome treats as a
+ *  private network. A page can reach it, but a frame with an OPAQUE origin
+ *  cannot: an opaque origin has no permission to inherit. Measured on Chrome
+ *  151 across ten variants - the sandboxed srcdoc frame was the only one
+ *  blocked, and it cleared as soon as the permission was handed to it.
+ *
+ *  The alternative fixes both cost something this does not. Adding
+ *  allow-same-origin would let one student's code read another's class token
+ *  out of localStorage. A fleet Chrome policy would not travel home with them.
+ *  This keeps sandbox="allow-scripts" exactly as it was.
+ *
+ *  "*" rather than "'self'" because the frame's origin IS opaque - there is no
+ *  self to name. Browsers that do not know the token ignore the attribute. */
+export const PREVIEW_ALLOW = "local-network-access *";
+
 /** Escape a closing tag so file contents cannot end early the block they are
  *  being inlined into. JS goes inside <script>, CSS inside <style>. */
 function safeIn(source: string, tag: "script" | "style"): string {
