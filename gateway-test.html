@@ -43,7 +43,11 @@ var TESTS = [
   ["C", "Top-level page, mode:'no-cors' (bypasses CORS entirely)", "top-nocors"],
   ["D", "Sandboxed iframe, allow-scripts only - what the editor uses today", "sandbox-opaque"],
   ["E", "Sandboxed iframe, allow-scripts + allow-same-origin", "sandbox-sameorigin"],
-  ["F", "Sandboxed iframe reaching a PUBLIC address (control)", "sandbox-public"]
+  ["F", "Sandboxed iframe reaching a PUBLIC address (control)", "sandbox-public"],
+  ["G", "Sandboxed iframe + allow=\"local-network-access\"", "frame-allow"],
+  ["H", "Sandboxed iframe + allow-same-origin + allow=\"local-network-access\"", "frame-allow-same"],
+  ["I", "REAL same-origin iframe (src=, not srcdoc=), no allow attribute", "frame-real"],
+  ["J", "REAL same-origin iframe + allow=\"local-network-access\"", "frame-real-allow"]
 ];
 var results = {};
 var tbody = document.getElementById("rows");
@@ -87,9 +91,10 @@ function frameBody(url, withAuth) {
     '</scr'+'ipt>';
 }
 
-function runFrame(id, sandbox, url, withAuth) {
+function runFrame(id, sandbox, url, withAuth, allow) {
   var f = document.createElement("iframe");
-  f.setAttribute("sandbox", sandbox);
+  if (sandbox !== null) f.setAttribute("sandbox", sandbox);
+  if (allow) f.setAttribute("allow", allow);
   f.srcdoc = "<scr"+"ipt>var ID=" + JSON.stringify(id) + ";</scr"+"ipt>" + frameBody(url, withAuth);
   document.body.appendChild(f);
   setTimeout(function () {
@@ -106,46 +111,52 @@ runFrame("sandbox-sameorigin", "allow-scripts allow-same-origin", GW + "/v1/mode
 // the problem is specifically that the gateway sits on a private address.
 runFrame("sandbox-public", "allow-scripts", "https://utgapps.github.io/class-codes.js", false);
 
+// Does delegating the local-network permission into the frame unblock it?
+var LNA = "local-network-access *";
+runFrame("frame-allow", "allow-scripts", GW + "/v1/models", true, LNA);
+runFrame("frame-allow-same", "allow-scripts allow-same-origin", GW + "/v1/models", true, LNA);
+
+// And is a srcdoc document treated differently from an ordinary one?
+function runRealFrame(id, allow) {
+  var f = document.createElement("iframe");
+  if (allow) f.setAttribute("allow", allow);
+  f.src = "/gateway-frame.html?id=" + encodeURIComponent(id);
+  document.body.appendChild(f);
+  setTimeout(function () {
+    if (!(id in results)) record(id, false, "no answer after 12s - treat as blocked");
+  }, 12000);
+}
+runRealFrame("frame-real", null);
+runRealFrame("frame-real-allow", LNA);
+
 // ---- read the pattern ----
 function explain() {
   var s = document.getElementById("summary");
-  var A = results["top-simple"], B = results["top-preflight"], C = results["top-nocors"];
-  var D = results["sandbox-opaque"], E = results["sandbox-sameorigin"], F = results["sandbox-public"];
+  var G = results["frame-allow"], H = results["frame-allow-same"];
+  var I = results["frame-real"], J = results["frame-real-allow"];
   var msg;
-  if (D) {
-    msg = "GOOD: the editor's sandbox reaches the gateway. Whatever failed before was not this.";
-  } else if (!F) {
-    msg = "DIAGNOSIS: the sandboxed iframe cannot reach ANY cross-origin address, public ones " +
-          "included. So this is not about the gateway or its network at all - something is " +
-          "stopping the sandboxed frame from making requests. Suspect an extension or " +
-          "filtering software on this machine. Send the whole table.";
-  } else if (F && !D && !E && !A) {
-    msg = "DIAGNOSIS: the sandbox is fine - it reaches public addresses happily - and NOTHING " +
-          "on this page reaches the gateway, not even the top-level page. Chrome is blocking " +
-          "requests to the gateway because it sits on a private (Tailscale 100.x) address. " +
-          "This is Local Network Access. The Access-Control-Allow-Private-Network header does " +
-          "not fix it on this Chrome. FIX: give the gateway a PUBLIC address the browser can " +
-          "reach (Cloudflare Tunnel on the AI machine is the usual answer), or push Chrome's " +
-          "LocalNetworkAccessAllowedForUrls policy to the fleet.";
-  } else if (F && !D && A) {
-    msg = "DIAGNOSIS: the top-level page reaches the gateway but the sandboxed frame does not, " +
-          "and the frame is otherwise healthy (it reaches public addresses). The null origin " +
-          "is what Chrome is refusing - an opaque origin cannot hold the local-network " +
-          "permission. FIX: serve the preview from a separate REAL origin instead of a null " +
-          "one, or push the Chrome policy to the fleet." +
-          (E ? " Note E passed, which confirms it: same frame, real origin, works." : "");
-  } else if (A && !B) {
-    msg = "DIAGNOSIS: simple requests pass and preflighted ones do not. Chrome is refusing the " +
-          "preflight for a private-network target, so the Access-Control-Allow-Private-Network " +
-          "header is not enough on this version. FIX: the LocalNetworkAccessAllowedForUrls " +
-          "policy, or move the gateway to a public address.";
+  if (G) {
+    msg = "FIX FOUND: adding allow=\"local-network-access\" to the preview iframe unblocks it. " +
+          "That is a one-attribute change in the editor and the shared-page renderer, with no " +
+          "loss of sandboxing and no fleet policy needed.";
+  } else if (H && !G) {
+    msg = "PARTIAL: the frame needs BOTH the permission delegated AND a real origin. That means " +
+          "giving up allow-scripts-only isolation, so the preview must move to a separate origin " +
+          "rather than simply gaining allow-same-origin on this one.";
+  } else if (I || J) {
+    msg = "DIAGNOSIS: an ordinary iframe reaches the gateway but a srcdoc one does not. srcdoc " +
+          "documents are being treated as a different address space. FIX: serve the preview from " +
+          "a real URL instead of srcdoc.";
   } else {
-    msg = "Mixed result - send the whole table back rather than this summary.";
+    msg = "None of the frame variants worked. The block applies to every iframe regardless of " +
+          "origin, permission or srcdoc. That leaves a Chrome policy on the fleet, or moving the " +
+          "gateway to a public address via a tunnel. Send the whole table.";
   }
   s.textContent = msg;
   var order = ["top-simple","top-preflight","top-nocors","sandbox-opaque",
-               "sandbox-sameorigin","sandbox-public"];
-  var letters = "ABCDEF";
+               "sandbox-sameorigin","sandbox-public","frame-allow","frame-allow-same",
+               "frame-real","frame-real-allow"];
+  var letters = "ABCDEFGHIJ";
   var line = order.map(function (k, i) {
     return letters[i] + (results[k] ? "1" : "0");
   }).join(" ");

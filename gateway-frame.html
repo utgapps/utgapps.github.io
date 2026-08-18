@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>frame probe</title>
+<script>
+/* Loaded as a REAL same-origin iframe (src=, not srcdoc=) so we can tell
+   whether srcdoc documents are treated differently from ordinary ones. */
+var ID = new URLSearchParams(location.search).get("id") || "frame-real";
+fetch("https://ai.tail5091fc.ts.net/v1/models", {
+  headers: { "Authorization": "Bearer probe-not-real" }
+}).then(function (r) {
+  parent.postMessage({ id: ID, ok: true, d: "HTTP " + r.status }, "*");
+}).catch(function (e) {
+  parent.postMessage({ id: ID, ok: false, d: e.name + ": " + e.message }, "*");
+});
+</script>
