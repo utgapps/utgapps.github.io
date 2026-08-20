@@ -104,10 +104,26 @@ function inlineAssets(source: string, files: Record<string, string>, fromDir: st
 /* The shim is injected as the FIRST script so it captures errors thrown by the
    student's own code further down the document. Everything is inside one
    try/catch: a broken shim must never stop the project from running. */
-function shim(nonce: string): string {
+function shim(nonce: string, ranges: FileRange[]): string {
   return `
 try {
   var __utgNonce = ${JSON.stringify(nonce)};
+  /* The preview document is the shim, then index.html with style.css and
+     script.js inlined into it. So a browser error on "line 148" means line 148
+     of THAT document, not of anything the student wrote - and week 1 teaches
+     them to read line numbers. This maps a document line back to the file and
+     line the student is actually looking at. */
+  var __utgRanges = ${JSON.stringify(ranges)};
+  function __utgWhere(lineNumber) {
+    if (!lineNumber) return "";
+    for (var i = 0; i < __utgRanges.length; i++) {
+      var r = __utgRanges[i];
+      if (lineNumber >= r.from && lineNumber <= r.to) {
+        return " (" + r.name + " line " + (lineNumber - r.from + 1) + ")";
+      }
+    }
+    return "";
+  }
   var __utgSent = 0;
   var __utgStopped = false;
 
@@ -169,7 +185,7 @@ try {
   });
 
   window.addEventListener("error", function (event) {
-    if (event.message) __utgPost("error", event.message + (event.lineno ? " (line " + event.lineno + ")" : ""));
+    if (event.message) __utgPost("error", event.message + __utgWhere(event.lineno));
     else if (event.target && event.target.src) __utgPost("error", "Could not load " + event.target.src);
   }, true);
 
@@ -216,10 +232,33 @@ try {
  *  `nonce` identifies this run: a setTimeout scheduled by an earlier run can
  *  fire after Stop and after the next run has mounted, and the parent uses the
  *  nonce to drop that stale output instead of showing it under the new run. */
+type FileRange = { name: string; from: number; to: number };
+
+/** Which lines of the assembled document came from which student file.
+ *  Counted from the real assembled text, so it cannot drift from what the
+ *  browser actually sees. */
+function fileRanges(before: string, html: string): FileRange[] {
+  const lines = (text: string) => text.split(/\r?\n/).length;
+  const offset = lines(before) - 1;          // lines used up before the HTML starts
+  const ranges: FileRange[] = [];
+  const pattern = /<(script|style) data-from="([^"]+)">/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) !== null) {
+    const contentStart = match.index + match[0].length;
+    const closeTag = match[1] === "script" ? "<\/script>" : "</style>";
+    const closer = html.indexOf(closeTag, contentStart);
+    if (closer === -1) continue;
+    const body = html.slice(contentStart, closer);
+    const startLine = offset + lines(html.slice(0, contentStart));
+    ranges.push({ name: match[2], from: startLine, to: startLine + lines(body) - 1 });
+  }
+  return ranges;
+}
+
 export function buildPreview(files: Record<string, string>, nonce: string): string {
   const source = files[ENTRY_FILE];
   if (source === undefined) {
-    return `<script>${shim(nonce)}<\/script>` +
+    return `<script>${shim(nonce, [])}<\/script>` +
       `<main style="font:16px/1.6 system-ui;padding:2rem;color:#5b7178">` +
       `<h1 style="font-size:20px;color:#1f2a37">No ${ENTRY_FILE} yet</h1>` +
       `<p>The preview shows <b>${ENTRY_FILE}</b>. Make a file with that exact name and press Run again.</p>` +
@@ -234,7 +273,17 @@ export function buildPreview(files: Record<string, string>, nonce: string): stri
         `console.error(${JSON.stringify(`${ENTRY_FILE} asks for "${name}", but this project has no file at that path.`)});`
       ).join("")}<\/script>`
     : "";
-  return `<script>${shim(nonce)}<\/script>${warn}${html}`;
+  // Two passes: the shim needs the ranges, and the ranges depend on how many
+  // lines the shim itself takes. Measure with an empty map, then emit for real.
+  // JSON.stringify puts the map on one line, so the shift is normally zero -
+  // this just refuses to depend on that staying true.
+  const countLines = (text: string) => text.split(/\r?\n/).length;
+  const probe = `<script>${shim(nonce, [])}<\/script>${warn}`;
+  const ranges = fileRanges(probe, html);
+  const real = `<script>${shim(nonce, ranges)}<\/script>${warn}`;
+  const shift = countLines(real) - countLines(probe);
+  const fixed = shift ? ranges.map((r) => ({ ...r, from: r.from + shift, to: r.to + shift })) : ranges;
+  return `<script>${shim(nonce, fixed)}<\/script>${warn}${html}`;
 }
 
 /** True when the message really came from the running preview.

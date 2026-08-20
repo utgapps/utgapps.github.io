@@ -42,10 +42,22 @@ function makeFetch(calls, opts = {}) {
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ url: String(url), method: init.method || "GET", headers: init.headers || {}, body });
 
+    // What a browser does when the request never reaches anything at all.
+    if (opts.networkDown) throw new TypeError("Failed to fetch");
+
     if (opts.status && opts.status !== 200) {
+      // The real gateway explains itself; opts.silent models a server that does
+      // not, so the fallback wording gets exercised too.
+      const SAYS = {
+        401: "That API key is not on the class roster. Check for typos or extra spaces.",
+        429: "Too many requests. Wait a moment and try again.",
+        400: "Your conversation is too long (4000 character limit).",
+        500: "",
+      };
+      const said = opts.silent ? "" : (SAYS[opts.status] ?? "");
       return {
         ok: false, status: opts.status,
-        json: async () => ({ error: { message: "simulated", type: "x", code: "y" } }),
+        json: async () => (said ? { error: { message: said, type: "x", code: "y" } } : {}),
       };
     }
     if (String(url).includes("/v1/models")) {
@@ -175,16 +187,28 @@ await check(4, "no longer calls /v1/models on load", async () => {
 });
 
 // ---------------------------------------------------------------- week 5
-for (const [status, needle] of [[401, /key/i], [429, /too fast/i], [400, /could not use/i]]) {
-  await check(5, `${status} becomes a readable message`, async () => {
+for (const [status, needle] of [[401, /not on the class roster/i], [429, /wait a moment/i], [400, /4000 character/i]]) {
+  await check(5, `${status} shows what the SERVER said`, async () => {
     const c = await boot(5, { status });
     await send(c, "hi");
     const lines = bubbleText(c);
-    must(lines.some((l) => needle.test(l)), `no friendly ${status} message: ` + JSON.stringify(lines));
+    must(lines.some((l) => needle.test(l)), `server message not surfaced for ${status}: ` + JSON.stringify(lines));
     must(!lines.some((l) => /thinking/.test(l)), "'thinking' left behind after an error");
     must(c.errors.length === 0, "an error escaped to the page: " + c.errors.join("; "));
   });
 }
+await check(5, "falls back to our own wording when the server says nothing", async () => {
+  const c = await boot(5, { status: 429, silent: true });
+  await send(c, "hi");
+  must(bubbleText(c).some((l) => /too fast/i.test(l)),
+       "no fallback message when the server gave none: " + JSON.stringify(bubbleText(c)));
+});
+await check(5, "an unreachable server says something a person can act on", async () => {
+  const c = await boot(5, { networkDown: true });
+  await send(c, "hi");
+  const lines = bubbleText(c);
+  must(!lines.some((l) => /^Problem: Failed to fetch$/.test(l)), "still shows the raw browser wording");
+});
 
 // ---------------------------------------------------------------- week 6
 await check(6, "sends the personality as a system message", async () => {
@@ -275,7 +299,7 @@ await check(11, "cleans up the empty bubble when it fails", async () => {
   const kids = Array.from(c.d.getElementById("chat").children);
   must(!kids.some((e) => e.className.includes("bot") && e.textContent === ""),
        "an empty bubble was left on screen after an error");
-  must(kids.some((e) => /too fast/i.test(e.textContent)), "no error message shown");
+  must(kids.some((e) => /wait a moment/i.test(e.textContent)), "no error message shown");
 });
 
 // ---------------------------------------------------------------- week 12
