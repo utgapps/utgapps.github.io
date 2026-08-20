@@ -49,6 +49,10 @@ h3{font-size:17px;margin:22px 0 8px}
 /* new lines get a quiet tint and an accent bar, not a solid block of colour */
 .snip tr.new td.src{background:rgba(63,186,110,.12)}
 .snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
 /* ---- lesson flow ---- */
 .beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}

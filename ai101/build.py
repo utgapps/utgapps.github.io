@@ -197,17 +197,33 @@ def block_code(week_n, filename, block_id):
     """(first_line_number, lines, set_of_changed_line_numbers) for one block."""
     start, end = block_spans(week_n)[filename][block_id]
     lines = state_at(week_n)[filename].split("\n")[start - 1:end]
-    return start, lines, changed_lines(week_n)[filename]
+    gone = removed_lines(week_n)[filename]
+    inside = {at: text for at, text in gone.items() if start <= at <= start + len(lines)}
+    return start, lines, changed_lines(week_n)[filename], inside
 
 
-def code_table(filename, start, lines, marks, ident=None, tag=""):
-    """One styled snippet: file chip, line range, the code, changes accented."""
+def code_table(filename, start, lines, marks, ident=None, tag="", gone=None):
+    """One styled snippet: file chip, line range, the code, changes accented.
+
+    Deleted lines are drawn back in where they used to be, struck through, so a
+    week that removes something can say so. Green alone cannot.
+    """
+    gone = gone or {}
     rows = []
+
+    def removals(at):
+        return "".join(
+            f'<tr class="gone"><td class="ln">&minus;</td>'
+            f'<td class="src">{esc(text) or "&nbsp;"}</td></tr>'
+            for text in gone.get(at, []))
+
     for offset, line in enumerate(lines):
         number = start + offset
+        rows.append(removals(number))
         cls = ' class="new"' if number in marks else ""
         rows.append(f'<tr{cls}><td class="ln">{number}</td>'
                     f'<td class="src">{esc(line) or "&nbsp;"}</td></tr>')
+    rows.append(removals(start + len(lines)))
     end = start + len(lines) - 1
     rng = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
     copy = f'<button data-copy="{ident}">Copy</button>' if ident else ""
@@ -263,7 +279,7 @@ def render_step(week, beat):
     talks roughly every half-dozen lines instead of copying twenty in silence.
     """
     filename, block_id = beat["file"], beat["block"]
-    start, lines, marks = block_code(week["n"], filename, block_id)
+    start, lines, marks, gone = block_code(week["n"], filename, block_id)
     chunks = chunk_block(lines, filename)
     notes = beat.get("notes") or []
 
@@ -291,7 +307,9 @@ def render_step(week, beat):
             pieces.append(f'<p class="unchanged"><b>{span} do not change</b> &mdash; '
                           f'skip past them. <span class="muted">{note}</span></p>')
         else:
-            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag))
+            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag,
+                                 gone={at: t for at, t in gone.items()
+                                       if cursor <= at <= cursor + len(chunk)}))
             pieces.append(f'<p class="chunk-note">{note}</p>')
         cursor += len(chunk)
 
@@ -334,6 +352,50 @@ def changed_lines(upto):
                 hits.update(range(j1 + 1, j2 + 1))
         marks[name] = hits
     return marks
+
+
+def removed_lines(upto):
+    """{filename: {line_in_new_file: [text, ...]}} - lines this week DELETED.
+
+    Green-only highlighting cannot show a deletion: a removed line is not in
+    the new file to colour. Week 4 drops the listModels() call and the page had
+    no way to say so, leaving a student comparing their file against the page
+    with one extra line and no explanation.
+
+    Diffed per BLOCK, not per file. Across a whole file, difflib pairs a
+    deletion with whatever was inserted nearby and calls the result "replace" -
+    week 4's dropped call came back as replace(old[39:40] -> new[39:58]),
+    tangled up with the askAI block appearing above it. Inside a single block
+    there is nothing to tangle with, so a delete is unambiguously a delete.
+    """
+    if upto <= 1:
+        return {name: {} for name in FILES}
+    before = {name: dict(blocks) for name, blocks in blocks_at(upto - 1).items()}
+    after = blocks_at(upto)
+    spans = block_spans(upto)
+    gone = {}
+    for name in FILES:
+        at = {}
+        for block_id, new_lines in after[name]:
+            old_lines = before[name].get(block_id)
+            if old_lines is None or old_lines == new_lines:
+                continue
+            block_start = spans[name][block_id][0]
+            matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
+            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+                # Pure deletes only. Inside a block that is being rewritten,
+                # every reworded line shows up as replace, and striking all of
+                # them through buries the one line that actually vanished under
+                # forty that did not. The guide already says a rewritten block
+                # only changes where it is green.
+                if tag != "delete":
+                    continue
+                dropped = [line for line in old_lines[i1:i2]
+                           if line.strip() and line not in new_lines]
+                if dropped:
+                    at.setdefault(block_start + j1, []).extend(dropped)
+        gone[name] = at
+    return gone
 
 
 def line_count(files):
@@ -412,6 +474,10 @@ h3{font-size:17px;margin:22px 0 8px}
 /* new lines get a quiet tint and an accent bar, not a solid block of colour */
 .snip tr.new td.src{background:rgba(63,186,110,.12)}
 .snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
 /* ---- lesson flow ---- */
 .beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
@@ -494,23 +560,25 @@ def page(title, body, extra_js="", tool="ai101"):
 """
 
 
-def code_block(filename, text, marks, ident):
-    """A whole file rendered with line numbers, this week's lines accented."""
-    return code_table(filename, 1, text.split("\n"), marks,
-                      ident=ident, tag="green = new this week")
+def code_block(filename, text, marks, ident, gone=None):
+    """A whole file rendered with line numbers, this week's changes accented."""
+    label = "green = new" + (", struck through = deleted" if gone else "") + " this week"
+    return code_table(filename, 1, text.splitlines(), marks,
+                      ident=ident, tag=label, gone=gone)
 
 
 def files_view(upto, ident_prefix):
     """The three files as clickable tabs, with the current week highlighted."""
     files = state_at(upto)
     marks = changed_lines(upto)
+    gone = removed_lines(upto)
     tabs = "".join(
         f'<button class="tab{" active" if i == 0 else ""}" data-for="{ident_prefix}-{i}">{esc(name)}</button>'
         for i, name in enumerate(FILES)
     )
     panes = "".join(
         f'<div data-pane="{ident_prefix}-{i}"{"" if i == 0 else ' style="display:none"'}>'
-        f'{code_block(name, files[name], marks[name], f"{ident_prefix}-code-{i}")}</div>'
+        f'{code_block(name, files[name], marks[name], f"{ident_prefix}-code-{i}", gone[name])}</div>'
         for i, name in enumerate(FILES)
     )
     return f'<div class="tabs" data-tabs>{tabs}</div>{panes}'
@@ -551,6 +619,16 @@ def build_weeks():
         nxt = f'<a href="week-{n+1:02d}.html">Week {n+1} &rarr;</a>' if n < len(course.WEEKS) else "<span></span>"
         concepts = "".join(f'<span class="pill">{esc(c)}</span>' for c in week["new_concepts"])
         total = line_count(state_at(n))
+        dropped = sum(len(v) for name in FILES for v in removed_lines(n)[name].values())
+        legend = (f"The green lines are what is new since week {n-1}."
+                  if n > 1 else "Everything here is new - this is week 1.")
+        if dropped:
+            legend += (" The struck-through line is one you DELETE this week - take it out."
+                       if dropped == 1 else
+                       f" The {dropped} struck-through lines are ones you DELETE this week"
+                       " - take them out.")
+        if n > 1:
+            legend += " Everything else you already had."
         bonus = ""
         if week.get("bonus"):
             bonus = (
@@ -565,7 +643,7 @@ def build_weeks():
 <p class="lead">{esc(week["big_idea"])}</p>
 <p>{concepts}</p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
-The green lines are what is new since week {n-1 if n > 1 else 0}. Everything else you already had.
+{legend}
 Your project is now {total} lines.</div>
 {bonus}
 <h2>Your code after week {n}</h2>
@@ -681,7 +759,7 @@ def code_chunks(week_n, refs):
     """
     chunks = []
     for filename, block_id in refs:
-        start, lines, marks = block_code(week_n, filename, block_id)
+        start, lines, marks, gone = block_code(week_n, filename, block_id)
         for offset in range(0, len(lines), CODE_LINES_PER_SLIDE):
             piece = lines[offset:offset + CODE_LINES_PER_SLIDE]
             chunks.append((filename, start + offset, piece, marks))
