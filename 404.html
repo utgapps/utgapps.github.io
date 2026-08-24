@@ -74,8 +74,12 @@
       // Sandboxed with no allow-same-origin: one student's shared code must not
       // be able to read another visitor's storage on this domain. The worker has
       // already stripped API keys and assembled the page.
+      // allow-forms is required, not optional: the AI101 chat box is a <form>,
+      // and without this token Chrome suppresses its submit event, so the whole
+      // project looks alive but Send does nothing. Must match PREVIEW_SANDBOX in
+      // classroom-app/src/lib/preview.ts.
       var frame = document.createElement("iframe");
-      frame.setAttribute("sandbox", "allow-scripts");
+      frame.setAttribute("sandbox", "allow-scripts allow-forms");
       // Same reason as the editor preview: an opaque origin cannot inherit the
       // permission to reach the gateway's private address, so hand it over.
       frame.setAttribute("allow", "local-network-access *");

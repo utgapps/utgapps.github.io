@@ -14,6 +14,22 @@ const MAX_MESSAGES = 500;
 
 export const ENTRY_FILE = "index.html";
 
+/** The sandbox for every preview frame, in the editor and on the shared page.
+ *
+ *  allow-forms is here for a reason that cost a real fleet test to find. The
+ *  chat box in every AI101 project from week 4 on is a <form>, and the whole
+ *  lesson hangs off its submit handler (preventDefault, then call the AI). A
+ *  sandbox WITHOUT allow-forms does not just block navigation - Chrome
+ *  suppresses the submit event entirely, so the handler never runs. Send did
+ *  nothing, Enter did nothing, and there was no error to see: the lesson was
+ *  silently dead from week 4 to week 15. allow-forms lets the event fire; the
+ *  handler still preventDefaults, so nothing actually navigates.
+ *
+ *  allow-same-origin stays OUT on purpose - that is what keeps the frame an
+ *  opaque origin with no reach into the classroom app's localStorage. Adding
+ *  allow-forms does not weaken that. */
+export const PREVIEW_SANDBOX = "allow-scripts allow-forms";
+
 /** Delegates permission to reach the school AI gateway into the preview frame.
  *
  *  The gateway sits on a Tailscale 100.x address, which Chrome treats as a
@@ -25,7 +41,7 @@ export const ENTRY_FILE = "index.html";
  *  The alternative fixes both cost something this does not. Adding
  *  allow-same-origin would let one student's code read another's class token
  *  out of localStorage. A fleet Chrome policy would not travel home with them.
- *  This keeps sandbox="allow-scripts" exactly as it was.
+ *  This leaves the sandbox as opaque as it was.
  *
  *  "*" rather than "'self'" because the frame's origin IS opaque - there is no
  *  self to name. Browsers that do not know the token ignore the attribute. */

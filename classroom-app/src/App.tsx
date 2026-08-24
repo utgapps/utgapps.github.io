@@ -11,7 +11,7 @@ import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, a
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
-import { buildPreview, isPreviewMessage, ENTRY_FILE, PREVIEW_ALLOW, type PreviewMessage } from "./lib/preview";
+import { buildPreview, isPreviewMessage, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoursePanel } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
@@ -459,7 +459,7 @@ function StaticPreview({ files, kind }: { files: Record<string, string>; kind: P
   const [nonce, setNonce] = useState("");
   if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
   return nonce
-    ? <iframe title="Last saved preview" sandbox="allow-scripts" allow={PREVIEW_ALLOW} srcDoc={buildPreview(files, nonce)} />
+    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={buildPreview(files, nonce)} />
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
 }
 
@@ -881,7 +881,7 @@ function RunPanel({ files }: { files: Record<string, string> }) {
       {runFiles && <button className="text-button" onClick={stop}>Stop</button>}
     </div>
     {runFiles
-      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox="allow-scripts" allow={PREVIEW_ALLOW} srcDoc={buildPreview(runFiles, nonce)} />
+      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={buildPreview(runFiles, nonce)} />
       : <div className="preview-idle"><p>Press <strong>▶ Run</strong> to see your project.</p><p className="muted">Nothing runs until you ask it to, so your project never sends a request you did not mean to send.</p></div>}
     <div className="console-panel">
       <div className="console-head">
