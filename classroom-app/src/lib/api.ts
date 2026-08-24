@@ -20,7 +20,18 @@ export type ProjectKind = "web" | "java";
 export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null };
 export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
 export type ApiSharedProject = { title: string; html: string; updatedAt: number };
-export type ApiClassStudent = { id: string; name: string; lastSeen: number; projects: number };
+export type ApiClassStudent = { id: string; name: string; lastSeen: number; projects: number;
+                                username: string | null; hasAccount: boolean };
+
+/** Enrol a student into the class with a real account. Guest accounts are keyed
+ *  by (class, name), so two students called Alex share one - this avoids that. */
+export async function apiEnrolStudent(token: string, classId: string,
+                                      body: { name: string; username: string; password: string }):
+                                      Promise<{ id: string; name: string; username: string }> {
+  return (await req(`/class/${encodeURIComponent(classId)}/students`, {
+    method: "POST", body: JSON.stringify(body),
+  }, token)).student;
+}
 
 /** The roster for a class, from the accounts table rather than from whoever
  *  happens to be in the live room right now. */

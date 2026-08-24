@@ -596,12 +596,36 @@ export default {
         const classId = rosterMatch[1];
         if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
         const rows = (await db.prepare(
-          "SELECT a.id, a.name, a.last_seen, " +
+          "SELECT a.id, a.name, a.last_seen, a.username, a.is_permanent, " +
           "(SELECT COUNT(*) FROM projects p WHERE p.account_id = a.id AND p.deleted_at IS NULL) AS projects " +
           "FROM accounts a WHERE a.class_id = ? AND a.role = 'student' ORDER BY a.name"
         ).bind(classId).all()).results;
         return response(request, env, { students: rows.map((r) => ({
-          id: r.id, name: r.name, lastSeen: r.last_seen, projects: r.projects })) });
+          id: r.id, name: r.name, lastSeen: r.last_seen, projects: r.projects,
+          username: r.username || null, hasAccount: !!r.is_permanent })) });
+      }
+
+      // An instructor may enrol a student into their own class. A real account
+      // rather than a guest one, because guests are keyed by (class, name) - two
+      // students called Alex silently share one account and overwrite each other.
+      if (rosterMatch && request.method === "POST") {
+        const classId = rosterMatch[1];
+        if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
+        const { name, username, password } = await readJson(request);
+        const cleanName = String(name || "").trim().slice(0, 40);
+        const cleanUser = String(username || "").trim().toLowerCase();
+        if (!cleanName || !cleanUser || !password) throw new HttpError("Need a name, a username and a password.");
+        if (!/^[a-z0-9._-]{3,32}$/.test(cleanUser)) throw new HttpError("Usernames are 3-32 characters: letters, numbers, dot, dash, underscore.");
+        if (String(password).length < 6) throw new HttpError("Passwords need at least 6 characters.");
+        if (await db.prepare("SELECT id FROM accounts WHERE username = ?").bind(cleanUser).first()) {
+          throw new HttpError("That username is taken.", 409);
+        }
+        const { hash, salt } = await hashPassword(String(password));
+        const id = crypto.randomUUID(), now = Date.now();
+        await db.prepare("INSERT INTO accounts (id, class_id, name, username, password_hash, password_salt, is_permanent, role, created_at, last_seen) VALUES (?,?,?,?,?,?,1,'student',?,?)")
+          .bind(id, classId, cleanName, cleanUser, hash, salt, now, now).run();
+        await rememberClassroom(db, id, classId, "student");
+        return response(request, env, { student: { id, name: cleanName, username: cleanUser } });
       }
 
       const seedMatch = path.match(/^\/class\/([^/]+)\/seed$/);
@@ -613,7 +637,17 @@ export default {
           "SELECT id FROM accounts WHERE id = ? AND class_id = ? AND role = 'student'"
         ).bind(String(accountId || ""), classId).first();
         if (!student) throw new HttpError("No such student in this class.", 404);
-        const filesJson = projectFilesJson(files);
+        // Whatever the source, the key never travels. A teacher copying one of
+        // their own projects would otherwise hand the student their key, and the
+        // student would be spending the teacher's rate limit under the teacher's
+        // name. Reset to the placeholder the course tells them to replace.
+        const clean = {};
+        for (const [name, text] of Object.entries(files || {})) {
+          clean[name] = typeof text === "string"
+            ? text.replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-class-put-your-own-key-here")
+            : text;
+        }
+        const filesJson = projectFilesJson(clean);
         const open = await db.prepare(
           "SELECT COUNT(*) AS total FROM projects WHERE account_id = ? AND deleted_at IS NULL"
         ).bind(student.id).first();

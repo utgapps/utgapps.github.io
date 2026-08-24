@@ -7,7 +7,7 @@ import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userCol
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, apiLoginAccount, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
@@ -456,6 +456,12 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const [step, setStep] = useState<"join" | "waiting" | "picker" | "room">("join");
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  // Two ways in: a name (a guest, keyed by class+name) or an account the
+  // teacher made. An account is the better one - two students called Alex
+  // would otherwise share a guest account and overwrite each other.
+  const [useAccount, setUseAccount] = useState(false);
   const [status, setStatus] = useState("Enter the private student code from your teacher.");
   const [className, setClassName] = useState("");
   const [savedToken, setSavedToken] = useState("");
@@ -525,6 +531,19 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     document.addEventListener("visibilitychange", onHidden);
     return () => document.removeEventListener("visibilitychange", onHidden);
   }, []);
+
+  async function joinWithAccount() {
+    if (!username.trim() || !password) { setStatus("Enter your username and password."); return; }
+    setStep("waiting"); setStatus("Signing in…");
+    try {
+      const session = await apiLoginAccount(username.trim().toLowerCase(), password);
+      if (session.account.role !== "student") throw new Error("That is not a student account.");
+      saveAccount(session);
+      const course = classroomForId(session.account.classId);
+      if (!course) throw new Error("That account is not linked to a configured classroom.");
+      await openSession(session.token, session.account.name, course.className, session.account.classId);
+    } catch (e) { setStep("join"); setStatus((e as Error).message || "Could not sign in. Check the username and password."); }
+  }
 
   async function join() {
     if ((!code.trim() && !initialGrant) || !name.trim()) { setStatus(initialGrant ? "Add your name first." : "Add your name and student class code first."); return; }
@@ -678,7 +697,29 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   }
 
   if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={openProject} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
-  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card"><a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><p className="eyebrow">Student classroom</p><h1>Open your project</h1>{savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}<p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter your student code and name. Sign in with the same name next time to return to your saved project."}</p><label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>{!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}<button className="primary full" onClick={join}>Open my project</button><p className="notice">{status}</p><small>Use a permanent account when a project needs to follow you to another browser or computer.</small></section></main>;
+  if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card">
+    <a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
+    <p className="eyebrow">Student classroom</p>
+    <h1>Open your project</h1>
+    {savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}
+    <div className="signin-switch">
+      <button className={useAccount ? "text-button" : "text-button on"} onClick={() => { setUseAccount(false); setStatus(""); }}>Join with a class code</button>
+      <button className={useAccount ? "text-button on" : "text-button"} onClick={() => { setUseAccount(true); setStatus(""); }}>I have an account</button>
+    </div>
+    {useAccount ? <>
+      <p>Your teacher made you an account. It follows you to any computer, and nobody else can open your work.</p>
+      <label>Username<input value={username} autoComplete="username" placeholder="your username" onChange={(event) => setUsername(event.target.value)} /></label>
+      <label>Password<input type="password" value={password} autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => event.key === "Enter" && joinWithAccount()} /></label>
+      <button className="primary full" onClick={joinWithAccount}>Sign in</button>
+    </> : <>
+      <p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter your student code and name. Sign in with the same name next time to return to your saved project."}</p>
+      <label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>
+      {!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}
+      <button className="primary full" onClick={join}>Open my project</button>
+    </>}
+    <p className="notice">{status}</p>
+    <small>{useAccount ? "No account yet? Ask your teacher, or join with the class code instead." : "Sharing a first name with a classmate? Ask your teacher for an account so your work stays yours."}</small>
+  </section></main>;
   return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={backToPicker}>My projects</button><button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div>{accountToken && kind === "web" && <ShareBox token={accountToken} projectId={localProjectIdRef.current} initialSlug={shareSlug} />}<CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
 }
 
