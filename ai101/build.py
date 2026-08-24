@@ -1361,6 +1361,20 @@ def main():
                 + " - add a \"code\" key to one of that week's slides"
             )
 
+        # An expanded deck IS the type-along, so its code must appear in the
+        # order the lesson types it - not the author's concept order. Otherwise
+        # a slide says "type line 24" before "line 9".
+        if week["n"] in getattr(course, "EXPANDED_WEEKS", set()):
+            slide_blocks = [ref for spec in week["slides"] for ref in spec.get("code", [])]
+            flow_blocks = [(beat["file"], beat["block"]) for beat in week["flow"]
+                           if beat["kind"] == "step"]
+            if slide_blocks != flow_blocks:
+                raise SystemExit(
+                    f"week {week['n']} is expanded but its slide code order "
+                    f"{slide_blocks} does not match the typing order {flow_blocks} - "
+                    f"reorder that week's slides so the type-along follows the lesson"
+                )
+
         # An expanded week teaches line by line, so every code line it shows on
         # a slide needs a note. A blank explanation slide is worse than none, so
         # refuse to ship one - this is the guard that keeps the roll-out honest.
