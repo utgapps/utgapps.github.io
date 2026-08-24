@@ -914,13 +914,12 @@ def deck_render_html(desc):
                                d["part"], d["parts"])
     # a single line, with its explanation
     rowcls = ' class="new"' if d["new"] else ""
-    uses = ('<p class="uses">covers: ' + ", ".join(esc(u) for u in d["uses"]) + "</p>") if d.get("uses") else ""
     return ('<section class="slide dark line">'
             '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
             '<table class="code"><tr{2}><td class="ln">{1}</td><td>{3}</td></tr></table>'
-            '<p class="linenote">{4}</p>{5}</section>').format(
+            '<p class="linenote">{4}</p></section>').format(
                 esc(d["file"]), d["lineno"], rowcls, esc(d["line"]) or "&nbsp;",
-                esc(d["note"]), uses)
+                esc(d["note"]))
 
 
 def build_slides():
@@ -1027,9 +1026,6 @@ def build_slides():
         nf = nb.text_frame; nf.word_wrap = True
         nf.paragraphs[0].text = note
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(24), PAPER
-        if uses:
-            up = nf.add_paragraph(); up.text = "covers: " + ", ".join(uses); up.space_before = Pt(18)
-            ur = up.runs[0]; ur.font.size, ur.font.color.rgb = Pt(15), GUTTER
 
     made = 0
     seen = set()
