@@ -14,9 +14,12 @@ function edited(at: number) {
   return `edited ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function ProjectPicker({ token, className, status, live, onOpen, onSignOut }: {
+export function ProjectPicker({ token, className, status, live, onOpen, onSignOut, exitLabel = "Sign out" }: {
   token: string; className: string; status: string; live: boolean;
   onOpen: (id: string) => void; onSignOut: () => void;
+  // A teacher browsing their own projects is stepping out of the class, not
+  // out of their account - the same control needs a different name there.
+  exitLabel?: string;
 }) {
   const [projects, setProjects] = useState<ApiProjectSummary[] | null>(null);
   const [creating, setCreating] = useState(false);
@@ -60,7 +63,7 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
   return <main className="picker-shell">
     <header className="room-header">
       <div><a href="../"><img className="logo-img" src={LOGO} alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div>
-      <div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={onSignOut}>Sign out</button></div>
+      <div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={onSignOut}>{exitLabel}</button></div>
     </header>
     <section className="picker-body">
       <div className="workspace-top"><div><p className="eyebrow">My projects</p><h1>Choose a project</h1></div></div>

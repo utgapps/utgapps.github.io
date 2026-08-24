@@ -103,7 +103,8 @@ export function SoloWorkspace({ token, who, onExit, children }: {
 
   if (step === "picker") {
     return <ProjectPicker token={token} className={`${who} · my projects`} status={status}
-                          live={false} onOpen={open} onSignOut={onExit} />;
+                          live={false} onOpen={open} onSignOut={onExit}
+                          exitLabel="Back to the class" />;
   }
   if (!docRef.current || !awarenessRef.current) return null;
 
