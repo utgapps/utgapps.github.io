@@ -511,6 +511,11 @@ h3{font-size:17px;margin:22px 0 8px}
   text-decoration-color:rgba(227,146,137,.65)}
 .snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
 /* ---- week anchors and the jump bar ---- */
 .chapter{scroll-margin-top:74px}
 .jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
@@ -652,6 +657,9 @@ def build_index():
   <p><a class="pill" href="teacher.html">Teacher curriculum</a>
      <a class="pill" href="workbook.html">Student homework book</a>
      <a class="pill" href="../classroom/">Open the code editor</a></p>
+  <p class="muted" style="margin:10px 0 0;font-size:13px">Each week page carries that week&rsquo;s
+  slides and links straight to its lesson plan. In the classroom, opening a week gives the teacher
+  both without leaving the room.</p>
 </div>
 <div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>{course.DISCLAIMER}</div>
 <h2>The weeks</h2>
@@ -690,6 +698,9 @@ def build_weeks():
 <h1>{esc(week["title"])}</h1>
 <p class="lead">{esc(week["big_idea"])}</p>
 <p>{concepts}</p>
+<p class="teach-row"><a class="pill" href="slides/week-{n:02d}.html">Slides for week {n}</a>
+   <a class="pill ghost" href="slides/week-{n:02d}.pptx">.pptx</a>
+   <a class="pill ghost" href="teacher.html#week-{n}">Lesson plan for week {n}</a></p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
 {legend}
 Your project is now {total} lines.</div>

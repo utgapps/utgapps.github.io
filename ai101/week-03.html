@@ -54,6 +54,11 @@ h3{font-size:17px;margin:22px 0 8px}
   text-decoration-color:rgba(227,146,137,.65)}
 .snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
 /* ---- week anchors and the jump bar ---- */
 .chapter{scroll-margin-top:74px}
 .jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
@@ -119,6 +124,9 @@ html:not(.utg-can-print) .printbtn{display:none}
 <h1>What is an API?</h1>
 <p class="lead">An API is a program&#x27;s front desk: you send a request in an agreed shape, you get an answer back in an agreed shape. Today you make your first request to a real server and prove you can reach it.</p>
 <p><span class="pill">API</span><span class="pill">request</span><span class="pill">response</span><span class="pill">API key</span><span class="pill">fetch</span><span class="pill">async</span><span class="pill">await</span><span class="pill">JSON</span></p>
+<p class="teach-row"><a class="pill" href="slides/week-03.html">Slides for week 3</a>
+   <a class="pill ghost" href="slides/week-03.pptx">.pptx</a>
+   <a class="pill ghost" href="teacher.html#week-3">Lesson plan for week 3</a></p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
 The green lines are what is new since week 2. Everything else you already had.
 Your project is now 103 lines.</div>

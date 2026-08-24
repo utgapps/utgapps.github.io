@@ -54,6 +54,11 @@ h3{font-size:17px;margin:22px 0 8px}
   text-decoration-color:rgba(227,146,137,.65)}
 .snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
 /* ---- week anchors and the jump bar ---- */
 .chapter{scroll-margin-top:74px}
 .jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
@@ -119,6 +124,9 @@ html:not(.utg-can-print) .printbtn{display:none}
 <h1>First conversation</h1>
 <p class="lead">Today the pretend answer becomes a real one. A chat request is a list of messages, each with a role, and the model writes the next one.</p>
 <p><span class="pill">POST</span><span class="pill">request body</span><span class="pill">messages</span><span class="pill">role</span><span class="pill">model</span><span class="pill">choices</span></p>
+<p class="teach-row"><a class="pill" href="slides/week-04.html">Slides for week 4</a>
+   <a class="pill ghost" href="slides/week-04.pptx">.pptx</a>
+   <a class="pill ghost" href="teacher.html#week-4">Lesson plan for week 4</a></p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
 The green lines are what is new since week 3. The struck-through line is one you DELETE this week - take it out. Everything else you already had.
 Your project is now 123 lines.</div>
