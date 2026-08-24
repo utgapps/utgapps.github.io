@@ -249,6 +249,67 @@ async function rateLimit(db, request, bucket, limit = 12) {
   if (row.count >= limit) throw new HttpError("Too many attempts. Try again in a few minutes.", 429);
   await db.prepare("UPDATE rate_limits SET count = count + 1 WHERE key = ?").bind(key).run();
 }
+/* Sign-in throttling: FAILED attempts only, counted per account as well as
+   per address.
+
+   The old rule was eight attempts per ten minutes against the caller's IP,
+   counting successes. Thirty students in one room share one school NAT
+   address, so the ninth to sign in was told "too many attempts" without
+   anybody having typed anything wrong - the whole class locked out of the
+   lesson by the first eight people getting it right.
+
+   Now a correct password costs nothing and clears the count, a wrong one is
+   charged to (address, username) so one student mistyping cannot lock out
+   their classmates, and a much looser per-address failure cap still stops
+   somebody spraying passwords across many usernames from one machine. */
+const LOGIN_FAILS_PER_ACCOUNT = 8;
+const LOGIN_FAILS_PER_ADDRESS = 50;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+
+async function loginKeys(request, username) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const who = String(username || "").trim().toLowerCase();
+  return {
+    account: "login-fail:" + await sha256(ip + "|" + who),
+    address: "login-fail-ip:" + await sha256(ip),
+  };
+}
+
+async function loginTooManyFailures(db, keys) {
+  const now = Date.now();
+  const rows = await db.batch([
+    db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?").bind(keys.account),
+    db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?").bind(keys.address),
+  ]);
+  const live = (result, limit) => {
+    const row = result.results && result.results[0];
+    return row && row.reset_at >= now && row.count >= limit;
+  };
+  if (live(rows[0], LOGIN_FAILS_PER_ACCOUNT)) {
+    throw new HttpError("Too many wrong passwords for that account. Try again in a few minutes, "
+                        + "or ask your teacher to reset it.", 429);
+  }
+  if (live(rows[1], LOGIN_FAILS_PER_ADDRESS)) {
+    throw new HttpError("Too many failed sign-ins from this network. Try again in a few minutes.", 429);
+  }
+}
+
+async function countLoginFailure(db, keys) {
+  const now = Date.now();
+  const reset = now + LOGIN_WINDOW_MS;
+  const bump = (key) => db.prepare(
+    "INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?) "
+    + "ON CONFLICT(key) DO UPDATE SET "
+    + "count = CASE WHEN rate_limits.reset_at < ? THEN 1 ELSE rate_limits.count + 1 END, "
+    + "reset_at = CASE WHEN rate_limits.reset_at < ? THEN ? ELSE rate_limits.reset_at END"
+  ).bind(key, reset, now, now, reset);
+  await db.batch([bump(keys.account), bump(keys.address)]);
+}
+
+async function clearLoginFailures(db, keys) {
+  await db.prepare("DELETE FROM rate_limits WHERE key = ?").bind(keys.account).run();
+}
+
 function lockError(level, until) {
   if (level >= 4 && !until) return new HttpError("This browser is permanently locked after repeated code lockouts. Ask an admin to clear it.", 429);
   const remaining = Math.max(1, Math.ceil((until - Date.now()) / 60000));
@@ -465,13 +526,21 @@ export default {
       }
 
       if (path === "/login/account" && request.method === "POST") {
-        await rateLimit(db, request, "account-login", 8);
         const { username, password } = await readJson(request);
         if (!username || !password) throw new HttpError("Username and password required.");
+        const keys = await loginKeys(request, username);
+        await loginTooManyFailures(db, keys);
         const account = await db.prepare("SELECT * FROM accounts WHERE username = ?").bind(String(username).trim()).first();
-        if (!account || !account.password_hash) throw new HttpError("Wrong username or password.", 401);
+        if (!account || !account.password_hash) {
+          await countLoginFailure(db, keys);
+          throw new HttpError("Wrong username or password.", 401);
+        }
         const { hash } = await hashPassword(password, account.password_salt);
-        if (!timingSafeEqual(hash, account.password_hash)) throw new HttpError("Wrong username or password.", 401);
+        if (!timingSafeEqual(hash, account.password_hash)) {
+          await countLoginFailure(db, keys);
+          throw new HttpError("Wrong username or password.", 401);
+        }
+        await clearLoginFailures(db, keys);
         await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(Date.now(), account.id).run();
         return response(request, env, { token: await newSession(db, account.id, 30), account: publicAccount(account) });
       }

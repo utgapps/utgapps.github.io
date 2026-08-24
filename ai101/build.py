@@ -1175,7 +1175,7 @@ def main():
 
     final = state_at(15)
     total = line_count(final)
-    print(f"AI101 — final project is {total} lines "
+    print(f"AI101 - final project is {total} lines "
           f"({', '.join(f'{n}: {len(final[n].splitlines())}' for n in FILES)})")
     if total > LINE_BUDGET:
         raise SystemExit(f"OVER BUDGET: {total} lines > {LINE_BUDGET}. Move something to a bonus module.")

@@ -28,6 +28,12 @@ export function SoloWorkspace({ token, who, onExit, children }: {
   const docRef = useRef<Y.Doc | null>(null);
   const awarenessRef = useRef<Awareness | null>(null);
   const idRef = useRef("");
+  /* The title has to live in a ref, not only in state. saveNow() is reached
+     from the doc's update handler, which was registered inside open() and so
+     closes over the render where title was still empty - and the API reads an
+     empty title as "My project". A teacher's "Week 7 - Memory" silently lost
+     its name on the first autosave. */
+  const titleRef = useRef("");
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
 
@@ -35,7 +41,7 @@ export function SoloWorkspace({ token, who, onExit, children }: {
     const doc = docRef.current;
     if (!doc || !idRef.current) return;
     try {
-      await apiSaveProjectById(token, idRef.current, { title, files: docToFiles(doc) });
+      await apiSaveProjectById(token, idRef.current, { title: titleRef.current, files: docToFiles(doc) });
       setStatus("Saved.");
     } catch { /* keep working; the next change retries */ }
   }
@@ -92,6 +98,7 @@ export function SoloWorkspace({ token, who, onExit, children }: {
     docRef.current = doc;
     awarenessRef.current = awareness;
     idRef.current = project.id;
+    titleRef.current = project.title;
     setTitle(project.title);
     setKind(project.kind);
     setFiles(docToFiles(doc));
