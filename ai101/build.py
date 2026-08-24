@@ -849,6 +849,80 @@ def code_chunks(week_n, refs):
     return chunks
 
 
+def slide_plan(week, seen):
+    """Ordered slide descriptors for a week's body (the caller adds the title
+    slide). Mutates `seen` - the concept keys already introduced course-wide -
+    so a concept is explained only the first time it appears.
+
+    An EXPANDED week gets a short explainer slide before the first line that uses
+    a new HTML tag / CSS property / JavaScript idea, and one code slide per line
+    with a note. Other weeks keep the chunked format, unchanged."""
+    expanded = week["n"] in getattr(course, "EXPANDED_WEEKS", set())
+    out = []
+    for spec in week["slides"]:
+        out.append(("concept", {"eyebrow": "", "title": spec["title"],
+                                 "sub": spec.get("sub", ""), "bullets": spec.get("bullets", [])}))
+        refs = spec.get("code")
+        if not refs:
+            continue
+        if not expanded:
+            chunks = code_chunks(week["n"], refs)
+            for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
+                out.append(("chunk", {"file": filename, "start": start, "lines": lines,
+                                      "marks": marks, "gone": gone, "part": index, "parts": len(chunks)}))
+            continue
+        eyebrow_for = {"html": "HTML", "css": "CSS", "js": "JavaScript"}
+        for filename, block in refs:
+            start, lines, marks, gone = block_code(week["n"], filename, block)
+            notes = course.LINE_NOTES.get((filename, block))
+            for i, line in enumerate(lines):
+                lineno = start + i
+                keys = course.line_concepts(filename, line)
+                for key in keys:
+                    concept = course.CONCEPTS.get(key)
+                    if concept and key not in seen:
+                        seen.add(key)
+                        kind, title, bullets = concept
+                        out.append(("concept", {"eyebrow": eyebrow_for[kind], "title": title,
+                                                "sub": "", "bullets": bullets}))
+                if not line.strip():
+                    continue
+                note = notes[i] if notes and i < len(notes) else ""
+                if note is None:
+                    continue  # a line deliberately folded into its neighbour
+                uses = [course.CONCEPTS[k][1] for k in keys if k in course.CONCEPTS]
+                out.append(("line", {"file": filename, "lineno": lineno, "line": line,
+                                     "note": note, "new": lineno in marks, "uses": uses}))
+    return out
+
+
+def deck_render_html(desc):
+    """One deck slide as HTML, for any descriptor slide_plan() produces."""
+    kind, d = desc
+    if kind == "concept":
+        eyebrow = f'<p class="eyebrow">{esc(d["eyebrow"])}</p>' if d.get("eyebrow") else ""
+        sub = ""
+        if d.get("sub"):
+            code_ish = any(mark in d["sub"] for mark in ("(", "{", "[", "=", ".", "/"))
+            sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(d["sub"]))
+        pts = "".join("<li>{0}</li>".format(esc(pt)) for pt in d.get("bullets", []))
+        pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
+        return '<section class="slide">{0}<h2>{1}</h2>{2}{3}</section>'.format(
+            eyebrow, esc(d["title"]), sub, pts)
+    if kind == "chunk":
+        return deck_code_slide(d["file"], d["start"], d["lines"], d["marks"], d["gone"],
+                               d["part"], d["parts"])
+    # a single line, with its explanation
+    rowcls = ' class="new"' if d["new"] else ""
+    uses = ('<p class="uses">covers: ' + ", ".join(esc(u) for u in d["uses"]) + "</p>") if d.get("uses") else ""
+    return ('<section class="slide dark line">'
+            '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
+            '<table class="code"><tr{2}><td class="ln">{1}</td><td>{3}</td></tr></table>'
+            '<p class="linenote">{4}</p>{5}</section>').format(
+                esc(d["file"]), d["lineno"], rowcls, esc(d["line"]) or "&nbsp;",
+                esc(d["note"]), uses)
+
+
 def build_slides():
     try:
         from pptx import Presentation
@@ -866,11 +940,16 @@ def build_slides():
     DROP = RGBColor(0xF3, 0x92, 0x8B)   # a line taken out this week
     DARK = RGBColor(0x10, 0x21, 0x27)
 
-    def concept_slide(deck, spec):
+    def concept_slide(deck, spec, eyebrow=""):
         slide = deck.slides.add_slide(deck.slide_layouts[5])
         slide.shapes.title.text = spec["title"]
         run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
         run.font.size, run.font.bold, run.font.color.rgb = Pt(38), True, INK
+        if eyebrow:
+            eb = slide.shapes.add_textbox(Inches(0.95), Inches(0.55), Inches(6), Inches(0.5))
+            eb.text_frame.text = eyebrow.upper()
+            er = eb.text_frame.paragraphs[0].runs[0]
+            er.font.size, er.font.bold, er.font.color.rgb = Pt(15), True, BRAND
         body = ([spec["sub"]] if spec.get("sub") else []) + spec.get("bullets", [])
         if not body:
             return
@@ -933,18 +1012,38 @@ def build_slides():
             # green = new this week, matching the workbook and the week pages
             row(line, NEW if number in marks else PAPER, f"{number:>4}  ")
 
+    def line_slide(deck, filename, lineno, line, note, new, uses):
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
+        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.35), Inches(12.2), Inches(0.7))
+        head.text_frame.text = f"Type this into {filename}   -   line {lineno}"
+        hr = head.text_frame.paragraphs[0].runs[0]
+        hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(23), True, BRAND
+        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.55), Inches(12.2), Inches(1.2))
+        cr = box.text_frame.paragraphs[0].add_run()
+        cr.text = line if line.strip() else " "
+        cr.font.name, cr.font.size, cr.font.color.rgb = "Consolas", Pt(27), (NEW if new else PAPER)
+        nb = slide.shapes.add_textbox(Inches(0.6), Inches(3.15), Inches(12.1), Inches(3.4))
+        nf = nb.text_frame; nf.word_wrap = True
+        nf.paragraphs[0].text = note
+        nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(24), PAPER
+        if uses:
+            up = nf.add_paragraph(); up.text = "covers: " + ", ".join(uses); up.space_before = Pt(18)
+            ur = up.runs[0]; ur.font.size, ur.font.color.rgb = Pt(15), GUTTER
+
     made = 0
+    seen = set()
     for week in course.WEEKS:
         deck = Presentation()
         deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
         concept_slide(deck, {"title": f"Week {week['n']}", "sub": week["title"], "bullets": []})
-        for spec in week["slides"]:
-            concept_slide(deck, spec)
-            refs = spec.get("code")
-            if refs:
-                chunks = code_chunks(week["n"], refs)
-                for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
-                    code_slide(deck, filename, start, lines, marks, gone, index, len(chunks))
+        for kind, d in slide_plan(week, seen):
+            if kind == "concept":
+                concept_slide(deck, {"title": d["title"], "sub": d["sub"], "bullets": d["bullets"]}, eyebrow=d.get("eyebrow", ""))
+            elif kind == "chunk":
+                code_slide(deck, d["file"], d["start"], d["lines"], d["marks"], d["gone"], d["part"], d["parts"])
+            else:
+                line_slide(deck, d["file"], d["lineno"], d["line"], d["note"], d["new"], d.get("uses", []))
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
         made += 1
     return made
@@ -997,6 +1096,10 @@ border-radius:6px;padding:7px 13px;cursor:pointer}
 .dots{display:flex;gap:5px}
 .dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
 .dots i.on{background:#01aefd}
+.slide.line .filebar{margin-bottom:.5em}
+.slide.line .code{font-size:clamp(15px,2.7vw,36px);margin:0 0 .7em}
+.linenote{color:#dcecef;font-size:clamp(17px,2.2vw,30px);line-height:1.45;margin:0;max-width:34ch}
+.uses{color:#7f9aa4;font-size:clamp(11px,1.35vw,17px);font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:1.1em 0 0}
 @media (max-width:640px){.bar .hint{display:none}}
 """
 
@@ -1084,18 +1187,12 @@ def build_html_decks():
     """
     os.makedirs(SLIDES_DIR, exist_ok=True)
     counts = {}
+    seen = set()
     for week in course.WEEKS:
         slides = ['<section class="slide"><p class="eyebrow">Week {0}</p><h1>{1}</h1></section>'
                   .format(week["n"], esc(week["title"]))]
-        for spec in week["slides"]:
-            slides.append(deck_concept_slide(spec))
-            refs = spec.get("code")
-            if not refs:
-                continue
-            chunks = code_chunks(week["n"], refs)
-            for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
-                slides.append(deck_code_slide(filename, start, lines, marks, gone,
-                                              index, len(chunks)))
+        for desc in slide_plan(week, seen):
+            slides.append(deck_render_html(desc))
         dots = "".join("<i></i>" for _ in slides)
         html_out = """<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1124,15 +1221,12 @@ def build_html_decks():
 
 
 def pptx_slide_counts():
-    """How many slides each .pptx deck would have, without building one."""
+    """Slide count per week, from the same plan the decks render, so the
+    .pptx and .html can never disagree."""
     counts = {}
+    seen = set()
     for week in course.WEEKS:
-        total = 1
-        for spec in week["slides"]:
-            total += 1
-            if spec.get("code"):
-                total += len(code_chunks(week["n"], spec["code"]))
-        counts[week["n"]] = total
+        counts[week["n"]] = 1 + len(slide_plan(week, seen))
     return counts
 
 def build_milestones():
@@ -1217,6 +1311,27 @@ def main():
                 + ", ".join(f"{f}:{b}" for f, b in sorted(unshown))
                 + " - add a \"code\" key to one of that week's slides"
             )
+
+        # An expanded week teaches line by line, so every code line it shows on
+        # a slide needs a note. A blank explanation slide is worse than none, so
+        # refuse to ship one - this is the guard that keeps the roll-out honest.
+        if week["n"] in getattr(course, "EXPANDED_WEEKS", set()):
+            for spec in week["slides"]:
+                for filename, block in (spec.get("code") or []):
+                    start, lines, _marks, _gone = block_code(week["n"], filename, block)
+                    notes = course.LINE_NOTES.get((filename, block))
+                    for i, line in enumerate(lines):
+                        if not line.strip():
+                            continue
+                        note = notes[i] if notes and i < len(notes) else ""
+                        if note is None:
+                            continue
+                        if not note:
+                            raise SystemExit(
+                                f"week {week['n']} is expanded but {filename}:{block} "
+                                f"line {start + i} has no LINE_NOTES entry"
+                            )
+
         grew = line_count(state_at(week["n"])) - (line_count(state_at(week["n"] - 1)) if week["n"] > 1 else 0)
         print(f"  week {week['n']:2d}  +{grew:3d} lines  {week['title']}")
 

@@ -2399,3 +2399,175 @@ WEEKS = [
  ],
 },
 ]
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  concept-first, one line of code per slide.
+#
+# For weeks in EXPANDED_WEEKS the deck is rebuilt: before the first line that
+# uses a new HTML tag / CSS property / JavaScript idea, a short explainer slide
+# is shown (once per course, the first time it appears), and every line of code
+# gets its own slide saying what that line does. The inline comments stay in the
+# files, but the SLIDES carry the teaching now. Roll-out is per week so the
+# build stays green while it is partial.
+# ==========================================================================
+
+EXPANDED_WEEKS = {1}
+
+
+def line_concepts(filename, line):
+    """Concept keys a line first introduces, in reading order. Only keys that
+    also appear in CONCEPTS get a slide, so the glossary can grow a week at a
+    time - an unknown key is silently skipped."""
+    import re
+    keys = []
+    if filename == "index.html":
+        for tag in re.findall(r"<([a-zA-Z][a-zA-Z0-9]*)", line):
+            keys.append("html:" + tag.lower())
+    elif filename == "style.css":
+        stripped = line.strip()
+        if stripped.endswith("{") and not stripped.startswith("@"):
+            keys.append("css:rule")
+        for prop in re.findall(r"([a-z-]+)\s*:", line):
+            keys.append("css:" + prop)
+    elif filename == "script.js":
+        if line.strip().startswith("//"):
+            keys.append("js:comment")
+        for token, key in (
+            ("console.log", "js:console.log"),
+            ("document.getElementById", "js:getElementById"),
+            ("addEventListener", "js:addEventListener"),
+            ("fetch", "js:fetch"),
+            ("JSON.stringify", "js:json.stringify"),
+            ("JSON.parse", "js:json.parse"),
+        ):
+            if token in line:
+                keys.append(key)
+        if re.search(r"\bconst\b", line):
+            keys.append("js:const")
+        if re.search(r"\blet\b", line):
+            keys.append("js:let")
+        if re.search(r"\bfunction\b", line) or "=>" in line:
+            keys.append("js:function")
+    out, seen = [], set()
+    for k in keys:
+        if k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
+# key -> (kind, title, [explainer bullets]).  Quick and concrete, ages 12-17.
+CONCEPTS = {
+    "html:link":   ("html", "The <link> tag", ["It pulls another file into your page.", "rel says what it is (a stylesheet); href says where to find it."]),
+    "html:main":   ("html", "The <main> tag", ["A box that wraps the main part of the page.", "Everything the student sees lives inside it."]),
+    "html:header": ("html", "The <header> tag", ["A box for the strip across the top - your title area."]),
+    "html:h1":     ("html", "The <h1> tag", ["The biggest heading: the page's main title.", "Use only one <h1> per page."]),
+    "html:p":      ("html", "The <p> tag", ["A paragraph - a block of ordinary text."]),
+    "html:div":    ("html", "The <div> tag", ["A plain empty box you can style and fill later.", "The chat messages will go inside this one."]),
+    "html:form":   ("html", "The <form> tag", ["Groups a text box and a button that work together.", "Pressing Enter inside it acts like clicking the button."]),
+    "html:input":  ("html", "The <input> tag", ["A box the student types into.", "placeholder is the grey hint shown while it is empty."]),
+    "html:button": ("html", "The <button> tag", ["A button you can click - here, Send.", "type=submit makes it send the form."]),
+    "html:script": ("html", "The <script> tag", ["Loads script.js, the code that makes the page do things.", "It goes LAST so the boxes exist before the code looks for them."]),
+    "css:rule":    ("css", "A CSS rule", ["selector { property: value; }", "The selector picks WHAT to style; the properties say HOW."]),
+    "css:margin":  ("css", "margin", ["Space OUTSIDE a box, pushing other things away.", "margin: 0 auto centres a box that has a width."]),
+    "css:font-family": ("css", "font-family", ["Which typeface the text uses.", "The browser tries the fonts in order until one works."]),
+    "css:background":  ("css", "background", ["The fill colour behind the box."]),
+    "css:color":   ("css", "color", ["The colour of the text itself."]),
+    "css:max-width": ("css", "max-width", ["A width the box will never grow past.", "Keeps lines short enough to read comfortably."]),
+    "css:padding": ("css", "padding", ["Space INSIDE a box, between its edge and its contents."]),
+    "css:font-size": ("css", "font-size", ["How big the text is, usually in px."]),
+    "css:display": ("css", "display: flex", ["Lays a box's children in a ROW instead of stacking them.", "Perfect for the text box and Send button side by side."]),
+    "css:gap":     ("css", "gap", ["The space between children in a flex row."]),
+    "css:flex":    ("css", "flex: 1", ["Tells one flex child to stretch and fill the leftover space.", "The text box grows; the button stays its own size."]),
+    "css:min-height": ("css", "min-height", ["The box is at least this tall, even when empty."]),
+    "css:border":  ("css", "border", ["A line around the edge: thickness, style, then colour."]),
+    "css:border-radius": ("css", "border-radius", ["Rounds the corners. Bigger number, rounder."]),
+    "css:cursor":  ("css", "cursor", ["The mouse-pointer shape.", "pointer shows a hand, so it looks clickable."]),
+    "js:comment":  ("js", "A comment", ["A line starting with // that the computer ignores.", "It is a note for the humans reading the code."]),
+    "js:console.log": ("js", "console.log()", ["A built-in that prints a message to the console panel.", "Your window into what the code is doing."]),
+    "js:getElementById": ("js", "document.getElementById()", ["A built-in that finds a box on the page by its id.", "Hands you the box, or null if it is not there."]),
+}
+
+# (filename, block_id) -> one note per line (None for a blank line, which gets no slide).
+LINE_NOTES = {
+    (HTML, "stylelink"): [
+        "Loads style.css so the page uses your styles. rel says it is a stylesheet; href is the filename.",
+        None,
+    ],
+    (HTML, "shell"): [
+        'Opens <main>, the box that holds everything. class="app" is a label CSS can target.',
+        "Opens <header>, the top strip. It closes a few lines down.",
+        "The big title of the page, inside an <h1>.",
+        'A small paragraph under the title. class="tag" lets CSS make it grey and small.',
+        "Closes </header>. Every tag you open you must close.",
+    ],
+    (HTML, "chat"): [
+        'An empty <div> with id="chat". Empty for now - your messages will fill it later.',
+    ],
+    (HTML, "composer"): [
+        'Opens a <form> with id="composer": the text box and Send button belong together.',
+        "The <input> the student types in. placeholder is the faint hint; autocomplete off hides suggestions.",
+        'The Send <button>. type="submit" means clicking it (or pressing Enter) sends the form.',
+        "Closes </form>.",
+    ],
+    (HTML, "close"): [
+        "Closes </main>. The visible page is complete.",
+    ],
+    (HTML, "scripttag"): [
+        None,
+        "Loads your JavaScript. It sits at the very bottom so every box above already exists when the code runs.",
+    ],
+    (CSS, "base"): [
+        "Starts a rule for <body>, the whole page. Everything between { and } styles it.",
+        "Removes the browser's default margin so nothing is pushed off the edge.",
+        "Sets the font. The browser uses the first one it has.",
+        "The page's background colour, a soft blue-grey.",
+        "The default text colour, a dark near-black.",
+        "Closes the body rule.",
+    ],
+    (CSS, "layout"): [
+        "Starts a rule for .app - the <main> box we labelled earlier.",
+        "It never grows wider than 620px, so lines stay easy to read.",
+        "margin: 0 auto centres it: no top/bottom margin, equal left/right.",
+        "Space inside the box so text is not jammed against the edge.",
+        "Closes the .app rule.",
+        "Styles the <h1> inside .top: no margin except a little below, and a 26px size. (A one-line rule.)",
+        "Styles the .tag paragraph: spaced below, grey, and small.",
+        "Starts a rule for the .chat box.",
+        "Keeps it at least 260px tall so it reads as a chat area even when empty.",
+        "Space inside the chat box.",
+        "A white background so messages stand out from the page.",
+        "A thin grey line around it.",
+        "Rounds the corners a little.",
+        "Closes the .chat rule.",
+    ],
+    (CSS, "composer"): [
+        "Lays the form's children in a row with a small gap and a little space above. display: flex is the key part.",
+        "Starts a rule for the input inside .composer.",
+        "flex: 1 makes the text box stretch to fill the space the button leaves.",
+        "Space inside the text box.",
+        "A thin grey border to match the chat box.",
+        "Rounded corners.",
+        "Comfortable text size.",
+        "Closes the input rule.",
+        "Starts a rule for the button inside .composer.",
+        "Padding to make the button a comfortable size to tap.",
+        "border: 0 removes the default button outline.",
+        "Rounded corners.",
+        "The brand blue as its background.",
+        "White text on the blue.",
+        "Readable text size.",
+        "cursor: pointer shows a hand so it looks clickable.",
+        "Closes the button rule.",
+    ],
+    (JS, "hello"): [
+        "A comment: a note for you, ignored by the computer.",
+        "console.log prints a message to the console panel - proof the file is running.",
+        None,
+        "Another comment, explaining the check below.",
+        "A comment continued: what would happen if the script ran too early.",
+        "The comment's last line: which is why the <script> tag goes at the bottom.",
+        "getElementById looks for the chat box; !== null is true only if it was found. Because the script is at the bottom, it prints true.",
+    ],
+}

@@ -87,8 +87,8 @@ CASES = [
      "key"),
 
     ("the web deck drifts from the .pptx", "build.py",
-     lambda s: sub_once(s, r"(def pptx_slide_counts\(\):.*?)total = 1",
-                        r"\1total = 2", "pptx count"),
+     lambda s: sub_once(s, r"counts\[week\[.n.\]\] = 1 \+ len\(slide_plan",
+                        'counts[week["n"]] = 2 + len(slide_plan', "pptx count"),
      "deck drift"),
 
     ("a block is missing from the file ordering", "course.py",
