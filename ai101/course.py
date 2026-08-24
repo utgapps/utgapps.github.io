@@ -2412,7 +2412,7 @@ WEEKS = [
 # build stays green while it is partial.
 # ==========================================================================
 
-EXPANDED_WEEKS = {1}
+EXPANDED_WEEKS = {1, 2, 3}
 
 
 def line_concepts(filename, line):
@@ -2433,22 +2433,35 @@ def line_concepts(filename, line):
     elif filename == "script.js":
         if line.strip().startswith("//"):
             keys.append("js:comment")
-        for token, key in (
-            ("console.log", "js:console.log"),
-            ("document.getElementById", "js:getElementById"),
-            ("addEventListener", "js:addEventListener"),
-            ("fetch", "js:fetch"),
-            ("JSON.stringify", "js:json.stringify"),
-            ("JSON.parse", "js:json.parse"),
-        ):
-            if token in line:
-                keys.append(key)
         if re.search(r"\bconst\b", line):
             keys.append("js:const")
         if re.search(r"\blet\b", line):
             keys.append("js:let")
         if re.search(r"\bfunction\b", line) or "=>" in line:
             keys.append("js:function")
+        for token, key in (
+            ("console.log", "js:console.log"),
+            ("document.getElementById", "js:getElementById"),
+            ("document.createElement", "js:createElement"),
+            (".textContent", "js:textContent"),
+            (".appendChild", "js:appendChild"),
+            (".addEventListener", "js:addEventListener"),
+            ("preventDefault", "js:preventDefault"),
+            (".value", "js:value"),
+            (".trim(", "js:trim"),
+            ("async ", "js:async"),
+            ("await ", "js:await"),
+            (".json(", "js:json"),
+            ("fetch(", "js:fetch"),
+            ("JSON.stringify", "js:json.stringify"),
+            ("JSON.parse", "js:json.parse"),
+        ):
+            if token in line:
+                keys.append(key)
+        if re.search(r"\bif\s*\(", line):
+            keys.append("js:if")
+        if re.search(r"\breturn\b", line):
+            keys.append("js:return")
     out, seen = [], set()
     for k in keys:
         if k not in seen:
@@ -2571,3 +2584,87 @@ LINE_NOTES = {
         "getElementById looks for the chat box; !== null is true only if it was found. Because the script is at the bottom, it prints true.",
     ],
 }
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  weeks 2 and 3 content.
+# ==========================================================================
+
+CONCEPTS.update({
+    # ---- week 2: variables, functions, events ----
+    "js:const":      ("js", "What is a variable?", ["A variable is a named box that holds a value.", "const chat = ... means 'let chat stand for this from now on'."]),
+    "js:function":   ("js", "What is a function?", ["A named set of steps you can run whenever you want.", "You 'call' it by writing its name with () after it."]),
+    "js:createElement": ("js", "document.createElement()", ["A built-in that makes a NEW element (here a <p>).", "It is not on the page yet - you add it after."]),
+    "js:textContent":("js", ".textContent", ["Sets the words inside an element.", "box.textContent = 'hi' puts hi inside it."]),
+    "js:appendChild":("js", ".appendChild()", ["Puts one element inside another, so it finally shows on the page."]),
+    "js:addEventListener": ("js", ".addEventListener()", ["Leaves a note: 'when THIS happens, run THAT'.", "Like your PixelPad loop watching for a key - but the browser waits and calls you."]),
+    "js:preventDefault": ("js", "event.preventDefault()", ["Stops the browser's normal reaction.", "Here it stops the page reloading, so we handle the form ourselves."]),
+    "js:value":      ("js", "Reading .value", ["box.value is whatever the student has typed in that input right now."]),
+    "js:trim":       ("js", ".trim()", ["Removes blank space from the ends of text.", "' hi ' becomes 'hi'."]),
+    "js:if":         ("js", "The if statement", ["Runs the code in { } only WHEN the test in ( ) is true."]),
+    "js:return":     ("js", "return", ["Stops the function right there. Nothing after it runs."]),
+    # ---- week 3: talking to the server ----
+    "js:async":      ("js", "async", ["Marks a function that does something SLOW, like talking to a server.", "It lets you 'await' the slow part without freezing the page."]),
+    "js:await":      ("js", "await", ["Waits for a slow thing to finish and hands you the result.", "Only works inside an async function."]),
+    "js:fetch":      ("js", "fetch()", ["JavaScript's built-in way to ask another computer for something over the network."]),
+    "js:json":       ("js", "res.json()", ["The reply arrives as text; .json() turns it into data your code can use.", "Also slow, so it needs await."]),
+})
+
+LINE_NOTES.update({
+    # ------------------------------- week 2 ------------------------------
+    (JS, "elements"): [
+        None,
+        "A comment: this week we grab the boxes we built in week 1 so the code can use them.",
+        None,
+        "Makes a variable called chat that stands for the chat box, found by its id.",
+        "The same for the form, so we can react when it is submitted.",
+        "And the text box, so we can read what the student typed.",
+    ],
+    (JS, "addline"): [
+        None,
+        "A comment naming what this chunk does: add one message line to the chat.",
+        "Defines a function called addLine that takes two things: who is talking and the text.",
+        "Makes a new, empty <p> element - not on the page yet.",
+        "Puts the words inside it, like 'You: hello'.",
+        "Adds the <p> inside the chat box, so it finally appears on screen.",
+        "Closes the function. Nothing happens until something CALLS addLine.",
+    ],
+    (JS, "submit"): [
+        None,
+        "A comment tying this to PixelPad: instead of checking every frame, you leave a note for the browser.",
+        None,
+        "When the form is submitted, run the function inside. event holds details of what happened.",
+        "Stops the browser reloading the page, so we can handle it ourselves.",
+        "Reads what the student typed and trims blank space off the ends.",
+        "If the box was empty, return - stop here and do nothing.",
+        "Empties the text box, ready for the next message.",
+        "Adds their message to the chat as 'You: ...'.",
+        "Adds a pretend reply for now - week 4 makes it real.",
+        "Closes the listener. Type in the box and press Enter to test it.",
+    ],
+    # ------------------------------- week 3 ------------------------------
+    (JS, "config"): [
+        None,
+        "A comment: this chunk says WHERE the AI is and WHO you are.",
+        "Your key is your identity. Two people on one key share one speed limit.",
+        None,
+        "A comment: this address only works on the school network - at home you swap these two lines.",
+        None,
+        "The school AI server's address, stored in a variable so you write it once.",
+        "Your key. It is a placeholder now - later you paste your own real one here.",
+    ],
+    (JS, "models"): [
+        None,
+        "A comment: the smallest useful request - ask the server which models it has.",
+        None,
+        "An async function: it does something slow (talking to the server) and can be awaited.",
+        "await fetch(...) asks the server for the list at /v1/models and waits for the reply.",
+        "The header proves who you are by sending your key as a Bearer token.",
+        "Closes the fetch call.",
+        "The reply is text; await res.json() turns it into data you can use.",
+        "Prints the list of models to the console so you can see them.",
+        "Closes the function.",
+        None,
+        "Calls the function so it actually runs when the page loads.",
+    ],
+})
