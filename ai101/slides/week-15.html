@@ -45,10 +45,16 @@ border-radius:6px;padding:7px 13px;cursor:pointer}
 .dots{display:flex;gap:5px}
 .dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
 .dots i.on{background:#01aefd}
-.slide.line .filebar{margin-bottom:.5em}
-.slide.line .code{font-size:clamp(15px,2.7vw,36px);margin:0 0 .7em}
-.linenote{color:#dcecef;font-size:clamp(17px,2.2vw,30px);line-height:1.45;margin:0;max-width:34ch}
-.uses{color:#7f9aa4;font-size:clamp(11px,1.35vw,17px);font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:1.1em 0 0}
+.slide.line{overflow-y:auto}
+.slide.line .filebar{margin-bottom:.55em}
+.slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
+.code tr.ctx td{color:#8093a0}
+.code tr.ctx .ln{color:#5a6d78}
+.code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
+box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
+.code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
+.slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
 @media (max-width:640px){.bar .hint{display:none}}
 </style>
 <script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>

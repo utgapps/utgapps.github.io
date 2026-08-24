@@ -875,8 +875,8 @@ def slide_plan(week, seen):
         for filename, block in refs:
             start, lines, marks, gone = block_code(week["n"], filename, block)
             notes = course.LINE_NOTES.get((filename, block))
+            shown = 0
             for i, line in enumerate(lines):
-                lineno = start + i
                 keys = course.line_concepts(filename, line)
                 for key in keys:
                     concept = course.CONCEPTS.get(key)
@@ -890,10 +890,37 @@ def slide_plan(week, seen):
                 note = notes[i] if notes and i < len(notes) else ""
                 if note is None:
                     continue  # a line deliberately folded into its neighbour
-                uses = [course.CONCEPTS[k][1] for k in keys if k in course.CONCEPTS]
-                out.append(("line", {"file": filename, "lineno": lineno, "line": line,
-                                     "note": note, "new": lineno in marks, "uses": uses}))
+                # Show the block built up so far, with THIS line highlighted, so
+                # the student sees exactly where the new line goes.
+                out.append(("linectx", {"file": filename, "start": start,
+                                        "lines": lines[:i + 1], "hi": i,
+                                        "note": note, "marks": marks}))
+                shown += 1
+            # One slide with the whole chunk together, once it is more than a
+            # single line, so they can check theirs matches before moving on.
+            if shown > 1:
+                whole = lines[:]
+                while whole and not whole[-1].strip():
+                    whole.pop()
+                out.append(("block", {"file": filename, "start": start,
+                                      "lines": whole, "marks": marks}))
     return out
+
+
+def _code_table_html(start, lines, hi, marks):
+    """A block of code with line numbers. If hi is set, that row is highlighted
+    and the rest are dimmed context; if hi is None, new lines are green."""
+    rows = []
+    for j, line in enumerate(lines):
+        lineno = start + j
+        if hi is not None:
+            cls = "hi" if j == hi else "ctx"
+        else:
+            cls = "new" if lineno in marks else ""
+        attr = ' class="%s"' % cls if cls else ""
+        rows.append('<tr%s><td class="ln">%d</td><td>%s</td></tr>'
+                    % (attr, lineno, esc(line) or "&nbsp;"))
+    return '<table class="code">%s</table>' % "".join(rows)
 
 
 def deck_render_html(desc):
@@ -912,13 +939,18 @@ def deck_render_html(desc):
     if kind == "chunk":
         return deck_code_slide(d["file"], d["start"], d["lines"], d["marks"], d["gone"],
                                d["part"], d["parts"])
-    # a single line, with its explanation
-    rowcls = ' class="new"' if d["new"] else ""
+    if kind == "block":
+        return ('<section class="slide dark line whole">'
+                '<p class="filebar">All together in {0}</p>{1}'
+                '<p class="linenote">That is the whole piece. Check yours looks the '
+                'same before moving on.</p></section>').format(
+                    esc(d["file"]), _code_table_html(d["start"], d["lines"], None, d["marks"]))
+    # a single line in context, with its explanation
     return ('<section class="slide dark line">'
             '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
-            '<table class="code"><tr{2}><td class="ln">{1}</td><td>{3}</td></tr></table>'
-            '<p class="linenote">{4}</p></section>').format(
-                esc(d["file"]), d["lineno"], rowcls, esc(d["line"]) or "&nbsp;",
+            '{2}<p class="linenote">{3}</p></section>').format(
+                esc(d["file"]), d["start"] + d["hi"],
+                _code_table_html(d["start"], d["lines"], d["hi"], d["marks"]),
                 esc(d["note"]))
 
 
@@ -1011,21 +1043,33 @@ def build_slides():
             # green = new this week, matching the workbook and the week pages
             row(line, NEW if number in marks else PAPER, f"{number:>4}  ")
 
-    def line_slide(deck, filename, lineno, line, note, new, uses):
+    def ctx_slide(deck, filename, start, lines, hi, note):
+        """The block written so far, with line `hi` highlighted (or every line
+        green when hi is None, for the whole-chunk slide), and a note below."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
-        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.35), Inches(12.2), Inches(0.7))
-        head.text_frame.text = f"Type this into {filename}   -   line {lineno}"
+        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
+        head.text_frame.text = (f"Type this into {filename}   -   line {start + hi}"
+                                if hi is not None else f"All together in {filename}")
         hr = head.text_frame.paragraphs[0].runs[0]
-        hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(23), True, BRAND
-        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.55), Inches(12.2), Inches(1.2))
-        cr = box.text_frame.paragraphs[0].add_run()
-        cr.text = line if line.strip() else " "
-        cr.font.name, cr.font.size, cr.font.color.rgb = "Consolas", Pt(27), (NEW if new else PAPER)
-        nb = slide.shapes.add_textbox(Inches(0.6), Inches(3.15), Inches(12.1), Inches(3.4))
+        hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
+        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
+        frame = box.text_frame; frame.word_wrap = False
+        size = Pt(18) if len(lines) <= 10 else Pt(13)
+        first = [True]
+        for j, line in enumerate(lines):
+            para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
+            first[0] = False; para.space_after = Pt(0)
+            gut = para.add_run(); gut.text = f"{start + j:>4}  "
+            gut.font.name, gut.font.size, gut.font.color.rgb = "Consolas", size, GUTTER
+            code = para.add_run(); code.text = line if line.strip() else " "
+            code.font.name, code.font.size = "Consolas", size
+            # highlighted (or whole-block) line is green; already-typed context is muted
+            code.font.color.rgb = GUTTER if (hi is not None and j != hi) else NEW
+        nb = slide.shapes.add_textbox(Inches(0.6), Inches(6.15), Inches(12.1), Inches(1.15))
         nf = nb.text_frame; nf.word_wrap = True
         nf.paragraphs[0].text = note
-        nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(24), PAPER
+        nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
     made = 0
     seen = set()
@@ -1038,8 +1082,11 @@ def build_slides():
                 concept_slide(deck, {"title": d["title"], "sub": d["sub"], "bullets": d["bullets"]}, eyebrow=d.get("eyebrow", ""))
             elif kind == "chunk":
                 code_slide(deck, d["file"], d["start"], d["lines"], d["marks"], d["gone"], d["part"], d["parts"])
-            else:
-                line_slide(deck, d["file"], d["lineno"], d["line"], d["note"], d["new"], d.get("uses", []))
+            elif kind == "block":
+                ctx_slide(deck, d["file"], d["start"], d["lines"], None,
+                          "That is the whole piece. Check yours looks the same before moving on.")
+            else:  # linectx
+                ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"])
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
         made += 1
     return made
@@ -1092,10 +1139,16 @@ border-radius:6px;padding:7px 13px;cursor:pointer}
 .dots{display:flex;gap:5px}
 .dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
 .dots i.on{background:#01aefd}
-.slide.line .filebar{margin-bottom:.5em}
-.slide.line .code{font-size:clamp(15px,2.7vw,36px);margin:0 0 .7em}
-.linenote{color:#dcecef;font-size:clamp(17px,2.2vw,30px);line-height:1.45;margin:0;max-width:34ch}
-.uses{color:#7f9aa4;font-size:clamp(11px,1.35vw,17px);font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:1.1em 0 0}
+.slide.line{overflow-y:auto}
+.slide.line .filebar{margin-bottom:.55em}
+.slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
+.code tr.ctx td{color:#8093a0}
+.code tr.ctx .ln{color:#5a6d78}
+.code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
+box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
+.code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
+.slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
 @media (max-width:640px){.bar .hint{display:none}}
 """
 
