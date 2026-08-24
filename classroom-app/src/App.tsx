@@ -70,8 +70,15 @@ function App() {
   const rootInstructorCode = rootClass && rootRole === "instructor" ? rootCode : "";
   const rootStudentGrant = rootClass && rootRole === "student" ? rootGrant : "";
   const rootInstructorGrant = rootClass && rootRole === "instructor" ? rootGrant : "";
+  // A teacher arriving at ?instructor=1 means it. On a shared classroom PC the
+  // last person to use it was usually a pupil, and their student session is
+  // still in localStorage - without this, that stale session routed the teacher
+  // straight back to the student join screen and they could not reach their own
+  // room at all. Explicit instructor intent wins over a saved student session.
+  const wantsInstructor = rootRole === "instructor" || rootParams.has("instructor");
   const [mode, setMode] = useState<Mode>(() => {
     if (rootStudentCode || rootStudentGrant) return "student";
+    if (wantsInstructor) return "home";   // the instructor entry, never the pupil's stale session
     return savedAccount()?.account.role === "student" ? "student" : "home";
   });
   const [classes, setClasses] = useState<ClassRecord[]>([]);
@@ -115,7 +122,7 @@ function App() {
   if (window.location.pathname.replace(/\/+$/, "").endsWith("/admin")) return <AdminApp />;
   // The classroom has no standalone landing page. Arriving without a role, an
   // instructor entry, or an account sends you back to the modules hub.
-  if (!rootRole && !new URLSearchParams(window.location.search).has("instructor") && !savedAccount()) {
+  if (!rootRole && !wantsInstructor && !savedAccount()) {
     window.location.replace("../");
     return null;
   }
