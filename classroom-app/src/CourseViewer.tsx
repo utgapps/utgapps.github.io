@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /* The week's slides and lesson plan, over the top of the classroom.
 
@@ -9,7 +10,12 @@ import { useEffect, useRef, useState } from "react";
 
    The frame is NOT sandboxed on purpose: the deck needs the fullscreen
    permission and the guide needs its own anchor scrolling, and both are our
-   own files from our own origin. */
+   own files from our own origin.
+
+   It renders through a portal into <body>. Mounted where it is used, it sits
+   inside the details sidebar - which the class layout hides below about 900px,
+   taking the overlay with it. position:fixed does not save an element whose
+   ancestor is display:none. */
 
 export type ViewerTab = "slides" | "plan";
 
@@ -56,7 +62,7 @@ export function CourseViewer({ classId, week, title, tab, onTab, onClose }: {
   // it or a slow second load looks like a blank panel.
   useEffect(() => { setReady(false); }, [tab, week]);
 
-  return <div className="viewer" role="dialog" aria-modal="true" aria-label={`Week ${week} ${tab}`}>
+  return createPortal(<div className="viewer" role="dialog" aria-modal="true" aria-label={`Week ${week} ${tab}`}>
     <header className="viewer-bar">
       <strong>Week {week}</strong>
       <span className="viewer-title">{title}</span>
@@ -85,5 +91,5 @@ export function CourseViewer({ classId, week, title, tab, onTab, onClose }: {
               // the moment the deck appears rather than clicking it first.
               if (tab === "slides") frameRef.current?.contentWindow?.focus();
             }} />
-  </div>;
+  </div>, document.body);
 }
