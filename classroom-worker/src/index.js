@@ -581,6 +581,49 @@ export default {
       /* Every per-id route scopes on account_id in the WHERE rather than checking
          ownership afterwards, and answers 404 rather than 403 - a guessed id must
          not confirm that somebody else's project exists. */
+      /* ---- instructor: see your class, and catch a student up ----
+         An instructor may read the roster for their OWN class and seed a
+         project into a student in it. That is the first place in this API where
+         one account writes into another, so the class match is checked against
+         the signed-in account's own class_id rather than anything in the body,
+         and it only ever CREATES a project - it can never overwrite work a
+         student already has. */
+      const classStaff = (classId) =>
+        me.role === "admin" || (me.role === "instructor" && me.class_id === classId);
+
+      const rosterMatch = path.match(/^\/class\/([^/]+)\/students$/);
+      if (rosterMatch && request.method === "GET") {
+        const classId = rosterMatch[1];
+        if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
+        const rows = (await db.prepare(
+          "SELECT a.id, a.name, a.last_seen, " +
+          "(SELECT COUNT(*) FROM projects p WHERE p.account_id = a.id AND p.deleted_at IS NULL) AS projects " +
+          "FROM accounts a WHERE a.class_id = ? AND a.role = 'student' ORDER BY a.name"
+        ).bind(classId).all()).results;
+        return response(request, env, { students: rows.map((r) => ({
+          id: r.id, name: r.name, lastSeen: r.last_seen, projects: r.projects })) });
+      }
+
+      const seedMatch = path.match(/^\/class\/([^/]+)\/seed$/);
+      if (seedMatch && request.method === "POST") {
+        const classId = seedMatch[1];
+        if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
+        const { accountId, title, files } = await readJson(request, JSON_LIMIT);
+        const student = await db.prepare(
+          "SELECT id FROM accounts WHERE id = ? AND class_id = ? AND role = 'student'"
+        ).bind(String(accountId || ""), classId).first();
+        if (!student) throw new HttpError("No such student in this class.", 404);
+        const filesJson = projectFilesJson(files);
+        const open = await db.prepare(
+          "SELECT COUNT(*) AS total FROM projects WHERE account_id = ? AND deleted_at IS NULL"
+        ).bind(student.id).first();
+        if ((open?.total || 0) >= PROJECT_LIMIT) throw new HttpError("That student has no room for another project.");
+        const id = crypto.randomUUID(), now = Date.now();
+        await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)")
+          .bind(id, student.id, projectTitle(title), "web", filesJson, now, now).run();
+        return response(request, env, { project: { id, title: projectTitle(title) } });
+      }
+
       /* Sharing is off until a student turns it on, and revoking really revokes:
          the slug is cleared, so the old link 404s rather than going stale. */
       const shareMatch = path.match(/^\/projects\/([^/]+)\/share$/);

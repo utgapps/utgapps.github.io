@@ -20,6 +20,7 @@ neither can the teacher guide, the homework or the slides.
 
 import difflib
 import html
+import json
 import os
 import re
 import sys
@@ -850,6 +851,30 @@ def build_slides():
     return made
 
 
+def build_milestones():
+    """Emit every week's file set as JSON, for the classroom editor to read.
+
+    This is what lets an instructor catch up a student who missed a week: the
+    editor fetches this and seeds week N's canonical code into their account.
+    Public on purpose - it is the same code already printed on the week pages,
+    and it contains no key, only the placeholder every student replaces.
+    """
+    payload = {
+        "course": "ai101",
+        "title": course.COURSE_TITLE,
+        "weeks": [
+            {"n": week["n"], "title": week["title"], "files": state_at(week["n"])}
+            for week in course.WEEKS
+        ],
+    }
+    for week in payload["weeks"]:
+        for name, text in week["files"].items():
+            if "sk-class-" in text and "put-your-own-key-here" not in text:
+                raise SystemExit(f"week {week['n']} {name} carries a real-looking key; refusing to publish")
+    write("milestones.json", json.dumps(payload, separators=(",", ":")))
+    return len(payload["weeks"])
+
+
 def write(name, text):
     with open(os.path.join(HERE, name), "w", encoding="utf-8") as handle:
         handle.write(text)
@@ -915,8 +940,10 @@ def main():
     build_weeks()
     build_teacher()
     build_workbook()
+    weeks_out = build_milestones()
     decks = build_slides()
-    print(f"built: index.html, week-01..15.html, teacher.html, workbook.html, {decks} slide decks")
+    print(f"built: index.html, week-01..15.html, teacher.html, workbook.html, "
+          f"{decks} slide decks, milestones.json ({weeks_out} weeks)")
 
 
 if __name__ == "__main__":

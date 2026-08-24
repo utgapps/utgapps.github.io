@@ -20,6 +20,38 @@ export type ProjectKind = "web" | "java";
 export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null };
 export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
 export type ApiSharedProject = { title: string; html: string; updatedAt: number };
+export type ApiClassStudent = { id: string; name: string; lastSeen: number; projects: number };
+
+/** The roster for a class, from the accounts table rather than from whoever
+ *  happens to be in the live room right now. */
+export async function apiClassStudents(token: string, classId: string): Promise<ApiClassStudent[]> {
+  return (await req(`/class/${encodeURIComponent(classId)}/students`, {}, token)).students || [];
+}
+/** Put a fresh project into a student's account. Only ever creates - it cannot
+ *  overwrite what a student already has. */
+export async function apiSeedProject(token: string, classId: string, accountId: string,
+                                     title: string, files: Record<string, string>): Promise<{ id: string; title: string }> {
+  return (await req(`/class/${encodeURIComponent(classId)}/seed`, {
+    method: "POST", body: JSON.stringify({ accountId, title, files }),
+  }, token)).project;
+}
+
+export type CourseWeek = { n: number; title: string; files: Record<string, string> };
+/** The generated course milestones. Cached - it is 120 KB and never changes
+ *  between deploys. Returns [] for a course that has no milestones published. */
+const weekCache = new Map<string, CourseWeek[]>();
+export async function apiCourseWeeks(classId: string): Promise<CourseWeek[]> {
+  const cached = weekCache.get(classId);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`../${classId}/milestones.json`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const weeks: CourseWeek[] = Array.isArray(data.weeks) ? data.weeks : [];
+    weekCache.set(classId, weeks);
+    return weeks;
+  } catch { return []; }
+}
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {
   const headers: Record<string, string> = { "content-type": "application/json", "x-utg-access-device": accessDevice(), ...(opts.headers as Record<string, string>) };
