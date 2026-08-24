@@ -872,21 +872,38 @@ def slide_plan(week, seen):
                                       "marks": marks, "gone": gone, "part": index, "parts": len(chunks)}))
             continue
         eyebrow_for = {"html": "HTML", "css": "CSS", "js": "JavaScript"}
+        delete_notes = getattr(course, "DELETE_NOTES", {})
         for filename, block in refs:
             start, lines, marks, gone = block_code(week["n"], filename, block)
             notes = course.LINE_NOTES.get((filename, block))
             shown = 0
+
+            def emit_deletes(at, context):
+                nonlocal shown
+                for dropped in gone.get(at, []):
+                    out.append(("delete", {"file": filename, "start": start,
+                                           "lines": context, "dropped": dropped, "at": at,
+                                           "note": delete_notes.get((filename, block),
+                                                                    "Delete this line - take it out.")}))
+                    shown += 1
+
             for i, line in enumerate(lines):
-                keys = course.line_concepts(filename, line)
-                for key in keys:
+                lineno = start + i
+                emit_deletes(lineno, lines[:i])   # a line removed from this spot
+                if not line.strip():
+                    continue
+                # Only a line that is NEW or CHANGED this week gets its own "type
+                # this" slide; a line carried over from an earlier week just shows
+                # as dimmed context. So a rewritten block teaches only its edits.
+                if lineno not in marks:
+                    continue
+                for key in course.line_concepts(filename, line):
                     concept = course.CONCEPTS.get(key)
                     if concept and key not in seen:
                         seen.add(key)
                         kind, title, bullets = concept
                         out.append(("concept", {"eyebrow": eyebrow_for[kind], "title": title,
                                                 "sub": "", "bullets": bullets}))
-                if not line.strip():
-                    continue
                 note = notes[i] if notes and i < len(notes) else ""
                 if note is None:
                     continue  # a line deliberately folded into its neighbour
@@ -896,6 +913,7 @@ def slide_plan(week, seen):
                                         "lines": lines[:i + 1], "hi": i,
                                         "note": note, "marks": marks}))
                 shown += 1
+            emit_deletes(start + len(lines), lines[:])   # a line removed from the end
             # One slide with the whole chunk together, once it is more than a
             # single line, so they can check theirs matches before moving on.
             if shown > 1:
@@ -945,6 +963,15 @@ def deck_render_html(desc):
                 '<p class="linenote">That is the whole piece. Check yours looks the '
                 'same before moving on.</p></section>').format(
                     esc(d["file"]), _code_table_html(d["start"], d["lines"], None, d["marks"]))
+    if kind == "delete":
+        rows = ['<tr class="ctx"><td class="ln">{0}</td><td>{1}</td></tr>'.format(
+                    d["start"] + j, esc(line) or "&nbsp;") for j, line in enumerate(d["lines"])]
+        rows.append('<tr class="gone hi"><td class="ln">&minus;</td><td>{0}</td></tr>'.format(
+            esc(d["dropped"]) or "&nbsp;"))
+        return ('<section class="slide dark line del">'
+                '<p class="filebar">In {0} <span class="part">delete a line</span></p>'
+                '<table class="code">{1}</table><p class="linenote">{2}</p></section>').format(
+                    esc(d["file"]), "".join(rows), esc(d["note"]))
     # a single line in context, with its explanation
     return ('<section class="slide dark line">'
             '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
@@ -1071,6 +1098,34 @@ def build_slides():
         nf.paragraphs[0].text = note
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
+    def del_slide(deck, filename, start, context, dropped, note):
+        """The block with one line struck through: the line to remove this week."""
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
+        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
+        head.text_frame.text = f"In {filename}   -   delete a line"
+        hr = head.text_frame.paragraphs[0].runs[0]
+        hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
+        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
+        frame = box.text_frame; frame.word_wrap = False
+        rows = list(context) + [dropped]
+        size = Pt(18) if len(rows) <= 10 else Pt(13)
+        first = [True]
+        for j, line in enumerate(rows):
+            para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
+            first[0] = False; para.space_after = Pt(0)
+            struck = j == len(rows) - 1
+            gut = para.add_run(); gut.text = ("   -  " if struck else f"{start + j:>4}  ")
+            gut.font.name, gut.font.size, gut.font.color.rgb = "Consolas", size, GUTTER
+            code = para.add_run(); code.text = line if line.strip() else " "
+            code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, (DROP if struck else GUTTER)
+            if struck:
+                code.font._rPr.set("strike", "sngStrike")
+        nb = slide.shapes.add_textbox(Inches(0.6), Inches(6.15), Inches(12.1), Inches(1.15))
+        nf = nb.text_frame; nf.word_wrap = True
+        nf.paragraphs[0].text = note
+        nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
+
     made = 0
     seen = set()
     for week in course.WEEKS:
@@ -1085,6 +1140,8 @@ def build_slides():
             elif kind == "block":
                 ctx_slide(deck, d["file"], d["start"], d["lines"], None,
                           "That is the whole piece. Check yours looks the same before moving on.")
+            elif kind == "delete":
+                del_slide(deck, d["file"], d["start"], d["lines"], d["dropped"], d["note"])
             else:  # linectx
                 ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"])
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
@@ -1147,6 +1204,8 @@ border-radius:6px;padding:7px 13px;cursor:pointer}
 .code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
 box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.code tr.gone.hi td:last-child{color:#f3928b;background:rgba(243,146,139,.16);text-decoration:line-through}
+.code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
 .linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
 .slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
 @media (max-width:640px){.bar .hint{display:none}}
@@ -1381,10 +1440,12 @@ def main():
         if week["n"] in getattr(course, "EXPANDED_WEEKS", set()):
             for spec in week["slides"]:
                 for filename, block in (spec.get("code") or []):
-                    start, lines, _marks, _gone = block_code(week["n"], filename, block)
+                    start, lines, marks, _gone = block_code(week["n"], filename, block)
                     notes = course.LINE_NOTES.get((filename, block))
                     for i, line in enumerate(lines):
-                        if not line.strip():
+                        # Only a changed/new line gets a slide, so only it needs a
+                        # note; a carried-over line just shows as context.
+                        if not line.strip() or (start + i) not in marks:
                             continue
                         note = notes[i] if notes and i < len(notes) else ""
                         if note is None:

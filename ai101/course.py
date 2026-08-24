@@ -2668,3 +2668,60 @@ LINE_NOTES.update({
         "Calls the function so it actually runs when the page loads.",
     ],
 })
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  week 4 content (first real AI request).
+# ==========================================================================
+
+EXPANDED_WEEKS.add(4)
+
+CONCEPTS.update({
+    "js:json.stringify": ("js", "JSON.stringify()", ["Turns your data into a string of text to send over the network.", "The server speaks text, not JavaScript objects."]),
+})
+
+# Notes for lines the week ADDS or CHANGES. Carried-over lines need no note -
+# they only appear as dimmed context.
+LINE_NOTES.update({
+    (JS, "ask"): [
+        None,
+        "A comment: this week we ask the AI a real question.",
+        "A comment: a chat request is a LIST of messages, each one saying who spoke.",
+        "An async function askAI that takes the question and will hand back the answer.",
+        "await fetch to the /v1/chat/completions address - the endpoint that answers.",
+        "method 'POST' because we are SENDING something, not just asking for a page.",
+        "Opens the headers - the label on the parcel we are sending.",
+        "Content-Type says the parcel is JSON.",
+        "Authorization proves who we are, with the key as a Bearer token.",
+        "Closes the headers.",
+        "body is what we send. JSON.stringify turns the object below into text.",
+        "model: which brain to use. 'fast' is the quick one.",
+        "messages: the conversation so far, as a list.",
+        "One message: role 'user' means YOU said it; content is the question.",
+        "Closes the messages list.",
+        "Closes the object we are sending.",
+        "Closes the fetch call.",
+        "await res.json() reads the reply into data you can use.",
+        "The answer hides at data.choices[0].message.content - return it to whoever asked.",
+        "Closes the function.",
+    ],
+    (JS, "submit"): [
+        None,
+        "A comment: the browser calls this when the form is submitted.",
+        "Add async so we are allowed to await the slow AI call inside.",
+        None,   # event.preventDefault - unchanged from week 2, shows as context
+        None,   # const text - unchanged
+        None,   # if empty return - unchanged
+        None,   # clear the box - unchanged
+        None,   # addLine You - unchanged
+        "Change the pretend reply to a 'thinking...' line while we wait.",
+        "await askAI(text): the slow bit - ask the AI and wait for the answer.",
+        "Remove the 'thinking...' line now the real answer is here.",
+        "Show the real reply in the chat.",
+        None,   # }); - unchanged
+    ],
+})
+
+DELETE_NOTES = {
+    (JS, "models"): "Delete this line. askAI does the asking now, so the old test call is no longer needed - your file should have no listModels() call left.",
+}
