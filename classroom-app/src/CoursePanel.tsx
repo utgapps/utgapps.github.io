@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent,
+import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent, apiResetStudentPassword,
          apiListProjects, apiCreateProject, apiGetProjectById,
          type ApiClassStudent, type ApiProjectSummary, type CourseWeek } from "./lib/api";
 
@@ -13,6 +13,15 @@ import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent,
    own project, and the worker resets any key it finds either way. */
 
 type Source = { kind: "week"; n: number } | { kind: "mine"; id: string };
+
+/* Readable on purpose. A teacher reads this out or writes it on a slip, so it
+   avoids characters that look alike and words that are hard to spell. */
+const WORDS = ["maple", "harbour", "lantern", "copper", "willow", "quartz",
+               "beacon", "cedar", "falcon", "meadow", "anchor", "pebble"];
+function suggestPassword() {
+  const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)];
+  return `${pick()}-${pick()}-${10 + Math.floor(Math.random() * 90)}`;
+}
 
 export function CoursePanel({ token, classId }: { token: string; classId: string }) {
   const [weeks, setWeeks] = useState<CourseWeek[] | null>(null);
@@ -125,6 +134,17 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
           ))}
         </select>}
 
+    {chosen && chosen.hasAccount && <div className="catch-up">
+      <strong>Reset {chosen.name}&rsquo;s password</strong>
+      <ResetForm token={token} classId={classId} student={chosen}
+                 onDone={(message) => { setNote(message); refresh(); }} />
+    </div>}
+
+    {chosen && !chosen.hasAccount && <p className="muted" style={{ marginTop: 10 }}>
+      {chosen.name} joined as a guest, so there is no password to reset. Add them as a
+      student to give them an account that follows them between computers.
+    </p>}
+
     {mine.length > 0 && <div className="catch-up">
       <strong>Copy one of my projects to them</strong>
       <select className="student-select" value={mineId}
@@ -150,6 +170,38 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
   </div>;
 }
 
+function ResetForm({ token, classId, student, onDone }: {
+  token: string; classId: string; student: ApiClassStudent; onDone: (message: string) => void;
+}) {
+  const [password, setPassword] = useState(suggestPassword());
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+
+  async function submit() {
+    if (!window.confirm(`Reset the password for ${student.name}? They will be signed out everywhere.`)) return;
+    setBusy(true);
+    setProblem("");
+    try {
+      await apiResetStudentPassword(token, classId, student.id, password);
+      onDone(`${student.name} now signs in as ${student.username} with: ${password} - `
+             + `write it down now, it cannot be read back. They have been signed out everywhere.`);
+      setPassword(suggestPassword());
+    } catch (error) { setProblem((error as Error).message || "Could not reset it."); }
+    setBusy(false);
+  }
+
+  return <>
+    <input value={password} onChange={(event) => setPassword(event.target.value)} />
+    {problem && <p className="tf-problem">{problem}</p>}
+    <div className="catch-row">
+      <button className="secondary compact" disabled={busy || password.length < 6} onClick={submit}>
+        {busy ? "Resetting…" : "Set this password"}
+      </button>
+      <button className="text-button" onClick={() => setPassword(suggestPassword())}>Suggest another</button>
+    </div>
+  </>;
+}
+
 /* A real account rather than a guest one. Guests are keyed by (class, name), so
    two students called Alex would share one account and overwrite each other. */
 function EnrolForm({ token, classId, onDone, onCancel }: {
@@ -157,7 +209,7 @@ function EnrolForm({ token, classId, onDone, onCancel }: {
 }) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(suggestPassword());
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
 

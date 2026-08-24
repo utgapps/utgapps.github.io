@@ -628,6 +628,30 @@ export default {
         return response(request, env, { student: { id, name: cleanName, username: cleanUser } });
       }
 
+      // Reset a student's password. Only for accounts the teacher made - a
+      // guest has no password to reset. Every existing session is dropped, so a
+      // device left signed in somewhere does not keep working afterwards.
+      const pwMatch = path.match(/^\/class\/([^/]+)\/students\/([^/]+)\/password$/);
+      if (pwMatch && request.method === "POST") {
+        const classId = pwMatch[1];
+        if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
+        const { password } = await readJson(request);
+        if (String(password || "").length < 6) throw new HttpError("Passwords need at least 6 characters.");
+        const student = await db.prepare(
+          "SELECT id, name, username FROM accounts WHERE id = ? AND class_id = ? AND role = 'student'"
+        ).bind(pwMatch[2], classId).first();
+        if (!student) throw new HttpError("No such student in this class.", 404);
+        if (!student.username) {
+          throw new HttpError("They joined as a guest, so there is no password to reset. Add them as a student to give them an account.");
+        }
+        const { hash, salt } = await hashPassword(String(password));
+        await db.batch([
+          db.prepare("UPDATE accounts SET password_hash = ?, password_salt = ? WHERE id = ?").bind(hash, salt, student.id),
+          db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(student.id),
+        ]);
+        return response(request, env, { ok: true, name: student.name, username: student.username });
+      }
+
       const seedMatch = path.match(/^\/class\/([^/]+)\/seed$/);
       if (seedMatch && request.method === "POST") {
         const classId = seedMatch[1];

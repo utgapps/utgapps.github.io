@@ -33,6 +33,15 @@ export async function apiEnrolStudent(token: string, classId: string,
   }, token)).student;
 }
 
+/** Set a new password for a student the teacher enrolled. Drops every session
+ *  they have, so a device left signed in elsewhere stops working. */
+export async function apiResetStudentPassword(token: string, classId: string, studentId: string,
+                                              password: string): Promise<{ name: string; username: string }> {
+  return await req(`/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(studentId)}/password`, {
+    method: "POST", body: JSON.stringify({ password }),
+  }, token);
+}
+
 /** The roster for a class, from the accounts table rather than from whoever
  *  happens to be in the live room right now. */
 export async function apiClassStudents(token: string, classId: string): Promise<ApiClassStudent[]> {

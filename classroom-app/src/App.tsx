@@ -14,6 +14,7 @@ import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/
 import { buildPreview, isPreviewMessage, ENTRY_FILE, PREVIEW_ALLOW, type PreviewMessage } from "./lib/preview";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoursePanel } from "./CoursePanel";
+import { SoloWorkspace } from "./SoloWorkspace";
 import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
 
 type Mode = "home" | "instructor" | "student";
@@ -237,6 +238,8 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   const connMeta = useRef(new Map<string, string>()); // connection.peer -> projectId (routing + authorization)
   const deriveTimers = useRef(new Map<string, number>());
   const [docsTick, setDocsTick] = useState(0); // bump to re-render when a doc is (de)registered
+  // The teacher's own projects, for preparing a lesson before teaching it.
+  const [ownProjects, setOwnProjects] = useState(false);
 
   useEffect(() => { setRoom(record); }, [record]);
   useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
@@ -392,8 +395,16 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
     try { await apiCloseLiveRoom(token, classId); } catch { /* the live room expires automatically */ }
   }
 
+  if (ownProjects) {
+    return <SoloWorkspace token={token} who={courseInfo ? courseInfo.courseId : "Teacher"}
+                          onExit={() => setOwnProjects(false)}>
+      {({ doc, awareness, files, kind }) =>
+        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} />}
+    </SoloWorkspace>;
+  }
+
   return <main className="room-shell">
-    <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={onExit}>Exit</button></div></header>
+    <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={() => setOwnProjects(true)}>My projects</button><button className="text-button" onClick={onExit}>Exit</button></div></header>
     <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>

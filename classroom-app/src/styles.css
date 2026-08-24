@@ -83,17 +83,17 @@ i.offline, .student i.offline { background: #aebcc0; }
 .week-open { margin-top: 12px; padding: 12px; background: #f7fafb; border: 1px solid #dbe3ec; border-radius: 7px; }
 .week-open-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; margin: 0 0 4px; font-size: 13px; }
 .week-open .muted { font-size: 11.5px; margin: 0 0 10px; }
-.catch-up { padding-top: 10px; border-top: 1px solid #e3ebee; font-size: 13px; }
+.catch-up { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e3ebee; display: grid; gap: 7px; font-size: 13px; }
 .catch-up .muted { margin: 5px 0 8px; line-height: 1.5; }
 .catch-row { display: grid; gap: 6px; }
 .catch-row select { padding: 6px 7px; border: 1px solid #cbd9dd; border-radius: 5px; font-size: 12.5px; }
-.catch-row { display: grid; gap: 6px; }
 .course-sub { margin-top: 20px !important; }
 .student-select { width: 100%; padding: 7px 8px; border: 1px solid #cbd9dd; border-radius: 5px; font-size: 12.5px; background: #fff; }
-.catch-up { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e3ebee; display: grid; gap: 7px; font-size: 13px; }
 .enrol { display: grid; gap: 2px; }
 .enrol label { margin: 6px 0 0; font-size: 12px; }
-.enrol input { padding: 7px 8px; font-size: 12.5px; }
+/* The reset field sits straight in .catch-up rather than in a labelled .enrol
+   grid, so it needs the same treatment on its own. */
+.enrol input, .catch-up > input { padding: 7px 8px; font-size: 12.5px; }
 .signin-switch { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid #dbe3ec; }
 .signin-switch .text-button { padding: 8px 10px; border-radius: 6px 6px 0 0; color: #6b8590; font-size: 13px; }
 .signin-switch .text-button.on { color: #0a6299; background: #e7f7ff; box-shadow: inset 0 -2px #01aefd; }
