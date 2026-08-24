@@ -1,0 +1,104 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 3 slides &middot; AI101 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+@media (max-width:640px){.bar .hint{display:none}}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 3</p><h1>What is an API?</h1></section><section class="slide"><h2>Your key is you</h2><p class="sub">sk-class-your-name-xxxxxx</p><ul class="pts"><li>It identifies you personally</li><li>Two people on one key = one shared speed limit</li><li>Do not put it in anything you share</li></ul></section><section class="slide dark"><p class="filebar">Type this into script.js </p><table class="code"><tr class="new"><td class="ln">8</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">9</td><td>// Week 3: where the AI lives, and who you are.</td></tr><tr class="new"><td class="ln">10</td><td>// The key identifies YOU. Two people using one key share one speed limit.</td></tr><tr class="new"><td class="ln">11</td><td>//</td></tr><tr class="new"><td class="ln">12</td><td>// This address only works on the school network. To run this at home you</td></tr><tr class="new"><td class="ln">13</td><td>// change these two lines and the model names in index.html - nothing else.</td></tr><tr class="new"><td class="ln">14</td><td>const AI_BASE = &#x27;https://ai.tail5091fc.ts.net&#x27;;</td></tr><tr class="new"><td class="ln">15</td><td>const API_KEY = &#x27;sk-class-put-your-own-key-here&#x27;;</td></tr></table></section><section class="slide"><h2>An API is a front desk</h2><ul class="pts"><li>You never go in the kitchen</li><li>You ask in the way they expect</li><li>The answer comes back in a shape you can rely on</li></ul></section><section class="slide"><h2>A request has two parts</h2><ul class="pts"><li>The address: /v1/models</li><li>The name badge: Authorization: Bearer YOUR_KEY</li></ul></section><section class="slide dark"><p class="filebar">Type this into script.js </p><table class="code"><tr class=""><td class="ln">29</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">30</td><td>// The smallest useful request: what models does this server have?</td></tr><tr class="new"><td class="ln">31</td><td>// &#x27;async&#x27; means this function does something slow and can be waited for.</td></tr><tr class="new"><td class="ln">32</td><td>async function listModels() {</td></tr><tr class="new"><td class="ln">33</td><td>  const res = await fetch(AI_BASE + &#x27;/v1/models&#x27;, {</td></tr><tr class="new"><td class="ln">34</td><td>    headers: { &#x27;Authorization&#x27;: &#x27;Bearer &#x27; + API_KEY }</td></tr><tr class="new"><td class="ln">35</td><td>  });</td></tr><tr class="new"><td class="ln">36</td><td>  const data = await res.json();   // the answer arrives as text; this reads it</td></tr><tr class="new"><td class="ln">37</td><td>  console.log(&#x27;The server offers:&#x27;, data.data);</td></tr><tr class="new"><td class="ln">38</td><td>}</td></tr><tr class="new"><td class="ln">39</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">40</td><td>listModels();</td></tr></table></section><section class="slide"><h2>The internet is slow</h2><p class="sub mono">await = wait here for the answer</p><ul class="pts"><li>Without await you carry on with nothing</li><li>async marks a function that can be waited for</li></ul></section><section class="slide"><h2>This address only works at school</h2><ul class="pts"><li>That machine is in this building</li><li>At home it will not connect - that is expected</li><li>But the code is not throwaway</li></ul></section><section class="slide"><h2>Same format as OpenAI</h2><p class="sub">On purpose</p><ul class="pts"><li>Got your own OpenAI key? Change AI_BASE</li><li>Change API_KEY</li><li>Change the two model names in index.html</li><li>Nothing else moves</li></ul></section><section class="slide"><h2>A key in a web page is public</h2><ul class="pts"><li>Anyone who opens the page can read it</li><li>Fine for a class key: limited, no bill</li><li>NOT fine for a personal paid key</li><li>Real apps keep the key on a server</li></ul></section><section class="slide"><h2>Status codes</h2><ul class="pts"><li>200 - fine, here you go</li><li>401 - I do not believe who you say you are</li><li>404 - no such thing here</li></ul></section><section class="slide"><h2>Watch the Console</h2><ul class="pts"><li>-&gt; GET /v1/models</li><li>&lt;- 200 in 84 ms</li><li>That is your request leaving and coming back</li></ul></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+</script>

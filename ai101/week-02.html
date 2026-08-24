@@ -54,6 +54,22 @@ h3{font-size:17px;margin:22px 0 8px}
   text-decoration-color:rgba(227,146,137,.65)}
 .snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
 
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
 /* ---- lesson flow ---- */
 .beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
 .beat:hover{border-left-color:#c3d3dd}

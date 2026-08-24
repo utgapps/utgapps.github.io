@@ -1,0 +1,104 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 6 slides &middot; AI101 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+@media (max-width:640px){.bar .hint{display:none}}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 6</p><h1>Giving it a personality</h1></section><section class="slide"><h2>Same question. Two companions.</h2><p class="sub">Why?</p><ul class="pts"><li>Nothing changed except one instruction</li><li>That instruction is where a chatbot&#x27;s character lives</li></ul></section><section class="slide"><h2>Three roles</h2><ul class="pts"><li>user - what you said</li><li>assistant - what it said</li><li>system - the note it reads before every reply</li></ul></section><section class="slide"><h2>system is not part of the chat</h2><p class="sub">It is the rules of the chat</p><ul class="pts"><li>Re-sent with every request</li><li>The model reads it first, every time</li></ul></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">1 of 2</span></p><table class="code"><tr class=""><td class="ln">51</td><td>&nbsp;</td></tr><tr class=""><td class="ln">52</td><td>// Week 4: ask the AI a real question.</td></tr><tr class=""><td class="ln">53</td><td>// A chat request is a LIST of messages. Each one says who said it.</td></tr><tr class=""><td class="ln">54</td><td>async function askAI(question) {</td></tr><tr class=""><td class="ln">55</td><td>  const res = await fetch(AI_BASE + &#x27;/v1/chat/completions&#x27;, {</td></tr><tr class=""><td class="ln">56</td><td>    method: &#x27;POST&#x27;,                       // POST = I am sending you something</td></tr><tr class=""><td class="ln">57</td><td>    headers: {</td></tr><tr class=""><td class="ln">58</td><td>      &#x27;Content-Type&#x27;: &#x27;application/json&#x27;, // what I am sending is JSON</td></tr><tr class=""><td class="ln">59</td><td>      &#x27;Authorization&#x27;: &#x27;Bearer &#x27; + API_KEY</td></tr><tr class=""><td class="ln">60</td><td>    },</td></tr><tr class=""><td class="ln">61</td><td>    body: JSON.stringify({</td></tr><tr class=""><td class="ln">62</td><td>      model: &#x27;fast&#x27;,</td></tr><tr class=""><td class="ln">63</td><td>      messages: [</td></tr><tr class="new"><td class="ln">64</td><td>        // Week 6: the standing instruction, read before every single reply.</td></tr><tr class="new"><td class="ln">65</td><td>        { role: &#x27;system&#x27;, content: personaBox.value },</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">2 of 2</span></p><table class="code"><tr class=""><td class="ln">66</td><td>        { role: &#x27;user&#x27;, content: question }</td></tr><tr class=""><td class="ln">67</td><td>      ]</td></tr><tr class=""><td class="ln">68</td><td>    })</td></tr><tr class=""><td class="ln">69</td><td>  });</td></tr><tr class=""><td class="ln">70</td><td>&nbsp;</td></tr><tr class=""><td class="ln">71</td><td>  // Week 5: fetch does NOT throw when the server says no. A 429 arrives</td></tr><tr class=""><td class="ln">72</td><td>  // looking just like a success until you actually check.</td></tr><tr class=""><td class="ln">73</td><td>  if (!res.ok) {</td></tr><tr class=""><td class="ln">74</td><td>    const problem = await res.json();</td></tr><tr class=""><td class="ln">75</td><td>    throw new Error(explain(res.status, problem));</td></tr><tr class=""><td class="ln">76</td><td>  }</td></tr><tr class=""><td class="ln">77</td><td>&nbsp;</td></tr><tr class=""><td class="ln">78</td><td>  const data = await res.json();</td></tr><tr class=""><td class="ln">79</td><td>  return data.choices[0].message.content;</td></tr><tr class=""><td class="ln">80</td><td>}</td></tr></table></section><section class="slide"><h2>Vague does nothing</h2><ul class="pts"><li>&quot;Be helpful&quot; - no visible change</li><li>&quot;Under 40 words, one example, no jargon&quot; - obvious change</li><li>Say exactly what you want</li></ul></section><section class="slide"><h2>Behaviour became data</h2><p class="sub">The personality is in a textarea now</p><ul class="pts"><li>Change it without touching code</li><li>This idea shows up everywhere in software</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">1 of 3</span></p><table class="code"><tr class="new"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="new"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr><tr class="new"><td class="ln">10</td><td>    &lt;textarea id=&quot;persona&quot; rows=&quot;3&quot;&gt;You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.&lt;/textarea&gt;</td></tr><tr class="new"><td class="ln">11</td><td>  &lt;/details&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">2 of 3</span></p><table class="code"><tr class="new"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="new"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="new"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="new"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="new"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="new"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="new"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="new"><td class="ln">29</td><td>  font-family: inherit;</td></tr><tr class="new"><td class="ln">30</td><td>  font-size: 14px;</td></tr><tr class="new"><td class="ln">31</td><td>}</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">3 of 3</span></p><table class="code"><tr class=""><td class="ln">16</td><td>&nbsp;</td></tr><tr class=""><td class="ln">17</td><td>// Week 2: find the boxes we named in index.html.</td></tr><tr class=""><td class="ln">18</td><td>// document.getElementById looks for the id= we wrote on each element.</td></tr><tr class=""><td class="ln">19</td><td>const chat = document.getElementById(&#x27;chat&#x27;);</td></tr><tr class=""><td class="ln">20</td><td>const composer = document.getElementById(&#x27;composer&#x27;);</td></tr><tr class=""><td class="ln">21</td><td>const promptBox = document.getElementById(&#x27;prompt&#x27;);</td></tr><tr class="new"><td class="ln">22</td><td>const personaBox = document.getElementById(&#x27;persona&#x27;);</td></tr></table></section><section class="slide"><h2>Prompt duel</h2><p class="sub">In pairs, 10 minutes</p><ul class="pts"><li>Write a secret character</li><li>Swap. Ask three questions.</li><li>Guess who it is</li></ul></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+</script>

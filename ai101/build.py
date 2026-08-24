@@ -195,12 +195,11 @@ def chunk_block(lines, filename=""):
 
 
 def block_code(week_n, filename, block_id):
-    """(first_line_number, lines, set_of_changed_line_numbers) for one block."""
+    """(first_line_number, lines, changed_line_numbers, removals) for one block."""
     start, end = block_spans(week_n)[filename][block_id]
     lines = state_at(week_n)[filename].split("\n")[start - 1:end]
-    gone = removed_lines(week_n)[filename]
-    inside = {at: text for at, text in gone.items() if start <= at <= start + len(lines)}
-    return start, lines, changed_lines(week_n)[filename], inside
+    gone = removed_in_blocks(week_n)[filename].get(block_id, {})
+    return start, lines, changed_lines(week_n)[filename], gone
 
 
 def code_table(filename, start, lines, marks, ident=None, tag="", gone=None):
@@ -298,19 +297,28 @@ def render_step(week, beat):
     kind = week_ops(week).get((filename, block_id))
     tag = {"add": "new this week", "set": "replaces what is there"}.get(kind, "already written")
     pieces, cursor = [], start
-    for chunk, note in zip(chunks, notes):
+    for index, (chunk, note) in enumerate(zip(chunks, notes)):
         last = cursor + len(chunk) - 1
+        final = index == len(chunks) - 1
         touched = any(number in marks for number in range(cursor, last + 1))
-        if kind == "set" and not touched:
+        # A line removed from the end of a block sits at the number of whatever
+        # follows it, so only the last chunk reaches past its own end - or a
+        # deletion at a chunk boundary is drawn twice.
+        here = {at: text for at, text in gone.items()
+                if cursor <= at <= (last + 1 if final else last)}
+        if kind == "set" and not touched and not here:
             # Do not print twenty lines a student already has just to reach the
             # six that changed. Say what is there, say to leave it, move on.
             span = f"Line {cursor}" if cursor == last else f"Lines {cursor}&ndash;{last}"
             pieces.append(f'<p class="unchanged"><b>{span} do not change</b> &mdash; '
                           f'skip past them. <span class="muted">{note}</span></p>')
         else:
-            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag,
-                                 gone={at: t for at, t in gone.items()
-                                       if cursor <= at <= cursor + len(chunk)}))
+            # `here` is why the skip above also tests for removals. Week 4's
+            # only edit to the models block is that a line LEAVES it, and
+            # nothing in the block goes green - so on the count of changed
+            # lines alone this printed "lines 29-38 do not change" for the one
+            # block the week is about.
+            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag, gone=here))
             pieces.append(f'<p class="chunk-note">{note}</p>')
         cursor += len(chunk)
 
@@ -355,8 +363,9 @@ def changed_lines(upto):
     return marks
 
 
-def removed_lines(upto):
-    """{filename: {line_in_new_file: [text, ...]}} - lines this week DELETED.
+def removed_in_blocks(upto):
+    """{filename: {block_id: {line_in_new_file: [text, ...]}}} - deletions,
+    attributed to the block they were removed FROM.
 
     Green-only highlighting cannot show a deletion: a removed line is not in
     the new file to colour. Week 4 drops the listModels() call and the page had
@@ -368,6 +377,12 @@ def removed_lines(upto):
     week 4's dropped call came back as replace(old[39:40] -> new[39:58]),
     tangled up with the askAI block appearing above it. Inside a single block
     there is nothing to tangle with, so a delete is unambiguously a delete.
+
+    The block id is kept rather than only the line number, because a line
+    dropped from the END of a block sits at the first line number of whatever
+    follows it. Week 4's removal is at position 39, which is one past `models`
+    AND the first line of `ask` - a range test cannot tell those apart, and
+    showing it on both is wrong twice over.
     """
     if upto <= 1:
         return {name: {} for name in FILES}
@@ -376,7 +391,7 @@ def removed_lines(upto):
     spans = block_spans(upto)
     gone = {}
     for name in FILES:
-        at = {}
+        per_block = {}
         for block_id, new_lines in after[name]:
             old_lines = before[name].get(block_id)
             if old_lines is None or old_lines == new_lines:
@@ -394,9 +409,23 @@ def removed_lines(upto):
                 dropped = [line for line in old_lines[i1:i2]
                            if line.strip() and line not in new_lines]
                 if dropped:
-                    at.setdefault(block_start + j1, []).extend(dropped)
-        gone[name] = at
+                    per_block.setdefault(block_id, {}).setdefault(
+                        block_start + j1, []).extend(dropped)
+        gone[name] = per_block
     return gone
+
+
+def removed_lines(upto):
+    """{filename: {line_in_new_file: [text, ...]}} - the same deletions, keyed
+    only by position, for the whole-file views where no block is in play."""
+    flat = {}
+    for name, per_block in removed_in_blocks(upto).items():
+        at = {}
+        for positions in per_block.values():
+            for position, texts in positions.items():
+                at.setdefault(position, []).extend(texts)
+        flat[name] = at
+    return flat
 
 
 def line_count(files):
@@ -420,11 +449,13 @@ def esc(text):
     return html.escape(str(text)).encode("ascii", "xmlcharrefreplace").decode("ascii")
 
 
-def guard(tool="ai101"):
+def guard(tool="ai101", up="../"):
+    """The site access gate. `up` is the path back to the site root - the slide
+    decks sit one folder deeper than everything else this builder writes."""
     return (
-        '<script>window.UTG_GUARD="../";window.UTG_TOOL="%s";'
-        "document.write('<script src=\"../class-codes.js?t='+Date.now()+'\"><\\/script>');</script>\n"
-        '<script src="../guard.js"></script>' % tool
+        '<script>window.UTG_GUARD="%(up)s";window.UTG_TOOL="%(tool)s";'
+        "document.write('<script src=\"%(up)sclass-codes.js?t='+Date.now()+'\"><\\/script>');</script>\n"
+        '<script src="%(up)sguard.js"></script>' % {"tool": tool, "up": up}
     )
 
 
@@ -479,6 +510,22 @@ h3{font-size:17px;margin:22px 0 8px}
 .snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
   text-decoration-color:rgba(227,146,137,.65)}
 .snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
 
 /* ---- lesson flow ---- */
 .beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
@@ -684,7 +731,7 @@ def build_teacher():
         if week.get("bonus"):
             bonus = (f'<div class="bonus"><strong>Bonus for fast finishers: {esc(week["bonus"]["title"])}</strong>'
                      f'<p style="margin:6px 0 0">{esc(week["bonus"]["body"])}</p></div>')
-        sections.append(f"""<section class="chapter">
+        sections.append(f"""<section class="chapter" id="week-{week["n"]}">
 <h2>Week {week["n"]} &middot; {esc(week["title"])}</h2>
 <p class="lead">{esc(week["big_idea"])}</p>
 <div class="card"><strong>They leave today able to:</strong>
@@ -698,10 +745,14 @@ def build_teacher():
 <h3>Homework set today</h3>
 <ul class="tight">{"".join(f"<li>{esc(c['task'])}</li>" for c in week["homework"])}</ul>
 </section>""")
+    jump = "".join(
+        f'<a href="#week-{week["n"]}">{week["n"]}</a>' for week in course.WEEKS
+    )
     body = f"""<div class="wrap">
 <p class="eyebrow">Teacher curriculum</p>
 <h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">Fifteen one-hour lessons. Every hour is built so you are talking for well under half of it.</p>
+<nav class="jump" aria-label="Jump to a week"><span>Week</span>{jump}</nav>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 <div class="warn"><h3 style="margin-top:0">Say this in week 1</h3>{course.DISCLAIMER}</div>
 <div class="card">
@@ -710,7 +761,18 @@ def build_teacher():
 </div>
 {"".join(sections)}
 </div>"""
-    write("teacher.html", page("Teacher curriculum", body))
+    # ?embed=1 strips the page furniture. The browser handles #week-N on its
+    # own, but only if the element exists when it looks - so nudge it on load
+    # too, and again on a hash change, which is how the panel switches weeks
+    # without reloading the frame.
+    embed_js = (
+        "if(new URLSearchParams(location.search).has('embed'))"
+        "document.body.classList.add('embedded');"
+        "function utgJump(){var id=location.hash.slice(1);if(!id)return;"
+        "var el=document.getElementById(id);if(el)el.scrollIntoView();}"
+        "addEventListener('load',utgJump);addEventListener('hashchange',utgJump);"
+    )
+    write("teacher.html", page("Teacher curriculum", body, extra_js=embed_js))
 
 
 def build_workbook():
@@ -761,9 +823,18 @@ def code_chunks(week_n, refs):
     chunks = []
     for filename, block_id in refs:
         start, lines, marks, gone = block_code(week_n, filename, block_id)
-        for offset in range(0, len(lines), CODE_LINES_PER_SLIDE):
+        pieces = list(range(0, len(lines), CODE_LINES_PER_SLIDE)) or [0]
+        for offset in pieces:
             piece = lines[offset:offset + CODE_LINES_PER_SLIDE]
-            chunks.append((filename, start + offset, piece, marks))
+            first = start + offset
+            last = first + len(piece) - 1
+            # A deletion belongs to the piece holding the line it used to sit
+            # at. The final piece also takes anything past its end, so a block
+            # that ends by removing its last line still says so.
+            final = offset == pieces[-1]
+            here = {at: text for at, text in gone.items()
+                    if first <= at <= (last + 1 if final else last)}
+            chunks.append((filename, first, piece, marks, here))
     return chunks
 
 
@@ -781,6 +852,7 @@ def build_slides():
     PAPER = RGBColor(0xDC, 0xEC, 0xEF)
     NEW = RGBColor(0x7F, 0xE0, 0xA0)
     GUTTER = RGBColor(0x6D, 0x8C, 0x97)
+    DROP = RGBColor(0xF3, 0x92, 0x8B)   # a line taken out this week
     DARK = RGBColor(0x10, 0x21, 0x27)
 
     def concept_slide(deck, spec):
@@ -802,7 +874,7 @@ def build_slides():
             para.runs[0].font.color.rgb = INK if is_bullet else BRAND
             para.space_after = Pt(14)
 
-    def code_slide(deck, filename, start, lines, marks, part, parts):
+    def code_slide(deck, filename, start, lines, marks, gone, part, parts):
         """A dark, monospaced 'type this now' slide, matching the editor."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])   # blank
         bg = slide.background.fill
@@ -820,19 +892,35 @@ def build_slides():
         box = slide.shapes.add_textbox(Inches(0.55), Inches(1.15), Inches(12.2), Inches(5.9))
         frame = box.text_frame
         frame.word_wrap = False
-        size = Pt(17) if len(lines) <= 11 else Pt(14)
-        for i, line in enumerate(lines):
-            number = start + i
-            para = frame.paragraphs[0] if i == 0 else frame.add_paragraph()
+        total = len(lines) + sum(len(v) for v in gone.values())
+        size = Pt(17) if total <= 11 else Pt(14)
+        first = [True]   # the first paragraph already exists; the rest are added
+
+        def row(text, colour, gutter_text, struck=False):
+            para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
+            first[0] = False
             para.space_after = Pt(0)
-            gutter = para.add_run()
-            gutter.text = f"{number:>4}  "
-            gutter.font.name, gutter.font.size, gutter.font.color.rgb = "Consolas", size, GUTTER
+            edge = para.add_run()
+            edge.text = gutter_text
+            edge.font.name, edge.font.size, edge.font.color.rgb = "Consolas", size, GUTTER
             code = para.add_run()
-            code.text = line if line.strip() else " "
-            code.font.name, code.font.size = "Consolas", size
+            code.text = text if text.strip() else " "
+            code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, colour
+            if struck:
+                # python-pptx has no strikethrough property, so set the
+                # attribute the OOXML run properties element already supports.
+                code.font._rPr.set("strike", "sngStrike")
+
+        for i, line in enumerate(lines + [None]):
+            number = start + i
+            # Anything removed from this position is drawn back in where it
+            # used to be. Green alone cannot show a week that deletes a line.
+            for dropped in gone.get(number, []):
+                row(dropped, DROP, "   -  ", struck=True)
+            if line is None:
+                break
             # green = new this week, matching the workbook and the week pages
-            code.font.color.rgb = NEW if number in marks else PAPER
+            row(line, NEW if number in marks else PAPER, f"{number:>4}  ")
 
     made = 0
     for week in course.WEEKS:
@@ -844,12 +932,197 @@ def build_slides():
             refs = spec.get("code")
             if refs:
                 chunks = code_chunks(week["n"], refs)
-                for index, (filename, start, lines, marks) in enumerate(chunks, start=1):
-                    code_slide(deck, filename, start, lines, marks, index, len(chunks))
+                for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
+                    code_slide(deck, filename, start, lines, marks, gone, index, len(chunks))
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
         made += 1
     return made
 
+
+# --------------------------------------------------------------------------
+# the same deck as a web page
+# --------------------------------------------------------------------------
+
+DECK_CSS = """
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+@media (max-width:640px){.bar .hint{display:none}}
+"""
+
+DECK_JS = r"""
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+"""
+
+
+def deck_code_slide(filename, start, lines, marks, gone, part, parts):
+    """One dark 'type this now' slide, matching the editor and the pptx."""
+    rows = []
+    for index, line in enumerate(lines + [None]):
+        number = start + index
+        for dropped in gone.get(number, []):
+            rows.append('<tr class="gone"><td class="ln">&minus;</td><td>{0}</td></tr>'
+                        .format(esc(dropped) or "&nbsp;"))
+        if line is None:
+            break
+        rows.append('<tr class="{0}"><td class="ln">{1}</td><td>{2}</td></tr>'.format(
+            "new" if number in marks else "", number, esc(line) or "&nbsp;"))
+    part_label = ('<span class="part">{0} of {1}</span>'.format(part, parts)) if parts > 1 else ""
+    return ('<section class="slide dark">'
+            '<p class="filebar">Type this into {0} {1}</p>'
+            '<table class="code">{2}</table></section>').format(esc(filename), part_label, "".join(rows))
+
+
+def deck_concept_slide(spec):
+    sub = ""
+    if spec.get("sub"):
+        # A sub-heading that is really a line of code should look like one.
+        code_ish = any(mark in spec["sub"] for mark in ("(", "{", "[", "=", ".", "/"))
+        sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(spec["sub"]))
+    points = "".join("<li>{0}</li>".format(esc(point)) for point in spec.get("bullets", []))
+    return ('<section class="slide"><h2>{0}</h2>{1}{2}</section>'.format(
+        esc(spec["title"]), sub,
+        '<ul class="pts">{0}</ul>'.format(points) if points else ""))
+
+
+def build_html_decks():
+    """The same deck as a web page, so it can be presented from the classroom.
+
+    Built from the same week["slides"] and the same code_chunks() as the .pptx,
+    slide for slide, and main() fails the build if the two ever disagree. The
+    .pptx stays for Google Slides; this is what the teacher screen embeds.
+    """
+    os.makedirs(SLIDES_DIR, exist_ok=True)
+    counts = {}
+    for week in course.WEEKS:
+        slides = ['<section class="slide"><p class="eyebrow">Week {0}</p><h1>{1}</h1></section>'
+                  .format(week["n"], esc(week["title"]))]
+        for spec in week["slides"]:
+            slides.append(deck_concept_slide(spec))
+            refs = spec.get("code")
+            if not refs:
+                continue
+            chunks = code_chunks(week["n"], refs)
+            for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
+                slides.append(deck_code_slide(filename, start, lines, marks, gone,
+                                              index, len(chunks)))
+        dots = "".join("<i></i>" for _ in slides)
+        html_out = """<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week {n} slides &middot; AI101 &middot; UTG Academy</title>
+{font}
+<style>{css}</style>
+{guard}
+<div class="deck">{slides}</div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots">{dots}</div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>{js}</script>
+""".format(n=week["n"], font=FONT, css=DECK_CSS, guard=guard("ai101", up="../../"),
+           slides="".join(slides), dots=dots, js=DECK_JS)
+        with open(os.path.join(SLIDES_DIR, "week-%02d.html" % week["n"]), "w",
+                  encoding="utf-8") as handle:
+            handle.write(html_out)
+        counts[week["n"]] = len(slides)
+    return counts
+
+
+def pptx_slide_counts():
+    """How many slides each .pptx deck would have, without building one."""
+    counts = {}
+    for week in course.WEEKS:
+        total = 1
+        for spec in week["slides"]:
+            total += 1
+            if spec.get("code"):
+                total += len(code_chunks(week["n"], spec["code"]))
+        counts[week["n"]] = total
+    return counts
 
 def build_milestones():
     """Emit every week's file set as JSON, for the classroom editor to read.
@@ -942,8 +1215,17 @@ def main():
     build_workbook()
     weeks_out = build_milestones()
     decks = build_slides()
+    web = build_html_decks()
+    # The .pptx is for Google Slides and the .html is what the classroom
+    # embeds. They are generated from the same week data, so if they ever
+    # disagree on slide count, one of the two renderers has drifted.
+    expected = pptx_slide_counts()
+    drift = {n: (web[n], expected[n]) for n in expected if web[n] != expected[n]}
+    if drift:
+        raise SystemExit("deck drift - week: (html, pptx) " + repr(drift))
     print(f"built: index.html, week-01..15.html, teacher.html, workbook.html, "
-          f"{decks} slide decks, milestones.json ({weeks_out} weeks)")
+          f"{decks} slide decks (.pptx and .html, {sum(web.values())} slides), "
+          f"milestones.json ({weeks_out} weeks)")
 
 
 if __name__ == "__main__":

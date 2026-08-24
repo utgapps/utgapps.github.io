@@ -1,0 +1,104 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 1 slides &middot; AI101 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+@media (max-width:640px){.bar .hint{display:none}}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 1</p><h1>The page</h1></section><section class="slide"><h2>What you are building</h2><p class="sub">An AI companion you write yourself</p><ul class="pts"><li>It answers you</li><li>It remembers the conversation</li><li>It has a personality you choose</li><li>By week 15 it is yours</li></ul></section><section class="slide"><h2>A page is boxes inside boxes</h2><ul class="pts"><li>&lt;main&gt; is the big box</li><li>&lt;h1&gt; is the title</li><li>&lt;div id=&quot;chat&quot;&gt; is where messages will go</li><li>&lt;form&gt; holds the input and the button</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">1 of 4</span></p><table class="code"><tr class="new"><td class="ln">3</td><td>&lt;main class=&quot;app&quot;&gt;</td></tr><tr class="new"><td class="ln">4</td><td>  &lt;header class=&quot;top&quot;&gt;</td></tr><tr class="new"><td class="ln">5</td><td>    &lt;h1&gt;My AI Companion&lt;/h1&gt;</td></tr><tr class="new"><td class="ln">6</td><td>    &lt;p class=&quot;tag&quot;&gt;Built by me, running on the school AI&lt;/p&gt;</td></tr><tr class="new"><td class="ln">7</td><td>  &lt;/header&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">2 of 4</span></p><table class="code"><tr class="new"><td class="ln">8</td><td>  &lt;div id=&quot;chat&quot; class=&quot;chat&quot;&gt;&lt;/div&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">3 of 4</span></p><table class="code"><tr class="new"><td class="ln">9</td><td>  &lt;form id=&quot;composer&quot; class=&quot;composer&quot;&gt;</td></tr><tr class="new"><td class="ln">10</td><td>    &lt;input id=&quot;prompt&quot; placeholder=&quot;Say something...&quot; autocomplete=&quot;off&quot;&gt;</td></tr><tr class="new"><td class="ln">11</td><td>    &lt;button id=&quot;send&quot; type=&quot;submit&quot;&gt;Send&lt;/button&gt;</td></tr><tr class="new"><td class="ln">12</td><td>  &lt;/form&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">4 of 4</span></p><table class="code"><tr class="new"><td class="ln">13</td><td>&lt;/main&gt;</td></tr></table></section><section class="slide"><h2>You make the other files yourself</h2><p class="sub mono">A project starts with just index.html</p><ul class="pts"><li>+ File in the Files panel</li><li>style.css - what things look like</li><li>script.js - what things do</li><li>Making the file is not enough. The page has to be told.</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html </p><table class="code"><tr class="new"><td class="ln">1</td><td>&lt;link rel=&quot;stylesheet&quot; href=&quot;style.css&quot;&gt;</td></tr><tr class="new"><td class="ln">2</td><td>&nbsp;</td></tr></table></section><section class="slide"><h2>Three files</h2><ul class="pts"><li>index.html - the boxes</li><li>style.css - what they look like</li><li>script.js - what they do</li></ul></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">1 of 4</span></p><table class="code"><tr class="new"><td class="ln">1</td><td>body {</td></tr><tr class="new"><td class="ln">2</td><td>  margin: 0;</td></tr><tr class="new"><td class="ln">3</td><td>  font-family: Arial, Helvetica, sans-serif;</td></tr><tr class="new"><td class="ln">4</td><td>  background: #eef2f7;</td></tr><tr class="new"><td class="ln">5</td><td>  color: #1f2a37;</td></tr><tr class="new"><td class="ln">6</td><td>}</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">2 of 4</span></p><table class="code"><tr class="new"><td class="ln">7</td><td>.app {</td></tr><tr class="new"><td class="ln">8</td><td>  max-width: 620px;</td></tr><tr class="new"><td class="ln">9</td><td>  margin: 0 auto;</td></tr><tr class="new"><td class="ln">10</td><td>  padding: 20px;</td></tr><tr class="new"><td class="ln">11</td><td>}</td></tr><tr class="new"><td class="ln">12</td><td>.top h1 { margin: 0 0 4px; font-size: 26px; }</td></tr><tr class="new"><td class="ln">13</td><td>.tag { margin: 0 0 18px; color: #6b7787; font-size: 14px; }</td></tr><tr class="new"><td class="ln">14</td><td>.chat {</td></tr><tr class="new"><td class="ln">15</td><td>  min-height: 260px;</td></tr><tr class="new"><td class="ln">16</td><td>  padding: 12px;</td></tr><tr class="new"><td class="ln">17</td><td>  background: #ffffff;</td></tr><tr class="new"><td class="ln">18</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">19</td><td>  border-radius: 8px;</td></tr><tr class="new"><td class="ln">20</td><td>}</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">3 of 4</span></p><table class="code"><tr class="new"><td class="ln">21</td><td>.composer { display: flex; gap: 8px; margin-top: 12px; }</td></tr><tr class="new"><td class="ln">22</td><td>.composer input {</td></tr><tr class="new"><td class="ln">23</td><td>  flex: 1;</td></tr><tr class="new"><td class="ln">24</td><td>  padding: 11px;</td></tr><tr class="new"><td class="ln">25</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">26</td><td>  border-radius: 6px;</td></tr><tr class="new"><td class="ln">27</td><td>  font-size: 15px;</td></tr><tr class="new"><td class="ln">28</td><td>}</td></tr><tr class="new"><td class="ln">29</td><td>.composer button {</td></tr><tr class="new"><td class="ln">30</td><td>  padding: 11px 18px;</td></tr><tr class="new"><td class="ln">31</td><td>  border: 0;</td></tr><tr class="new"><td class="ln">32</td><td>  border-radius: 6px;</td></tr><tr class="new"><td class="ln">33</td><td>  background: #01aefd;</td></tr><tr class="new"><td class="ln">34</td><td>  color: #ffffff;</td></tr><tr class="new"><td class="ln">35</td><td>  font-size: 15px;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">4 of 4</span></p><table class="code"><tr class="new"><td class="ln">36</td><td>  cursor: pointer;</td></tr><tr class="new"><td class="ln">37</td><td>}</td></tr></table></section><section class="slide"><h2>The script goes at the BOTTOM</h2><ul class="pts"><li>The browser reads top to bottom</li><li>At the top, the boxes do not exist yet</li><li>A script cannot find a page that has not been made</li><li>Move it up, press Run, watch it break</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html </p><table class="code"><tr class="new"><td class="ln">14</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">15</td><td>&lt;script src=&quot;script.js&quot;&gt;&lt;/script&gt;</td></tr></table></section><section class="slide"><h2>Two buttons you will use every week</h2><ul class="pts"><li>Run - nothing happens until you press it</li><li>Console - where your code talks to you</li></ul></section><section class="slide dark"><p class="filebar">Type this into script.js </p><table class="code"><tr class="new"><td class="ln">1</td><td>// Week 1: prove the JavaScript file is really running.</td></tr><tr class="new"><td class="ln">2</td><td>console.log(&#x27;My AI companion is starting up.&#x27;);</td></tr><tr class="new"><td class="ln">3</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">4</td><td>// Can this script see the page yet? Down here, yes.</td></tr><tr class="new"><td class="ln">5</td><td>// Move the &lt;script&gt; tag to the TOP of index.html and this prints false,</td></tr><tr class="new"><td class="ln">6</td><td>// because the boxes have not been made yet. That is why it goes last.</td></tr><tr class="new"><td class="ln">7</td><td>console.log(&#x27;Can I see the chat box?&#x27;, document.getElementById(&#x27;chat&#x27;) !== null);</td></tr></table></section><section class="slide"><h2>id = a name</h2><ul class="pts"><li>&lt;div id=&quot;chat&quot;&gt;</li><li>Next week JavaScript uses that name to find the box</li><li>Names must be spelled exactly the same in both files</li></ul></section><section class="slide"><h2>Your turn</h2><p class="sub">Make it yours</p><ul class="pts"><li>Change the title</li><li>Change the colours</li><li>Press Run</li></ul></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+</script>

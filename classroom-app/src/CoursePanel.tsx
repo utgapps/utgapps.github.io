@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CourseViewer, type ViewerTab } from "./CourseViewer";
 import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent, apiResetStudentPassword,
          apiListProjects, apiCreateProject, apiGetProjectById,
          type ApiClassStudent, type ApiProjectSummary, type CourseWeek } from "./lib/api";
@@ -33,6 +34,7 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(false);
+  const [viewing, setViewing] = useState<ViewerTab | null>(null);
 
   function refresh() {
     apiClassStudents(token, classId).then(setStudents).catch(() => {});
@@ -109,6 +111,14 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
           <p className="muted">
             {Object.entries(week.files).map(([n, t]) => n + " " + t.split("\n").length).join(" · ")} lines
           </p>
+          <div className="catch-row two">
+            <button className="primary compact" onClick={() => setViewing("slides")}>
+              Present slides
+            </button>
+            <button className="secondary compact" onClick={() => setViewing("plan")}>
+              Lesson plan
+            </button>
+          </div>
           <div className="catch-row">
             <button className="secondary compact" disabled={busy} onClick={() => copyToMe(week.n)}>
               Add week {week.n} to my projects
@@ -167,6 +177,10 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
           </button>}
     </div>
     {note && <p className="notice">{note}</p>}
+
+    {week && viewing && <CourseViewer classId={classId} week={week.n} title={week.title}
+                                      tab={viewing} onTab={setViewing}
+                                      onClose={() => setViewing(null)} />}
   </div>;
 }
 
