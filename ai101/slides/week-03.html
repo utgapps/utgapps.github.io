@@ -194,6 +194,27 @@ function show(next, push) {
   dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
   count.textContent = (at + 1) + ' / ' + slides.length;
   if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+  focusTypedLine(slides[at]);
+}
+
+// A code slide can be taller than the screen. The line to type is always the
+// newest (last) line of the block, so when a scrollable code slide opens, jump
+// to the bottom - the line they type and its note land on screen and nobody has
+// to scroll down to find them. Review ("all together") slides have no such line,
+// so they read from the top.
+function focusTypedLine(slide) {
+  if (!slide || !slide.classList.contains('line')) return;
+  var hasTarget = !!slide.querySelector('tr.hi');
+  function go() {
+    // Bail if the class moved on before a late callback (font load) fires.
+    if (slides[at] !== slide || !slide.classList.contains('on')) return;
+    slide.scrollTop = hasTarget ? slide.scrollHeight : 0;
+  }
+  requestAnimationFrame(go);
+  // Rubik/Consolas can load after first paint and make the code taller; without
+  // re-running once fonts are in, the jump uses the pre-font height and stops
+  // short, leaving the line off-screen - exactly the bug this fixes.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
 }
 // Deep link, so a reload - or opening straight at a slide - keeps the place.
 show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
@@ -205,6 +226,9 @@ document.querySelector('.full').onclick = function () {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen();
 };
+// Full screen and any projector/window resize change the slide height, so
+// re-pin the line-to-type to the bottom of whatever code slide is showing.
+window.addEventListener('resize', function () { focusTypedLine(slides[at]); });
 
 document.addEventListener('keydown', function (event) {
   var key = event.key;

@@ -363,6 +363,18 @@ def changed_lines(upto):
     return marks
 
 
+def line_sig(text):
+    """A line's CODE signature: whitespace collapsed and any comment stripped, so
+    two lines match when only their indentation or comments differ. It lets us
+    tell a line that truly went away from one that merely moved or lost a comment.
+    A comment here is set off by two-plus spaces or starts the line, so a URL's
+    '://' survives. Deliberately simple, matching the light comment style the
+    decks use. A whole-line comment returns '' - it has no code to match on."""
+    text = re.sub(r"\s{2,}//.*$", "", text)   # a trailing, space-aligned comment
+    text = re.sub(r"^\s*//.*$", "", text)     # a whole-line comment
+    return " ".join(text.split())
+
+
 def removed_in_blocks(upto):
     """{filename: {block_id: {line_in_new_file: [text, ...]}}} - deletions,
     attributed to the block they were removed FROM.
@@ -397,17 +409,22 @@ def removed_in_blocks(upto):
             if old_lines is None or old_lines == new_lines:
                 continue
             block_start = spans[name][block_id][0]
+            new_sigs = {sig for sig in (line_sig(l) for l in new_lines) if sig}
             matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
             for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-                # Pure deletes only. Inside a block that is being rewritten,
-                # every reworded line shows up as replace, and striking all of
-                # them through buries the one line that actually vanished under
-                # forty that did not. The guide already says a rewritten block
-                # only changes where it is green.
-                if tag != "delete":
+                # A line the student must take out - whether it simply vanished
+                # (a delete) or was swapped for something else (a replace). The
+                # trap is a block that is only re-indented or re-commented:
+                # difflib calls every such line "replace", and striking the ones
+                # that really survive - week 5 wraps three lines in try/catch,
+                # unchanged but indented - would bury the line that truly went
+                # AND make them retype code that did not change. So compare by
+                # CODE SIGNATURE (whitespace collapsed, comments dropped) and
+                # strike a line only when nothing with its signature remains.
+                if tag not in ("delete", "replace"):
                     continue
                 dropped = [line for line in old_lines[i1:i2]
-                           if line.strip() and line not in new_lines]
+                           if line.strip() and line_sig(line) not in new_sigs]
                 if dropped:
                     per_block.setdefault(block_id, {}).setdefault(
                         block_start + j1, []).extend(dropped)
@@ -909,11 +926,18 @@ def slide_plan(week, seen):
 
             def emit_deletes(at, context):
                 nonlocal shown
+                # A new line landing at this spot means the old one is being
+                # swapped out, not just cut - say so, and the green "type this"
+                # slide for its replacement comes right after.
+                replacing = at in marks
+                default = ("This line changes - take the old one out; the new "
+                           "version is next." if replacing
+                           else "Delete this line - take it out.")
                 for dropped in gone.get(at, []):
                     out.append(("delete", {"file": filename, "start": start,
                                            "lines": context, "dropped": dropped, "at": at,
-                                           "note": delete_notes.get((filename, block),
-                                                                    "Delete this line - take it out.")}))
+                                           "replacing": replacing,
+                                           "note": delete_notes.get((filename, block), default)}))
                     shown += 1
 
             for i, line in enumerate(lines):
@@ -1007,10 +1031,11 @@ def deck_render_html(desc):
                     d["start"] + j, esc(line) or "&nbsp;") for j, line in enumerate(d["lines"])]
         rows.append('<tr class="gone hi"><td class="ln">&minus;</td><td>{0}</td></tr>'.format(
             esc(d["dropped"]) or "&nbsp;"))
+        label = "replace a line" if d.get("replacing") else "delete a line"
         return ('<section class="slide dark line del">'
-                '<p class="filebar">In {0} <span class="part">delete a line</span></p>'
-                '<table class="code">{1}</table><p class="linenote">{2}</p></section>').format(
-                    esc(d["file"]), "".join(rows), esc(d["note"]))
+                '<p class="filebar">In {0} <span class="part">{1}</span></p>'
+                '<table class="code">{2}</table><p class="linenote">{3}</p></section>').format(
+                    esc(d["file"]), label, "".join(rows), esc(d["note"]))
     # a single line in context, with its explanation
     return ('<section class="slide dark line">'
             '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
@@ -1137,12 +1162,12 @@ def build_slides():
         nf.paragraphs[0].text = note
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
-    def del_slide(deck, filename, start, context, dropped, note):
+    def del_slide(deck, filename, start, context, dropped, note, replacing=False):
         """The block with one line struck through: the line to remove this week."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
         head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
-        head.text_frame.text = f"In {filename}   -   delete a line"
+        head.text_frame.text = f"In {filename}   -   {'replace a line' if replacing else 'delete a line'}"
         hr = head.text_frame.paragraphs[0].runs[0]
         hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
         box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
@@ -1186,7 +1211,8 @@ def build_slides():
                 ctx_slide(deck, d["file"], d["start"], d["lines"], None,
                           "That is the whole piece. Check yours looks the same before moving on.")
             elif kind == "delete":
-                del_slide(deck, d["file"], d["start"], d["lines"], d["dropped"], d["note"])
+                del_slide(deck, d["file"], d["start"], d["lines"], d["dropped"], d["note"],
+                          d.get("replacing", False))
             else:  # linectx
                 ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"])
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
@@ -1275,6 +1301,27 @@ function show(next, push) {
   dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
   count.textContent = (at + 1) + ' / ' + slides.length;
   if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+  focusTypedLine(slides[at]);
+}
+
+// A code slide can be taller than the screen. The line to type is always the
+// newest (last) line of the block, so when a scrollable code slide opens, jump
+// to the bottom - the line they type and its note land on screen and nobody has
+// to scroll down to find them. Review ("all together") slides have no such line,
+// so they read from the top.
+function focusTypedLine(slide) {
+  if (!slide || !slide.classList.contains('line')) return;
+  var hasTarget = !!slide.querySelector('tr.hi');
+  function go() {
+    // Bail if the class moved on before a late callback (font load) fires.
+    if (slides[at] !== slide || !slide.classList.contains('on')) return;
+    slide.scrollTop = hasTarget ? slide.scrollHeight : 0;
+  }
+  requestAnimationFrame(go);
+  // Rubik/Consolas can load after first paint and make the code taller; without
+  // re-running once fonts are in, the jump uses the pre-font height and stops
+  // short, leaving the line off-screen - exactly the bug this fixes.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
 }
 // Deep link, so a reload - or opening straight at a slide - keeps the place.
 show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
@@ -1286,6 +1333,9 @@ document.querySelector('.full').onclick = function () {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen();
 };
+// Full screen and any projector/window resize change the slide height, so
+// re-pin the line-to-type to the bottom of whatever code slide is showing.
+window.addEventListener('resize', function () { focusTypedLine(slides[at]); });
 
 document.addEventListener('keydown', function (event) {
   var key = event.key;
