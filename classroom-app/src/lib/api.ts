@@ -224,3 +224,9 @@ export async function apiAdminListAccessLockouts(token: string): Promise<ApiAcce
 export async function apiAdminClearAccessLockout(token: string, browserKey: string): Promise<void> {
   await req(`/admin/access-lockouts/${encodeURIComponent(browserKey)}`, { method: "DELETE" }, token);
 }
+export async function apiAdminGetDemoKey(token: string): Promise<string | null> {
+  return (await req("/admin/demo-key", {}, token)).key ?? null;
+}
+export async function apiAdminSetDemoKey(token: string, key: string): Promise<string | null> {
+  return (await req("/admin/demo-key", { method: "PUT", body: JSON.stringify({ key }) }, token)).key ?? null;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
+import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, apiAdminGetDemoKey, apiAdminSetDemoKey, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 const MODULES = [
@@ -79,11 +79,13 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   const [msg, setMsg] = useState("");
   const [nc, setNc] = useState({ classId: "ai102", name: "", username: "", password: "", role: "student" as "student" | "instructor" });
   const [codes, setCodes] = useState({ classId: "ai102", studentCode: "", instructorCode: "" });
+  const [demoKey, setDemoKey] = useState("");
+  const [demoKeySet, setDemoKeySet] = useState(false);
 
   async function refresh() {
     try {
-      const [nextAccounts, nextLockouts, nextProfiles] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token), apiAdminListSiteAccess(token)]);
-      setAccounts(nextAccounts); setLockouts(nextLockouts); setProfiles(nextProfiles); setMsg("");
+      const [nextAccounts, nextLockouts, nextProfiles, key] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token), apiAdminListSiteAccess(token), apiAdminGetDemoKey(token)]);
+      setAccounts(nextAccounts); setLockouts(nextLockouts); setProfiles(nextProfiles); setDemoKeySet(!!key); setMsg("");
     }
     catch (e) { setMsg((e as Error).message); if ((e as Error).message.toLowerCase().includes("sign")) onSignOut(); }
   }
@@ -103,6 +105,11 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
   }
   async function saveCodes() {
     try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); await refresh(); setMsg("Class access codes saved."); }
+    catch (e) { setMsg((e as Error).message); }
+  }
+  async function saveDemoKey(value?: string) {
+    const key = (value !== undefined ? value : demoKey).trim();
+    try { const saved = await apiAdminSetDemoKey(token, key); setDemoKeySet(!!saved); setDemoKey(""); setMsg(saved ? "Demo AI key saved." : "Demo AI key cleared."); }
     catch (e) { setMsg((e as Error).message); }
   }
   async function clearLockout(browserKey: string) {
@@ -159,6 +166,16 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
           <input value={codes.studentCode} placeholder="student code (4+ characters)" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} />
           <input value={codes.instructorCode} placeholder="instructor code (4+ characters)" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} />
           <button className="primary" onClick={saveCodes}>Save codes</button>
+        </div>
+      </div>
+
+      <div className="admin-create">
+        <h3>Checkpoint demo AI key</h3>
+        <p className="muted">The key the checkpoint slides run with, so their "Show output" can reply for real. It is stored in the classroom database and handed only to a signed-in teacher — it is never written into the published slides. {demoKeySet ? "A key is set." : "No key set yet — checkpoints show the interface only."}</p>
+        <div className="row">
+          <input value={demoKey} type="password" placeholder={demoKeySet ? "enter a new key to replace it" : "sk-class-… demo key"} onChange={(e) => setDemoKey(e.target.value)} />
+          <button className="primary" onClick={() => saveDemoKey()} disabled={!demoKey.trim()}>Save key</button>
+          {demoKeySet && <button className="secondary" onClick={() => saveDemoKey("")}>Clear</button>}
         </div>
       </div>
 

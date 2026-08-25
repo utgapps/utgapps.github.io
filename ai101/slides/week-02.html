@@ -272,6 +272,30 @@ document.addEventListener('keydown', function (event) {
 window.addEventListener('load', function () { window.focus(); });
 document.addEventListener('click', function () { window.focus(); });
 
+// The demo AI key, so a checkpoint on an AI week can reply for real. It lives in
+// the classroom database, never in these published files, and is handed only to
+// a signed-in teacher (the deck is same-origin with the classroom, so it reads
+// the saved account token). A student has a class code, not a token, so the
+// request 401s for them and the checkpoint just shows the interface. Fetched
+// once and cached.
+var _cpKey;
+function cpDemoKey() {
+  if (_cpKey) return _cpKey;
+  _cpKey = new Promise(function (resolve) {
+    var token = null;
+    try { token = (JSON.parse(localStorage.getItem('utg_account') || 'null') || {}).token; } catch (e) {}
+    if (!token) { resolve(null); return; }
+    var host = location.hostname;
+    var api = (host === 'localhost' || host === '127.0.0.1')
+      ? 'http://127.0.0.1:8787' : 'https://utg-classroom-api.utgapps.workers.dev';
+    fetch(api + '/demo-key', { cache: 'no-store', headers: { authorization: 'Bearer ' + token } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { resolve((d && d.key) || null); })
+      .catch(function () { resolve(null); });
+  });
+  return _cpKey;
+}
+
 // Checkpoint slides: reveal the project's live output so the class can compare.
 [].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
   btn.onclick = function (e) {
@@ -282,15 +306,19 @@ document.addEventListener('click', function () { window.focus(); });
       if (out._cpStop) out._cpStop();       // drop the console listener
       out.innerHTML = ''; btn.textContent = '▶ Show the output'; return;
     }
+    // The stored page escapes the script close tag so the text/plain box is not
+    // closed early; undo that before it becomes a real document, or the first
+    // script tag never closes and none of the project's JS runs. (The close tag
+    // is built from pieces so this very file does not contain a literal one.)
+    var CLOSE = '<' + '/script';
+    var raw = document.getElementById('src-' + id).textContent.split('<\\' + '/script').join(CLOSE);
     var frame = document.createElement('iframe');
     frame.setAttribute('sandbox', 'allow-scripts allow-forms');
     frame.setAttribute('allow', 'local-network-access *');
-    frame.srcdoc = document.getElementById('src-' + id).textContent;
     out.appendChild(frame);
 
     // A console under the output, fed by the bridge inside the page. It is how
-    // the class sees a console.log, an error, or a request that failed - the
-    // reason an AI-week checkpoint can sit on "thinking..." with no key.
+    // the class sees a console.log, an error, or a request that failed.
     var con = document.createElement('div');
     con.className = 'cp-console';
     con.innerHTML = '<div class="cp-console-head">Console</div>'
@@ -310,6 +338,14 @@ document.addEventListener('click', function () { window.focus(); });
     }
     window.addEventListener('message', onMsg);
     out._cpStop = function () { window.removeEventListener('message', onMsg); };
+
+    // If this page calls the AI, put the teacher's demo key where the student's
+    // key would go, so it can reply for real. No key (or not a teacher) leaves
+    // the placeholder - the interface still runs, the request just says why.
+    var needsKey = raw.indexOf('sk-class-put-your-own-key-here') >= 0;
+    (needsKey ? cpDemoKey() : Promise.resolve(null)).then(function (key) {
+      frame.srcdoc = key ? raw.split('sk-class-put-your-own-key-here').join(key) : raw;
+    });
     btn.textContent = 'Hide the output';
   };
 });

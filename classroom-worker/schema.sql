@@ -135,3 +135,14 @@ CREATE TABLE IF NOT EXISTS account_classrooms (
   PRIMARY KEY (account_id, class_id, role)
 );
 CREATE INDEX IF NOT EXISTS idx_account_classrooms_account ON account_classrooms(account_id);
+
+-- Small global key/value store for server-side settings that must never live in
+-- the public site. The demo AI key (settings.key = 'demo_ai_key') lives here so a
+-- checkpoint slide can fetch it at runtime for a signed-in teacher and run for
+-- real, without the key ever being committed to the repo.
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT
+);

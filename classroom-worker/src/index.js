@@ -584,6 +584,16 @@ export default {
       const me = await accountFromRequest(db, request);
       if (path === "/me") return me ? response(request, env, { account: publicAccount(me) }) : bad(request, env, "Not signed in.", 401);
 
+      // The demo AI key for checkpoint slides, handed only to a signed-in teacher
+      // (or admin). A student holds a class code, not an account token, so this
+      // 401s for them - the key never reaches a student's browser, and it is
+      // never in the published slides. Returns { key: null } when none is set.
+      if (path === "/demo-key" && request.method === "GET") {
+        if (!me || (me.role !== "instructor" && me.role !== "admin")) throw new HttpError("Teachers only.", 403);
+        const row = await db.prepare("SELECT value FROM settings WHERE key = 'demo_ai_key'").first();
+        return response(request, env, { key: (row && row.value) || null });
+      }
+
       // The classrooms this account has connected to, for a saved re-entry list.
       if (path === "/me/classrooms" && request.method === "GET") {
         if (!me) throw new HttpError("Not signed in.", 401);
@@ -882,6 +892,26 @@ export default {
 
       if (path.startsWith("/admin/")) {
         if (me.role !== "admin") throw new HttpError("Admins only.", 403);
+
+        // The demo AI key that checkpoint slides run with. Stored server-side,
+        // set here by an admin, read back for confirmation (the admin who sets
+        // it may see it; nobody else does).
+        if (path === "/admin/demo-key" && request.method === "GET") {
+          const row = await db.prepare("SELECT value FROM settings WHERE key = 'demo_ai_key'").first();
+          return response(request, env, { key: (row && row.value) || null });
+        }
+        if (path === "/admin/demo-key" && request.method === "PUT") {
+          const { key } = await readJson(request, 4000);
+          const clean = String(key || "").trim();
+          if (clean) {
+            await db.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('demo_ai_key', ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by")
+              .bind(clean, Date.now(), me.id).run();
+          } else {
+            await db.prepare("DELETE FROM settings WHERE key = 'demo_ai_key'").run();
+          }
+          return response(request, env, { key: clean || null });
+        }
+
         if (path === "/admin/site-access" && request.method === "GET") {
           const rows = (await db.prepare("SELECT * FROM site_access ORDER BY classroom_class_id, label").all()).results;
           return response(request, env, { profiles: rows.map((row) => ({
