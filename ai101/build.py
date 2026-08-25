@@ -874,18 +874,63 @@ def notes_for(week_n, filename, block):
             or course.LINE_NOTES.get((filename, block)))
 
 
+# A tiny bridge injected at the TOP of a checkpoint page, so it runs before the
+# project's own script. It forwards console output, errors and fetch outcomes up
+# to the deck, which shows them in a console under the output. That is how a
+# silent failure becomes visible: week 4 has no error handling, so a rejected
+# request just leaves "thinking..." on screen - here the console says why (a 401
+# bad key, or a blocked/failed fetch off the school network).
+CP_BRIDGE = """<script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\\u2190 ' : '\\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\\u2717 could not reach ' + url + ' \\u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();</script>
+"""
+
+
 def checkpoint_page(week_n):
     """The runnable project at the end of week_n: index.html with its CSS and JS
-    inlined, so a deck slide can render exactly what a student should be seeing.
-    Weeks 1-2 run fully in the slide (no network); weeks that call the AI show
-    the interface, and their reply needs the classroom key and network."""
+    inlined, so a deck slide can render exactly what a student should be seeing,
+    with a console bridge on top so the deck can show what it logs and where it
+    fails. Weeks 1-2 run fully in the slide (no network); weeks that call the AI
+    show the interface, and their reply needs the classroom key and network."""
     files = state_at(week_n)
     html = files.get("index.html", "")
     html = html.replace('<link rel="stylesheet" href="style.css">',
                         "<style>\n" + files.get("style.css", "") + "\n</style>")
     html = html.replace('<script src="script.js"></script>',
                         "<script>\n" + files.get("script.js", "") + "\n</script>")
-    return html
+    return CP_BRIDGE + html
 
 
 def slide_plan(week, seen):
@@ -1284,13 +1329,21 @@ box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
 .linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
 .slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
-.slide.checkpoint{justify-content:flex-start}
+.slide.checkpoint{justify-content:flex-start;overflow-y:auto}
 .cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
 .cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
 padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
 .cp-run:hover{background:#ffdf5c}
 .cp-out{margin-top:16px;width:100%}
-.cp-out iframe{width:100%;height:min(50vh,520px);border:1px solid #cbd9dd;border-radius:8px;background:#fff}
+.cp-out iframe{width:100%;height:min(42vh,440px);border:1px solid #cbd9dd;border-radius:8px;background:#fff}
+.cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
+.cp-console-head{padding:6px 12px;background:#16303a;color:#cfe3e8;font-size:13px;font-weight:700;
+letter-spacing:.03em}
+.cp-console-body{max-height:min(22vh,180px);overflow:auto;padding:8px 12px;
+font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
+.cp-console-body .cp-muted{color:#7f9aa4}
+.cp-row{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}
+.cp-row.error{color:#ff9d8e}.cp-row.warn{color:#f4c869}.cp-row.net{color:#8fb3bd}.cp-row.info{color:#9fd8ee}
 @media (max-width:640px){.bar .hint{display:none}}
 """
 
@@ -1367,12 +1420,38 @@ document.addEventListener('click', function () { window.focus(); });
     e.stopPropagation();
     var id = btn.getAttribute('data-cp');
     var out = document.getElementById('out-' + id);
-    if (out.firstChild) { out.innerHTML = ''; btn.textContent = '▶ Show the output'; return; }
+    if (out.firstChild) {
+      if (out._cpStop) out._cpStop();       // drop the console listener
+      out.innerHTML = ''; btn.textContent = '▶ Show the output'; return;
+    }
     var frame = document.createElement('iframe');
     frame.setAttribute('sandbox', 'allow-scripts allow-forms');
     frame.setAttribute('allow', 'local-network-access *');
     frame.srcdoc = document.getElementById('src-' + id).textContent;
     out.appendChild(frame);
+
+    // A console under the output, fed by the bridge inside the page. It is how
+    // the class sees a console.log, an error, or a request that failed - the
+    // reason an AI-week checkpoint can sit on "thinking..." with no key.
+    var con = document.createElement('div');
+    con.className = 'cp-console';
+    con.innerHTML = '<div class="cp-console-head">Console</div>'
+                  + '<div class="cp-console-body"><span class="cp-muted">console.log, errors '
+                  + 'and network requests from the output show up here.</span></div>';
+    out.appendChild(con);
+    var body = con.querySelector('.cp-console-body');
+    var first = true;
+    function onMsg(ev) {
+      if (ev.source !== frame.contentWindow) return;          // only this output
+      var d = ev.data; if (!d || d.utg !== 'cp-log') return;
+      if (first) { body.innerHTML = ''; first = false; }       // clear the hint
+      var row = document.createElement('div');
+      row.className = 'cp-row ' + (d.level || 'log');
+      row.textContent = d.text;
+      body.appendChild(row); body.scrollTop = body.scrollHeight;
+    }
+    window.addEventListener('message', onMsg);
+    out._cpStop = function () { window.removeEventListener('message', onMsg); };
     btn.textContent = 'Hide the output';
   };
 });
