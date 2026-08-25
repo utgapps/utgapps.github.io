@@ -57,6 +57,13 @@ box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
 .linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
 .slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.checkpoint{justify-content:flex-start}
+.cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
+.cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
+padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
+.cp-run:hover{background:#ffdf5c}
+.cp-out{margin-top:16px;width:100%}
+.cp-out iframe{width:100%;height:min(50vh,520px);border:1px solid #cbd9dd;border-radius:8px;background:#fff}
 @media (max-width:640px){.bar .hint{display:none}}
 </style>
 <script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
@@ -113,4 +120,20 @@ document.addEventListener('keydown', function (event) {
 // An iframe gets no keys until something in it is focused.
 window.addEventListener('load', function () { window.focus(); });
 document.addEventListener('click', function () { window.focus(); });
+
+// Checkpoint slides: reveal the project's live output so the class can compare.
+[].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var id = btn.getAttribute('data-cp');
+    var out = document.getElementById('out-' + id);
+    if (out.firstChild) { out.innerHTML = ''; btn.textContent = '▶ Show the output'; return; }
+    var frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+    frame.setAttribute('allow', 'local-network-access *');
+    frame.srcdoc = document.getElementById('src-' + id).textContent;
+    out.appendChild(frame);
+    btn.textContent = 'Hide the output';
+  };
+});
 </script>

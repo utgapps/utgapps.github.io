@@ -849,6 +849,20 @@ def code_chunks(week_n, refs):
     return chunks
 
 
+def checkpoint_page(week_n):
+    """The runnable project at the end of week_n: index.html with its CSS and JS
+    inlined, so a deck slide can render exactly what a student should be seeing.
+    Weeks 1-2 run fully in the slide (no network); weeks that call the AI show
+    the interface, and their reply needs the classroom key and network."""
+    files = state_at(week_n)
+    html = files.get("index.html", "")
+    html = html.replace('<link rel="stylesheet" href="style.css">',
+                        "<style>\n" + files.get("style.css", "") + "\n</style>")
+    html = html.replace('<script src="script.js"></script>',
+                        "<script>\n" + files.get("script.js", "") + "\n</script>")
+    return html
+
+
 def slide_plan(week, seen):
     """Ordered slide descriptors for a week's body (the caller adds the title
     slide). Mutates `seen` - the concept keys already introduced course-wide -
@@ -860,6 +874,13 @@ def slide_plan(week, seen):
     expanded = week["n"] in getattr(course, "EXPANDED_WEEKS", set())
     out = []
     for spec in week["slides"]:
+        if spec.get("checkpoint"):
+            # A "run it and check" slide: the deck can render the project as it
+            # stands at this point, so the class can compare their screen to it.
+            out.append(("checkpoint", {"week": spec.get("checkpoint_week", week["n"]),
+                                       "title": spec.get("title", "Checkpoint"),
+                                       "say": spec.get("say", "")}))
+            continue
         out.append(("concept", {"eyebrow": "", "title": spec["title"],
                                  "sub": spec.get("sub", ""), "bullets": spec.get("bullets", [])}))
         refs = spec.get("code")
@@ -954,6 +975,16 @@ def deck_render_html(desc):
         pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
         return '<section class="slide">{0}<h2>{1}</h2>{2}{3}</section>'.format(
             eyebrow, esc(d["title"]), sub, pts)
+    if kind == "checkpoint":
+        page = checkpoint_page(d["week"]).replace("</script", "<\\/script")
+        cid = "cp%d" % d["week"]
+        return ('<section class="slide checkpoint">'
+                '<p class="eyebrow">Checkpoint &middot; run it</p>'
+                '<h2>{0}</h2><p class="cp-say">{1}</p>'
+                '<button class="cp-run" data-cp="{2}">&#9654; Show the output</button>'
+                '<div class="cp-out" id="out-{2}"></div>'
+                '<script type="text/plain" id="src-{2}">{3}</script>'
+                '</section>').format(esc(d["title"]), esc(d["say"]), cid, page)
     if kind == "chunk":
         return deck_code_slide(d["file"], d["start"], d["lines"], d["marks"], d["gone"],
                                d["part"], d["parts"])
@@ -1135,6 +1166,12 @@ def build_slides():
         for kind, d in slide_plan(week, seen):
             if kind == "concept":
                 concept_slide(deck, {"title": d["title"], "sub": d["sub"], "bullets": d["bullets"]}, eyebrow=d.get("eyebrow", ""))
+            elif kind == "checkpoint":
+                # No live iframe in PowerPoint, so it points at the classroom.
+                concept_slide(deck, {"title": d["title"], "sub": d["say"],
+                                     "bullets": ["Run it in the classroom, or press Show the output in the web deck.",
+                                                 "Everyone's screen should match this."]},
+                              eyebrow="Checkpoint - run it")
             elif kind == "chunk":
                 code_slide(deck, d["file"], d["start"], d["lines"], d["marks"], d["gone"], d["part"], d["parts"])
             elif kind == "block":
@@ -1208,6 +1245,13 @@ box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
 .linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
 .slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.checkpoint{justify-content:flex-start}
+.cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
+.cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
+padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
+.cp-run:hover{background:#ffdf5c}
+.cp-out{margin-top:16px;width:100%}
+.cp-out iframe{width:100%;height:min(50vh,520px);border:1px solid #cbd9dd;border-radius:8px;background:#fff}
 @media (max-width:640px){.bar .hint{display:none}}
 """
 
@@ -1253,6 +1297,22 @@ document.addEventListener('keydown', function (event) {
 // An iframe gets no keys until something in it is focused.
 window.addEventListener('load', function () { window.focus(); });
 document.addEventListener('click', function () { window.focus(); });
+
+// Checkpoint slides: reveal the project's live output so the class can compare.
+[].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var id = btn.getAttribute('data-cp');
+    var out = document.getElementById('out-' + id);
+    if (out.firstChild) { out.innerHTML = ''; btn.textContent = '▶ Show the output'; return; }
+    var frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+    frame.setAttribute('allow', 'local-network-access *');
+    frame.srcdoc = document.getElementById('src-' + id).textContent;
+    out.appendChild(frame);
+    btn.textContent = 'Hide the output';
+  };
+});
 """
 
 
