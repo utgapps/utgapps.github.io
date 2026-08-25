@@ -213,7 +213,7 @@ def code_table(filename, start, lines, marks, ident=None, tag="", gone=None):
 
     def removals(at):
         return "".join(
-            f'<tr class="gone"><td class="ln">&minus;</td>'
+            f'<tr class="gone"><td class="ln">{at}</td>'
             f'<td class="src">{esc(text) or "&nbsp;"}</td></tr>'
             for text in gone.get(at, []))
 
@@ -1029,8 +1029,11 @@ def deck_render_html(desc):
     if kind == "delete":
         rows = ['<tr class="ctx"><td class="ln">{0}</td><td>{1}</td></tr>'.format(
                     d["start"] + j, esc(line) or "&nbsp;") for j, line in enumerate(d["lines"])]
-        rows.append('<tr class="gone hi"><td class="ln">&minus;</td><td>{0}</td></tr>'.format(
-            esc(d["dropped"]) or "&nbsp;"))
+        # Show the real line number of the line to remove (it sits just below the
+        # context), not a dash - a student cannot find "the struck line" without
+        # the number they see in their own editor.
+        rows.append('<tr class="gone hi"><td class="ln">{0}</td><td>{1}</td></tr>'.format(
+            d["at"], esc(d["dropped"]) or "&nbsp;"))
         label = "replace a line" if d.get("replacing") else "delete a line"
         return ('<section class="slide dark line del">'
                 '<p class="filebar">In {0} <span class="part">{1}</span></p>'
@@ -1179,7 +1182,9 @@ def build_slides():
             para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
             first[0] = False; para.space_after = Pt(0)
             struck = j == len(rows) - 1
-            gut = para.add_run(); gut.text = ("   -  " if struck else f"{start + j:>4}  ")
+            # The struck line sits right after the context, so start + j is its
+            # real number - show it, not a dash, so the line is findable.
+            gut = para.add_run(); gut.text = f"{start + j:>4}  "
             gut.font.name, gut.font.size, gut.font.color.rgb = "Consolas", size, GUTTER
             code = para.add_run(); code.text = line if line.strip() else " "
             code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, (DROP if struck else GUTTER)
@@ -1380,8 +1385,8 @@ def deck_code_slide(filename, start, lines, marks, gone, part, parts):
     for index, line in enumerate(lines + [None]):
         number = start + index
         for dropped in gone.get(number, []):
-            rows.append('<tr class="gone"><td class="ln">&minus;</td><td>{0}</td></tr>'
-                        .format(esc(dropped) or "&nbsp;"))
+            rows.append('<tr class="gone"><td class="ln">{0}</td><td>{1}</td></tr>'
+                        .format(number, esc(dropped) or "&nbsp;"))
         if line is None:
             break
         rows.append('<tr class="{0}"><td class="ln">{1}</td><td>{2}</td></tr>'.format(
