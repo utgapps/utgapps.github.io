@@ -849,6 +849,14 @@ def code_chunks(week_n, refs):
     return chunks
 
 
+def notes_for(week_n, filename, block):
+    """Per-line notes for a block, this week. A block that changes across weeks
+    (ask, submit) keeps a (week, file, block) entry so each week's arrangement
+    gets its own notes; blocks that appear once use the plain (file, block) key."""
+    return (course.LINE_NOTES.get((week_n, filename, block))
+            or course.LINE_NOTES.get((filename, block)))
+
+
 def checkpoint_page(week_n):
     """The runnable project at the end of week_n: index.html with its CSS and JS
     inlined, so a deck slide can render exactly what a student should be seeing.
@@ -896,7 +904,7 @@ def slide_plan(week, seen):
         delete_notes = getattr(course, "DELETE_NOTES", {})
         for filename, block in refs:
             start, lines, marks, gone = block_code(week["n"], filename, block)
-            notes = course.LINE_NOTES.get((filename, block))
+            notes = notes_for(week["n"], filename, block)
             shown = 0
 
             def emit_deletes(at, context):
@@ -1501,7 +1509,7 @@ def main():
             for spec in week["slides"]:
                 for filename, block in (spec.get("code") or []):
                     start, lines, marks, _gone = block_code(week["n"], filename, block)
-                    notes = course.LINE_NOTES.get((filename, block))
+                    notes = notes_for(week["n"], filename, block)
                     for i, line in enumerate(lines):
                         # Only a changed/new line gets a slide, so only it needs a
                         # note; a carried-over line just shows as context.

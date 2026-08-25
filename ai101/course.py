@@ -2499,6 +2499,8 @@ def line_concepts(filename, line):
                 ("fetch(", "js:fetch"),
                 ("JSON.stringify", "js:json.stringify"),
                 ("JSON.parse", "js:json.parse"),
+                (".lastChild", "js:lastchild"),
+                (".remove(", "js:remove"),
             ):
                 if token in line:
                     keys.append(key)
@@ -2506,6 +2508,16 @@ def line_concepts(filename, line):
                 keys.append("js:if")
             if re.search(r"\breturn\b", line):
                 keys.append("js:return")
+            if re.search(r"[(=,\s]!\s*[a-zA-Z(]", line) and "!=" not in line:
+                keys.append("js:not")
+            if "&&" in line:
+                keys.append("js:and")
+            if re.search(r"\bthrow\b", line):
+                keys.append("js:throw")
+            if re.search(r"^\s*try\s*\{|\bcatch\s*\(", line):
+                keys.append("js:try")
+            if re.search(r"^\s*\?\s|\s\?\s", line):
+                keys.append("js:ternary")
     out, seen = [], set()
     for k in keys:
         if k not in seen:
@@ -2797,3 +2809,93 @@ CONCEPTS.update({
     "js:array":       ("js", "Lists: [ ]", ["An ordered list of things, in square brackets.", "messages: [ ... ] holds every message in order."]),
     "js:index":       ("js", "Picking from a list: [0]", ["[0] takes the FIRST item - counting starts at 0, not 1.", "choices[0] is the first choice."]),
 })
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  week 5 (when things break), plus the block that
+# changes across weeks now keeps per-week notes.
+# ==========================================================================
+
+EXPANDED_WEEKS.add(5)
+
+CONCEPTS.update({
+    "js:lastchild": ("js", ".lastChild", ["A box's LAST child - the newest thing added inside it.", "chat.lastChild is the message you just put in."]),
+    "js:remove":    ("js", ".remove()", ["Deletes an element from the page.", "chat.lastChild.remove() takes the last message back off."]),
+    "js:not":       ("js", "! means NOT", ["! flips true and false.", "if (!res.ok) means 'if the response is NOT ok'."]),
+    "js:and":       ("js", "&& means AND", ["a && b is true only when BOTH are true.", "Also handy to check something exists before you use it."]),
+    "js:throw":     ("js", "throw new Error()", ["Stops the function and raises a problem with a message.", "Whoever called it can catch that message and show it."]),
+    "js:try":       ("js", "try / catch", ["try { } runs code that might fail.", "catch (problem) { } runs only if it did - so one broken line does not crash everything."]),
+    "js:ternary":   ("js", "? : the short choice", ["condition ? A : B gives A when the condition is true, otherwise B.", "A compact if/else that hands back a value."]),
+    "css:line-height": ("css", "line-height", ["The vertical space each line of text takes.", "1.5 is one-and-a-half times the font size - easier to read."]),
+})
+
+LINE_NOTES.update({
+    # ---- week 2 submit, restored under a week key (it had collided with wk4) ----
+    (2, JS, "submit"): [
+        None,
+        "A comment tying this to PixelPad: instead of checking every frame, you leave a note for the browser.",
+        None,
+        "When the form is submitted, run this function. event holds the details of what happened.",
+        "Stops the browser reloading the page, so you handle it yourself.",
+        "Read what you typed and trim the blank space off the ends.",
+        "If the box was empty, return - stop here and do nothing.",
+        "Empty the text box, ready for the next message.",
+        "Add your message to the chat as 'You: ...'.",
+        "Add a pretend reply for now - week 4 makes it real.",
+        "Close the listener. Type in the box and press Enter to try it.",
+    ],
+    # ---- week 5: the res.ok guard added into askAI ----
+    (5, JS, "ask"): [None] * 17 + [
+        None,
+        "A comment: fetch does NOT throw when the server says no - a refusal looks just like a success until you check.",
+        None,
+        "if (!res.ok): run this only when the response is NOT ok (any status that is not a success).",
+        "Read the server's explanation of what went wrong.",
+        "Stop askAI and raise that problem as an error, turned into a friendly sentence by explain().",
+        "Close the if.",
+        None,
+    ] + [None] * 3,
+    # ---- week 5: explain(), a new helper ----
+    (5, JS, "explain"): [
+        None,
+        "A comment: turn a status number into a sentence you can act on.",
+        "A function explain that takes the status number and the server's problem.",
+        "A comment: the server usually explains itself better than we can guess.",
+        "So use its words when it gives any, and fall back to ours when it does not.",
+        "Reach for the server's own message, if there is one (&& checks each part exists first).",
+        "If there was a message, hand it straight back.",
+        "401 means the server does not know your key - say so.",
+        "429 means you sent too fast - tell them to wait a moment.",
+        "Anything else: a generic 'try again', with the number so you can look it up.",
+        "Close the function.",
+    ],
+    # ---- week 5: submit wrapped in try/catch ----
+    (5, JS, "submit"): [None] * 9 + [
+        "try {: run the risky part - asking the AI - and be ready if it fails.",
+        "Ask the AI and wait for the reply.",
+        "Take the 'thinking...' line away.",
+        "Show the real reply.",
+        "catch (problem) {: this runs only if something above threw.",
+        "Take the 'thinking...' line away here too.",
+        "A comment: 'Failed to fetch' means the request never arrived at all.",
+        "It is the commonest real failure and the least helpful wording there is.",
+        "So if that is the message, show a friendly one instead ...",
+        "... using ? to pick the friendly line when it matches,",
+        "... and : the real message for anything else.",
+        "Close the catch.",
+    ] + [None],
+    # ---- week 5: chat bubbles spacing ----
+    (5, CSS, "bubbles"): [
+        "Style every <p> inside .chat: space below each message, and line-height 1.5 so wrapped lines breathe.",
+    ],
+})
+
+# A checkpoint for week 5, before "Your turn".
+_WK5_CHECKPOINT = {"title": "Checkpoint: it fails nicely", "checkpoint": True,
+                   "say": "Press Run and try to break it - send an empty key, or many messages fast. Instead of a silent freeze you should now see a clear 'Problem:' line explaining what went wrong."}
+for _s in WEEKS[4]["slides"]:
+    pass
+_titles = [s.get("title") for s in WEEKS[4]["slides"]]
+if "Checkpoint: it fails nicely" not in _titles:
+    # insert just before the last slide ("Your turn"/wrap-up)
+    WEEKS[4]["slides"].insert(len(WEEKS[4]["slides"]) - 1, _WK5_CHECKPOINT)
