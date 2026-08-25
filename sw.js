@@ -13,7 +13,7 @@
      alone so their own freshness rules apply.
 
    Bump CACHE to force every client to drop its old cache on activate. */
-const CACHE = "utg-site-v2";
+const CACHE = "utg-site-v3";
 const OFFLINE_URL = "/";
 
 self.addEventListener("install", (event) => {
