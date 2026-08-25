@@ -2422,46 +2422,86 @@ def line_concepts(filename, line):
     import re
     keys = []
     if filename == "index.html":
+        # General shape of HTML first, then the specific tag, so a student meets
+        # "what a tag is" before ever meeting a particular one.
+        if re.search(r"<[a-zA-Z]", line):
+            keys.append("html:tag")
+        if re.search(r"<(link|input|br|img|meta|hr)\b", line):
+            keys.append("html:selfclose")
+        if re.search(r'\s[a-zA-Z-]+="', line):
+            keys.append("html:attribute")
         for tag in re.findall(r"<([a-zA-Z][a-zA-Z0-9]*)", line):
             keys.append("html:" + tag.lower())
     elif filename == "style.css":
         stripped = line.strip()
-        if stripped.endswith("{") and not stripped.startswith("@"):
+        # Handles one-line rules (.tag { ... }) as well as opening lines.
+        if "{" in line and not stripped.startswith("@"):
             keys.append("css:rule")
+            sel = line.split("{")[0].strip()
+            if " " in sel:
+                keys.append("css:selector-descendant")
+            elif sel.startswith("."):
+                keys.append("css:selector-class")
+            elif re.match(r"^[a-zA-Z]", sel):
+                keys.append("css:selector-element")
         for prop in re.findall(r"([a-z-]+)\s*:", line):
             keys.append("css:" + prop)
+        if re.search(r"#[0-9a-fA-F]{3,6}\b", line):
+            keys.append("css:hex")
+        if re.search(r"\b\d+px\b", line):
+            keys.append("css:px")
     elif filename == "script.js":
-        if line.strip().startswith("//"):
+        s = line.strip()
+        if s.startswith("//"):
             keys.append("js:comment")
-        if re.search(r"\bconst\b", line):
-            keys.append("js:const")
-        if re.search(r"\blet\b", line):
-            keys.append("js:let")
-        if re.search(r"\bfunction\b", line) or "=>" in line:
-            keys.append("js:function")
-        for token, key in (
-            ("console.log", "js:console.log"),
-            ("document.getElementById", "js:getElementById"),
-            ("document.createElement", "js:createElement"),
-            (".textContent", "js:textContent"),
-            (".appendChild", "js:appendChild"),
-            (".addEventListener", "js:addEventListener"),
-            ("preventDefault", "js:preventDefault"),
-            (".value", "js:value"),
-            (".trim(", "js:trim"),
-            ("async ", "js:async"),
-            ("await ", "js:await"),
-            (".json(", "js:json"),
-            ("fetch(", "js:fetch"),
-            ("JSON.stringify", "js:json.stringify"),
-            ("JSON.parse", "js:json.parse"),
-        ):
-            if token in line:
-                keys.append(key)
-        if re.search(r"\bif\s*\(", line):
-            keys.append("js:if")
-        if re.search(r"\breturn\b", line):
-            keys.append("js:return")
+        else:
+            # The anatomy of a line first, then what is on it.
+            keys.append("js:statement")
+            if re.search(r"'[^']*'|\"[^\"]*\"", line):
+                keys.append("js:string")
+            if re.search(r"\bconst\b", line):
+                keys.append("js:const")
+            if re.search(r"\blet\b", line):
+                keys.append("js:let")
+            if re.search(r"\bfunction\b", line) or "=>" in line:
+                keys.append("js:function")
+            if re.search(r"\b[a-zA-Z_$][\w$]*\([^)]*\)", line) and "function" not in line:
+                keys.append("js:call")
+            if re.search(r"[a-zA-Z_$][\w$]*\.[a-zA-Z_$]", line):
+                keys.append("js:dot")
+            if re.search(r"\S\s*\+\s*\S", line):
+                keys.append("js:plus")
+            if "===" in line:
+                keys.append("js:compare")
+            if re.search(r"\[\d+\]", line):
+                keys.append("js:index")
+            elif re.search(r":\s*\[|=\s*\[|\[\s*$", line):
+                keys.append("js:array")
+            if re.search(r"(^|[{,])\s*['\"]?[a-zA-Z_$][\w$-]*['\"]?\s*:\s*\S", line):
+                keys.append("js:object")
+            for token, key in (
+                ("console.log", "js:console.log"),
+                ("document.getElementById", "js:getElementById"),
+                ("document.createElement", "js:createElement"),
+                (".textContent", "js:textContent"),
+                (".appendChild", "js:appendChild"),
+                (".addEventListener", "js:addEventListener"),
+                ("preventDefault", "js:preventDefault"),
+                (".value", "js:value"),
+                (".trim(", "js:trim"),
+                ("async ", "js:async"),
+                ("await ", "js:await"),
+                (".json(", "js:json"),
+                ("fetch(", "js:fetch"),
+                ("JSON.stringify", "js:json.stringify"),
+                ("JSON.parse", "js:json.parse"),
+            ):
+                if token in line:
+                    keys.append(key)
+            if re.search(r"\bif\s*\(", line):
+                keys.append("js:if")
+            if re.search(r"\breturn\b", line):
+                keys.append("js:return")
     out, seen = [], set()
     for k in keys:
         if k not in seen:
@@ -2725,3 +2765,31 @@ LINE_NOTES.update({
 DELETE_NOTES = {
     (JS, "models"): "Delete this line. askAI does the asking now, so the old test call is no longer needed - your file should have no listModels() call left.",
 }
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  structural fundamentals (tag/selector/line anatomy).
+# ==========================================================================
+
+CONCEPTS.update({
+    # ---- HTML shape ----
+    "html:tag":       ("html", "What is an HTML tag?", ["A tag is an instruction inside < >.", "Most come as a pair - an opening <p> and a closing </p> - with the content between them: <p>hi</p>."]),
+    "html:selfclose": ("html", "Self-closing tags", ["A few tags hold no content, so they have NO closing tag.", "<link> and <input> stand on their own."]),
+    "html:attribute": ("html", "Attributes", ["Extra settings inside a tag, written name=\"value\".", "Like class=\"app\", id=\"chat\", or href=\"style.css\"."]),
+    # ---- CSS selectors + values ----
+    "css:selector-element":    ("css", "Selector: an element name", ["body { } styles every <body> on the page.", "A bare name targets that kind of tag."]),
+    "css:selector-class":      ("css", "Selector: a class", [".app { } styles anything with class=\"app\".", "The dot means 'class'."]),
+    "css:selector-descendant": ("css", "Selector: nested", [".top h1 { } styles an <h1> that is INSIDE .top.", "A space between names means 'inside'."]),
+    "css:hex":        ("css", "Colours: hex codes", ["#eef2f7 is a colour written as red-green-blue in base 16.", "#ffffff is white, #000000 is black."]),
+    "css:px":         ("css", "Sizes: pixels", ["20px means 20 pixels - little dots on the screen."]),
+    # ---- JavaScript line construction ----
+    "js:statement":   ("js", "A line of JavaScript", ["Most lines are one instruction, usually ending in a semicolon ;", "The computer runs them top to bottom."]),
+    "js:string":      ("js", "Strings: text in quotes", ["Text the computer treats as data goes in quotes: 'hello'.", "Single or double quotes both work."]),
+    "js:call":        ("js", "Calling a function", ["A name followed by ( ) runs that function.", "Whatever is inside the ( ) is what you hand it."]),
+    "js:dot":         ("js", "Dot notation", ["thing.name reaches INTO thing for one of its parts or actions.", "document.getElementById asks document to find something."]),
+    "js:plus":        ("js", "Joining text with +", ["'You' + ': ' + text glues pieces of text into one.", "The same + also adds numbers."]),
+    "js:compare":     ("js", "Comparing with ===", ["=== asks 'are these exactly equal?' and gives true or false.", "One = SETS a value; three === CHECKS a value."]),
+    "js:object":      ("js", "Objects: { }", ["A bundle of labelled values: { role: 'user', content: '...' }.", "Each label (a key) points to a value."]),
+    "js:array":       ("js", "Lists: [ ]", ["An ordered list of things, in square brackets.", "messages: [ ... ] holds every message in order."]),
+    "js:index":       ("js", "Picking from a list: [0]", ["[0] takes the FIRST item - counting starts at 0, not 1.", "choices[0] is the first choice."]),
+})
