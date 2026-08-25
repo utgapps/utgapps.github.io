@@ -218,7 +218,11 @@ body.viewer-open { overflow: hidden; }
 .cm-host { min-height: 0; overflow: hidden; background: #fff; }
 .cm-host .cm-editor { height: 100%; }
 .cm-host .cm-editor.cm-focused { outline: none; }
-.cm-host .cm-scroller { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+/* CodeMirror's base theme only sets overflow-x on the scroller, so a doc taller
+   than the pane never scrolls vertically. The height chain above is bounded
+   (.cm-host is a 1fr grid cell with min-height:0, .cm-editor fills it), so all
+   that's missing is turning on the scroller's own overflow. */
+.cm-host .cm-scroller { overflow: auto; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .cm-host .cm-gutters { background: #f7fafb; border-right: 1px solid #e3edef; color: #90a7ad; }
 
 /* remote cursors + name labels (color comes inline from each user's awareness) */
