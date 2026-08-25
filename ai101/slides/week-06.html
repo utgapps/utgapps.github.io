@@ -76,12 +76,218 @@ font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
 </style>
 <script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../../guard.js"></script>
-<div class="deck"><section class="slide"><p class="eyebrow">Week 6</p><h1>Giving it a personality</h1></section><section class="slide"><h2>Same question. Two companions.</h2><p class="sub">Why?</p><ul class="pts"><li>Nothing changed except one instruction</li><li>That instruction is where a chatbot&#x27;s character lives</li></ul></section><section class="slide"><h2>Three roles</h2><ul class="pts"><li>user - what you said</li><li>assistant - what it said</li><li>system - the note it reads before every reply</li></ul></section><section class="slide"><h2>system is not part of the chat</h2><p class="sub">It is the rules of the chat</p><ul class="pts"><li>Re-sent with every request</li><li>The model reads it first, every time</li></ul></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">1 of 2</span></p><table class="code"><tr class=""><td class="ln">51</td><td>&nbsp;</td></tr><tr class=""><td class="ln">52</td><td>// Week 4: ask the AI a real question.</td></tr><tr class=""><td class="ln">53</td><td>// A chat request is a LIST of messages. Each one says who said it.</td></tr><tr class=""><td class="ln">54</td><td>async function askAI(question) {</td></tr><tr class=""><td class="ln">55</td><td>  const res = await fetch(AI_BASE + &#x27;/v1/chat/completions&#x27;, {</td></tr><tr class=""><td class="ln">56</td><td>    method: &#x27;POST&#x27;,                       // POST = I am sending you something</td></tr><tr class=""><td class="ln">57</td><td>    headers: {</td></tr><tr class=""><td class="ln">58</td><td>      &#x27;Content-Type&#x27;: &#x27;application/json&#x27;, // what I am sending is JSON</td></tr><tr class=""><td class="ln">59</td><td>      &#x27;Authorization&#x27;: &#x27;Bearer &#x27; + API_KEY</td></tr><tr class=""><td class="ln">60</td><td>    },</td></tr><tr class=""><td class="ln">61</td><td>    body: JSON.stringify({</td></tr><tr class=""><td class="ln">62</td><td>      model: &#x27;fast&#x27;,</td></tr><tr class=""><td class="ln">63</td><td>      messages: [</td></tr><tr class="new"><td class="ln">64</td><td>        // Week 6: the standing instruction, read before every single reply.</td></tr><tr class="new"><td class="ln">65</td><td>        { role: &#x27;system&#x27;, content: personaBox.value },</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">2 of 2</span></p><table class="code"><tr class=""><td class="ln">66</td><td>        { role: &#x27;user&#x27;, content: question }</td></tr><tr class=""><td class="ln">67</td><td>      ]</td></tr><tr class=""><td class="ln">68</td><td>    })</td></tr><tr class=""><td class="ln">69</td><td>  });</td></tr><tr class=""><td class="ln">70</td><td>&nbsp;</td></tr><tr class=""><td class="ln">71</td><td>  // Week 5: fetch does NOT throw when the server says no. A 429 arrives</td></tr><tr class=""><td class="ln">72</td><td>  // looking just like a success until you actually check.</td></tr><tr class=""><td class="ln">73</td><td>  if (!res.ok) {</td></tr><tr class=""><td class="ln">74</td><td>    const problem = await res.json();</td></tr><tr class=""><td class="ln">75</td><td>    throw new Error(explain(res.status, problem));</td></tr><tr class=""><td class="ln">76</td><td>  }</td></tr><tr class=""><td class="ln">77</td><td>&nbsp;</td></tr><tr class=""><td class="ln">78</td><td>  const data = await res.json();</td></tr><tr class=""><td class="ln">79</td><td>  return data.choices[0].message.content;</td></tr><tr class=""><td class="ln">80</td><td>}</td></tr></table></section><section class="slide"><h2>Vague does nothing</h2><ul class="pts"><li>&quot;Be helpful&quot; - no visible change</li><li>&quot;Under 40 words, one example, no jargon&quot; - obvious change</li><li>Say exactly what you want</li></ul></section><section class="slide"><h2>Behaviour became data</h2><p class="sub">The personality is in a textarea now</p><ul class="pts"><li>Change it without touching code</li><li>This idea shows up everywhere in software</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">1 of 3</span></p><table class="code"><tr class="new"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="new"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr><tr class="new"><td class="ln">10</td><td>    &lt;textarea id=&quot;persona&quot; rows=&quot;3&quot;&gt;You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.&lt;/textarea&gt;</td></tr><tr class="new"><td class="ln">11</td><td>  &lt;/details&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">2 of 3</span></p><table class="code"><tr class="new"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="new"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="new"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="new"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="new"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="new"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="new"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="new"><td class="ln">29</td><td>  font-family: inherit;</td></tr><tr class="new"><td class="ln">30</td><td>  font-size: 14px;</td></tr><tr class="new"><td class="ln">31</td><td>}</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into script.js <span class="part">3 of 3</span></p><table class="code"><tr class=""><td class="ln">16</td><td>&nbsp;</td></tr><tr class=""><td class="ln">17</td><td>// Week 2: find the boxes we named in index.html.</td></tr><tr class=""><td class="ln">18</td><td>// document.getElementById looks for the id= we wrote on each element.</td></tr><tr class=""><td class="ln">19</td><td>const chat = document.getElementById(&#x27;chat&#x27;);</td></tr><tr class=""><td class="ln">20</td><td>const composer = document.getElementById(&#x27;composer&#x27;);</td></tr><tr class=""><td class="ln">21</td><td>const promptBox = document.getElementById(&#x27;prompt&#x27;);</td></tr><tr class="new"><td class="ln">22</td><td>const personaBox = document.getElementById(&#x27;persona&#x27;);</td></tr></table></section><section class="slide"><h2>Prompt duel</h2><p class="sub">In pairs, 10 minutes</p><ul class="pts"><li>Write a secret character</li><li>Swap. Ask three questions.</li><li>Guess who it is</li></ul></section></div>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 6</p><h1>Giving it a personality</h1></section><section class="slide"><h2>Same question. Two companions.</h2><p class="sub">Why?</p><ul class="pts"><li>Nothing changed except one instruction</li><li>That instruction is where a chatbot&#x27;s character lives</li></ul></section><section class="slide"><h2>Three roles</h2><ul class="pts"><li>user - what you said</li><li>assistant - what it said</li><li>system - the note it reads before every reply</li></ul></section><section class="slide"><h2>Vague does nothing</h2><ul class="pts"><li>&quot;Be helpful&quot; - no visible change</li><li>&quot;Under 40 words, one example, no jargon&quot; - obvious change</li><li>Say exactly what you want</li></ul></section><section class="slide"><h2>Behaviour became data</h2><p class="sub">The personality is in a textarea now</p><ul class="pts"><li>Change it without touching code</li><li>This idea shows up everywhere in software</li></ul></section><section class="slide"><p class="eyebrow">HTML</p><h2>The &lt;details&gt; tag</h2><ul class="pts"><li>A box that folds open and shut.</li><li>It stays closed until you click it - handy for optional settings.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 8</span></p><table class="code"><tr class="hi"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr></table><p class="linenote">Open a &lt;details&gt; box - a fold-away panel. class=&quot;setup&quot; lets CSS style it.</p></section><section class="slide"><p class="eyebrow">HTML</p><h2>The &lt;summary&gt; tag</h2><ul class="pts"><li>The label you always see on a &lt;details&gt; box.</li><li>Clicking it opens or closes the rest.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 9</span></p><table class="code"><tr class="ctx"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="hi"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr></table><p class="linenote">The &lt;summary&gt; is the label you always see: &#x27;Personality&#x27;. Click it to open the box.</p></section><section class="slide"><p class="eyebrow">HTML</p><h2>The &lt;textarea&gt; tag</h2><ul class="pts"><li>A text box for SEVERAL lines, unlike &lt;input&gt; which is one line.</li><li>rows sets how tall it starts.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 10</span></p><table class="code"><tr class="ctx"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="ctx"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr><tr class="hi"><td class="ln">10</td><td>    &lt;textarea id=&quot;persona&quot; rows=&quot;3&quot;&gt;You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.&lt;/textarea&gt;</td></tr></table><p class="linenote">A &lt;textarea&gt; for a few lines of instruction. id=&quot;persona&quot; lets the code read it; the text inside is the starting personality.</p></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 11</span></p><table class="code"><tr class="ctx"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="ctx"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr><tr class="ctx"><td class="ln">10</td><td>    &lt;textarea id=&quot;persona&quot; rows=&quot;3&quot;&gt;You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.&lt;/textarea&gt;</td></tr><tr class="hi"><td class="ln">11</td><td>  &lt;/details&gt;</td></tr></table><p class="linenote">Close the &lt;/details&gt; box.</p></section><section class="slide dark line whole"><p class="filebar">All together in index.html</p><table class="code"><tr class="new"><td class="ln">8</td><td>  &lt;details class=&quot;setup&quot;&gt;</td></tr><tr class="new"><td class="ln">9</td><td>    &lt;summary&gt;Personality&lt;/summary&gt;</td></tr><tr class="new"><td class="ln">10</td><td>    &lt;textarea id=&quot;persona&quot; rows=&quot;3&quot;&gt;You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.&lt;/textarea&gt;</td></tr><tr class="new"><td class="ln">11</td><td>  &lt;/details&gt;</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide"><p class="eyebrow">CSS</p><h2>margin-bottom</h2><ul class="pts"><li>Space below the box, pushing whatever is next further down.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 21</span></p><table class="code"><tr class="hi"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr></table><p class="linenote">Style the whole panel: a gap below it, and slightly smaller text.</p></section><section class="slide"><p class="eyebrow">CSS</p><h2>font-weight</h2><ul class="pts"><li>How heavy the text is. bold stands out; normal is regular.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 22</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="hi"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr></table><p class="linenote">Style the clickable label: a hand pointer, a blue colour, and bold so it reads as a button.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 23</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="hi"><td class="ln">23</td><td>.setup textarea {</td></tr></table><p class="linenote">Start a rule for the text box inside the panel.</p></section><section class="slide"><p class="eyebrow">CSS</p><h2>width</h2><ul class="pts"><li>How wide the box is. 100% means as wide as its container.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 24</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="hi"><td class="ln">24</td><td>  width: 100%;</td></tr></table><p class="linenote">Make it as wide as the panel.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 25</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="hi"><td class="ln">25</td><td>  margin-top: 8px;</td></tr></table><p class="linenote">A little space above it, under the label.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 26</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="hi"><td class="ln">26</td><td>  padding: 9px;</td></tr></table><p class="linenote">Padding so the text is not jammed against the edge.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 27</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="hi"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr></table><p class="linenote">A thin grey border.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 28</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="hi"><td class="ln">28</td><td>  border-radius: 6px;</td></tr></table><p class="linenote">Slightly rounded corners.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 29</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="hi"><td class="ln">29</td><td>  font-family: inherit;</td></tr></table><p class="linenote">Use the same font as the rest of the page, not the browser default.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 30</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">29</td><td>  font-family: inherit;</td></tr><tr class="hi"><td class="ln">30</td><td>  font-size: 14px;</td></tr></table><p class="linenote">Set the text size.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 31</span></p><table class="code"><tr class="ctx"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">29</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">30</td><td>  font-size: 14px;</td></tr><tr class="hi"><td class="ln">31</td><td>}</td></tr></table><p class="linenote">Close the rule.</p></section><section class="slide dark line whole"><p class="filebar">All together in style.css</p><table class="code"><tr class="new"><td class="ln">21</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="new"><td class="ln">22</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="new"><td class="ln">23</td><td>.setup textarea {</td></tr><tr class="new"><td class="ln">24</td><td>  width: 100%;</td></tr><tr class="new"><td class="ln">25</td><td>  margin-top: 8px;</td></tr><tr class="new"><td class="ln">26</td><td>  padding: 9px;</td></tr><tr class="new"><td class="ln">27</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">28</td><td>  border-radius: 6px;</td></tr><tr class="new"><td class="ln">29</td><td>  font-family: inherit;</td></tr><tr class="new"><td class="ln">30</td><td>  font-size: 14px;</td></tr><tr class="new"><td class="ln">31</td><td>}</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide dark line"><p class="filebar">Type this into script.js <span class="part">line 22</span></p><table class="code"><tr class="ctx"><td class="ln">16</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">17</td><td>// Week 2: find the boxes we named in index.html.</td></tr><tr class="ctx"><td class="ln">18</td><td>// document.getElementById looks for the id= we wrote on each element.</td></tr><tr class="ctx"><td class="ln">19</td><td>const chat = document.getElementById(&#x27;chat&#x27;);</td></tr><tr class="ctx"><td class="ln">20</td><td>const composer = document.getElementById(&#x27;composer&#x27;);</td></tr><tr class="ctx"><td class="ln">21</td><td>const promptBox = document.getElementById(&#x27;prompt&#x27;);</td></tr><tr class="hi"><td class="ln">22</td><td>const personaBox = document.getElementById(&#x27;persona&#x27;);</td></tr></table><p class="linenote">Find the Personality box too, so the code can read what is typed in it.</p></section><section class="slide"><h2>system is not part of the chat</h2><p class="sub">It is the rules of the chat</p><ul class="pts"><li>Re-sent with every request</li><li>The model reads it first, every time</li></ul></section><section class="slide dark line"><p class="filebar">Type this into script.js <span class="part">line 65</span></p><table class="code"><tr class="ctx"><td class="ln">51</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">52</td><td>// Week 4: ask the AI a real question.</td></tr><tr class="ctx"><td class="ln">53</td><td>// A chat request is a LIST of messages. Each one says who said it.</td></tr><tr class="ctx"><td class="ln">54</td><td>async function askAI(question) {</td></tr><tr class="ctx"><td class="ln">55</td><td>  const res = await fetch(AI_BASE + &#x27;/v1/chat/completions&#x27;, {</td></tr><tr class="ctx"><td class="ln">56</td><td>    method: &#x27;POST&#x27;,                       // POST = I am sending you something</td></tr><tr class="ctx"><td class="ln">57</td><td>    headers: {</td></tr><tr class="ctx"><td class="ln">58</td><td>      &#x27;Content-Type&#x27;: &#x27;application/json&#x27;, // what I am sending is JSON</td></tr><tr class="ctx"><td class="ln">59</td><td>      &#x27;Authorization&#x27;: &#x27;Bearer &#x27; + API_KEY</td></tr><tr class="ctx"><td class="ln">60</td><td>    },</td></tr><tr class="ctx"><td class="ln">61</td><td>    body: JSON.stringify({</td></tr><tr class="ctx"><td class="ln">62</td><td>      model: &#x27;fast&#x27;,</td></tr><tr class="ctx"><td class="ln">63</td><td>      messages: [</td></tr><tr class="ctx"><td class="ln">64</td><td>        // Week 6: the standing instruction, read before every single reply.</td></tr><tr class="hi"><td class="ln">65</td><td>        { role: &#x27;system&#x27;, content: personaBox.value },</td></tr></table><p class="linenote">Add a &#x27;system&#x27; message FIRST - the standing instruction the model reads before every reply. Its content is whatever is typed in the Personality box.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: it has a personality</h2><p class="cp-say">Press Run. Open Personality, change the instruction (try &#x27;You are a grumpy pirate. Answer in under 20 words.&#x27;), and ask the same question twice. The whole attitude of the answer should change - same question, different companion. On the school network the reply is live; here you see the interface and the request in the console.</p><button class="cp-run" data-cp="cp6">&#9654; Show the output</button><div class="cp-out" id="out-cp6"></div><script type="text/plain" id="src-cp6"><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #eef2f7;
+  color: #1f2a37;
+}
+.app {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.top h1 { margin: 0 0 4px; font-size: 26px; }
+.tag { margin: 0 0 18px; color: #6b7787; font-size: 14px; }
+.chat {
+  min-height: 260px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+}
+.setup { margin-bottom: 12px; font-size: 14px; }
+.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }
+.setup textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.chat p { margin: 0 0 10px; line-height: 1.5; }
+.composer { display: flex; gap: 8px; margin-top: 12px; }
+.composer input {
+  flex: 1;
+  padding: 11px;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  font-size: 15px;
+}
+.composer button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 6px;
+  background: #01aefd;
+  color: #ffffff;
+  font-size: 15px;
+  cursor: pointer;
+}
+</style>
+
+<main class="app">
+  <header class="top">
+    <h1>My AI Companion</h1>
+    <p class="tag">Built by me, running on the school AI</p>
+  </header>
+  <details class="setup">
+    <summary>Personality</summary>
+    <textarea id="persona" rows="3">You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.</textarea>
+  </details>
+  <div id="chat" class="chat"></div>
+  <form id="composer" class="composer">
+    <input id="prompt" placeholder="Say something..." autocomplete="off">
+    <button id="send" type="submit">Send</button>
+  </form>
+</main>
+
+<script>
+// Week 1: prove the JavaScript file is really running.
+console.log('My AI companion is starting up.');
+
+// Can this script see the page yet? Down here, yes.
+// Move the <script> tag to the TOP of index.html and this prints false,
+// because the boxes have not been made yet. That is why it goes last.
+console.log('Can I see the chat box?', document.getElementById('chat') !== null);
+
+// Week 3: where the AI lives, and who you are.
+// The key identifies YOU. Two people using one key share one speed limit.
+//
+// This address only works on the school network. To run this at home you
+// change these two lines and the model names in index.html - nothing else.
+const AI_BASE = 'https://ai.tail5091fc.ts.net';
+const API_KEY = 'sk-class-put-your-own-key-here';
+
+// Week 2: find the boxes we named in index.html.
+// document.getElementById looks for the id= we wrote on each element.
+const chat = document.getElementById('chat');
+const composer = document.getElementById('composer');
+const promptBox = document.getElementById('prompt');
+const personaBox = document.getElementById('persona');
+
+// Put one line of text into the chat box.
+function addLine(who, text) {
+  const line = document.createElement('p');
+  line.textContent = who + ': ' + text;
+  chat.appendChild(line);
+}
+
+// Turn a status number into a sentence a person can act on.
+function explain(status, problem) {
+  // The server usually explains itself better than we can guess. Use its
+  // words when it gives us any, and fall back to our own when it does not.
+  const said = problem && problem.error && problem.error.message;
+  if (said) { return said; }
+  if (status === 401) { return 'The server does not recognise your key. Check it for typos.'; }
+  if (status === 429) { return 'You are sending too fast. Wait a few seconds and try again.'; }
+  return 'Something went wrong on the server (' + status + '). Try again in a moment.';
+}
+
+// The smallest useful request: what models does this server have?
+// 'async' means this function does something slow and can be waited for.
+async function listModels() {
+  const res = await fetch(AI_BASE + '/v1/models', {
+    headers: { 'Authorization': 'Bearer ' + API_KEY }
+  });
+  const data = await res.json();   // the answer arrives as text; this reads it
+  console.log('The server offers:', data.data);
+}
+
+// Week 4: ask the AI a real question.
+// A chat request is a LIST of messages. Each one says who said it.
+async function askAI(question) {
+  const res = await fetch(AI_BASE + '/v1/chat/completions', {
+    method: 'POST',                       // POST = I am sending you something
+    headers: {
+      'Content-Type': 'application/json', // what I am sending is JSON
+      'Authorization': 'Bearer ' + API_KEY
+    },
+    body: JSON.stringify({
+      model: 'fast',
+      messages: [
+        // Week 6: the standing instruction, read before every single reply.
+        { role: 'system', content: personaBox.value },
+        { role: 'user', content: question }
+      ]
+    })
+  });
+
+  // Week 5: fetch does NOT throw when the server says no. A 429 arrives
+  // looking just like a success until you actually check.
+  if (!res.ok) {
+    const problem = await res.json();
+    throw new Error(explain(res.status, problem));
+  }
+
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+// The browser calls this when the form is submitted.
+composer.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  const text = promptBox.value.trim();
+  if (text === '') { return; }
+  promptBox.value = '';
+  addLine('You', text);
+  addLine('Companion', 'thinking...');
+  try {
+    const reply = await askAI(text);
+    chat.lastChild.remove();
+    addLine('Companion', reply);
+  } catch (problem) {
+    chat.lastChild.remove();
+    // 'Failed to fetch' means the request never arrived anywhere at all.
+    // It is the commonest real failure and the least useful wording there is.
+    addLine('Problem', problem.message === 'Failed to fetch'
+      ? 'Could not reach the AI. Are you on the school network?'
+      : problem.message);
+  }
+});
+<\/script></script></section><section class="slide"><h2>Prompt duel</h2><p class="sub">In pairs, 10 minutes</p><ul class="pts"><li>Write a secret character</li><li>Swap. Ask three questions.</li><li>Guess who it is</li></ul></section></div>
 <div class="bar">
   <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
   <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
   <span class="count"></span>
-  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <span class="spacer"></span>
   <span class="hint">arrows or space to move &middot; f for full screen</span>
   <button class="full" title="Full screen (f)">Full screen</button>

@@ -2501,11 +2501,21 @@ def line_concepts(filename, line):
                 ("JSON.parse", "js:json.parse"),
                 (".lastChild", "js:lastchild"),
                 (".remove(", "js:remove"),
+                (".push(", "js:push"),
+                (".shift(", "js:shift"),
+                (".length", "js:length"),
+                (".className", "js:classname"),
             ):
                 if token in line:
                     keys.append(key)
             if re.search(r"\bif\s*\(", line):
                 keys.append("js:if")
+            if re.search(r"\bfor\s*\([^)]*\bof\b", line):
+                keys.append("js:forof")
+            if re.search(r"\bwhile\s*\(", line):
+                keys.append("js:while")
+            if re.search(r"\.\.\.[a-zA-Z_$]", line):   # spread, e.g. ...history
+                keys.append("js:spread")
             if re.search(r"\breturn\b", line):
                 keys.append("js:return")
             if re.search(r"[(=,\s]!\s*[a-zA-Z(]", line) and "!=" not in line:
@@ -2899,3 +2909,193 @@ _titles = [s.get("title") for s in WEEKS[4]["slides"]]
 if "Checkpoint: it fails nicely" not in _titles:
     # insert just before the last slide ("Your turn"/wrap-up)
     WEEKS[4]["slides"].insert(len(WEEKS[4]["slides"]) - 1, _WK5_CHECKPOINT)
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  weeks 6, 7, 8 (personality, memory, the character wall)
+# ==========================================================================
+
+EXPANDED_WEEKS.update({6, 7, 8})
+
+CONCEPTS.update({
+    # ---- HTML, first seen in week 6 ----
+    "html:details":  ("html", "The <details> tag", ["A box that folds open and shut.", "It stays closed until you click it - handy for optional settings."]),
+    "html:summary":  ("html", "The <summary> tag", ["The label you always see on a <details> box.", "Clicking it opens or closes the rest."]),
+    "html:textarea": ("html", "The <textarea> tag", ["A text box for SEVERAL lines, unlike <input> which is one line.", "rows sets how tall it starts."]),
+    # ---- CSS, first seen in week 6 ----
+    "css:margin-bottom": ("css", "margin-bottom", ["Space below the box, pushing whatever is next further down."]),
+    "css:margin-top":    ("css", "margin-top", ["Space above the box, pushing it down from what is above it."]),
+    "css:font-weight":   ("css", "font-weight", ["How heavy the text is. bold stands out; normal is regular."]),
+    "css:width":         ("css", "width", ["How wide the box is. 100% means as wide as its container."]),
+    # ---- CSS, first seen in week 7 ----
+    "css:margin-left":   ("css", "margin-left: auto", ["Space on the left. Set to auto it shoves the box to the RIGHT."]),
+    "css:white-space":   ("css", "white-space: pre-wrap", ["Keeps the line breaks you were sent, and still wraps long lines.", "Without it the browser squashes every run of spaces into one."]),
+    "css:flex-direction":("css", "flex-direction: column", ["Stacks a flex box's children top-to-bottom instead of side-by-side."]),
+    "css:height":        ("css", "height", ["A fixed height for the box, in px."]),
+    "css:overflow-y":    ("css", "overflow-y: auto", ["If the content is taller than the box, add a scrollbar instead of spilling out."]),
+    "css:border-bottom-right-radius": ("css", "border-bottom-right-radius", ["Rounds just ONE corner - used to point a bubble at its speaker."]),
+    "css:border-bottom-left-radius":  ("css", "border-bottom-left-radius", ["Rounds one corner the other way, for the other speaker."]),
+    # ---- JavaScript, first seen in weeks 7-8 ----
+    "js:push":      ("js", ".push()", ["Adds one item to the END of an array (a list).", "history.push(...) remembers one more message."]),
+    "js:shift":     ("js", ".shift()", ["Removes the FIRST item of an array and hands it back.", "The oldest message leaves the list."]),
+    "js:length":    ("js", ".length", ["How many items are in a list, or how many characters in a string."]),
+    "js:spread":    ("js", "... (spread)", ["Tips every item of a list into where you write it.", "...history drops all past messages into the messages array in order."]),
+    "js:forof":     ("js", "for ... of", ["Runs the same steps once for EACH item in a list.", "message becomes each item in turn."]),
+    "js:while":     ("js", "while", ["Keeps repeating as long as its test stays true.", "Here: keep dropping messages until we are back under the limit."]),
+    "js:let":       ("js", "let", ["Names a value like const does, but let can be CHANGED later.", "Use it for a running total you keep adding to."]),
+    "js:classname": ("js", ".className", ["Sets an element's class from code.", "That is how CSS knows which bubble style to use."]),
+})
+
+LINE_NOTES.update({
+    # ================= WEEK 6: personality =================
+    (6, JS, "ask"): [None] * 13 + [
+        None,
+        "Add a 'system' message FIRST - the standing instruction the model reads before every reply. Its content is whatever is typed in the Personality box.",
+    ],
+    (6, JS, "elements"): [None] * 6 + [
+        "Find the Personality box too, so the code can read what is typed in it.",
+    ],
+    (HTML, "persona"): [
+        'Open a <details> box - a fold-away panel. class="setup" lets CSS style it.',
+        "The <summary> is the label you always see: 'Personality'. Click it to open the box.",
+        'A <textarea> for a few lines of instruction. id="persona" lets the code read it; the text inside is the starting personality.',
+        "Close the </details> box.",
+    ],
+    (CSS, "setup"): [
+        "Style the whole panel: a gap below it, and slightly smaller text.",
+        "Style the clickable label: a hand pointer, a blue colour, and bold so it reads as a button.",
+        "Start a rule for the text box inside the panel.",
+        "Make it as wide as the panel.",
+        "A little space above it, under the label.",
+        "Padding so the text is not jammed against the edge.",
+        "A thin grey border.",
+        "Slightly rounded corners.",
+        "Use the same font as the rest of the page, not the browser default.",
+        "Set the text size.",
+        "Close the rule.",
+    ],
+    # ================= WEEK 7: memory =================
+    (JS, "history"): [
+        None,
+        None,
+        None,
+        "Make an empty array - a list - called history. The [] means 'a list', empty for now. Every message will be remembered in here.",
+    ],
+    (7, JS, "submit"): [None] * 7 + [
+        "Show your message as a 'you' bubble.",
+        "Remember it: push your line onto history as a 'user' message.",
+        "Add a 'thinking...' bubble and KEEP it in waiting, so we can take it away when the reply lands.",
+        None,
+        "Ask the AI. Notice askAI() takes nothing now - it reads the whole history itself.",
+        "Take the 'thinking...' bubble away.",
+        "Show the real reply as a 'bot' bubble.",
+        "Remember the reply too, as an 'assistant' message - so next time the AI can see what it already said.",
+        None,
+        "If it failed, still take the 'thinking...' bubble away.",
+        "Show the problem as a 'problem' bubble (the friendly-message choice carries on over the next two lines).",
+    ],
+    (7, JS, "ask"): [None, None, None,
+        "Change the signature: askAI() takes nothing now. It will read the whole conversation from history instead of one question.",
+    ] + [None] * 11 + [
+        None,
+        "Spread the whole history into the messages list: ... tips every past message in, oldest first, after the system instruction.",
+    ],
+    (7, JS, "addline"): [
+        None,
+        None,
+        None,
+        None,
+        "Make a new empty <div> in memory - this will be one chat bubble.",
+        "Give it two classes: 'bubble' plus who ('you' / 'bot' / 'problem'), so CSS styles it by speaker.",
+        "Put the message text inside it.",
+        "Add the bubble to the chat box on the page.",
+        "Scroll the chat to the bottom so the newest bubble is in view.",
+        "Hand the bubble back, so the caller can remove it later - that is how the 'thinking...' one disappears.",
+    ],
+    (7, CSS, "bubbles"): [
+        "Start the style shared by every bubble.",
+        "No bubble spans the full width - that leaves room to show who is speaking.",
+        "A gap below each bubble so they do not touch.",
+        "Space inside, so the text is not against the edge.",
+        "Round the corners into a speech-bubble shape.",
+        "Give lines of text room to breathe.",
+        "Keep the line breaks the AI sends, and still wrap long lines.",
+        "Close the shared rule.",
+        "Extra style for YOUR bubbles only (class bubble AND you).",
+        "auto on the left shoves your bubble over to the RIGHT.",
+        "Your bubbles are blue.",
+        "White text on the blue.",
+        "Square off one corner so it points at you.",
+        "Close the rule.",
+        "Style for the AI's bubbles.",
+        "A light grey, so they sit on the left and read as 'them'.",
+        "Square off the other corner, pointing the other way.",
+        "Close the rule.",
+        "Style for error bubbles.",
+        "A soft warning yellow.",
+        "Brown text to match.",
+        "Slightly smaller - it is a note, not a message.",
+        "Close the rule.",
+    ],
+    (7, CSS, "layout"): [None] * 8 + [
+        "Lay the chat out as a flex box, so we can control how its bubbles stack.",
+        "Stack them top-to-bottom instead of side-by-side.",
+        "Give the chat a fixed height so it does not grow forever.",
+        "When the messages get taller than that, add a scrollbar.",
+    ],
+    # ================= WEEK 8: the character wall =================
+    (8, JS, "ask"): [None] * 4 + [
+        "Before sending, call trimHistory() to drop old messages if the conversation has grown too long.",
+    ],
+    (JS, "trim"): [
+        None,
+        None,
+        None,
+        "Set a limit: 3500 characters. Leave room under the server's 4000 for the personality and your next line.",
+        None,
+        "Start trimHistory - the job that keeps the conversation short enough to send.",
+        "let (not const) because size will change. Start it at the length of the personality text.",
+        "for...of runs the next lines once for each message in history.",
+        "Add that message's length to the running total. += means 'add this onto what is already there'.",
+        "Close the loop. Now size holds the whole conversation's length.",
+        None,
+        "while keeps looping as long as we are over the limit AND there is more than one exchange left to cut.",
+        "shift() removes the FIRST (oldest) message and hands it back.",
+        "Subtract its length from the total. -= means 'take this away from'.",
+        "Log it, so you can watch the forgetting happen in the console.",
+        "Close the while - it loops until we are back under the limit.",
+        "Close trimHistory.",
+    ],
+})
+
+# The expanded deck is a type-along, so its code slides must appear in the order
+# the lesson types them (week["flow"]). A couple of weeks introduce the concept
+# before the code that uses it, so the code-bearing slide has to move to where it
+# is actually typed. Non-code (concept) slides stay put.
+def _move_slide_before(week_n, title, before_title):
+    slides = WEEKS[week_n - 1]["slides"]
+    src = next((i for i, s in enumerate(slides) if s.get("title") == title), None)
+    if src is None:
+        return
+    slide = slides.pop(src)
+    dst = next((i for i, s in enumerate(slides) if s.get("title") == before_title), len(slides))
+    slides.insert(dst, slide)
+
+# Week 6: the persona box is built first, then the system message that reads it.
+_move_slide_before(6, "system is not part of the chat", "Prompt duel")
+# Week 8: trimHistory() is defined before askAI calls it.
+_move_slide_before(8, "Measure first", "Watch it forget")
+
+# Checkpoints: a run-it-and-match moment near the end of each week.
+_LATER_CHECKPOINTS = {
+    6: {"title": "Checkpoint: it has a personality",
+        "say": "Press Run. Open Personality, change the instruction (try 'You are a grumpy pirate. Answer in under 20 words.'), and ask the same question twice. The whole attitude of the answer should change - same question, different companion. On the school network the reply is live; here you see the interface and the request in the console."},
+    7: {"title": "Checkpoint: it remembers",
+        "say": "Press Run. Tell it your name, then ask 'what is my name?'. It should remember - because you now send the WHOLE conversation, not just your last line. Watch the console: the request carries every message."},
+    8: {"title": "Checkpoint: it forgets on purpose",
+        "say": "Press Run and open the console. Send several long messages. Watch 'Forgot an old message...' appear as the oldest lines are dropped to stay under the limit - the chat keeps working instead of failing."},
+}
+for _n, _cp in _LATER_CHECKPOINTS.items():
+    _slides = WEEKS[_n - 1]["slides"]
+    if _cp["title"] not in [s.get("title") for s in _slides]:
+        _slides.insert(len(_slides) - 1, {"checkpoint": True, **_cp})
