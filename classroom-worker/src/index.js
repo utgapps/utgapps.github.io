@@ -584,12 +584,25 @@ export default {
       const me = await accountFromRequest(db, request);
       if (path === "/me") return me ? response(request, env, { account: publicAccount(me) }) : bad(request, env, "Not signed in.", 401);
 
-      // The demo AI key for checkpoint slides, handed only to a signed-in teacher
-      // (or admin). A student holds a class code, not an account token, so this
-      // 401s for them - the key never reaches a student's browser, and it is
-      // never in the published slides. Returns { key: null } when none is set.
-      if (path === "/demo-key" && request.method === "GET") {
-        if (!me || (me.role !== "instructor" && me.role !== "admin")) throw new HttpError("Teachers only.", 403);
+      // The demo AI key for checkpoint slides, handed only to a teacher. A
+      // teacher proves it one of two ways: a signed-in instructor/admin ACCOUNT
+      // token, OR the instructor 4-letter site-access CODE they used to open the
+      // curriculum (POST { code }). A student holds a STUDENT code, whose profile
+      // role is not "instructor", so this refuses them - the key never reaches a
+      // student and is never in the published slides. Returns { key: null } when
+      // none is set.
+      if (path === "/demo-key" && (request.method === "GET" || request.method === "POST")) {
+        let teacher = !!me && (me.role === "instructor" || me.role === "admin");
+        if (!teacher && request.method === "POST") {
+          await rateLimit(db, request, "demo-key", 30);
+          const body = await readJson(request, 200).catch(() => ({}));
+          const cleanCode = normalizeCode(body && body.code);
+          if (validCode(cleanCode)) {
+            const profile = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(await siteCodeHash(cleanCode)).first();
+            if (profile && profileActive(profile) && profile.classroom_role === "instructor") teacher = true;
+          }
+        }
+        if (!teacher) throw new HttpError("Teachers only.", 403);
         const row = await db.prepare("SELECT value FROM settings WHERE key = 'demo_ai_key'").first();
         return response(request, env, { key: (row && row.value) || null });
       }

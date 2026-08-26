@@ -343,22 +343,29 @@ document.addEventListener('click', function () { window.focus(); });
 
 // The demo AI key, so a checkpoint on an AI week can reply for real. It lives in
 // the classroom database, never in these published files, and is handed only to
-// a signed-in teacher (the deck is same-origin with the classroom, so it reads
-// the saved account token). A student has a class code, not a token, so the
-// request 401s for them and the checkpoint just shows the interface. Fetched
-// once and cached.
+// a TEACHER. A teacher proves it either with a signed-in instructor/admin
+// account token, or - the common case - with the instructor 4-letter code they
+// used to open the curriculum, which the access gate saved as utg_class_code. A
+// student has a STUDENT code, which the server refuses, so the checkpoint just
+// shows the interface for them. Fetched once and cached.
 var _cpKey;
 function cpDemoKey() {
   if (_cpKey) return _cpKey;
   _cpKey = new Promise(function (resolve) {
-    var token = null;
-    try { token = (JSON.parse(localStorage.getItem('utg_account') || 'null') || {}).token; } catch (e) {}
-    if (!token) { resolve(null); return; }
     var host = location.hostname;
     var api = (host === 'localhost' || host === '127.0.0.1')
       ? 'http://127.0.0.1:8787' : 'https://utg-classroom-api.utgapps.workers.dev';
-    fetch(api + '/demo-key', { cache: 'no-store', headers: { authorization: 'Bearer ' + token } })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    var token = null, code = null;
+    try { token = (JSON.parse(localStorage.getItem('utg_account') || 'null') || {}).token; } catch (e) {}
+    try { code = (localStorage.getItem('utg_class_code') || '').trim(); } catch (e) {}
+    var req;
+    if (token) {
+      req = fetch(api + '/demo-key', { cache: 'no-store', headers: { authorization: 'Bearer ' + token } });
+    } else if (code) {
+      req = fetch(api + '/demo-key', { method: 'POST', cache: 'no-store',
+        headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: code }) });
+    } else { resolve(null); return; }
+    req.then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) { resolve((d && d.key) || null); })
       .catch(function () { resolve(null); });
   });
