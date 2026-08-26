@@ -3,7 +3,8 @@ import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
+import { indentWithTab } from "@codemirror/commands";
 import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
@@ -27,6 +28,12 @@ export function CollabEditor({ doc, file, awareness, readOnly }: {
     const ytext = fileText(doc, file);
     const extensions = [
       basicSetup,
+      // basicSetup leaves Tab unbound on purpose (Tab normally moves focus for
+      // accessibility). In a kids' code editor Tab-to-indent is expected, so
+      // bind it: Tab indents the line/selection, Shift-Tab removes a level.
+      // Undo/redo, find, select-all, comment-toggle (Ctrl-/) and move/copy line
+      // (Alt-Arrows) already come from basicSetup's default keymaps.
+      keymap.of([indentWithTab]),
       langFor(file),
       EditorView.lineWrapping,
       yCollab(ytext, awareness),
