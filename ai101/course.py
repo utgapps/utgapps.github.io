@@ -2503,8 +2503,13 @@ def line_concepts(filename, line):
                 (".remove(", "js:remove"),
                 (".push(", "js:push"),
                 (".shift(", "js:shift"),
+                (".pop(", "js:pop"),
                 (".length", "js:length"),
                 (".className", "js:classname"),
+                (".classList", "js:classlist"),
+                (".split(", "js:split"),
+                (".slice(", "js:slice"),
+                (".startsWith(", "js:startswith"),
             ):
                 if token in line:
                     keys.append(key)
@@ -3096,6 +3101,176 @@ _LATER_CHECKPOINTS = {
         "say": "Press Run and open the console. Send several long messages. Watch 'Forgot an old message...' appear as the oldest lines are dropped to stay under the limit - the chat keeps working instead of failing."},
 }
 for _n, _cp in _LATER_CHECKPOINTS.items():
+    _slides = WEEKS[_n - 1]["slides"]
+    if _cp["title"] not in [s.get("title") for s in _slides]:
+        _slides.insert(len(_slides) - 1, {"checkpoint": True, **_cp})
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  weeks 9, 10, 11 (knobs, streaming, the typing effect)
+# ==========================================================================
+
+EXPANDED_WEEKS.update({9, 10, 11})
+
+CONCEPTS.update({
+    # ---- HTML, first seen in week 9 ----
+    "html:label":  ("html", "The <label> tag", ["Ties a bit of text to a control.", "Clicking the text focuses the control it wraps."]),
+    "html:select": ("html", "The <select> tag", ["A dropdown menu.", "Whatever the student picks, the code reads from its value."]),
+    "html:option": ("html", "The <option> tag", ["One choice inside a <select>.", "Its value= is what the code actually sends."]),
+    "html:output": ("html", "The <output> tag", ["A little box for showing a value on the page.", "Here it shows the slider's current number."]),
+    # ---- CSS, first seen in weeks 9 and 11 ----
+    "css:flex-wrap":  ("css", "flex-wrap: wrap", ["Lets a flex row spill onto a new line when it runs out of room, instead of squashing."]),
+    "css:content":    ("css", "content", ["Fills a ::before / ::after with text.", 'Here a block character "\\258C" becomes the typing cursor.']),
+    "css:animation":  ("css", "animation", ["Runs a keyframes animation: its name, how long, the timing, how many times."]),
+    "css:visibility": ("css", "visibility: hidden", ["Hides the element but keeps its space - so the blinking cursor does not shift the text."]),
+    # ---- JavaScript, first seen in weeks 9-11 ----
+    "js:json.parse": ("js", "JSON.parse()", ["Turns a JSON string from the server back into a JavaScript object.", "The opposite of JSON.stringify."]),
+    "js:split":      ("js", ".split()", ["Cuts a string into a LIST, breaking at each separator you give.", "'a\\n\\nb'.split('\\n\\n') gives ['a', 'b']."]),
+    "js:slice":      ("js", ".slice()", ["Takes a section of a string (or list), starting at a position.", "line.slice(6) drops the first six characters."]),
+    "js:startswith": ("js", ".startsWith()", ["True if a string begins with the text you give it."]),
+    "js:pop":        ("js", ".pop()", ["Removes the LAST item of a list and hands it back.", "(.shift takes the first; .pop takes the last.)"]),
+    "js:classlist":  ("js", ".classList", ["Add or remove ONE class without touching the others.", ".add('writing') switches a style on; .remove('writing') switches it off."]),
+})
+
+LINE_NOTES.update({
+    # ================= WEEK 9: knobs =================
+    (HTML, "controls"): [
+        'A row to hold the settings. class="controls" is a label for CSS.',
+        None,
+        "A <label> reading 'Brain', wrapping the model dropdown.",
+        'A <select> is a dropdown. id="model" lets the code read the choice.',
+        'One <option>. Its value="fast" is what the code sends as the model.',
+        'The other option: value="smart", the bigger, slower model.',
+        "Close the dropdown.",
+        "Close the Brain label.",
+        'A second label, and an <output> that shows the slider number (0.7 to start).',
+        'A slider (type="range") from 0 to 1.5, stepping by 0.1, starting at 0.7.',
+        "Close the Imagination label.",
+        "Close the controls row.",
+    ],
+    (CSS, "controls"): [
+        "Style the settings row.",
+        "Lay its children in a row.",
+        "Space between them.",
+        "Let them wrap to a new line on a narrow screen instead of squashing.",
+        "A gap below the row.",
+        "Slightly smaller text.",
+        "Close the rule.",
+        "Each label stacks its text over its control, with a small gap.",
+        "Match the font size on the dropdown and the slider.",
+    ],
+    (9, JS, "elements"): [None] * 7 + [
+        "Find the model dropdown.",
+        "Find the Imagination slider.",
+        "Find the little box that shows the slider's number.",
+    ],
+    (JS, "settings"): [
+        None,
+        None,
+        "When the slider MOVES ('input' fires on every nudge), run this.",
+        "Copy the slider's value into the little output box, so the number updates live as you drag.",
+        "Close the listener.",
+    ],
+    (9, JS, "ask"): [None] * 12 + [
+        "Send the model the student picked from the dropdown, instead of a fixed 'fast'.",
+        "Send the slider value as temperature. Number() turns the text into a number: 0 is careful, 1.5 is wild.",
+    ],
+    # ================= WEEK 10: streaming =================
+    (10, JS, "ask"): [None] * 14 + [
+        "Ask the server to STREAM: send the answer in pieces as it is written, not all at the end.",
+    ] + [None] * 16 + [
+        "Hand the streaming response to readStream (next) instead of res.json() - the body arrives in bits now.",
+    ],
+    (JS, "stream"): [
+        None, None, None, None, None, None, None,
+        "A new function that reads the streaming reply piece by piece.",
+        "getReader() gives us a reader that hands over the body one chunk at a time.",
+        "A TextDecoder turns the raw bytes of each chunk into text.",
+        "A holding string: a piece can be cut in half between chunks. let, so it can change.",
+        "The full answer, built up bit by bit.",
+        None,
+        "Loop forever - we break out ourselves when the stream ends.",
+        "Read the next chunk, waiting for it to arrive.",
+        "When the reader says done, leave the loop.",
+        "Decode this chunk's bytes to text and add it to the buffer.",
+        None,
+        None,
+        None,
+        "split the buffer into pieces wherever there is a blank line.",
+        "pop() takes the LAST piece off - it may be half-finished, so we keep it for next round.",
+        None,
+        "Go through each complete piece.",
+        "Trim the blank space off it.",
+        "Skip anything that does not start with 'data: '.",
+        "slice(6) drops the first six characters ('data: '), leaving the JSON.",
+        "The server sends [DONE] at the very end - nothing to add, skip it.",
+        "JSON.parse turns that JSON text into an object we can read.",
+        "Dig out this piece's new text: choices[0].delta.content.",
+        "If there is text, add it to the growing answer.",
+        "Close the for loop.",
+        "Close the while loop.",
+        "Hand back the whole answer once the stream ends.",
+        "Close readStream.",
+    ],
+    # ================= WEEK 11: the typing effect =================
+    (11, JS, "stream"): [
+        None, None, None, None,
+        None,
+        None,
+        "readStream now takes a SECOND thing: onPiece, a function to call each time text arrives.",
+    ] + [None] * 22 + [
+        "Open the if onto its own lines now, because we do two things.",
+        "Add the bit to the answer.",
+        "Call onPiece with the answer so far - whoever gave us the function draws it on screen NOW, not at the end.",
+        "Close the if.",
+    ],
+    (11, JS, "ask"): [
+        None, None, None,
+        "askAI now takes onPiece and passes it along - the drawing job flows through.",
+    ] + [None] * 27 + [
+        "Hand both the response AND the onPiece function to readStream.",
+    ],
+    (11, JS, "submit"): [None] * 9 + [
+        None,
+        "Add an EMPTY bot bubble now and keep it - we fill it as text streams in.",
+        "classList.add gives it the 'writing' class, which CSS turns into a blinking cursor.",
+        None,
+        None,
+        "Call askAI and hand it a function. This function runs on EVERY piece that arrives.",
+        "Put the text-so-far into the bubble - it grows as pieces land.",
+        "Keep scrolling to the bottom as it types.",
+        "Close the function and the askAI call.",
+        "Once done, remove 'writing' so the cursor stops blinking.",
+        None,
+        None,
+        "If it failed, take the empty bubble away.",
+        None,
+        None,
+        "Pick a friendly line if it was the unhelpful 'Failed to fetch' ...",
+        None,
+        "... otherwise show the real message.",
+        "Show it as a problem bubble.",
+    ],
+    (CSS, "polish"): [
+        "Add a fake element AFTER a writing bubble - ::after is a spot CSS can fill, and that is where the cursor goes.",
+        'content fills it with a block character "\\258C" - our cursor.',
+        "Make the cursor blue.",
+        "Run the 'blink' animation: 1 second, 2 hard steps, forever.",
+        "Close the rule.",
+        "@keyframes defines 'blink': fade the cursor to hidden and back, over and over.",
+    ],
+})
+
+# Checkpoints near the end of each week.
+_MORE_CHECKPOINTS = {
+    9: {"title": "Checkpoint: turn the knobs",
+        "say": "Press Run. Drag the Imagination slider and watch the number update live. Then ask the same question at 0 and again at 1.5 - low is careful and samey, high is wild and surprising. Switch the Brain between fast and smart too. On the school network the replies are live; here you see the controls and the request in the console."},
+    10: {"title": "Checkpoint: it streams (quietly)",
+         "say": "Press Run and send a question. It should still reply exactly as before - the change is invisible ON PURPOSE. Open the console: the request now says stream: true and the reply arrives in pieces. Next week you make those pieces show as they land."},
+    11: {"title": "Checkpoint: watch it type",
+         "say": "Press Run and send a question. Now the reply appears a few letters at a time, with a blinking cursor, instead of all at once. Same data as last week - you are just drawing each piece the moment it arrives."},
+}
+for _n, _cp in _MORE_CHECKPOINTS.items():
     _slides = WEEKS[_n - 1]["slides"]
     if _cp["title"] not in [s.get("title") for s in _slides]:
         _slides.insert(len(_slides) - 1, {"checkpoint": True, **_cp})
