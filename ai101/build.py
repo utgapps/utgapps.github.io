@@ -1020,6 +1020,13 @@ def slide_plan(week, seen):
                     whole.pop()
                 out.append(("block", {"file": filename, "start": start,
                                       "lines": whole, "marks": marks}))
+            # After the chunk is whole, a quick multiple-choice check: a few
+            # questions on the code just typed, plus one or two from earlier weeks
+            # to keep old ideas fresh. Each is a question slide then a reveal
+            # slide. Authored per block in course.QUIZZES.
+            for quiz in getattr(course, "QUIZZES", {}).get((week["n"], filename, block), []):
+                out.append(("quiz", {"quiz": quiz}))
+                out.append(("quizanswer", {"quiz": quiz}))
     return out
 
 
@@ -1062,6 +1069,20 @@ def deck_render_html(desc):
                 '<div class="cp-out" id="out-{2}"></div>'
                 '<script type="text/plain" id="src-{2}">{3}</script>'
                 '</section>').format(esc(d["title"]), esc(d["say"]), cid, page)
+    if kind in ("quiz", "quizanswer"):
+        q = d["quiz"]
+        answered = kind == "quizanswer"
+        opts = "".join(
+            '<li class="{0}">{1}</li>'.format(
+                "right" if (answered and i == q["answer"]) else "", esc(opt))
+            for i, opt in enumerate(q["options"]))
+        tail = ('<p class="quiz-why">{0}</p>'.format(esc(q["why"]))
+                if answered else
+                '<p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p>')
+        return ('<section class="slide quiz{0}"><p class="eyebrow">{1}</p>'
+                '<h2>{2}</h2><ol class="opts">{3}</ol>{4}</section>').format(
+                    " answered" if answered else "", "Answer" if answered else "Quick check",
+                    esc(q["q"]), opts, tail)
     if kind == "chunk":
         return deck_code_slide(d["file"], d["start"], d["lines"], d["marks"], d["gone"],
                                d["part"], d["parts"])
@@ -1263,6 +1284,15 @@ def build_slides():
             elif kind == "delete":
                 del_slide(deck, d["file"], d["start"], d["lines"], d["dropped"], d["note"],
                           d.get("replacing", False))
+            elif kind in ("quiz", "quizanswer"):
+                q = d["quiz"]
+                answered = kind == "quizanswer"
+                letters = "ABCDEFGH"
+                bullets = [f"{letters[i]}. {opt}" + (" (correct)" if answered and i == q["answer"] else "")
+                           for i, opt in enumerate(q["options"])]
+                bullets.append(q["why"] if answered else "Pick one - the answer is on the next slide.")
+                concept_slide(deck, {"title": q["q"], "sub": "", "bullets": bullets},
+                              eyebrow="Answer" if answered else "Quick check")
             else:  # linectx
                 ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"])
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
@@ -1320,8 +1350,8 @@ border-radius:6px;padding:7px 13px;cursor:pointer}
 .slide.line{overflow-y:auto}
 .slide.line .filebar{margin-bottom:.55em}
 .slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
-.code tr.ctx td{color:#8093a0}
-.code tr.ctx .ln{color:#5a6d78}
+.code tr.ctx td{color:#aebfcb}
+.code tr.ctx .ln{color:#7c909d}
 .code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
 box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
@@ -1329,6 +1359,17 @@ box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
 .code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
 .linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
 .slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.quiz{justify-content:flex-start;overflow-y:auto}
+.slide.quiz .eyebrow{color:#8a5cd0}
+.slide.quiz.answered .eyebrow{color:#0f8a4c}
+.opts{list-style:upper-alpha;margin:clamp(16px,3vh,34px) 0 0;padding-left:1.5em;
+display:grid;gap:clamp(9px,1.7vh,18px)}
+.opts li{font-size:clamp(17px,2.2vw,29px);line-height:1.35;padding-left:.3em}
+.slide.quiz.answered .opts li{color:#8a9aa5}
+.slide.quiz.answered .opts li.right{color:#0f8a4c;font-weight:800}
+.quiz-hint{color:#5b7178;font-size:clamp(14px,1.7vw,22px);margin-top:clamp(16px,3vh,30px)}
+.quiz-why{color:#0a6299;font-size:clamp(16px,2vw,27px);line-height:1.5;
+margin-top:clamp(16px,3vh,30px);max-width:46ch}
 .slide.checkpoint{justify-content:flex-start;overflow-y:auto}
 .cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
 .cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
@@ -1703,6 +1744,15 @@ def main():
 
         grew = line_count(state_at(week["n"])) - (line_count(state_at(week["n"] - 1)) if week["n"] > 1 else 0)
         print(f"  week {week['n']:2d}  +{grew:3d} lines  {week['title']}")
+
+    # A quiz with a bad answer index marks no option correct, silently - refuse.
+    for key, quiz_set in getattr(course, "QUIZZES", {}).items():
+        for q in quiz_set:
+            opts = q.get("options") or []
+            if not q.get("q") or len(opts) < 2 or not q.get("why"):
+                raise SystemExit(f"quiz {key}: needs q, why, and 2+ options - {q.get('q')!r}")
+            if not isinstance(q.get("answer"), int) or not (0 <= q["answer"] < len(opts)):
+                raise SystemExit(f"quiz {key}: answer index out of range - {q.get('q')!r}")
 
     build_index()
     build_weeks()

@@ -119,3 +119,18 @@ Copy `ai101/build.py` and give the course its own `course.py` with the same
 structures. Start with `EXPANDED_WEEKS = {1}`, author week 1 fully, confirm the
 format on the deployed deck, then roll out the rest a few weeks at a time. Run
 the course's `test/` suites (milestone behaviour, build guards) before shipping.
+
+## 8. Quiz checks — question slide, then reveal
+
+After a code chunk is shown whole, add a short multiple-choice check so students
+apply what they just typed and refresh older ideas:
+
+- **A few questions on the new code**, plus **one or two from earlier weeks**
+  (spaced repetition — keep long-term understanding honest).
+- Each question is **two slides**: the question with its options (A, B, C, …) and
+  "pick one — the answer is on the next slide", then a **reveal** slide with the
+  correct option in green and a one-line "why".
+- Authored in `course.py` as `QUIZZES[(week, filename, block)] = [ {q, options,
+  answer (index), why}, … ]`; `slide_plan` emits them right after that block's
+  "all together" slide. The build refuses a quiz missing `q`/`why`, with fewer
+  than two options, or an out-of-range `answer`.

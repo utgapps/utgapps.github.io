@@ -2510,6 +2510,8 @@ def line_concepts(filename, line):
                 (".split(", "js:split"),
                 (".slice(", "js:slice"),
                 (".startsWith(", "js:startswith"),
+                ("Array.isArray", "js:isarray"),
+                ("typeof ", "js:typeof"),
             ):
                 if token in line:
                     keys.append(key)
@@ -3274,3 +3276,113 @@ for _n, _cp in _MORE_CHECKPOINTS.items():
     _slides = WEEKS[_n - 1]["slides"]
     if _cp["title"] not in [s.get("title") for s in _slides]:
         _slides.insert(len(_slides) - 1, {"checkpoint": True, **_cp})
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  week 12 (saving a chat), plus the first quiz set.
+# ==========================================================================
+
+EXPANDED_WEEKS.add(12)
+
+CONCEPTS.update({
+    "js:isarray": ("js", "Array.isArray()", ["True only when the value is really a LIST (an array).", "Catches junk before it causes a crash later on."]),
+    "js:typeof":  ("js", "typeof", ["Tells you what KIND a value is: 'string', 'number', 'object'...", "typeof x === 'string' checks x is text."]),
+})
+
+LINE_NOTES.update({
+    (HTML, "transcript"): [
+        'Another fold-away panel, styled by the "setup" class from week 6.',
+        "The label you click to open it.",
+        "A big text box where the saved chat appears. The placeholder is the grey hint.",
+        'A Save button. type="button" so it does NOT submit the chat form.',
+        'A Load button, also type="button".',
+        "Close the panel.",
+    ],
+    (12, JS, "elements"): [None] * 10 + [
+        "Find the save/load text box.",
+        "Find the Save button.",
+        "Find the Load button.",
+    ],
+    (JS, "transcript"): [
+        None, None, None, None, None, None,
+        "When Save is clicked, run this.",
+        "Turn the whole history list into neat text (2-space indented) and drop it in the box to copy.",
+        "Close the Save listener.",
+        None,
+        "When Load is clicked, run this.",
+        "A variable for the loaded chat. let, because we fill it inside the try.",
+        "Parsing text a human pasted might fail, so guard it.",
+        "Turn the pasted text back into a list with JSON.parse.",
+        "If the text was not valid JSON ...",
+        "... tell them kindly.",
+        "And stop here.",
+        "Close the catch.",
+        "Array.isArray checks it is really a LIST, not just any JSON.",
+        "If it is not a list, say so.",
+        "And stop.",
+        "Close the if.",
+        None,
+        None,
+        "Check each message in the loaded list.",
+        "typeof asks what KIND a value is. Reject anything without text content.",
+        "Complain if a message looks wrong.",
+        "Stop before it causes a crash later.",
+        "Close the if.",
+        "Close the checking loop.",
+        "Empty the history list by setting its length to 0 - same list, no items.",
+        "Clear the chat on screen too.",
+        "Now replay the loaded chat.",
+        "Remember each message.",
+        "Draw it: a 'you' bubble if the role is user, otherwise a 'bot' bubble.",
+        "Close the replay loop.",
+        "Close the Load listener.",
+    ],
+})
+
+_WK12_CHECKPOINT = {"title": "Checkpoint: save and reload", "checkpoint": True,
+                    "say": "Press Run and chat a bit. Open 'Save or load this chat', press Save, and copy the text that appears. Press Run again to wipe everything, paste the text back, and press Load - your whole conversation should come back. Try pasting nonsense too: you should get a friendly 'That does not look like a saved chat.' instead of a crash."}
+_titles12 = [s.get("title") for s in WEEKS[11]["slides"]]
+if _WK12_CHECKPOINT["title"] not in _titles12:
+    WEEKS[11]["slides"].insert(len(WEEKS[11]["slides"]) - 1, _WK12_CHECKPOINT)
+
+# ---- Quiz sets: a question slide then a reveal slide, after a code chunk. ----
+# Each: q, options, answer (index of the right one), why. A few on the code just
+# typed, plus a couple from earlier weeks to keep old ideas fresh.
+QUIZZES = {
+    (12, JS, "transcript"): [
+        {"q": "What does JSON.stringify(history, null, 2) give you?",
+         "options": ["The history list turned into neatly-spaced text",
+                     "A shorter history", "The AI's reply", "A second copy of the chat on screen"],
+         "answer": 0,
+         "why": "JSON.stringify turns a list or object into text; the 2 makes it indented and easy to read."},
+        {"q": "Why is JSON.parse wrapped in try / catch when loading?",
+         "options": ["A person might paste text that is not valid JSON",
+                     "To make it faster", "To save the chat", "It is never needed"],
+         "answer": 0,
+         "why": "JSON.parse THROWS on broken text. try/catch lets us show a friendly message instead of crashing."},
+        {"q": "Array.isArray(loaded) is true only when loaded is ...",
+         "options": ["a list (an array)", "a number", "any text at all", "empty"],
+         "answer": 0,
+         "why": "Array.isArray guards that the value is really a list before we treat it like one."},
+        {"q": "typeof message.content === 'string' checks that the content is ...",
+         "options": ["text", "a list", "a number", "missing"],
+         "answer": 0,
+         "why": "typeof tells you the KIND of a value; 'string' means it is text."},
+        {"q": "What does history.length = 0 do?",
+         "options": ["Empties the list but keeps the same list",
+                     "Makes a brand-new empty list", "Deletes the variable", "Adds a zero to the list"],
+         "answer": 0,
+         "why": "Setting length to 0 removes every item while keeping the SAME array that everything else still points to."},
+        # ---- refreshers from earlier weeks ----
+        {"q": "From week 7 - what is history?",
+         "options": ["An array that remembers every message",
+                     "The AI's name", "A single string", "The temperature slider"],
+         "answer": 0,
+         "why": "history is the array you push each message onto, so the AI can be sent the whole conversation."},
+        {"q": "From week 10 - JSON.parse is the opposite of JSON.stringify. It ...",
+         "options": ["turns JSON text back into an object or list",
+                     "sends a network request", "splits a string in two", "hides an element"],
+         "answer": 0,
+         "why": "stringify makes text out of data; parse reads that text back into data you can use."},
+    ],
+}
