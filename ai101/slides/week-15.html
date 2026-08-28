@@ -87,12 +87,459 @@ font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
 </style>
 <script>window.UTG_GUARD="../../";window.UTG_TOOL="ai101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../../guard.js"></script>
-<div class="deck"><section class="slide"><p class="eyebrow">Week 15</p><h1>Demo day</h1></section><section class="slide"><h2>Fifteen weeks ago this was empty</h2><ul class="pts"><li>Today you sign it and show it</li></ul></section><section class="slide"><h2>Twenty minutes to finish</h2><p class="sub">No new features</p><ul class="pts"><li>Sign the credits - put your own name in</li><li>Fix the one annoying thing</li><li>Make it survive a stranger</li></ul></section><section class="slide dark"><p class="filebar">Type this into index.html <span class="part">1 of 3</span></p><table class="code"><tr class="new"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr><tr class="new"><td class="ln">38</td><td>    &lt;p&gt;Built by &lt;strong&gt;your name here&lt;/strong&gt; in AI101 &amp;middot; UTG Academy&lt;/p&gt;</td></tr><tr class="new"><td class="ln">39</td><td>    &lt;p&gt;Runs on the school AI server. Written in plain HTML, CSS and JavaScript.&lt;/p&gt;</td></tr><tr class="new"><td class="ln">40</td><td>  &lt;/footer&gt;</td></tr><tr class=""><td class="ln">41</td><td>&lt;/main&gt;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">2 of 3</span></p><table class="code"><tr class=""><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class=""><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class=""><td class="ln">34</td><td>.setup textarea {</td></tr><tr class=""><td class="ln">35</td><td>  width: 100%;</td></tr><tr class=""><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class=""><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class=""><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class=""><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class=""><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class=""><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class=""><td class="ln">42</td><td>}</td></tr><tr class="new"><td class="ln">43</td><td>.credits {</td></tr><tr class="new"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="new"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="new"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr></table></section><section class="slide dark"><p class="filebar">Type this into style.css <span class="part">3 of 3</span></p><table class="code"><tr class="new"><td class="ln">47</td><td>  color: #6b7787;</td></tr><tr class="new"><td class="ln">48</td><td>  font-size: 12px;</td></tr><tr class="new"><td class="ln">49</td><td>}</td></tr><tr class="new"><td class="ln">50</td><td>.credits p { margin: 0 0 4px; }</td></tr></table></section><section class="slide"><h2>Rehearse in pairs</h2><p class="sub">Your partner is a stranger</p><ul class="pts"><li>They use it. You say nothing.</li><li>Watch where they hesitate</li><li>Then swap</li></ul></section><section class="slide"><h2>Demo format</h2><p class="sub">90 seconds</p><ul class="pts"><li>What it is</li><li>One conversation</li><li>One thing that was hard</li></ul></section><section class="slide"><h2>What did the machine never do?</h2><ul class="pts"><li>It never knew anything was true</li><li>It never remembered you</li><li>It never decided anything</li><li>You built all of that</li></ul></section><section class="slide"><h2>Next: AI102</h2><p class="sub">Pictures, voices, video</p><ul class="pts"><li>Same server, same skills</li><li>Everything you wrote still applies</li></ul></section></div>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 15</p><h1>Demo day</h1></section><section class="slide"><h2>Fifteen weeks ago this was empty</h2><ul class="pts"><li>Today you sign it and show it</li></ul></section><section class="slide"><h2>Twenty minutes to finish</h2><p class="sub">No new features</p><ul class="pts"><li>Sign the credits - put your own name in</li><li>Fix the one annoying thing</li><li>Make it survive a stranger</li></ul></section><section class="slide"><p class="eyebrow">HTML</p><h2>The &lt;footer&gt; tag</h2><ul class="pts"><li>A box for the strip at the BOTTOM of the page - credits and small print.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 37</span></p><table class="code"><tr class="hi"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr></table><p class="linenote">A &lt;footer&gt; for the bottom of the page. class=&quot;credits&quot; styles it.</p></section><section class="slide"><p class="eyebrow">HTML</p><h2>The &lt;strong&gt; tag</h2><ul class="pts"><li>Makes the text inside it bold, so it stands out.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 38</span></p><table class="code"><tr class="ctx"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr><tr class="hi"><td class="ln">38</td><td>    &lt;p&gt;Built by &lt;strong&gt;your name here&lt;/strong&gt; in AI101 &amp;middot; UTG Academy&lt;/p&gt;</td></tr></table><p class="linenote">Your credit line. &lt;strong&gt; makes your name bold - change &#x27;your name here&#x27; to yours!</p></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 39</span></p><table class="code"><tr class="ctx"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr><tr class="ctx"><td class="ln">38</td><td>    &lt;p&gt;Built by &lt;strong&gt;your name here&lt;/strong&gt; in AI101 &amp;middot; UTG Academy&lt;/p&gt;</td></tr><tr class="hi"><td class="ln">39</td><td>    &lt;p&gt;Runs on the school AI server. Written in plain HTML, CSS and JavaScript.&lt;/p&gt;</td></tr></table><p class="linenote">A line about what it runs on.</p></section><section class="slide dark line"><p class="filebar">Type this into index.html <span class="part">line 40</span></p><table class="code"><tr class="ctx"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr><tr class="ctx"><td class="ln">38</td><td>    &lt;p&gt;Built by &lt;strong&gt;your name here&lt;/strong&gt; in AI101 &amp;middot; UTG Academy&lt;/p&gt;</td></tr><tr class="ctx"><td class="ln">39</td><td>    &lt;p&gt;Runs on the school AI server. Written in plain HTML, CSS and JavaScript.&lt;/p&gt;</td></tr><tr class="hi"><td class="ln">40</td><td>  &lt;/footer&gt;</td></tr></table><p class="linenote">Close the footer.</p></section><section class="slide dark line whole"><p class="filebar">All together in index.html</p><table class="code"><tr class="new"><td class="ln">37</td><td>  &lt;footer class=&quot;credits&quot;&gt;</td></tr><tr class="new"><td class="ln">38</td><td>    &lt;p&gt;Built by &lt;strong&gt;your name here&lt;/strong&gt; in AI101 &amp;middot; UTG Academy&lt;/p&gt;</td></tr><tr class="new"><td class="ln">39</td><td>    &lt;p&gt;Runs on the school AI server. Written in plain HTML, CSS and JavaScript.&lt;/p&gt;</td></tr><tr class="new"><td class="ln">40</td><td>  &lt;/footer&gt;</td></tr><tr><td class="ln">41</td><td>&lt;/main&gt;</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 43</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="hi"><td class="ln">43</td><td>.credits {</td></tr></table><p class="linenote">Style the footer.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 44</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="hi"><td class="ln">44</td><td>  margin-top: 22px;</td></tr></table><p class="linenote">Push it down, away from the chat.</p></section><section class="slide"><p class="eyebrow">CSS</p><h2>padding-top</h2><ul class="pts"><li>Space inside the box, at the top only.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 45</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="hi"><td class="ln">45</td><td>  padding-top: 14px;</td></tr></table><p class="linenote">Space above the text, inside the footer.</p></section><section class="slide"><p class="eyebrow">CSS</p><h2>border-top</h2><ul class="pts"><li>A line along just the top edge - a divider above the footer.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 46</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="ctx"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="hi"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr></table><p class="linenote">A thin line along the TOP - a divider above the credits.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 47</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="ctx"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="ctx"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr><tr class="hi"><td class="ln">47</td><td>  color: #6b7787;</td></tr></table><p class="linenote">Muted grey text.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 48</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="ctx"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="ctx"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">47</td><td>  color: #6b7787;</td></tr><tr class="hi"><td class="ln">48</td><td>  font-size: 12px;</td></tr></table><p class="linenote">Small print.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 49</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="ctx"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="ctx"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">47</td><td>  color: #6b7787;</td></tr><tr class="ctx"><td class="ln">48</td><td>  font-size: 12px;</td></tr><tr class="hi"><td class="ln">49</td><td>}</td></tr></table><p class="linenote">Close the rule.</p></section><section class="slide dark line"><p class="filebar">Type this into style.css <span class="part">line 50</span></p><table class="code"><tr class="ctx"><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr class="ctx"><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr class="ctx"><td class="ln">34</td><td>.setup textarea {</td></tr><tr class="ctx"><td class="ln">35</td><td>  width: 100%;</td></tr><tr class="ctx"><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr class="ctx"><td class="ln">37</td><td>  padding: 9px;</td></tr><tr class="ctx"><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr class="ctx"><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr class="ctx"><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr class="ctx"><td class="ln">42</td><td>}</td></tr><tr class="ctx"><td class="ln">43</td><td>.credits {</td></tr><tr class="ctx"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="ctx"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="ctx"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr><tr class="ctx"><td class="ln">47</td><td>  color: #6b7787;</td></tr><tr class="ctx"><td class="ln">48</td><td>  font-size: 12px;</td></tr><tr class="ctx"><td class="ln">49</td><td>}</td></tr><tr class="hi"><td class="ln">50</td><td>.credits p { margin: 0 0 4px; }</td></tr></table><p class="linenote">A little gap under each credit line.</p></section><section class="slide dark line whole"><p class="filebar">All together in style.css</p><table class="code"><tr><td class="ln">32</td><td>.setup { margin-bottom: 12px; font-size: 14px; }</td></tr><tr><td class="ln">33</td><td>.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }</td></tr><tr><td class="ln">34</td><td>.setup textarea {</td></tr><tr><td class="ln">35</td><td>  width: 100%;</td></tr><tr><td class="ln">36</td><td>  margin-top: 8px;</td></tr><tr><td class="ln">37</td><td>  padding: 9px;</td></tr><tr><td class="ln">38</td><td>  border: 1px solid #dbe3ec;</td></tr><tr><td class="ln">39</td><td>  border-radius: 6px;</td></tr><tr><td class="ln">40</td><td>  font-family: inherit;</td></tr><tr><td class="ln">41</td><td>  font-size: 14px;</td></tr><tr><td class="ln">42</td><td>}</td></tr><tr class="new"><td class="ln">43</td><td>.credits {</td></tr><tr class="new"><td class="ln">44</td><td>  margin-top: 22px;</td></tr><tr class="new"><td class="ln">45</td><td>  padding-top: 14px;</td></tr><tr class="new"><td class="ln">46</td><td>  border-top: 1px solid #dbe3ec;</td></tr><tr class="new"><td class="ln">47</td><td>  color: #6b7787;</td></tr><tr class="new"><td class="ln">48</td><td>  font-size: 12px;</td></tr><tr class="new"><td class="ln">49</td><td>}</td></tr><tr class="new"><td class="ln">50</td><td>.credits p { margin: 0 0 4px; }</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>What does the &lt;footer&gt; tag hold?</h2><ol class="opts"><li class="">The bottom strip of the page - credits and small print</li><li class="">The main chat</li><li class="">The title</li><li class="">The character buttons</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>What does the &lt;footer&gt; tag hold?</h2><ol class="opts"><li class="right">The bottom strip of the page - credits and small print</li><li class="">The main chat</li><li class="">The title</li><li class="">The character buttons</li></ol><p class="quiz-why">&lt;footer&gt; is the box for the very bottom of the page.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>&lt;strong&gt; makes the text inside it ...</h2><ol class="opts"><li class="">bold</li><li class="">blue</li><li class="">bigger</li><li class="">hidden</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>&lt;strong&gt; makes the text inside it ...</h2><ol class="opts"><li class="right">bold</li><li class="">blue</li><li class="">bigger</li><li class="">hidden</li></ol><p class="quiz-why">&lt;strong&gt; renders its text bold so it stands out.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>From week 7 - how does a stateless AI &#x27;remember&#x27; your conversation?</h2><ol class="opts"><li class="">You keep a history array and resend all of it every time</li><li class="">The server stores it</li><li class="">It uses cookies</li><li class="">It does not remember</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>From week 7 - how does a stateless AI &#x27;remember&#x27; your conversation?</h2><ol class="opts"><li class="right">You keep a history array and resend all of it every time</li><li class="">The server stores it</li><li class="">It uses cookies</li><li class="">It does not remember</li></ol><p class="quiz-why">The model remembers nothing between calls; you send the whole history each request.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>From week 10 - stream: true makes the reply ...</h2><ol class="opts"><li class="">arrive in pieces as it is written</li><li class="">shorter</li><li class="">faster overall</li><li class="">saved automatically</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>From week 10 - stream: true makes the reply ...</h2><ol class="opts"><li class="right">arrive in pieces as it is written</li><li class="">shorter</li><li class="">faster overall</li><li class="">saved automatically</li></ol><p class="quiz-why">Streaming shows the words as they land instead of waiting for the whole answer.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>From week 11 - what draws each streamed piece on screen?</h2><ol class="opts"><li class="">onPiece, the function passed into askAI</li><li class="">the server</li><li class="">a timer</li><li class="">trimHistory</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>From week 11 - what draws each streamed piece on screen?</h2><ol class="opts"><li class="right">onPiece, the function passed into askAI</li><li class="">the server</li><li class="">a timer</li><li class="">trimHistory</li></ol><p class="quiz-why">onPiece runs on every piece and updates the bubble as text arrives.</p></section><section class="slide"><h2>Rehearse in pairs</h2><p class="sub">Your partner is a stranger</p><ul class="pts"><li>They use it. You say nothing.</li><li>Watch where they hesitate</li><li>Then swap</li></ul></section><section class="slide"><h2>Demo format</h2><p class="sub">90 seconds</p><ul class="pts"><li>What it is</li><li>One conversation</li><li>One thing that was hard</li></ul></section><section class="slide"><h2>What did the machine never do?</h2><ul class="pts"><li>It never knew anything was true</li><li>It never remembered you</li><li>It never decided anything</li><li>You built all of that</li></ul></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: your finished companion</h2><p class="cp-say">Press Run - this is the whole thing. Pick a character, set the model and imagination, chat with streaming replies, save and reload a conversation, and see your name in the footer. Put your name in the credits: fifteen weeks, one real AI app that you built and understand line by line.</p><button class="cp-run" data-cp="cp15">&#9654; Show the output</button><div class="cp-out" id="out-cp15"></div><script type="text/plain" id="src-cp15"><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #eef2f7;
+  color: #1f2a37;
+}
+.caution {
+  margin: 0 0 18px;
+  padding: 8px 11px;
+  border-left: 3px solid #e9952a;
+  background: #fff8e9;
+  color: #8a5a12;
+  font-size: 13px;
+}
+.app {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.top h1 { margin: 0 0 4px; font-size: 26px; }
+.tag { margin: 0 0 18px; color: #6b7787; font-size: 14px; }
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 340px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+}
+.setup { margin-bottom: 12px; font-size: 14px; }
+.setup summary { cursor: pointer; color: #0a6299; font-weight: bold; }
+.setup textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.credits {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe3ec;
+  color: #6b7787;
+  font-size: 12px;
+}
+.credits p { margin: 0 0 4px; }
+.bubble {
+  max-width: 78%;
+  margin: 0 0 10px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.bubble.you {
+  margin-left: auto;
+  background: #01aefd;
+  color: #ffffff;
+  border-bottom-right-radius: 3px;
+}
+.bubble.bot {
+  background: #f1f5f9;
+  border-bottom-left-radius: 3px;
+}
+.bubble.problem {
+  background: #fff4e0;
+  color: #8a5a12;
+  font-size: 14px;
+}
+.composer { display: flex; gap: 8px; margin-top: 12px; }
+.composer input {
+  flex: 1;
+  padding: 11px;
+  border: 1px solid #dbe3ec;
+  border-radius: 6px;
+  font-size: 15px;
+}
+.composer button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 6px;
+  background: #01aefd;
+  color: #ffffff;
+  font-size: 15px;
+  cursor: pointer;
+}
+.controls {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.controls label { display: grid; gap: 4px; }
+.controls select, .controls input { font-size: 14px; }
+.bubble.writing::after {
+  content: "\258C";
+  color: #01aefd;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.preset {
+  padding: 5px 11px;
+  border: 1px solid #dbe3ec;
+  border-radius: 20px;
+  background: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.preset:hover { border-color: #01aefd; color: #0a6299; }
+</style>
+
+<main class="app">
+  <header class="top">
+    <h1>My AI Companion</h1>
+    <p class="tag">Built by me, running on the school AI</p>
+    <p class="caution">It can be confidently wrong. Check anything that matters.</p>
+  </header>
+  <details class="setup">
+    <summary>Personality</summary>
+    <div id="presets" class="presets"></div>
+    <textarea id="persona" rows="3">You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.</textarea>
+  </details>
+  <div class="controls">
+    <!-- The two value="" names are the only model names in the project. -->
+    <label>Brain
+      <select id="model">
+        <option value="fast">fast &ndash; quick, a bit simple</option>
+        <option value="smart">smart &ndash; better, slower</option>
+      </select>
+    </label>
+    <label>Imagination <output id="tempOut">0.7</output>
+      <input id="temp" type="range" min="0" max="1.5" step="0.1" value="0.7">
+    </label>
+  </div>
+  <div id="chat" class="chat"></div>
+  <form id="composer" class="composer">
+    <input id="prompt" placeholder="Say something..." autocomplete="off">
+    <button id="send" type="submit">Send</button>
+  </form>
+  <details class="setup">
+    <summary>Save or load this chat</summary>
+    <textarea id="transcript" rows="4" placeholder="Press Save to put your chat here, then copy it somewhere safe."></textarea>
+    <button id="save" type="button">Save</button>
+    <button id="load" type="button">Load</button>
+  </details>
+  <footer class="credits">
+    <p>Built by <strong>your name here</strong> in AI101 &middot; UTG Academy</p>
+    <p>Runs on the school AI server. Written in plain HTML, CSS and JavaScript.</p>
+  </footer>
+</main>
+
+<script>
+// Week 1: prove the JavaScript file is really running.
+console.log('My AI companion is starting up.');
+
+// Can this script see the page yet? Down here, yes.
+// Move the <script> tag to the TOP of index.html and this prints false,
+// because the boxes have not been made yet. That is why it goes last.
+console.log('Can I see the chat box?', document.getElementById('chat') !== null);
+
+// Week 3: where the AI lives, and who you are.
+// The key identifies YOU. Two people using one key share one speed limit.
+//
+// This address only works on the school network. To run this at home you
+// change these two lines and the model names in index.html - nothing else.
+const AI_BASE = 'https://ai.tail5091fc.ts.net';
+const API_KEY = 'sk-class-put-your-own-key-here';
+
+// Week 2: find the boxes we named in index.html.
+// document.getElementById looks for the id= we wrote on each element.
+const chat = document.getElementById('chat');
+const composer = document.getElementById('composer');
+const promptBox = document.getElementById('prompt');
+const personaBox = document.getElementById('persona');
+const presetBox = document.getElementById('presets');
+const modelBox = document.getElementById('model');
+const tempBox = document.getElementById('temp');
+const tempOut = document.getElementById('tempOut');
+const transcriptBox = document.getElementById('transcript');
+const saveButton = document.getElementById('save');
+const loadButton = document.getElementById('load');
+
+// Week 7: the model remembers NOTHING. Every request starts from zero.
+// So we keep the conversation ourselves and send all of it, every time.
+const history = [];
+
+// Week 13: personalities as DATA, not as code. Adding a character means
+// adding one line here - the buttons build themselves from this object.
+const PRESETS = {
+  'Patient helper': 'You are a friendly, patient helper for a 13-year-old. Keep answers under 60 words. If you are not sure, say so.',
+  'Storyteller': 'You tell short adventure stories. Always end on a cliffhanger and offer two choices for what happens next.',
+  'Quiz master': 'You ask one multiple-choice question at a time about whatever topic the user names. Wait for an answer before saying if it was right.',
+  'Rubber duck': 'You never give answers. You only ask short questions that help the user work it out themselves.'
+};
+
+// Put one message into the chat box as a bubble.
+// 'who' is 'you', 'bot' or 'problem' - it picks the style.
+function addLine(who, text) {
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + who;
+  bubble.textContent = text;
+  chat.appendChild(bubble);
+  chat.scrollTop = chat.scrollHeight;   // keep the newest message in view
+  return bubble;
+}
+
+// Turn a status number into a sentence a person can act on.
+function explain(status, problem) {
+  // The server usually explains itself better than we can guess. Use its
+  // words when it gives us any, and fall back to our own when it does not.
+  const said = problem && problem.error && problem.error.message;
+  if (said) { return said; }
+  if (status === 401) { return 'The server does not recognise your key. Check it for typos.'; }
+  if (status === 429) { return 'You are sending too fast. Wait a few seconds and try again.'; }
+  return 'Something went wrong on the server (' + status + '). Try again in a moment.';
+}
+
+// The smallest useful request: what models does this server have?
+// 'async' means this function does something slow and can be waited for.
+async function listModels() {
+  const res = await fetch(AI_BASE + '/v1/models', {
+    headers: { 'Authorization': 'Bearer ' + API_KEY }
+  });
+  const data = await res.json();   // the answer arrives as text; this reads it
+  console.log('The server offers:', data.data);
+}
+
+// Week 8: the server reads at most 4000 characters of conversation at once.
+// Past that it refuses the whole request, so old messages have to go.
+const MAX_CHARS = 3500;   // leave room for the personality and your next line
+
+function trimHistory() {
+  let size = personaBox.value.length;
+  for (const message of history) {
+    size += message.content.length;
+  }
+  // Drop from the FRONT. The oldest messages matter least - usually.
+  while (size > MAX_CHARS && history.length > 2) {
+    const dropped = history.shift();
+    size -= dropped.content.length;
+    console.log('Forgot an old message to stay under the limit.');
+  }
+}
+
+// Week 10: with stream:true the answer arrives in pieces while it is still
+// being written. Same words, same total time - they just start sooner.
+//
+// Week 11: onPiece is a FUNCTION we are handed. Every time a bit of text
+// turns up we call it, and whoever gave it to us decides what to do.
+async function readStream(res, onPiece) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';       // a piece can be cut in half mid-arrival
+  let answer = '';
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) { break; }
+    buffer += decoder.decode(chunk.value, { stream: true });
+
+    // Complete pieces are separated by a blank line. Keep the last,
+    // possibly unfinished, piece in the buffer for the next round.
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith('data: ')) { continue; }
+      const payload = line.slice(6);
+      if (payload === '[DONE]') { continue; }
+      const piece = JSON.parse(payload);
+      const bit = piece.choices[0].delta.content;
+      if (bit) {
+        answer += bit;
+        onPiece(answer);   // week 11: show it NOW, do not wait for the end
+      }
+    }
+  }
+  return answer;
+}
+
+// Week 4: ask the AI a real question.
+// A chat request is a LIST of messages. Each one says who said it.
+async function askAI(onPiece) {
+  trimHistory();   // week 8: never send more than the server will read
+  const res = await fetch(AI_BASE + '/v1/chat/completions', {
+    method: 'POST',                       // POST = I am sending you something
+    headers: {
+      'Content-Type': 'application/json', // what I am sending is JSON
+      'Authorization': 'Bearer ' + API_KEY
+    },
+    body: JSON.stringify({
+      model: modelBox.value,                    // week 9: chosen on the page
+      temperature: Number(tempBox.value),       // 0 = careful, 1.5 = wild
+      stream: true,                             // week 10: send it in pieces
+      messages: [
+        // Week 6: the standing instruction, read before every single reply.
+        { role: 'system', content: personaBox.value },
+        // Week 7: everything said so far, oldest first.
+        ...history
+      ]
+    })
+  });
+
+  // Week 5: fetch does NOT throw when the server says no. A 429 arrives
+  // looking just like a success until you actually check.
+  if (!res.ok) {
+    const problem = await res.json();
+    throw new Error(explain(res.status, problem));
+  }
+
+  return readStream(res, onPiece);   // hand the drawing job through
+}
+
+// Week 9: show the slider's value so the number means something.
+tempBox.addEventListener('input', function () {
+  tempOut.textContent = tempBox.value;
+});
+
+// Week 13: build one button per character. Object.keys gives the names.
+for (const name of Object.keys(PRESETS)) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'preset';
+  button.textContent = name;
+  button.addEventListener('click', function () {
+    personaBox.value = PRESETS[name];
+  });
+  presetBox.appendChild(button);
+}
+
+// The browser calls this when the form is submitted.
+composer.addEventListener('submit', async function (event) {
+  event.preventDefault();
+  const text = promptBox.value.trim();
+  if (text === '') { return; }
+
+  // Week 14: never trust what a user types. A giant message wastes the
+  // whole conversation budget and gets the request refused for everyone.
+  if (text.length > 500) {
+    addLine('problem', 'That is too long for one message - try under 500 characters.');
+    return;
+  }
+
+  promptBox.value = '';
+  addLine('you', text);
+  history.push({ role: 'user', content: text });
+
+  const bubble = addLine('bot', '');
+  bubble.classList.add('writing');   // week 11: blinking cursor while it types
+  try {
+    // The function we hand over runs on EVERY piece that arrives.
+    const reply = await askAI(function (soFar) {
+      bubble.textContent = soFar;
+      chat.scrollTop = chat.scrollHeight;
+    });
+    bubble.classList.remove('writing');
+    history.push({ role: 'assistant', content: reply });   // it said this too
+  } catch (problem) {
+    bubble.remove();
+    // 'Failed to fetch' means the request never arrived anywhere. That is
+    // the commonest real failure and the least helpful wording, so replace it.
+    const said = problem.message === 'Failed to fetch'
+      ? 'Could not reach the AI. Are you on the school network?'
+      : problem.message;
+    addLine('problem', said);
+  }
+});
+
+// Week 12: your chat lives in a variable, so pressing Run loses it.
+// JSON.stringify turns the list into text; JSON.parse turns it back.
+//
+// Note: your project runs in a locked-down frame with no localStorage,
+// so we hand you the text and you keep it wherever you like.
+saveButton.addEventListener('click', function () {
+  transcriptBox.value = JSON.stringify(history, null, 2);
+});
+
+loadButton.addEventListener('click', function () {
+  let loaded;
+  try {
+    loaded = JSON.parse(transcriptBox.value);
+  } catch (problem) {
+    addLine('problem', 'That does not look like a saved chat.');
+    return;
+  }
+  if (!Array.isArray(loaded)) {
+    addLine('problem', 'A saved chat should be a list of messages.');
+    return;
+  }
+  // A list is not enough - check what is IN it. Without this, [1,2,3] loads
+  // happily and then crashes later inside trimHistory, miles from the cause.
+  for (const message of loaded) {
+    if (!message || typeof message.content !== 'string') {
+      addLine('problem', 'That saved chat has something odd inside it.');
+      return;
+    }
+  }
+  history.length = 0;      // empty the list without making a new one
+  chat.textContent = '';   // clear the screen too
+  for (const message of loaded) {
+    history.push(message);
+    addLine(message.role === 'user' ? 'you' : 'bot', message.content);
+  }
+});
+<\/script></script></section><section class="slide"><h2>Next: AI102</h2><p class="sub">Pictures, voices, video</p><ul class="pts"><li>Same server, same skills</li><li>Everything you wrote still applies</li></ul></section></div>
 <div class="bar">
   <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
   <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
   <span class="count"></span>
-  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <span class="spacer"></span>
   <span class="hint">arrows or space to move &middot; f for full screen</span>
   <button class="full" title="Full screen (f)">Full screen</button>

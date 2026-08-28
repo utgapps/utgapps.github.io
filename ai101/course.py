@@ -2512,6 +2512,7 @@ def line_concepts(filename, line):
                 (".startsWith(", "js:startswith"),
                 ("Array.isArray", "js:isarray"),
                 ("typeof ", "js:typeof"),
+                ("Object.keys", "js:objectkeys"),
             ):
                 if token in line:
                     keys.append(key)
@@ -3386,3 +3387,171 @@ QUIZZES = {
          "why": "stringify makes text out of data; parse reads that text back into data you can use."},
     ],
 }
+
+
+# ==========================================================================
+# EXPANDED SLIDES  --  weeks 13, 14, 15 (characters, being wrong, demo day)
+# The last three weeks: the curriculum is now fully in the new format.
+# ==========================================================================
+
+EXPANDED_WEEKS.update({13, 14, 15})
+
+CONCEPTS.update({
+    # ---- week 13 ----
+    "js:objectkeys": ("js", "Object.keys()", ["The list of an object's key NAMES.", "Object.keys(PRESETS) gives every character's name, so we can loop over them."]),
+    "css:border-color": ("css", "border-color", ["Changes just the COLOUR of a border that already exists."]),
+    # ---- week 14 ----
+    "css:border-left": ("css", "border-left", ["A border on ONE edge - the left - used here as a coloured warning stripe."]),
+    # ---- week 15 ----
+    "html:footer": ("html", "The <footer> tag", ["A box for the strip at the BOTTOM of the page - credits and small print."]),
+    "html:strong": ("html", "The <strong> tag", ["Makes the text inside it bold, so it stands out."]),
+    "css:padding-top": ("css", "padding-top", ["Space inside the box, at the top only."]),
+    "css:border-top": ("css", "border-top", ["A line along just the top edge - a divider above the footer."]),
+})
+
+LINE_NOTES.update({
+    # ================= WEEK 13: characters =================
+    (JS, "presets"): [
+        None, None, None,
+        "A dictionary of characters: each name maps to a personality instruction. Adding a character is one line.",
+        "The first: the name 'Patient helper' points to its system prompt.",
+        "A storyteller character.",
+        "A quiz-master character.",
+        "A rubber-duck character (no comma - it is the last one).",
+        "Close the object.",
+    ],
+    (13, HTML, "persona"): [None, None,
+        "An empty box where the character buttons will appear. The code fills it in.",
+    ],
+    (13, JS, "elements"): [None] * 7 + [
+        "Find the empty box that will hold the character buttons.",
+    ],
+    (13, JS, "settings"): [None] * 6 + [
+        None,
+        "Loop over every character name. Object.keys(PRESETS) is the list of names.",
+        "Make a button element.",
+        "type = 'button' so it does NOT submit the chat form.",
+        "Give it the 'preset' class for styling.",
+        "Show the character's name on it.",
+        "When it is clicked ...",
+        "... load that character's prompt into the Personality box. PRESETS[name] looks it up.",
+        "Close the click listener.",
+        "Add the finished button to the page.",
+        "Close the loop - one button per character, built automatically from the data.",
+    ],
+    (13, CSS, "polish"): [None] * 6 + [
+        "Lay the character buttons in a wrapping row.",
+        "Style each character button.",
+        "Comfortable padding.",
+        "A thin grey border.",
+        "Fully rounded - a pill shape.",
+        "White background.",
+        "Small text.",
+        "A hand pointer, so it looks clickable.",
+        "Close the rule.",
+        "On hover, turn the border and text blue.",
+    ],
+    # ================= WEEK 14: when it is confidently wrong =================
+    (14, JS, "submit"): [None] * 9 + [
+        "Week 14: guard against a giant message. .length is the character count.",
+        "Tell them kindly it is too long.",
+        "And stop before sending - do not waste the whole budget on one message.",
+        "Close the if.",
+    ],
+    (14, HTML, "shell"): [None] * 4 + [
+        'A caution line under the title: the AI can be confidently wrong. class="caution" styles it.',
+    ],
+    (14, CSS, "base"): [None] * 6 + [
+        "Style the caution line.",
+        "Space around it.",
+        "Padding inside.",
+        "A coloured stripe down the LEFT edge - the warning accent.",
+        "A soft warning-yellow background.",
+        "Brown text to match.",
+        "Small - it is a note, not a headline.",
+    ],
+    # ================= WEEK 15: demo day =================
+    (HTML, "close"): [
+        'A <footer> for the bottom of the page. class="credits" styles it.',
+        "Your credit line. <strong> makes your name bold - change 'your name here' to yours!",
+        "A line about what it runs on.",
+        "Close the footer.",
+    ],
+    (15, CSS, "setup"): [None] * 11 + [
+        "Style the footer.",
+        "Push it down, away from the chat.",
+        "Space above the text, inside the footer.",
+        "A thin line along the TOP - a divider above the credits.",
+        "Muted grey text.",
+        "Small print.",
+        "Close the rule.",
+        "A little gap under each credit line.",
+    ],
+})
+
+_LAST_CHECKPOINTS = {
+    13: {"title": "Checkpoint: pick a character",
+         "say": "Press Run and open Personality - a button for each character appears. Click 'Storyteller' and ask it something, then click 'Rubber duck' and ask the same thing. The whole character should change, because each button loads a different system prompt. Add your own line to PRESETS and a new button builds itself."},
+    14: {"title": "Checkpoint: it guards itself",
+         "say": "Press Run. Send an empty message (nothing happens), then paste a huge block over 500 characters - you should get 'That is too long...' instead of a wasted request. And read the caution line under the title: even a confident answer can be wrong."},
+    15: {"title": "Checkpoint: your finished companion",
+         "say": "Press Run - this is the whole thing. Pick a character, set the model and imagination, chat with streaming replies, save and reload a conversation, and see your name in the footer. Put your name in the credits: fifteen weeks, one real AI app that you built and understand line by line."},
+}
+for _n, _cp in _LAST_CHECKPOINTS.items():
+    _sl = WEEKS[_n - 1]["slides"]
+    if _cp["title"] not in [s.get("title") for s in _sl]:
+        _sl.insert(len(_sl) - 1, {"checkpoint": True, **_cp})
+
+QUIZZES.update({
+    (13, JS, "settings"): [
+        {"q": "What does Object.keys(PRESETS) give you?",
+         "options": ["A list of the character NAMES", "The prompts themselves", "The number of characters", "One button"],
+         "answer": 0, "why": "Object.keys returns an object's key names - here every character's name, so we can loop over them."},
+        {"q": "Why build the buttons in a loop instead of writing each one by hand?",
+         "options": ["Adding a character becomes ONE line in PRESETS", "Loops are faster", "Buttons must be looped", "To hide them"],
+         "answer": 0, "why": "The buttons build themselves from the data, so a new character is one line - no new button code."},
+        {"q": "PRESETS[name] looks up ...",
+         "options": ["the prompt for that character name", "a number", "the button", "the whole object"],
+         "answer": 0, "why": "Square brackets with a variable look up that key's value in the object."},
+        {"q": "From week 6 - what is the 'system' message for?",
+         "options": ["A standing instruction the AI reads before every reply", "The user's question", "The AI's answer", "An error message"],
+         "answer": 0, "why": "The system message sets how the AI behaves for the whole conversation - that is what each character changes."},
+        {"q": "From week 9 - the Brain dropdown sends which value to the server?",
+         "options": ["The option the student picked (fast or smart)", "Always fast", "A random model", "The temperature"],
+         "answer": 0, "why": "modelBox.value is whatever option is currently selected."},
+    ],
+    (14, JS, "submit"): [
+        {"q": "Why refuse a message over 500 characters?",
+         "options": ["A huge message wastes the budget and gets the request refused for everyone", "It is rude", "The AI cannot read it", "To save the file"],
+         "answer": 0, "why": "One giant message can blow past the 4000-character wall and get the whole request refused."},
+        {"q": "text.length is ...",
+         "options": ["the number of characters in text", "the AI's reply", "true or false", "the temperature"],
+         "answer": 0, "why": ".length on a string is its character count."},
+        {"q": "The caution line under the title reminds users that ...",
+         "options": ["the AI can be confidently wrong - check what matters", "the AI is always right", "to save often", "to pick a character"],
+         "answer": 0, "why": "Even a fluent, confident answer can be wrong; the caution keeps students sceptical."},
+        {"q": "From week 5 - why check if (!res.ok)?",
+         "options": ["fetch does NOT throw on a refusal, so you must check yourself", "to make it faster", "to stream the reply", "to save the chat"],
+         "answer": 0, "why": "A 401 or 429 looks just like a success to fetch until you check res.ok."},
+        {"q": "From week 8 - what keeps the conversation under the server's limit?",
+         "options": ["trimHistory drops the oldest messages", "the AI shortens it", "nothing", "the temperature slider"],
+         "answer": 0, "why": "trimHistory removes old messages so each request stays under the 4000-character wall."},
+    ],
+    (15, CSS, "setup"): [
+        {"q": "What does the <footer> tag hold?",
+         "options": ["The bottom strip of the page - credits and small print", "The main chat", "The title", "The character buttons"],
+         "answer": 0, "why": "<footer> is the box for the very bottom of the page."},
+        {"q": "<strong> makes the text inside it ...",
+         "options": ["bold", "blue", "bigger", "hidden"],
+         "answer": 0, "why": "<strong> renders its text bold so it stands out."},
+        {"q": "From week 7 - how does a stateless AI 'remember' your conversation?",
+         "options": ["You keep a history array and resend all of it every time", "The server stores it", "It uses cookies", "It does not remember"],
+         "answer": 0, "why": "The model remembers nothing between calls; you send the whole history each request."},
+        {"q": "From week 10 - stream: true makes the reply ...",
+         "options": ["arrive in pieces as it is written", "shorter", "faster overall", "saved automatically"],
+         "answer": 0, "why": "Streaming shows the words as they land instead of waiting for the whole answer."},
+        {"q": "From week 11 - what draws each streamed piece on screen?",
+         "options": ["onPiece, the function passed into askAI", "the server", "a timer", "trimHistory"],
+         "answer": 0, "why": "onPiece runs on every piece and updates the bubble as text arrives."},
+    ],
+})
