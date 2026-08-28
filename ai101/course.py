@@ -3471,7 +3471,7 @@ LINE_NOTES.update({
         "Small - it is a note, not a headline.",
     ],
     # ================= WEEK 15: demo day =================
-    (HTML, "close"): [
+    (15, HTML, "close"): [
         'A <footer> for the bottom of the page. class="credits" styles it.',
         "Your credit line. <strong> makes your name bold - change 'your name here' to yours!",
         "A line about what it runs on.",
