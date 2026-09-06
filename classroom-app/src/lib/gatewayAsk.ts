@@ -11,6 +11,8 @@
 // This is best-effort: on a home machine (or the in-app browser) the gateway is
 // simply unreachable and this rejects with a plain-language message.
 
+import { PREVIEW_ALLOW } from "./preview";
+
 const GATEWAY = "https://ai.tail5091fc.ts.net/v1/chat/completions";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -24,7 +26,11 @@ export function gatewayAsk(
     const nonce = crypto.randomUUID();
     const frame = document.createElement("iframe");
     frame.setAttribute("sandbox", "allow-scripts");     // opaque origin: no same-origin
-    frame.setAttribute("allow", "local-network-access *");
+    // The SAME permission the student preview uses to reach the gateway, taken
+    // from there rather than retyped so the two can never drift apart. A browser
+    // that does not know the token logs "Unrecognized feature" and the fetch is
+    // blocked - that is what happens away from a fleet Chrome.
+    frame.setAttribute("allow", PREVIEW_ALLOW);
     frame.style.display = "none";
     // The frame waits for the request (so the key is not in the srcdoc), fetches
     // the gateway, and posts the JSON (or the error) back. The closing script
