@@ -103,8 +103,16 @@ Each new or changed line gets its own slide:
 - A **rewritten (`set`) block** shows a "type this" slide only for the lines that
   actually **change**; lines carried over from an earlier week appear only as
   dimmed context. Never make a student retype unchanged code.
-- A **removed line** gets its own slide: the block in context with that line
-  struck through and a note telling them to delete it.
+- **Removed lines** get a slide: the block in context with them struck through
+  and a note telling them to delete. A whole **consecutive run** removed from one
+  spot goes on ONE slide, struck through together ("replace 4 lines"), because
+  that is what the student actually does in the editor — a slide per line turned
+  one edit into five near-identical slides nobody could tell apart. The "type
+  this" slides for the replacement follow immediately after.
+- Prefer **not creating the deletion at all**: a name introduced in week 2 should
+  be the name that survives to week 15, so later weeks never have to rewrite a
+  line just to rename something. Deletions that carry a real lesson (a function
+  genuinely changing shape) are worth keeping; deletions caused by churn are not.
 
 ## 5. Slides follow TYPING order, not concept order
 

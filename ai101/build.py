@@ -995,19 +995,32 @@ def slide_plan(week, seen):
 
             def emit_deletes(at, context):
                 nonlocal shown
-                # A new line landing at this spot means the old one is being
+                # Everything removed from this spot goes on ONE slide, struck
+                # through together. They are consecutive lines in the student's
+                # editor, so asking them to delete the run in one go matches what
+                # they actually do - a slide each turned "remove these five lines"
+                # into five near-identical slides nobody could tell apart.
+                # A new line landing at this spot means the old ones are being
                 # swapped out, not just cut - say so, and the green "type this"
-                # slide for its replacement comes right after.
+                # slides for the replacement come right after.
+                group = gone.get(at, [])
+                if not group:
+                    return
                 replacing = at in marks
-                default = ("This line changes - take the old one out; the new "
-                           "version is next." if replacing
-                           else "Delete this line - take it out.")
-                for dropped in gone.get(at, []):
-                    out.append(("delete", {"file": filename, "start": start,
-                                           "lines": context, "dropped": dropped, "at": at,
-                                           "replacing": replacing,
-                                           "note": delete_notes.get((filename, block), default)}))
-                    shown += 1
+                many = len(group) > 1
+                if replacing:
+                    default = ("These lines change - take the old ones out; the new "
+                               "version is next." if many else
+                               "This line changes - take the old one out; the new "
+                               "version is next.")
+                else:
+                    default = ("Delete these lines - take them out." if many
+                               else "Delete this line - take it out.")
+                out.append(("delete", {"file": filename, "start": start,
+                                       "lines": context, "dropped": group, "at": at,
+                                       "replacing": replacing,
+                                       "note": delete_notes.get((filename, block), default)}))
+                shown += 1
 
             for i, line in enumerate(lines):
                 lineno = start + i
@@ -1687,9 +1700,12 @@ def deck_render_html(desc):
         # Show the real line number of the line to remove (it sits just below the
         # context), not a dash - a student cannot find "the struck line" without
         # the number they see in their own editor.
-        rows.append('<tr class="gone hi"><td class="ln">{0}</td><td>{1}</td></tr>'.format(
-            d["at"], esc(d["dropped"]) or "&nbsp;"))
-        label = "replace a line" if d.get("replacing") else "delete a line"
+        for j, line in enumerate(d["dropped"]):
+            rows.append('<tr class="gone hi"><td class="ln">{0}</td><td>{1}</td></tr>'.format(
+                d["at"] + j, esc(line) or "&nbsp;"))
+        count = len(d["dropped"])
+        what = "a line" if count == 1 else "%d lines" % count
+        label = ("replace " if d.get("replacing") else "delete ") + what
         return ('<section class="slide dark line del">'
                 '<p class="filebar">In {0} <span class="part">{1}</span></p>'
                 '<table class="code">{2}</table><p class="linenote">{3}</p></section>').format(
@@ -1870,22 +1886,23 @@ def build_slides():
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
     def del_slide(deck, filename, start, context, dropped, note, replacing=False):
-        """The block with one line struck through: the line to remove this week."""
+        """The block with the run of lines to remove struck through together."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
         head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
-        head.text_frame.text = f"In {filename}   -   {'replace a line' if replacing else 'delete a line'}"
+        what = "a line" if len(dropped) == 1 else f"{len(dropped)} lines"
+        head.text_frame.text = f"In {filename}   -   {'replace' if replacing else 'delete'} {what}"
         hr = head.text_frame.paragraphs[0].runs[0]
         hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
         box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
         frame = box.text_frame; frame.word_wrap = False
-        rows = list(context) + [dropped]
+        rows = list(context) + list(dropped)
         size = Pt(18) if len(rows) <= 10 else Pt(13)
         first = [True]
         for j, line in enumerate(rows):
             para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
             first[0] = False; para.space_after = Pt(0)
-            struck = j == len(rows) - 1
+            struck = j >= len(context)
             # The struck line sits right after the context, so start + j is its
             # real number - show it, not a dash, so the line is findable.
             gut = para.add_run(); gut.text = f"{start + j:>4}  "
