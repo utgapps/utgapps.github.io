@@ -65,7 +65,15 @@ export function gatewayAsk(
       }
       if (!data.done) return;
       finish(() => {
-        if (data.error) { reject(new Error(data.error)); return; }
+        if (data.error) {
+          // A rejected fetch here is almost always "this machine cannot see the
+          // gateway" - a bare "Failed to fetch" tells a teacher nothing.
+          const offline = /failed to fetch|networkerror|load failed|blocked/i.test(data.error);
+          reject(new Error(offline
+            ? "Could not reach the classroom AI. This works on a school computer on the school network, with the class AI running."
+            : data.error));
+          return;
+        }
         if (typeof data.status === "number" && data.status >= 400) {
           reject(new Error(`The AI gateway refused the request (${data.status}).`));
           return;
