@@ -74,6 +74,19 @@ Both decks stay ONE slide per concept, so the count-drift guard passes. The
 teaching lives on these slides, so keep code comments in the files light — do NOT
 rely on comments.
 
+**On-the-page placement.** A concept that has a visible spot on the app is
+followed by a second slide: a fixed wireframe of the chat app they are building,
+with ONE region ringed (pulsing) to show where that piece lives — the `<header>`
+strip, the Send `<button>`, the user bubble that `margin-left: auto` pushes
+right, the log that `overflow-y` scrolls. The wireframe never changes shape (so
+they learn to recognise it); only the ring moves. `course.PLACEMENTS[key] =
+(region, caption)` — regions are `page / header / title / log / aibubble /
+userbubble / inputrow / textbox / sendbtn / footer`. Only concepts with an honest
+placement get one; pure behind-the-scenes logic (variables, loops, JSON, try) has
+none and shows no mockup slide. `build.concept_mockup` draws it as inline SVG for
+the HTML deck; `mockup_slide` draws the same wireframe with python-pptx shapes for
+the `.pptx`, so both decks add the slide and stay in count-sync.
+
 ## 3. One line of code per slide
 
 Each new or changed line gets its own slide:

@@ -1006,6 +1006,12 @@ def slide_plan(week, seen):
                         out.append(("concept", {"eyebrow": eyebrow_for[kind], "title": title,
                                                 "sub": example, "bullets": bullets,
                                                 "vis": getattr(course, "VISUALS", {}).get(key)}))
+                        # If the concept has a visible spot on the app, follow the
+                        # animation with a mockup slide ringing that spot.
+                        place = getattr(course, "PLACEMENTS", {}).get(key)
+                        if place:
+                            out.append(("mockup", {"eyebrow": "On the page", "title": title,
+                                                   "region": place[0], "cap": place[1]}))
                 note = notes[i] if notes and i < len(notes) else ""
                 if note is None:
                     continue  # a line deliberately folded into its neighbour
@@ -1520,6 +1526,69 @@ def concept_visual(vis):
     return '<div class="vis"><style>%s</style>%s</div>' % ("".join(css), svg)
 
 
+# ---------------------------------------------------------------------------
+# The mockup: a fixed wireframe of the chat app the students are building. After
+# a concept's animation slide, a second slide shows this same little page with
+# ONE region ringed, so they see where that piece actually lives. The wireframe
+# never changes shape slide to slide (so they learn to recognise it) - only the
+# highlighted region moves. course.PLACEMENTS maps a concept to a region + line.
+# ---------------------------------------------------------------------------
+_MOCK_VW, _MOCK_VH = 640, 440
+
+
+def _mock_regions():
+    """name -> (x, y, w, h, corner-radius) in the wireframe's viewBox units."""
+    return {
+        "page":       (44, 14, 552, 412, 14),
+        "header":     (60, 54, 520, 46, 8),
+        "title":      (72, 68, 150, 20, 4),
+        "log":        (60, 110, 520, 190, 8),
+        "aibubble":   (72, 122, 300, 42, 12),
+        "userbubble": (268, 176, 300, 42, 12),
+        "inputrow":   (60, 344, 520, 50, 10),
+        "textbox":    (70, 352, 410, 34, 8),
+        "sendbtn":    (490, 352, 82, 34, 8),
+        "footer":     (60, 404, 520, 22, 6),
+    }
+
+
+def concept_mockup(region):
+    """The wireframe with `region` ringed in a pulsing highlight. Returns HTML."""
+    _VIS_SEQ[0] += 1
+    cid = "m%d" % _VIS_SEQ[0]
+    b = []
+    # browser window + title bar
+    b.append('<rect x="44" y="14" width="552" height="412" rx="14" fill="#0f1f27" stroke="#33586a" stroke-width="2.5"/>')
+    b.append('<path d="M44 30 q0 -16 16 -16 h520 q16 0 16 16 v14 h-552 z" fill="#16303a"/>')
+    for cxx in (66, 84, 102):
+        b.append('<circle cx="%d" cy="30" r="4" fill="#385c6a"/>' % cxx)
+    # header with a title block
+    b.append('<rect x="60" y="54" width="520" height="46" rx="8" fill="#16303a"/>')
+    b.append('<rect x="72" y="68" width="150" height="20" rx="4" fill="#4a6b78"/>')
+    # chat log with three message bubbles (ai left, you right, ai left)
+    b.append('<rect x="60" y="110" width="520" height="190" rx="8" fill="#0b171d" stroke="#22424d" stroke-width="1.5"/>')
+    b.append('<rect x="72" y="122" width="300" height="42" rx="12" fill="#1b3540"/>')
+    b.append('<rect x="86" y="137" width="220" height="12" rx="4" fill="#3a5b68"/>')
+    b.append('<rect x="268" y="176" width="300" height="42" rx="12" fill="#123a32"/>')
+    b.append('<rect x="282" y="191" width="220" height="12" rx="4" fill="#2f6a58"/>')
+    b.append('<rect x="72" y="230" width="330" height="42" rx="12" fill="#1b3540"/>')
+    b.append('<rect x="86" y="245" width="250" height="12" rx="4" fill="#3a5b68"/>')
+    # input row: a wide text box and a Send button
+    b.append('<rect x="70" y="352" width="410" height="34" rx="8" fill="#16303a" stroke="#33586a" stroke-width="1.5"/>')
+    b.append('<rect x="490" y="352" width="82" height="34" rx="8" fill="#01aefd"/>')
+    b.append('<text x="531" y="369" style="fill:#04222f;font:700 15px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central">Send</text>')
+    # footer credits line
+    b.append('<rect x="72" y="410" width="170" height="10" rx="3" fill="#2a4550"/>')
+    # the highlight ring on the target region
+    x, y, w, h, rx = _mock_regions().get(region, _mock_regions()["page"])
+    b.append('<rect class="%s-hl" x="%d" y="%d" width="%d" height="%d" rx="%d" fill="none" stroke="#ffd633" stroke-width="4"/>'
+             % (cid, x - 4, y - 4, w + 8, h + 8, rx + 4))
+    css = ("@keyframes %sk{0%%,100%%{opacity:.4;stroke-width:3}50%%{opacity:1;stroke-width:5.5}}"
+           ".%s-hl{animation:%sk 1.5s ease-in-out infinite}" % (cid, cid, cid))
+    svg = '<svg viewBox="0 0 %d %d" role="img">%s</svg>' % (_MOCK_VW, _MOCK_VH, "".join(b))
+    return '<div class="vis mock"><style>%s</style>%s</div>' % (css, svg)
+
+
 def deck_render_html(desc):
     """One deck slide as HTML, for any descriptor slide_plan() produces."""
     kind, d = desc
@@ -1540,6 +1609,12 @@ def deck_render_html(desc):
         pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
         return '<section class="slide">{0}<h2>{1}</h2>{2}{3}</section>'.format(
             eyebrow, esc(d["title"]), sub, pts)
+    if kind == "mockup":
+        cap = '<p class="vis-cap">{0}</p>'.format(esc(d["cap"])) if d.get("cap") else ""
+        return ('<section class="slide concept-vis"><p class="eyebrow">{0}</p>'
+                '<h2>{1}</h2>{2}{3}</section>').format(
+                    esc(d.get("eyebrow", "On the page")), esc(d["title"]),
+                    concept_mockup(d["region"]), cap)
     if kind == "checkpoint":
         page = checkpoint_page(d["week"]).replace("</script", "<\\/script")
         cid = "cp%d" % d["week"]
@@ -1600,6 +1675,7 @@ def build_slides():
         from pptx import Presentation
         from pptx.util import Inches, Pt
         from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_SHAPE
     except ImportError:
         print("  slides SKIPPED - run: pip install python-pptx")
         return 0
@@ -1635,6 +1711,52 @@ def build_slides():
             para.runs[0].font.size = Pt(24 if is_bullet else 28)
             para.runs[0].font.color.rgb = INK if is_bullet else BRAND
             para.space_after = Pt(14)
+
+    def mockup_slide(deck, spec):
+        """A static wireframe of the app with one region ringed - the .pptx
+        twin of concept_mockup, so Google Slides shows the placement too."""
+        YELLOW = RGBColor(0xFF, 0xD6, 0x33)
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = RGBColor(0xF4, 0xF8, 0xFB)
+        eb = slide.shapes.add_textbox(Inches(0.9), Inches(0.4), Inches(8), Inches(0.4))
+        eb.text_frame.text = "ON THE PAGE"
+        r = eb.text_frame.paragraphs[0].runs[0]
+        r.font.size, r.font.bold, r.font.color.rgb = Pt(14), True, BRAND
+        tt = slide.shapes.add_textbox(Inches(0.9), Inches(0.72), Inches(11.5), Inches(0.8))
+        tt.text_frame.text = spec["title"]
+        r = tt.text_frame.paragraphs[0].runs[0]
+        r.font.size, r.font.bold, r.font.color.rgb = Pt(32), True, INK
+        scale, ox, oy = 0.0104, 3.32, 1.65
+
+        def box(x, y, w, h, fill):
+            shp = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                                         Inches(ox + x * scale), Inches(oy + y * scale),
+                                         Inches(w * scale), Inches(h * scale))
+            shp.fill.solid(); shp.fill.fore_color.rgb = fill
+            shp.line.fill.background(); shp.shadow.inherit = False
+            return shp
+
+        box(44, 14, 552, 412, RGBColor(0x0F, 0x1F, 0x27))
+        box(60, 54, 520, 46, RGBColor(0x16, 0x30, 0x3A))
+        box(72, 68, 150, 20, RGBColor(0x4A, 0x6B, 0x78))
+        box(60, 110, 520, 190, RGBColor(0x0B, 0x17, 0x1D))
+        box(72, 122, 300, 42, RGBColor(0x1B, 0x35, 0x40))
+        box(268, 176, 300, 42, RGBColor(0x12, 0x3A, 0x32))
+        box(72, 230, 330, 42, RGBColor(0x1B, 0x35, 0x40))
+        box(70, 352, 410, 34, RGBColor(0x16, 0x30, 0x3A))
+        box(490, 352, 82, 34, BRAND)
+        box(72, 410, 170, 10, RGBColor(0x2A, 0x45, 0x50))
+        x, y, w, h, _rx = _mock_regions().get(spec["region"], _mock_regions()["page"])
+        ring = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
+                                      Inches(ox + (x - 4) * scale), Inches(oy + (y - 4) * scale),
+                                      Inches((w + 8) * scale), Inches((h + 8) * scale))
+        ring.fill.background(); ring.line.color.rgb = YELLOW; ring.line.width = Pt(3.5)
+        ring.shadow.inherit = False
+        cb = slide.shapes.add_textbox(Inches(0.9), Inches(6.75), Inches(11.5), Inches(0.6))
+        cb.text_frame.word_wrap = True
+        cb.text_frame.text = spec["cap"]
+        r = cb.text_frame.paragraphs[0].runs[0]
+        r.font.size, r.font.color.rgb = Pt(20), RGBColor(0x0A, 0x62, 0x99)
 
     def code_slide(deck, filename, start, lines, marks, gone, part, parts):
         """A dark, monospaced 'type this now' slide, matching the editor."""
@@ -1751,6 +1873,8 @@ def build_slides():
         for kind, d in slide_plan(week, seen):
             if kind == "concept":
                 concept_slide(deck, {"title": d["title"], "sub": d["sub"], "bullets": d["bullets"]}, eyebrow=d.get("eyebrow", ""))
+            elif kind == "mockup":
+                mockup_slide(deck, d)
             elif kind == "checkpoint":
                 # No live iframe in PowerPoint, so it points at the classroom.
                 concept_slide(deck, {"title": d["title"], "sub": d["say"],
@@ -1870,6 +1994,7 @@ font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
 .slide.concept-vis{align-items:center;text-align:center;justify-content:center}
 .slide.concept-vis .sub{margin-top:.4em}
 .vis{width:100%;max-width:min(780px,94%);margin:clamp(12px,2.6vh,26px) auto 0}
+.vis.mock{max-width:min(500px,66%)}
 .vis svg{width:100%;height:auto;display:block;overflow:visible}
 .vis-cap{color:#0a6299;text-align:center;font-size:clamp(16px,2.1vw,27px);font-weight:600;
 margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
