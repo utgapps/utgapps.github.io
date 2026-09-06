@@ -1567,9 +1567,12 @@ def _mock_regions():
         "page":       (44, 14, 552, 412, 14),
         "header":     (60, 54, 520, 46, 8),
         "title":      (72, 68, 150, 20, 4),
-        "log":        (60, 110, 520, 190, 8),
+        "log":        (60, 110, 520, 182, 8),
         "aibubble":   (72, 122, 300, 42, 12),
         "userbubble": (268, 176, 300, 42, 12),
+        "controls":   (60, 300, 520, 34, 8),
+        "dropdown":   (70, 305, 150, 24, 6),
+        "settings":   (230, 305, 150, 24, 6),
         "inputrow":   (60, 344, 520, 50, 10),
         "textbox":    (70, 352, 410, 34, 8),
         "sendbtn":    (490, 352, 82, 34, 8),
@@ -1591,13 +1594,18 @@ def concept_mockup(region):
     b.append('<rect x="60" y="54" width="520" height="46" rx="8" fill="#16303a"/>')
     b.append('<rect x="72" y="68" width="150" height="20" rx="4" fill="#4a6b78"/>')
     # chat log with three message bubbles (ai left, you right, ai left)
-    b.append('<rect x="60" y="110" width="520" height="190" rx="8" fill="#0b171d" stroke="#22424d" stroke-width="1.5"/>')
+    b.append('<rect x="60" y="110" width="520" height="182" rx="8" fill="#0b171d" stroke="#22424d" stroke-width="1.5"/>')
     b.append('<rect x="72" y="122" width="300" height="42" rx="12" fill="#1b3540"/>')
     b.append('<rect x="86" y="137" width="220" height="12" rx="4" fill="#3a5b68"/>')
     b.append('<rect x="268" y="176" width="300" height="42" rx="12" fill="#123a32"/>')
     b.append('<rect x="282" y="191" width="220" height="12" rx="4" fill="#2f6a58"/>')
     b.append('<rect x="72" y="230" width="330" height="42" rx="12" fill="#1b3540"/>')
     b.append('<rect x="86" y="245" width="250" height="12" rx="4" fill="#3a5b68"/>')
+    # controls strip: a model dropdown and a settings toggle
+    b.append('<rect x="70" y="305" width="150" height="24" rx="6" fill="#16303a" stroke="#33586a" stroke-width="1.5"/>')
+    b.append('<text x="82" y="318" style="fill:#9fc0cc;font:600 12px Rubik,system-ui,sans-serif;dominant-baseline:central">model  &#9662;</text>')
+    b.append('<rect x="230" y="305" width="150" height="24" rx="6" fill="#16303a" stroke="#33586a" stroke-width="1.5"/>')
+    b.append('<text x="242" y="318" style="fill:#9fc0cc;font:600 12px Rubik,system-ui,sans-serif;dominant-baseline:central">persona  &#9656;</text>')
     # input row: a wide text box and a Send button
     b.append('<rect x="70" y="352" width="410" height="34" rx="8" fill="#16303a" stroke="#33586a" stroke-width="1.5"/>')
     b.append('<rect x="490" y="352" width="82" height="34" rx="8" fill="#01aefd"/>')
@@ -1764,10 +1772,12 @@ def build_slides():
         box(44, 14, 552, 412, RGBColor(0x0F, 0x1F, 0x27))
         box(60, 54, 520, 46, RGBColor(0x16, 0x30, 0x3A))
         box(72, 68, 150, 20, RGBColor(0x4A, 0x6B, 0x78))
-        box(60, 110, 520, 190, RGBColor(0x0B, 0x17, 0x1D))
+        box(60, 110, 520, 182, RGBColor(0x0B, 0x17, 0x1D))
         box(72, 122, 300, 42, RGBColor(0x1B, 0x35, 0x40))
         box(268, 176, 300, 42, RGBColor(0x12, 0x3A, 0x32))
         box(72, 230, 330, 42, RGBColor(0x1B, 0x35, 0x40))
+        box(70, 305, 150, 24, RGBColor(0x16, 0x30, 0x3A))
+        box(230, 305, 150, 24, RGBColor(0x16, 0x30, 0x3A))
         box(70, 352, 410, 34, RGBColor(0x16, 0x30, 0x3A))
         box(490, 352, 82, 34, BRAND)
         box(72, 410, 170, 10, RGBColor(0x2A, 0x45, 0x50))

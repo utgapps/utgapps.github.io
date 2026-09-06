@@ -4075,6 +4075,11 @@ PLACEMENTS = {
     "html:strong": ("aibubble", "<strong> bolds a few words inside a message."),
     "html:selfclose": ("textbox", "The message <input> is a self-closing tag."),
     "html:attribute": ("sendbtn", "Attributes live inside a tag - like on this button."),
+    "html:select": ("dropdown", "The model <select> is this dropdown."),
+    "html:option": ("dropdown", "Each <option> is a choice inside this dropdown."),
+    "html:output": ("controls", "<output> shows a value here, in the controls row."),
+    "html:details": ("settings", "A <details> panel opens from a toggle like this."),
+    "html:summary": ("settings", "The <summary> is the label you click to open it."),
     # CSS - where each property shows up
     "css:margin": ("aibubble", "Margin is the gap OUTSIDE a bubble."),
     "css:margin-top": ("aibubble", "margin-top spaces a bubble from the one above."),
