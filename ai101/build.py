@@ -19,6 +19,7 @@ neither can the teacher guide, the homework or the slides.
 """
 
 import difflib
+import hashlib
 import html
 import json
 import os
@@ -933,6 +934,29 @@ def checkpoint_page(week_n):
     return CP_BRIDGE + html
 
 
+def balance_quiz(quiz):
+    """Move the correct option off "always A". Quizzes are authored with the
+    right answer first (easy to read); this deterministically reseats it at a
+    position derived from the question text, so across a deck the answers land
+    on A/B/C/D roughly evenly and the same question always renders the same way
+    (stable across the .html, the .pptx, and rebuilds). The other options keep
+    their relative order."""
+    opts = quiz["options"]
+    n = len(opts)
+    correct = opts[quiz["answer"]]
+    target = int(hashlib.md5(quiz["q"].encode("utf-8")).hexdigest(), 16) % n
+    others = [o for i, o in enumerate(opts) if i != quiz["answer"]]
+    new = []
+    oi = 0
+    for pos in range(n):
+        if pos == target:
+            new.append(correct)
+        else:
+            new.append(others[oi])
+            oi += 1
+    return {**quiz, "options": new, "answer": target}
+
+
 def slide_plan(week, seen):
     """Ordered slide descriptors for a week's body (the caller adds the title
     slide). Mutates `seen` - the concept keys already introduced course-wide -
@@ -1035,8 +1059,9 @@ def slide_plan(week, seen):
             # to keep old ideas fresh. Each is a question slide then a reveal
             # slide. Authored per block in course.QUIZZES.
             for quiz in getattr(course, "QUIZZES", {}).get((week["n"], filename, block), []):
-                out.append(("quiz", {"quiz": quiz}))
-                out.append(("quizanswer", {"quiz": quiz}))
+                q = balance_quiz(quiz)
+                out.append(("quiz", {"quiz": q}))
+                out.append(("quizanswer", {"quiz": q}))
     return out
 
 

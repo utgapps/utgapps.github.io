@@ -172,7 +172,14 @@ apply what they just typed and refresh older ideas:
 - Each question is **two slides**: the question with its options (A, B, C, …) and
   "pick one — the answer is on the next slide", then a **reveal** slide with the
   correct option in green and a one-line "why".
+- **One set per week**, keyed to that week's **culminating block** (the last big
+  chunk), so the check lands right after the new topic is typed and run — not all
+  bunched at the end of the course.
 - Authored in `course.py` as `QUIZZES[(week, filename, block)] = [ {q, options,
   answer (index), why}, … ]`; `slide_plan` emits them right after that block's
   "all together" slide. The build refuses a quiz missing `q`/`why`, with fewer
   than two options, or an out-of-range `answer`.
+- **Author the correct option FIRST** (easy to read). `build.balance_quiz`
+  deterministically reseats it — from a hash of the question text — so answers
+  are spread across A/B/C/D instead of always A, the same every build, identical
+  in the `.html` and the `.pptx`. Do NOT hand-shuffle options.
