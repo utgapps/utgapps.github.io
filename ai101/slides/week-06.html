@@ -306,17 +306,17 @@ composer.addEventListener('submit', async function (event) {
   const text = promptBox.value.trim();
   if (text === '') { return; }
   promptBox.value = '';
-  addLine('You', text);
-  addLine('Companion', 'thinking...');
+  addLine('you', text);
+  addLine('bot', 'thinking...');
   try {
     const reply = await askAI(text);
     chat.lastChild.remove();
-    addLine('Companion', reply);
+    addLine('bot', reply);
   } catch (problem) {
     chat.lastChild.remove();
     // 'Failed to fetch' means the request never arrived anywhere at all.
     // It is the commonest real failure and the least useful wording there is.
-    addLine('Problem', problem.message === 'Failed to fetch'
+    addLine('problem', problem.message === 'Failed to fetch'
       ? 'Could not reach the AI. Are you on the school network?'
       : problem.message);
   }

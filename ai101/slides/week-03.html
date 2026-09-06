@@ -251,8 +251,8 @@ composer.addEventListener('submit', function (event) {
   const text = promptBox.value.trim();
   if (text === '') { return; }     // nothing typed, nothing to do
   promptBox.value = '';            // clear the box, ready for the next one
-  addLine('You', text);
-  addLine('Companion', 'You said: ' + text);   // a pretend answer, for now
+  addLine('you', text);
+  addLine('bot', 'You said: ' + text);   // a pretend answer, for now
 });
 <\/script></script></section><section class="slide"><h2>Watch the Console</h2><ul class="pts"><li>-&gt; GET /v1/models</li><li>&lt;- 200 in 84 ms</li><li>That is your request leaving and coming back</li></ul></section></div>
 <div class="bar">
