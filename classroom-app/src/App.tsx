@@ -7,7 +7,8 @@ import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userCol
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, apiLoginAccount, type ApiAccount, type ApiMedia, type ApiClassroomLink } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type WeekStates } from "./lib/api";
+import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
@@ -247,6 +248,12 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   const [docsTick, setDocsTick] = useState(0); // bump to re-render when a doc is (de)registered
   // The teacher's own projects, for preparing a lesson before teaching it.
   const [ownProjects, setOwnProjects] = useState(false);
+  // The async class-work browser: every student's SAVED projects, viewable and
+  // editable any time (the live grid above needs the student connected now).
+  const [classWork, setClassWork] = useState(false);
+  // The last week + slide the teacher was on in the deck, so "Identify problem"
+  // compares a student against only what the class has reached.
+  const [currentSlide, setCurrentSlide] = useState<{ week: number; index: number } | null>(null);
 
   useEffect(() => { setRoom(record); }, [record]);
   useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
@@ -410,15 +417,194 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
     </SoloWorkspace>;
   }
 
+  if (classWork) {
+    return <TeacherStudentWork token={token} classId={classId} currentSlide={currentSlide}
+                               onExit={() => setClassWork(false)} />;
+  }
+
   return <main className="room-shell">
-    <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={() => setOwnProjects(true)}>My projects</button><button className="text-button" onClick={onExit}>Exit</button></div></header>
+    <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={() => setClassWork(true)}>Saved work</button><button className="text-button" onClick={() => setOwnProjects(true)}>My projects</button><button className="text-button" onClick={onExit}>Exit</button></div></header>
     <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
     {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
     <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
       <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry && fileNames(selectedEntry.doc).length > 0 ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} /> : <div className="offline-view"><p className="empty">{selectedEntry ? "Connected — loading this student's code…" : "This student is offline. Their last saved work is shown here; live co-editing resumes when they open their project."}</p><StaticPreview files={selectedProject.files} kind={selectedProject.kind ?? "web"} /></div>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
-      <aside className="details"><CoursePanel token={token} classId={classId} /><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>Four-character instructor code</dd><dt>Student login</dt><dd>Four-character student code</dd><dt>Room address</dt><dd className="small-code">Fresh and private for each live class</dd><dt>Class record</dt><dd>Saved to the shared classroom</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. The shared class record is also available to authorized instructor devices.</p></div></aside>
+      <aside className="details"><CoursePanel token={token} classId={classId} onSlide={(week, index) => setCurrentSlide({ week, index })} /><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>Four-character instructor code</dd><dt>Student login</dt><dd>Four-character student code</dd><dt>Room address</dt><dd className="small-code">Fresh and private for each live class</dd><dt>Class record</dt><dd>Saved to the shared classroom</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. The shared class record is also available to authorized instructor devices.</p></div></aside>
     </div>
     <footer className="room-footer">{status}</footer>
+  </main>;
+}
+
+/* The async class-work browser: every student's SAVED projects, viewable and
+   editable any time (the live grid needs the student connected right now; this
+   does not). Roster -> a student -> their saved projects -> the same editor,
+   loading and saving through the teacher-scoped worker routes. "Identify
+   problem" asks the classroom AI to compare the student's code against the
+   curriculum's expected code up to the teacher's current slide. */
+function serializeFiles(files: Record<string, string>): string {
+  return Object.keys(files).sort().map((name) => `--- ${name} ---\n${files[name]}`).join("\n\n");
+}
+const IDENTIFY_SYSTEM =
+  "You are a patient coding teacher for students aged 12-17 building a web-based AI chat app in HTML, CSS and JavaScript. " +
+  "You are given the EXPECTED code (what a student should have by this point in the lesson) and the STUDENT's current code. " +
+  "Point out concrete problems in the student's code SO FAR: missing lines, typos, wrong names, code in the wrong file or wrong place, or a skipped step. " +
+  "Be specific and brief, grouped by file, in plain language a beginner understands. Name the fix; do not rewrite whole files. " +
+  "Only judge what the expected code covers - never fault the student for work that comes later than this point. If they are on track, say so warmly.";
+
+function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
+  token: string; classId: string; currentSlide: { week: number; index: number } | null; onExit: () => void;
+}) {
+  const [students, setStudents] = useState<ApiClassStudent[] | null>(null);
+  const [student, setStudent] = useState<ApiClassStudent | null>(null);
+  const [projects, setProjects] = useState<ApiProjectSummary[] | null>(null);
+  const [status, setStatus] = useState("");
+  const [current, setCurrent] = useState<ApiProject | null>(null);
+  const [files, setFiles] = useState<Record<string, string>>({});
+  const [saveLabel, setSaveLabel] = useState("");
+  const [week, setWeek] = useState<number>(currentSlide?.week || 1);
+  const [problem, setProblem] = useState<{ loading: boolean; text: string; error: string } | null>(null);
+  const docRef = useRef<Y.Doc | null>(null);
+  const awarenessRef = useRef<Awareness | null>(null);
+  const deriveTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    apiClassStudents(token, classId)
+      .then((rows) => { setStudents(rows); if (!rows.length) setStatus("No students have joined this class yet."); })
+      .catch(() => setStatus("The class roster could not be loaded."));
+  }, [token, classId]);
+  useEffect(() => () => { awarenessRef.current?.destroy(); docRef.current?.destroy(); }, []);
+
+  async function pickStudent(s: ApiClassStudent) {
+    setStudent(s); setProjects(null); setCurrent(null); setProblem(null); setStatus("");
+    try {
+      const rows = await apiStudentProjects(token, classId, s.id);
+      setProjects(rows);
+      if (!rows.length) setStatus(`${s.name} has not saved any projects yet.`);
+    } catch { setStatus("That student's projects could not be loaded."); }
+  }
+
+  async function openProject(summary: ApiProjectSummary) {
+    if (!student) return;
+    setStatus("Opening…"); setProblem(null);
+    try {
+      const proj = await apiStudentProject(token, classId, student.id, summary.id);
+      if (!proj) { setStatus("That project is no longer there."); return; }
+      awarenessRef.current?.destroy(); docRef.current?.destroy();
+      const doc = new Y.Doc();
+      seedDoc(doc, proj.files);
+      const awareness = new Awareness(doc);
+      awareness.setLocalStateField("user", { name: "Teacher", color: userColor("Teacher") });
+      doc.on("update", () => {
+        if (deriveTimer.current === null) {
+          deriveTimer.current = window.setTimeout(() => {
+            deriveTimer.current = null;
+            if (docRef.current) setFiles(docToFiles(docRef.current));
+          }, 300);
+        }
+      });
+      docRef.current = doc; awarenessRef.current = awareness;
+      setCurrent(proj); setFiles(proj.files); setStatus("");
+      setSaveLabel(`Editing ${student.name}'s project.`);
+    } catch { setStatus("That project could not be opened."); }
+  }
+
+  async function save() {
+    if (!student || !current || !docRef.current) return;
+    setSaveLabel("Saving…");
+    try {
+      await apiSaveStudentProject(token, classId, student.id, current.id, { files: docToFiles(docRef.current) });
+      setSaveLabel(`Saved to ${student.name}'s account.`);
+    } catch { setSaveLabel("Could not save - try again."); }
+  }
+
+  async function identify() {
+    if (!docRef.current) return;
+    setProblem({ loading: true, text: "", error: "" });
+    try {
+      const key = await apiDemoKey(token);
+      if (!key) throw new Error("No classroom AI key is set for teachers. An admin sets it in the admin tools.");
+      const weeks = await apiSlideStates(classId);
+      const useIndex = currentSlide && currentSlide.week === week ? currentSlide.index : Number.MAX_SAFE_INTEGER;
+      const expected = expectedFilesAt(weeks, week, useIndex);
+      if (!expected) throw new Error(`No expected-code reference for week ${week} in this course.`);
+      const prompt =
+        "EXPECTED code, up to the point the class has reached:\n\n" + serializeFiles(expected) +
+        "\n\n====================\n\nSTUDENT code right now:\n\n" + serializeFiles(docToFiles(docRef.current)) +
+        "\n\nWhat is wrong or missing in the student's code so far?";
+      const text = await gatewayAsk(key, {
+        model: "smart",
+        messages: [{ role: "system", content: IDENTIFY_SYSTEM }, { role: "user", content: prompt }],
+        temperature: 0.2, max_tokens: 700,
+      });
+      setProblem({ loading: false, text, error: "" });
+    } catch (e) {
+      setProblem({ loading: false, text: "", error: (e as Error).message || String(e) });
+    }
+  }
+
+  const compareNote = currentSlide && currentSlide.week === week
+    ? `up to your current slide (${currentSlide.index + 1})`
+    : "the whole week";
+
+  return <main className="room-shell">
+    <header className="room-header">
+      <div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>Saved work</strong></div>
+      <div className="connection">
+        {current && <><span className="save-label">{saveLabel}</span>
+          <button className="text-button" onClick={save}>Save to student</button>
+          <button className="text-button" onClick={() => { setCurrent(null); setProblem(null); }}>Back to projects</button></>}
+        <button className="text-button" onClick={onExit}>Back to the class</button>
+      </div>
+    </header>
+
+    {!current && <div className="class-layout">
+      <aside className="roster">
+        <div className="panel-title"><h2>Students {students ? <span>{students.length}</span> : null}</h2></div>
+        <div className="student-list">
+          {students === null ? <p className="empty">Loading…</p>
+            : students.length ? students.map((s) =>
+              <button className={student?.id === s.id ? "student active" : "student"} key={s.id} onClick={() => pickStudent(s)}>
+                <span>{s.name}<small>{s.projects} project{s.projects === 1 ? "" : "s"} · {s.hasAccount ? "account" : "guest"}</small></span>
+              </button>)
+            : <p className="empty">No students have joined yet.</p>}
+        </div>
+      </aside>
+      <section className="workspace">
+        {!student ? <div className="empty-workspace"><h2>Pick a student</h2><p>Choose a student to see the projects they have saved to this class.</p></div>
+          : <><div className="workspace-top"><div><p className="eyebrow">Saved projects</p><h2>{student.name}</h2></div></div>
+            {projects === null ? <p className="empty">Loading…</p>
+              : projects.length ? <div className="student-list">{projects.map((p) =>
+                  <button className="student" key={p.id} onClick={() => openProject(p)}>
+                    <span>{p.title}<small>{p.kind} · saved {new Date(p.updatedAt).toLocaleString()}</small></span>
+                  </button>)}</div>
+              : <p className="empty">{status || "No saved projects yet."}</p>}
+          </>}
+      </section>
+    </div>}
+
+    {current && docRef.current && awarenessRef.current && <div className={problem ? "teacher-edit-layout with-panel" : "teacher-edit-layout"}>
+      <section className="workspace">
+        <div className="workspace-top">
+          <div><p className="eyebrow">{student?.name}'s project</p><h2>{current.title}</h2></div>
+          <div className="identify-controls">
+            <label>Week&nbsp;
+              <select value={week} onChange={(e) => setWeek(parseInt(e.target.value, 10))}>
+                {Array.from({ length: 15 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>Week {n}</option>)}
+              </select>
+            </label>
+            <button className="primary" onClick={identify} disabled={problem?.loading}>{problem?.loading ? "Checking…" : "Identify problem"}</button>
+          </div>
+        </div>
+        <p className="muted small">Compares against the expected code {compareNote}.</p>
+        <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={current.kind} />
+      </section>
+      {problem && <aside className="identify-panel">
+        <h2>Identify problem</h2>
+        {problem.loading && <p className="empty">Asking the classroom AI…</p>}
+        {problem.error && <p className="notice">{problem.error}</p>}
+        {problem.text && <div className="identify-answer">{problem.text.split("\n").map((line, i) => <p key={i}>{line}</p>)}</div>}
+      </aside>}
+    </div>}
+    <footer className="room-footer">{current ? saveLabel : status}</footer>
   </main>;
 }
 
@@ -782,7 +968,7 @@ function MediaPanel({ token }: { token: string }) {
   </div>;
 }
 
-function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
+export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
   const [file, setFile] = useState(names.includes(ENTRY_FILE) ? ENTRY_FILE : (names[0] || ENTRY_FILE));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);

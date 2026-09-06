@@ -774,6 +774,65 @@ export default {
         return response(request, env, { project: { id, title: projectTitle(title) } });
       }
 
+      /* ---- instructor: read and edit a student's saved work ----
+         The async twin of the live room. A teacher may browse any project a
+         student in THEIR class has saved, and edit it (a review/fix pass while
+         the student is offline). The class match is checked against the signed-in
+         account, never the body, and the target must really be a student in that
+         class. Editing another account's work is deliberate here, so - unlike
+         seed, which only ever creates - PUT overwrites; it is last-write-wins
+         against the student's own autosave, which is fine for offline review. */
+      const stuProjMatch = path.match(/^\/class\/([^/]+)\/students\/([^/]+)\/projects(?:\/([^/]+))?$/);
+      if (stuProjMatch) {
+        const classId = stuProjMatch[1], accountId = stuProjMatch[2], projectId = stuProjMatch[3];
+        if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
+        const student = await db.prepare(
+          "SELECT id FROM accounts WHERE id = ? AND class_id = ? AND role = 'student'"
+        ).bind(accountId, classId).first();
+        if (!student) throw new HttpError("No such student in this class.", 404);
+
+        if (!projectId && request.method === "GET") {
+          const rows = (await db.prepare(
+            "SELECT id, title, kind, created_at, updated_at, share_slug, length(files) AS size " +
+            "FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC"
+          ).bind(accountId).all()).results;
+          return response(request, env, { projects: rows.map(projectSummary) });
+        }
+        if (projectId && request.method === "GET") {
+          const row = await db.prepare(
+            "SELECT * FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL"
+          ).bind(projectId, accountId).first();
+          if (!row) throw new HttpError("No such project.", 404);
+          return response(request, env, { project: projectFull(row) });
+        }
+        if (projectId && request.method === "PUT") {
+          const row = await db.prepare(
+            "SELECT id FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL"
+          ).bind(projectId, accountId).first();
+          if (!row) throw new HttpError("No such project.", 404);
+          const body = await readJson(request, JSON_LIMIT);
+          const now = Date.now();
+          if (body.files !== undefined) {
+            // Never let a teacher's own key land in a student's file (they would
+            // spend the teacher's rate limit under the teacher's name). Same
+            // placeholder the course tells them to replace, matching seed.
+            const clean = {};
+            for (const [name, text] of Object.entries(body.files || {})) {
+              clean[name] = typeof text === "string"
+                ? text.replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-class-put-your-own-key-here")
+                : text;
+            }
+            await db.prepare("UPDATE projects SET files = ?, updated_at = ? WHERE id = ?")
+              .bind(projectFilesJson(clean), now, projectId).run();
+          }
+          if (body.title !== undefined) {
+            await db.prepare("UPDATE projects SET title = ?, updated_at = ? WHERE id = ?")
+              .bind(projectTitle(body.title), now, projectId).run();
+          }
+          return response(request, env, { ok: true, updatedAt: now });
+        }
+      }
+
       /* Sharing is off until a student turns it on, and revoking really revokes:
          the slug is cleared, so the old link 404s rather than going stale. */
       const shareMatch = path.match(/^\/projects\/([^/]+)\/share$/);

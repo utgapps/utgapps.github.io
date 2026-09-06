@@ -1053,7 +1053,7 @@ def slide_plan(week, seen):
                 while whole and not whole[-1].strip():
                     whole.pop()
                 out.append(("block", {"file": filename, "start": start,
-                                      "lines": whole, "marks": marks}))
+                                      "lines": whole, "marks": marks, "block": block}))
             # After the chunk is whole, a quick multiple-choice check: a few
             # questions on the code just typed, plus one or two from earlier weeks
             # to keep old ideas fresh. Each is a question slide then a reveal
@@ -2061,6 +2061,15 @@ var slides = [].slice.call(document.querySelectorAll('.slide'));
 var dots = [].slice.call(document.querySelectorAll('.dots i'));
 var count = document.querySelector('.count');
 var at = 0;
+// The week this deck is (from its own filename), so the classroom shell knows
+// which week + slide the teacher is on - that is the compare point for the
+// teacher's "Identify problem" (only what the class has reached so far).
+var DECK_WEEK = (function () { var m = location.pathname.match(/week-(\d+)/); return m ? parseInt(m[1], 10) : null; })();
+
+function reportSlide() {
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ utg: 'deck', action: 'slide', week: DECK_WEEK, index: at, total: slides.length }, location.origin); } catch (e) {}
+}
 
 function show(next, push) {
   at = Math.max(0, Math.min(slides.length - 1, next));
@@ -2069,6 +2078,7 @@ function show(next, push) {
   count.textContent = (at + 1) + ' / ' + slides.length;
   if (push !== false) history.replaceState(null, '', '#' + (at + 1));
   focusTypedLine(slides[at]);
+  reportSlide();
 }
 
 // A code slide can be taller than the screen. The line to type is always the
@@ -2315,6 +2325,61 @@ def build_milestones():
     return len(payload["weeks"])
 
 
+def build_slide_states():
+    """Per-slide expected file snapshots, so a teacher's "Identify problem" can
+    compare a student against ONLY what the class has reached, not the whole week.
+
+    Block-level resolution: a snapshot at every "all together" slide and every
+    checkpoint, holding the files as they should stand by that deck slide (a
+    half-typed block does not count until its all-together slide). Slide 0 is the
+    previous week's finished code; the last entry is the week's full final state.
+    Loaded lazily by the teacher tools, so it lives in its own file rather than
+    bloating the milestones every student fetches.
+    """
+    def state_with(prior, week, done):
+        blocks = {name: list(pairs) for name, pairs in prior.items()}
+        for kind, filename, block_id, lines in week["ops"]:
+            if (filename, block_id) not in done:
+                continue
+            existing = [i for i, (bid, _) in enumerate(blocks[filename]) if bid == block_id]
+            if existing:
+                blocks[filename][existing[0]] = (block_id, lines)
+            else:
+                blocks[filename].append((block_id, lines))
+        out = {}
+        for name in FILES:
+            order = course.ORDER[name]
+            ordered = sorted(blocks[name], key=lambda pair: order.index(pair[0]))
+            out[name] = "\n".join(line for _, lines in ordered for line in lines)
+        return out
+
+    seen = set()
+    weeks_out = []
+    for week in course.WEEKS:
+        n = week["n"]
+        prior = blocks_at(n - 1) if n > 1 else {name: [] for name in FILES}
+        plan = slide_plan(week, seen)   # advances `seen` exactly like the deck build
+        done = set()
+        snaps = [{"slide": 0, "files": state_with(prior, week, done)}]  # floor: prior weeks
+        for pos, (kind, d) in enumerate(plan):
+            idx = pos + 1               # deck index; slide 0 is the week-title slide
+            if kind == "block":
+                done.add((d["file"], d["block"]))
+                snaps.append({"slide": idx, "files": state_with(prior, week, done)})
+            elif kind == "checkpoint":
+                snaps.append({"slide": idx, "files": state_with(prior, week, done)})
+        snaps.append({"slide": len(plan), "files": state_at(n)})   # week final, last slide
+        by_index = {snap["slide"]: snap for snap in snaps}          # last write per index
+        weeks_out.append({"n": n, "states": [by_index[k] for k in sorted(by_index)]})
+    for w in weeks_out:
+        for snap in w["states"]:
+            for name, text in snap["files"].items():
+                if "sk-class-" in text and "put-your-own-key-here" not in text:
+                    raise SystemExit(f"week {w['n']} slide-state {name} carries a real-looking key")
+    write("slide-states.json", json.dumps({"course": "ai101", "weeks": weeks_out}, separators=(",", ":")))
+    return len(weeks_out)
+
+
 def write(name, text):
     with open(os.path.join(HERE, name), "w", encoding="utf-8") as handle:
         handle.write(text)
@@ -2427,6 +2492,7 @@ def main():
     build_teacher()
     build_workbook()
     weeks_out = build_milestones()
+    state_weeks = build_slide_states()
     decks = build_slides()
     web = build_html_decks()
     # The .pptx is for Google Slides and the .html is what the classroom
@@ -2438,7 +2504,7 @@ def main():
         raise SystemExit("deck drift - week: (html, pptx) " + repr(drift))
     print(f"built: index.html, week-01..15.html, teacher.html, workbook.html, "
           f"{decks} slide decks (.pptx and .html, {sum(web.values())} slides), "
-          f"milestones.json ({weeks_out} weeks)")
+          f"milestones.json ({weeks_out} weeks), slide-states.json ({state_weeks} weeks)")
 
 
 if __name__ == "__main__":

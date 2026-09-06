@@ -56,6 +56,28 @@ export async function apiSeedProject(token: string, classId: string, accountId: 
   }, token)).project;
 }
 
+/** A teacher browses one student's saved projects (summaries, no files). */
+export async function apiStudentProjects(token: string, classId: string, accountId: string): Promise<ApiProjectSummary[]> {
+  return (await req(`/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(accountId)}/projects`, {}, token)).projects || [];
+}
+/** A teacher opens one of a student's saved projects, with its files. */
+export async function apiStudentProject(token: string, classId: string, accountId: string, projectId: string): Promise<ApiProject | null> {
+  return (await req(`/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(accountId)}/projects/${encodeURIComponent(projectId)}`, {}, token)).project || null;
+}
+/** A teacher saves an edit back to a student's project. Overwrites (last-write-
+ *  wins vs the student's own autosave) - an offline review/fix pass. */
+export async function apiSaveStudentProject(token: string, classId: string, accountId: string, projectId: string,
+                                            body: { title?: string; files?: Record<string, string> }): Promise<void> {
+  await req(`/class/${encodeURIComponent(classId)}/students/${encodeURIComponent(accountId)}/projects/${encodeURIComponent(projectId)}`, {
+    method: "PUT", body: JSON.stringify(body),
+  }, token);
+}
+/** The classroom AI key for a signed-in teacher, from the server. Never in the
+ *  bundle; used to call the gateway for "Identify problem". */
+export async function apiDemoKey(token: string): Promise<string | null> {
+  return (await req("/demo-key", {}, token)).key ?? null;
+}
+
 export type CourseWeek = { n: number; title: string; files: Record<string, string> };
 /** The generated course milestones. Cached - it is 120 KB and never changes
  *  between deploys. Returns [] for a course that has no milestones published. */
@@ -71,6 +93,36 @@ export async function apiCourseWeeks(classId: string): Promise<CourseWeek[]> {
     weekCache.set(classId, weeks);
     return weeks;
   } catch { return []; }
+}
+
+/** A snapshot of the expected files at one deck slide. */
+export type SlideState = { slide: number; files: Record<string, string> };
+export type WeekStates = { n: number; states: SlideState[] };
+/** The per-slide expected code for a course, for the teacher's "Identify
+ *  problem". Its own file (not milestones.json) so students never fetch it;
+ *  loaded lazily and cached. Returns [] where a course has none. */
+const stateCache = new Map<string, WeekStates[]>();
+export async function apiSlideStates(classId: string): Promise<WeekStates[]> {
+  const cached = stateCache.get(classId);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`../${classId}/slide-states.json`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const weeks: WeekStates[] = Array.isArray(data.weeks) ? data.weeks : [];
+    stateCache.set(classId, weeks);
+    return weeks;
+  } catch { return []; }
+}
+/** The expected files a student should have by a given deck slide of a week:
+ *  the latest snapshot whose slide index is at or before `index` (Infinity for
+ *  the whole week). Returns null if that week has no states. */
+export function expectedFilesAt(weeks: WeekStates[], week: number, index: number): Record<string, string> | null {
+  const wk = weeks.find((w) => w.n === week);
+  if (!wk || !wk.states.length) return null;
+  let chosen = wk.states[0];
+  for (const s of wk.states) { if (s.slide <= index) chosen = s; else break; }
+  return chosen.files;
 }
 
 async function req(path: string, opts: RequestInit = {}, token?: string) {

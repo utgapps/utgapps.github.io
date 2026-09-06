@@ -469,6 +469,15 @@ var slides = [].slice.call(document.querySelectorAll('.slide'));
 var dots = [].slice.call(document.querySelectorAll('.dots i'));
 var count = document.querySelector('.count');
 var at = 0;
+// The week this deck is (from its own filename), so the classroom shell knows
+// which week + slide the teacher is on - that is the compare point for the
+// teacher's "Identify problem" (only what the class has reached so far).
+var DECK_WEEK = (function () { var m = location.pathname.match(/week-(\d+)/); return m ? parseInt(m[1], 10) : null; })();
+
+function reportSlide() {
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ utg: 'deck', action: 'slide', week: DECK_WEEK, index: at, total: slides.length }, location.origin); } catch (e) {}
+}
 
 function show(next, push) {
   at = Math.max(0, Math.min(slides.length - 1, next));
@@ -477,6 +486,7 @@ function show(next, push) {
   count.textContent = (at + 1) + ' / ' + slides.length;
   if (push !== false) history.replaceState(null, '', '#' + (at + 1));
   focusTypedLine(slides[at]);
+  reportSlide();
 }
 
 // A code slide can be taller than the screen. The line to type is always the

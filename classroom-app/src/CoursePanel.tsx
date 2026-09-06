@@ -24,7 +24,7 @@ function suggestPassword() {
   return `${pick()}-${pick()}-${10 + Math.floor(Math.random() * 90)}`;
 }
 
-export function CoursePanel({ token, classId }: { token: string; classId: string }) {
+export function CoursePanel({ token, classId, onSlide }: { token: string; classId: string; onSlide?: (week: number, index: number) => void }) {
   const [weeks, setWeeks] = useState<CourseWeek[] | null>(null);
   const [students, setStudents] = useState<ApiClassStudent[]>([]);
   const [mine, setMine] = useState<ApiProjectSummary[]>([]);
@@ -179,7 +179,7 @@ export function CoursePanel({ token, classId }: { token: string; classId: string
     {note && <p className="notice">{note}</p>}
 
     {week && viewing && <CourseViewer classId={classId} week={week.n} title={week.title}
-                                      tab={viewing} onTab={setViewing}
+                                      tab={viewing} onTab={setViewing} onSlide={onSlide}
                                       onClose={() => setViewing(null)} />}
   </div>;
 }

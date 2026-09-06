@@ -154,6 +154,56 @@ check("seeding an unknown student is 404",
       (await call("/class/ai101/seed", { method: "POST", token: T1,
         body: { accountId: "no-such-id", title: "ZZ Nope", files: { "a.js": "1" } } })).status === 404);
 
+// ------------------------------------------- reading & editing a student's work
+section("A teacher reads and edits a student's saved work");
+const roster1 = await call(`/class/ai101/students/${SID}/projects`, { token: T1 });
+check("a teacher lists a student's saved projects",
+      roster1.status === 200 && Array.isArray(roster1.data?.projects) && roster1.data.projects.length >= 1, roster1);
+const SPID = (roster1.data?.projects || [])[0]?.id;
+check("another class's teacher cannot list them",
+      (await call(`/class/ai101/students/${SID}/projects`, { token: T2 })).status === 403);
+check("a student cannot list a classmate's projects",
+      (await call(`/class/ai101/students/${SID}/projects`, { token: S1 })).status === 403);
+check("signed out cannot list a student's projects",
+      (await call(`/class/ai101/students/${SID}/projects`)).status === 401);
+check("listing an unknown student is 404",
+      (await call(`/class/ai101/students/no-such-id/projects`, { token: T1 })).status === 404);
+check("relabelling the class in the list URL does not reach them",
+      (await call(`/class/ai102/students/${SID}/projects`, { token: T2 })).status === 404);
+
+check("a teacher reads a student's project files", await (async () => {
+  const full = await call(`/class/ai101/students/${SID}/projects/${SPID}`, { token: T1 });
+  return full.status === 200 && typeof full.data?.project?.files?.["script.js"] === "string";
+})());
+check("another class's teacher cannot read it",
+      (await call(`/class/ai101/students/${SID}/projects/${SPID}`, { token: T2 })).status === 403);
+check("reading an unknown project is 404",
+      (await call(`/class/ai101/students/${SID}/projects/00000000-0000-0000-0000-000000000000`, { token: T1 })).status === 404);
+
+check("a teacher edits a student's project", await (async () => {
+  const put = await call(`/class/ai101/students/${SID}/projects/${SPID}`, { method: "PUT", token: T1,
+    body: { files: { "script.js": "const x = 1;" } } });
+  if (put.status !== 200) return false;
+  const full = await call(`/class/ai101/students/${SID}/projects/${SPID}`, { token: T1 });
+  return full.data?.project?.files?.["script.js"] === "const x = 1;";
+})());
+check("the edit reaches the student's own account", await (async () => {
+  const full = await call("/projects/" + SPID, { token: S1 });
+  return full.data?.project?.files?.["script.js"] === "const x = 1;";
+})());
+check("a teacher's key is scrubbed out on edit too", await (async () => {
+  await call(`/class/ai101/students/${SID}/projects/${SPID}`, { method: "PUT", token: T1,
+    body: { files: { "script.js": 'const K = "sk-teachers-real-key-zzz999";' } } });
+  const text = (await call("/projects/" + SPID, { token: S1 })).data?.project?.files?.["script.js"] || "";
+  return text.includes("put-your-own-key-here") && !text.includes("teachers-real-key");
+})());
+check("a student cannot edit a classmate's project",
+      (await call(`/class/ai101/students/${SID}/projects/${SPID}`, { method: "PUT", token: S1, body: { files: { "script.js": "1" } } })).status === 403);
+check("another class's teacher cannot edit it",
+      (await call(`/class/ai101/students/${SID}/projects/${SPID}`, { method: "PUT", token: T2, body: { files: { "script.js": "1" } } })).status === 403);
+check("editing an unknown project is 404",
+      (await call(`/class/ai101/students/${SID}/projects/00000000-0000-0000-0000-000000000000`, { method: "PUT", token: T1, body: { files: { "a.js": "1" } } })).status === 404);
+
 // ------------------------------------------------------------ password reset
 section("Resetting a student's password");
 check("another class's teacher gets 403",

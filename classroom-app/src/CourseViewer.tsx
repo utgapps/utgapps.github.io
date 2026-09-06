@@ -24,13 +24,16 @@ const TABS: { id: ViewerTab; label: string; hint: string }[] = [
   { id: "plan", label: "Lesson plan", hint: "opened at this week" },
 ];
 
-export function CourseViewer({ classId, week, title, tab, onTab, onClose }: {
+export function CourseViewer({ classId, week, title, tab, onTab, onClose, onSlide }: {
   classId: string;
   week: number;
   title: string;
   tab: ViewerTab;
   onTab: (tab: ViewerTab) => void;
   onClose: () => void;
+  // Reports which week + slide the teacher is on, so the class-work tools can
+  // compare a student against only what the class has reached.
+  onSlide?: (week: number, index: number) => void;
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = useState(false);
@@ -46,7 +49,11 @@ export function CourseViewer({ classId, week, title, tab, onTab, onClose }: {
     function onKey(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
     function onMessage(event: MessageEvent) {
       if (event.source !== frameRef.current?.contentWindow) return;
-      if (event.data && event.data.utg === "deck" && event.data.action === "close") onClose();
+      if (!event.data || event.data.utg !== "deck") return;
+      if (event.data.action === "close") onClose();
+      else if (event.data.action === "slide" && typeof event.data.index === "number") {
+        onSlide?.(typeof event.data.week === "number" ? event.data.week : week, event.data.index);
+      }
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("message", onMessage);
@@ -56,7 +63,7 @@ export function CourseViewer({ classId, week, title, tab, onTab, onClose }: {
       window.removeEventListener("message", onMessage);
       document.body.classList.remove("viewer-open");
     };
-  }, [onClose]);
+  }, [onClose, onSlide, week]);
 
   // Switching tabs remounts the frame, so the loading state has to reset with
   // it or a slow second load looks like a blank panel.
