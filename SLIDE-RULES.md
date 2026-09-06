@@ -42,8 +42,15 @@ not just the named features:
   function ("what is a function"); and each built-in (`fetch`, `addEventListener`,
   `JSON.stringify`, `res.json()`, …) the first time.
 
-A concept explainer is 1–2 short bullets. The teaching lives on these slides, so
-keep code comments in the files light — do NOT rely on comments to explain.
+A concept explainer carries three things: a **one-line code example** in the
+monospace sub-line (the real line from the project, so they recognise it when
+they type it), and **2–3 short bullets** that both say what it does AND **tie it
+back to a concept from an earlier week** ("a side of margin (week 1)", "the
+opposite end from .push (week 7)", "the reverse of JSON.stringify (week 4)").
+Every new idea builds on an old one — name that link so the course reads as one
+thing, not forty. In `course.py`, `CONCEPTS[key]` is `(kind, title, [bullets])`
+or, richer, `(kind, title, [bullets], "example")`. The teaching lives on these
+slides, so keep code comments in the files light — do NOT rely on comments.
 
 ## 3. One line of code per slide
 

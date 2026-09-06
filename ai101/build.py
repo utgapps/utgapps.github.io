@@ -999,9 +999,12 @@ def slide_plan(week, seen):
                     concept = course.CONCEPTS.get(key)
                     if concept and key not in seen:
                         seen.add(key)
-                        kind, title, bullets = concept
+                        kind, title, bullets = concept[0], concept[1], concept[2]
+                        # An optional 4th element is a short code example, shown
+                        # in the monospace sub-line above the bullets.
+                        example = concept[3] if len(concept) > 3 else ""
                         out.append(("concept", {"eyebrow": eyebrow_for[kind], "title": title,
-                                                "sub": "", "bullets": bullets}))
+                                                "sub": example, "bullets": bullets}))
                 note = notes[i] if notes and i < len(notes) else ""
                 if note is None:
                     continue  # a line deliberately folded into its neighbour
@@ -1053,7 +1056,7 @@ def deck_render_html(desc):
         eyebrow = f'<p class="eyebrow">{esc(d["eyebrow"])}</p>' if d.get("eyebrow") else ""
         sub = ""
         if d.get("sub"):
-            code_ish = any(mark in d["sub"] for mark in ("(", "{", "[", "=", ".", "/"))
+            code_ish = any(mark in d["sub"] for mark in ("(", "{", "[", "=", ".", "/", ":", ";", "<"))
             sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(d["sub"]))
         pts = "".join("<li>{0}</li>".format(esc(pt)) for pt in d.get("bullets", []))
         pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
@@ -1564,7 +1567,7 @@ def deck_concept_slide(spec):
     sub = ""
     if spec.get("sub"):
         # A sub-heading that is really a line of code should look like one.
-        code_ish = any(mark in spec["sub"] for mark in ("(", "{", "[", "=", ".", "/"))
+        code_ish = any(mark in spec["sub"] for mark in ("(", "{", "[", "=", ".", "/", ":", ";", "<"))
         sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(spec["sub"]))
     points = "".join("<li>{0}</li>".format(esc(point)) for point in spec.get("bullets", []))
     return ('<section class="slide"><h2>{0}</h2>{1}{2}</section>'.format(
