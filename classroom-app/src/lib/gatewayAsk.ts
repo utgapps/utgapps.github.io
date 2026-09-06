@@ -10,6 +10,22 @@
 //
 // This is best-effort: on a home machine (or the in-app browser) the gateway is
 // simply unreachable and this rejects with a plain-language message.
+//
+// WHY YOU CANNOT SEE THIS REQUEST FROM THE PAGE
+//
+// Measured on a fleet PC: the completion is invisible to
+// performance.getEntriesByType("resource"), to a window.fetch / XHR.open hook,
+// and to an extension's network capture - only the /demo-key call to the worker
+// shows up. That is not a proxy, a service worker, or a mystery: the fetch
+// happens inside the frame below, which is a SEPARATE browsing context with its
+// own realm and its own opaque origin. Its `window.fetch` is not the page's, so
+// a hook on the page never sees it; its resource timings belong to its own
+// timeline and, being cross-origin, are not exposed to the parent at all. Page
+// -level tracing cannot observe it by construction - that isolation is the whole
+// point of doing it here.
+//
+// To watch it for real, look at the gateway end instead: its own logs and the
+// /admin dashboard record every completion.
 
 import { PREVIEW_ALLOW } from "./preview";
 
