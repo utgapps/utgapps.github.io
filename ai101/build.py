@@ -1004,7 +1004,8 @@ def slide_plan(week, seen):
                         # in the monospace sub-line above the bullets.
                         example = concept[3] if len(concept) > 3 else ""
                         out.append(("concept", {"eyebrow": eyebrow_for[kind], "title": title,
-                                                "sub": example, "bullets": bullets}))
+                                                "sub": example, "bullets": bullets,
+                                                "vis": getattr(course, "VISUALS", {}).get(key)}))
                 note = notes[i] if notes and i < len(notes) else ""
                 if note is None:
                     continue  # a line deliberately folded into its neighbour
@@ -1049,6 +1050,476 @@ def _code_table_html(start, lines, hi, marks):
     return '<table class="code">%s</table>' % "".join(rows)
 
 
+# ---------------------------------------------------------------------------
+# Visual metaphors for concept slides.
+#
+# A concept slide replaces its text bullets with a small animated picture that
+# SHOWS what the code does (a box sliding onto a list, a token flowing through a
+# function, a request bouncing to a server and back). Each concept names one
+# "kind" of metaphor in course.VISUALS and fills in a couple of labels; the code
+# below turns that spec into a self-contained inline <svg> plus its own scoped
+# <style> (concrete @keyframes, uniquely named so slides never clash). No JS and
+# no external libraries - it loops forever on CSS alone, so whenever a student
+# lands on the slide they see the motion play within a few seconds.
+#
+# The .pptx cannot animate, so there it falls back to the concept's text bullets
+# (still authored in CONCEPTS). Both decks stay one slide, so the drift guard is
+# happy.
+# ---------------------------------------------------------------------------
+_VIS_SEQ = [0]
+_VW, _VH = 680, 210          # viewBox
+_BW, _BH, _GAP, _PITCH, _ROWY = 88, 64, 16, 104, 73
+
+
+def _vbox(x, label, cls=""):
+    """A list/array cell: rounded box with centred monospace text."""
+    return ('<g class="vb {cls}"><rect class="vb-rect" x="{x}" y="{y}" width="{w}" '
+            'height="{h}" rx="13"/><text class="vb-txt" x="{tx}" y="{ty}">{t}</text></g>').format(
+                cls=cls, x=x, y=_ROWY, w=_BW, h=_BH, tx=x + _BW // 2, ty=_ROWY + _BH // 2,
+                t=esc(label))
+
+
+def _vtile(x, y, w, h, label, cls=""):
+    """A small labelled tile (function input/output, network node, string)."""
+    return ('<g class="vtile {cls}"><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="10"/>'
+            '<text x="{tx}" y="{ty}">{t}</text></g>').format(
+                cls=cls, x=x, y=y, w=w, h=h, tx=x + w // 2, ty=y + h // 2, t=esc(label))
+
+
+def concept_visual(vis):
+    """An animated inline SVG for one concept metaphor. Returns HTML."""
+    _VIS_SEQ[0] += 1
+    cid = "v%d" % _VIS_SEQ[0]
+    k = vis["kind"]
+    css, body = [], []
+
+    def kf(name, frames):
+        css.append("@keyframes %s{%s}" % (name, frames))
+
+    def anim(sel, name, dur, ease="ease-in-out"):
+        css.append(".%s{animation:%s %ss %s infinite}" % (sel, name, dur, ease))
+
+    if k in ("arr-add", "arr-remove"):
+        items = vis["items"]
+        end = vis.get("end", "right")
+        n = len(items)
+        if k == "arr-add":
+            slots = n + 1
+            totalw = slots * _BW + (slots - 1) * _GAP
+            startx = (_VW - totalw) // 2
+            if end == "right":
+                xs = [startx + i * _PITCH for i in range(n)]
+                fin = startx + n * _PITCH
+                off = _VW + 140 - fin
+            else:
+                xs = [startx + (i + 1) * _PITCH for i in range(n)]
+                fin = startx
+                off = -(fin + _BW + 120)
+            for i, it in enumerate(items):
+                body.append(_vbox(xs[i], it))
+            body.append('<g class="%s-in">%s</g>' % (cid, _vbox(fin, vis.get("incoming", "new"), "vb-in")))
+            kf(cid + "k", "0%%{transform:translateX(%dpx);opacity:0}12%%{opacity:1}"
+               "42%%{transform:translateX(0);opacity:1}80%%{transform:translateX(0);opacity:1}"
+               "90%%{opacity:0}100%%{transform:translateX(%dpx);opacity:0}" % (off, off))
+            anim(cid + "-in", cid + "k", "3.4", "cubic-bezier(.5,0,.2,1)")
+        else:
+            totalw = n * _BW + (n - 1) * _GAP
+            startx = (_VW - totalw) // 2
+            xs = [startx + i * _PITCH for i in range(n)]
+            li = n - 1 if end == "right" else 0
+            off = 240 if end == "right" else -240
+            for i, it in enumerate(items):
+                if i == li:
+                    body.append('<g class="%s-out">%s</g>' % (cid, _vbox(xs[i], it, "vb-in")))
+                elif end == "left":
+                    body.append('<g class="%s-rest">%s</g>' % (cid, _vbox(xs[i], it)))
+                else:
+                    body.append(_vbox(xs[i], it))
+            kf(cid + "o", "0%%{transform:translateX(0);opacity:1}28%%{transform:translateX(0);opacity:1}"
+               "52%%{transform:translateX(%dpx);opacity:0}86%%{opacity:0}"
+               "100%%{transform:translateX(0);opacity:1}" % off)
+            anim(cid + "-out", cid + "o", "3.4")
+            if end == "left":
+                kf(cid + "r", "0%%{transform:translateX(0)}28%%{transform:translateX(0)}"
+                   "52%%{transform:translateX(-%dpx)}86%%{transform:translateX(-%dpx)}"
+                   "100%%{transform:translateX(0)}" % (_PITCH, _PITCH))
+                anim(cid + "-rest", cid + "r", "3.4")
+
+    elif k == "loop":
+        items = vis["items"]
+        n = len(items)
+        totalw = n * _BW + (n - 1) * _GAP
+        startx = (_VW - totalw) // 2
+        body.append('<rect class="%s-hi vb-hi" x="%d" y="%d" width="%d" height="%d" rx="14"/>'
+                     % (cid, startx, _ROWY - 6, _BW, _BH + 12))
+        for i, it in enumerate(items):
+            body.append(_vbox(startx + i * _PITCH, it))
+        seg = 100 // n
+        frames = []
+        for i in range(n):
+            a, hold = i * seg, i * seg + max(1, seg // 2)
+            frames.append("%d%%{transform:translateX(%dpx)}" % (a, i * _PITCH))
+            frames.append("%d%%{transform:translateX(%dpx)}" % (hold, i * _PITCH))
+        frames.append("100%{transform:translateX(0)}")
+        kf(cid + "k", "".join(frames))
+        anim(cid + "-hi", cid + "k", "%.1f" % max(2.6, n * 0.9))
+
+    elif k == "machine":
+        mw, mh = 190, 96
+        mx, my = (_VW - mw) // 2, (_VH - mh) // 2
+        tw, th = 92, 54
+        ty = (_VH - th) // 2
+        body.append('<rect class="vmachine" x="%d" y="%d" width="%d" height="%d" rx="16"/>'
+                     % (mx, my, mw, mh))
+        body.append('<text class="vmlabel" x="%d" y="%d">%s</text>'
+                     % (mx + mw // 2, my + mh // 2, esc(vis.get("label", "f()"))))
+        body.append('<g class="%s-in">%s</g>' % (cid, _vtile(mx - tw - 66, ty, tw, th, vis.get("in", "in"), "vt-in")))
+        body.append('<g class="%s-out">%s</g>' % (cid, _vtile(mx + mw + 66, ty, tw, th, vis.get("out", "out"), "vt-out")))
+        d = tw + 66
+        kf(cid + "i", "0%%{transform:translateX(0);opacity:0}9%%{opacity:1}"
+           "40%%{transform:translateX(%dpx);opacity:1}48%%{transform:translateX(%dpx);opacity:0}"
+           "100%%{opacity:0}" % (d, d + 20))
+        anim(cid + "-in", cid + "i", "3.6")
+        kf(cid + "o", "0%%{transform:translateX(-%dpx);opacity:0}52%%{transform:translateX(-%dpx);opacity:0}"
+           "62%%{transform:translateX(0);opacity:1}92%%{transform:translateX(0);opacity:1}"
+           "100%%{transform:translateX(-%dpx);opacity:0}" % (d, d, d))
+        anim(cid + "-out", cid + "o", "3.6")
+
+    elif k == "network":
+        nh = 64
+        lw, rw = 150, 176
+        lx, rx = 66, _VW - 66 - rw
+        cy = _ROWY + nh // 2
+        body.append(_vtile(lx, _ROWY, lw, nh, vis.get("from", "you")))
+        body.append(_vtile(rx, _ROWY, rw, nh, vis.get("to", "server"), "vt-cloud"))
+        dist = rx - (lx + lw) - 16
+        body.append('<circle class="%s-req" cx="%d" cy="%d" r="12"/>' % (cid, lx + lw + 8, cy))
+        kf(cid + "q", "0%%{transform:translateX(0);opacity:0}6%%{opacity:1}"
+           "40%%{transform:translateX(%dpx);opacity:1}46%%{transform:translateX(%dpx);opacity:0}"
+           "100%%{opacity:0}" % (dist, dist))
+        css.append(".%s-req{fill:#ffd633}" % cid)
+        anim(cid + "-req", cid + "q", "3.6")
+        body.append('<circle class="%s-rep" cx="%d" cy="%d" r="12"/>' % (cid, rx - 8, cy))
+        kf(cid + "p", "0%%{opacity:0}54%%{transform:translateX(0);opacity:0}60%%{opacity:1}"
+           "94%%{transform:translateX(-%dpx);opacity:1}100%%{transform:translateX(-%dpx);opacity:0}" % (dist, dist))
+        css.append(".%s-rep{fill:#7fe0a0}" % cid)
+        anim(cid + "-rep", cid + "p", "3.6")
+
+    elif k == "glue":
+        tw, th, y1 = 132, 58, 36
+        ax, bx = _VW // 2 - tw - 42, _VW // 2 + 42
+        body.append(_vtile(ax, y1, tw, th, vis.get("a", '"Hi "')))
+        body.append('<text class="vplus" x="%d" y="%d">+</text>' % (_VW // 2, y1 + th // 2))
+        body.append(_vtile(bx, y1, tw, th, vis.get("b", "name")))
+        rw = 260
+        body.append('<text class="varrow" x="%d" y="122">&#8595;</text>' % (_VW // 2))
+        body.append('<g class="%s-r">%s</g>' % (cid, _vtile((_VW - rw) // 2, 138, rw, th, vis.get("out", '"Hi Sam"'), "vt-out")))
+        kf(cid + "r", "0%{opacity:0}38%{opacity:0}52%{opacity:1}92%{opacity:1}100%{opacity:0}")
+        anim(cid + "-r", cid + "r", "3.2")
+
+    elif k == "swap":
+        bw, bh = 240, 90
+        bx, by = (_VW - bw) // 2, (_VH - bh) // 2
+        tx, ty = bx + bw // 2, by + bh // 2
+        body.append('<g class="%s-off"><rect class="vswap-off" x="%d" y="%d" width="%d" height="%d" rx="15"/>'
+                     '<text class="vb-txt" x="%d" y="%d">%s</text></g>'
+                     % (cid, bx, by, bw, bh, tx, ty, esc(vis.get("off", "off"))))
+        body.append('<g class="%s-on"><rect class="vswap-on" x="%d" y="%d" width="%d" height="%d" rx="15"/>'
+                     '<text class="vb-txt" x="%d" y="%d">%s</text></g>'
+                     % (cid, bx, by, bw, bh, tx, ty, esc(vis.get("on", "on"))))
+        kf(cid + "f", "0%{opacity:1}44%{opacity:1}56%{opacity:0}94%{opacity:0}100%{opacity:1}")
+        kf(cid + "n", "0%{opacity:0}44%{opacity:0}56%{opacity:1}94%{opacity:1}100%{opacity:0}")
+        anim(cid + "-off", cid + "f", "3.0")
+        anim(cid + "-on", cid + "n", "3.0")
+
+    elif k == "boxmodel":
+        layer = vis.get("layer", "padding")
+        w, h = 380, 156
+        x, y = (_VW - w) // 2, (_VH - h) // 2
+        rects = {
+            "margin": (x, y, w, h),
+            "border": (x + 26, y + 26, w - 52, h - 52),
+            "padding": (x + 50, y + 50, w - 100, h - 100),
+        }
+        colours = {"margin": "#ffd633", "border": "#c98be0", "padding": "#7fe0a0"}
+        for name in ("margin", "border", "padding"):
+            rx, ry, rw2, rh2 = rects[name]
+            dash = ' stroke-dasharray="7 6"' if name == "margin" else ""
+            cls = ' class="%s-pulse"' % cid if name == layer else ""
+            body.append('<rect%s x="%d" y="%d" width="%d" height="%d" rx="8" fill="none" '
+                        'stroke="%s" stroke-width="3"%s/>' % (cls, rx, ry, rw2, rh2, colours[name], dash))
+        cxr = rects["padding"]
+        body.append('<rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="#132833"/>'
+                     % (cxr[0] + 20, cxr[1] + 18, cxr[2] - 40, cxr[3] - 36))
+        body.append('<text class="vb-txt" x="%d" y="%d" style="font-size:22px">content</text>'
+                     % (_VW // 2, _VH // 2))
+        kf(cid + "k", "0%{stroke-width:3;opacity:.55}50%{stroke-width:7;opacity:1}100%{stroke-width:3;opacity:.55}")
+        anim(cid + "-pulse", cid + "k", "1.8")
+
+    elif k == "box":                                   # a variable = a labelled box
+        bw, bh, by = 220, 90, 106
+        bx = (_VW - bw) // 2
+        body.append('<text class="vmlabel" x="%d" y="66" style="font-size:24px">%s</text>'
+                     % (_VW // 2, esc(vis.get("name", "value"))))
+        body.append('<rect class="vmachine" x="%d" y="%d" width="%d" height="%d" rx="14"/>' % (bx, by, bw, bh))
+        tw, th = 130, 52
+        body.append('<g class="%s-v">%s</g>' % (cid, _vtile((_VW - tw) // 2, by + (bh - th) // 2, tw, th, vis.get("value", "0"), "vt-in")))
+        kf(cid + "k", "0%{transform:translateY(-92px);opacity:0}18%{opacity:1}44%{transform:translateY(6px);opacity:1}"
+           "54%{transform:translateY(0)}86%{transform:translateY(0);opacity:1}94%{opacity:0}100%{transform:translateY(-92px);opacity:0}")
+        anim(cid + "-v", cid + "k", "3.2")
+
+    elif k == "pick":                                  # a pointer picking one cell
+        items, at = vis["items"], vis.get("at", 0)
+        n = len(items)
+        totalw = n * _BW + (n - 1) * _GAP
+        startx = (_VW - totalw) // 2
+        tx = startx + at * _PITCH
+        for i, it in enumerate(items):
+            body.append(_vbox(startx + i * _PITCH, it, "vb-pick" if i == at else ""))
+        body.append('<g class="%s-pt"><text class="vmlabel" x="%d" y="34" style="font-size:22px">%s</text>'
+                     '<text class="varrow" x="%d" y="60" style="font-size:34px">&#8595;</text></g>'
+                     % (cid, tx + _BW // 2, esc(vis.get("label", "[0]")), tx + _BW // 2))
+        kf(cid + "k", "0%{transform:translateY(0)}50%{transform:translateY(-9px)}100%{transform:translateY(0)}")
+        anim(cid + "-pt", cid + "k", "1.5")
+
+    elif k == "fork":                                  # a check that branches two ways
+        cxc = _VW // 2
+        body.append('<rect class="vmachine" x="%d" y="16" width="180" height="58" rx="12"/>' % (cxc - 90))
+        body.append('<text class="vmlabel" x="%d" y="45" style="font-size:21px">%s</text>' % (cxc, esc(vis.get("cond", "check"))))
+        tw, th, ly = 156, 58, 140
+        lx, rx = cxc - tw - 34, cxc + 34
+        body.append('<path d="M%d,74 L%d,%d" stroke="#33586a" stroke-width="2.5" fill="none"/>' % (cxc, lx + tw // 2, ly))
+        body.append('<path d="M%d,74 L%d,%d" stroke="#33586a" stroke-width="2.5" fill="none"/>' % (cxc, rx + tw // 2, ly))
+        body.append(_vtile(lx, ly, tw, th, vis.get("yes", "true"), "vt-out"))
+        body.append(_vtile(rx, ly, tw, th, vis.get("no", "false"), "vt-no"))
+        body.append('<circle class="%s-tok" cx="%d" cy="74" r="10"/>' % (cid, cxc))
+        dx, dy = lx + tw // 2 - cxc, ly - 74
+        kf(cid + "k", "0%%{transform:translate(0,0);opacity:0}12%%{opacity:1}58%%{transform:translate(%dpx,%dpx);opacity:1}"
+           "78%%{transform:translate(%dpx,%dpx);opacity:0}100%%{opacity:0}" % (dx, dy, dx, dy))
+        css.append(".%s-tok{fill:#ffd633}" % cid)
+        anim(cid + "-tok", cid + "k", "3.0")
+
+    elif k == "event":                                 # a click sparks code to run
+        bx, by, bw, bh = 84, _ROWY, 156, 64
+        body.append(_vtile(bx, by, bw, bh, vis.get("btn", "button"), "vt-btn"))
+        body.append('<circle class="%s-rip" cx="%d" cy="%d" r="16" fill="none" stroke="#ffd633" stroke-width="3"/>'
+                     % (cid, bx + bw // 2, by + bh // 2))
+        kf(cid + "r", "0%{r:14px;opacity:.9}70%{r:54px;opacity:0}100%{r:54px;opacity:0}")
+        anim(cid + "-rip", cid + "r", "2.6")
+        cx2 = _VW - 84 - 200
+        body.append('<g class="%s-code">%s</g>' % (cid, _vtile(cx2, by, 200, bh, vis.get("action", "run code"), "vt-out")))
+        body.append('<circle class="%s-sp" cx="%d" cy="%d" r="8"/>' % (cid, bx + bw + 8, by + bh // 2))
+        dist = cx2 - (bx + bw) - 16
+        kf(cid + "s", "0%%{transform:translateX(0);opacity:0}20%%{opacity:1}54%%{transform:translateX(%dpx);opacity:1}"
+           "62%%{opacity:0}100%%{opacity:0}" % dist)
+        css.append(".%s-sp{fill:#ffd633}" % cid)
+        anim(cid + "-sp", cid + "s", "2.6")
+        kf(cid + "f", "0%{opacity:.55}56%{opacity:.55}64%{opacity:1}90%{opacity:1}100%{opacity:.55}")
+        anim(cid + "-code", cid + "f", "2.6")
+
+    elif k == "dom":                                   # a child node nests in a parent
+        pw, ph = 320, 128
+        px, py = (_VW - pw) // 2, (_VH - ph) // 2
+        body.append('<rect class="vmachine" x="%d" y="%d" width="%d" height="%d" rx="14"/>' % (px, py, pw, ph))
+        body.append('<text class="vmlabel" x="%d" y="%d" style="font-size:20px">%s</text>'
+                     % (px + pw // 2, py + 22, esc(vis.get("parent", "parent"))))
+        tw, th = 168, 52
+        tx, ty = px + (pw - tw) // 2, py + ph - th - 16
+        body.append('<g class="%s-c">%s</g>' % (cid, _vtile(tx, ty, tw, th, vis.get("child", "child"), "vt-out")))
+        if vis.get("mode", "add") == "add":
+            kf(cid + "k", "0%{transform:translateY(-128px);opacity:0}20%{opacity:1}48%{transform:translateY(0);opacity:1}"
+               "86%{transform:translateY(0);opacity:1}94%{opacity:0}100%{transform:translateY(-128px);opacity:0}")
+        else:
+            kf(cid + "k", "0%{transform:translateY(0);opacity:1}30%{transform:translateY(0);opacity:1}"
+               "56%{transform:translateY(-128px);opacity:0}100%{transform:translateY(-128px);opacity:0}")
+        anim(cid + "-c", cid + "k", "3.2")
+
+    elif k == "tag":                                   # opening + closing tags hug content
+        name = vis.get("tag", "p")
+        if vis.get("selfclose"):
+            lbl = vis.get("open", "<%s />" % name)
+            body.append(_vtile((_VW - 300) // 2, _ROWY, 300, 64, lbl, "vt-tag"))
+        else:
+            openl = vis.get("open", "<%s>" % name)
+            closel = vis.get("close", "</%s>" % name)
+            ow, cw, conw, g = 130, 130, 230, 12
+            total = ow + conw + cw + 2 * g
+            sx = (_VW - total) // 2
+            body.append('<g class="%s-o">%s</g>' % (cid, _vtile(sx, _ROWY, ow, 64, openl, "vt-tag")))
+            body.append(_vtile(sx + ow + g, _ROWY, conw, 64, vis.get("content", "text")))
+            body.append('<g class="%s-c">%s</g>' % (cid, _vtile(sx + ow + g + conw + g, _ROWY, cw, 64, closel, "vt-tag")))
+            kf(cid + "o", "0%{transform:translateX(0)}50%{transform:translateX(11px)}100%{transform:translateX(0)}")
+            kf(cid + "c", "0%{transform:translateX(0)}50%{transform:translateX(-11px)}100%{transform:translateX(0)}")
+            anim(cid + "-o", cid + "o", "2.2")
+            anim(cid + "-c", cid + "c", "2.2")
+
+    elif k == "swatch":                                # a colour that shifts
+        target = vis.get("target", "box")
+        a, b = vis.get("a", "#1f6feb"), vis.get("b", "#7c5cff")
+        bw, bh = 280, 108
+        bx, by = (_VW - bw) // 2, (_VH - bh) // 2 - 8
+        if target == "text":
+            body.append('<rect x="%d" y="%d" width="%d" height="%d" rx="14" fill="#132833" stroke="#33586a" stroke-width="2.5"/>' % (bx, by, bw, bh))
+            body.append('<text class="%s-sw" x="%d" y="%d" style="font:800 40px Rubik,sans-serif;text-anchor:middle;dominant-baseline:central">Text</text>' % (cid, _VW // 2, by + bh // 2))
+            kf(cid + "k", "0%%{fill:%s}50%%{fill:%s}100%%{fill:%s}" % (a, b, a))
+        elif target == "border":
+            body.append('<rect class="%s-sw" x="%d" y="%d" width="%d" height="%d" rx="14" fill="#132833" stroke="%s" stroke-width="7"/>' % (cid, bx, by, bw, bh, a))
+            kf(cid + "k", "0%%{stroke:%s}50%%{stroke:%s}100%%{stroke:%s}" % (a, b, a))
+        else:
+            body.append('<rect class="%s-sw" x="%d" y="%d" width="%d" height="%d" rx="14" stroke="#33586a" stroke-width="2" fill="%s"/>' % (cid, bx, by, bw, bh, a))
+            kf(cid + "k", "0%%{fill:%s}50%%{fill:%s}100%%{fill:%s}" % (a, b, a))
+        css.append(".%s-sw{animation:%sk 3.0s ease-in-out infinite}" % (cid, cid))
+        body.append('<text x="%d" y="%d" style="font:700 20px Consolas,monospace;text-anchor:middle;fill:#8fb3bd">%s</text>'
+                     % (_VW // 2, by + bh + 26, esc(vis.get("label", b))))
+
+    elif k == "resize":                                # a box that grows on one axis
+        bw, bh = 128, 128
+        body.append('<rect class="%s-rz" x="%d" y="%d" width="%d" height="%d" rx="12" fill="#0f2c38" stroke="#01aefd" stroke-width="3"/>'
+                     % (cid, (_VW - bw) // 2, (_VH - bh) // 2, bw, bh))
+        if vis.get("axis", "w") == "w":
+            kf(cid + "k", "0%{transform:scaleX(.45)}50%{transform:scaleX(1.7)}100%{transform:scaleX(.45)}")
+        else:
+            kf(cid + "k", "0%{transform:scaleY(.45)}50%{transform:scaleY(1.5)}100%{transform:scaleY(.45)}")
+        css.append(".%s-rz{transform-box:fill-box;transform-origin:center;animation:%sk 2.6s ease-in-out infinite}" % (cid, cid))
+
+    elif k == "round":                                 # corners rounding off
+        bw, bh = 150, 150
+        body.append('<rect class="%s-r" x="%d" y="%d" width="%d" height="%d" fill="#0f2c38" stroke="#01aefd" stroke-width="3"/>'
+                     % (cid, (_VW - bw) // 2, (_VH - bh) // 2, bw, bh))
+        kf(cid + "k", "0%{rx:2px;ry:2px}50%{rx:46px;ry:46px}100%{rx:2px;ry:2px}")
+        css.append(".%s-r{animation:%sk 2.6s ease-in-out infinite}" % (cid, cid))
+
+    elif k == "textsize":                              # text growing
+        body.append('<text class="%s-t" x="%d" y="%d" style="fill:#01aefd;text-anchor:middle;dominant-baseline:central;font-weight:800;font-family:Rubik,sans-serif">Aa</text>'
+                     % (cid, _VW // 2, _VH // 2))
+        kf(cid + "k", "0%{font-size:32px}50%{font-size:96px}100%{font-size:32px}")
+        css.append(".%s-t{animation:%sk 2.6s ease-in-out infinite}" % (cid, cid))
+
+    elif k == "linegap":                               # line spacing opening up
+        for tag2, lbl, base in (("a", "line one", -24), ("b", "line two", 24)):
+            body.append('<g class="%s-%s"><text x="%d" y="%d" style="fill:#e6f2f6;text-anchor:middle;dominant-baseline:central;font:700 26px Rubik,sans-serif">%s</text></g>'
+                         % (cid, tag2, _VW // 2, _VH // 2 + base, lbl))
+        kf(cid + "a", "0%{transform:translateY(0)}50%{transform:translateY(-22px)}100%{transform:translateY(0)}")
+        kf(cid + "b", "0%{transform:translateY(0)}50%{transform:translateY(22px)}100%{transform:translateY(0)}")
+        anim(cid + "-a", cid + "a", "2.6")
+        anim(cid + "-b", cid + "b", "2.6")
+
+    elif k == "motion":                                # something moving on its own
+        cy = _VH // 2
+        body.append('<line x1="72" y1="%d" x2="%d" y2="%d" stroke="#33586a" stroke-width="2" stroke-dasharray="6 6"/>' % (cy, _VW - 72, cy))
+        body.append('<circle class="%s-m" cx="90" cy="%d" r="18" fill="#01aefd"/>' % (cid, cy))
+        kf(cid + "k", "0%%{transform:translateX(0)}50%%{transform:translateX(%dpx)}100%%{transform:translateX(0)}" % (_VW - 180))
+        anim(cid + "-m", cid + "k", "2.4")
+
+    elif k == "scroll":                                # content scrolling in a viewport
+        vw2, vh2 = 300, 140
+        vx, vy = (_VW - vw2) // 2, (_VH - vh2) // 2
+        body.append('<clipPath id="%s-clip"><rect x="%d" y="%d" width="%d" height="%d" rx="10"/></clipPath>' % (cid, vx, vy, vw2, vh2))
+        body.append('<rect x="%d" y="%d" width="%d" height="%d" rx="10" fill="#0f1b21" stroke="#33586a" stroke-width="2.5"/>' % (vx, vy, vw2, vh2))
+        rowsn, lh = 8, 30
+        inner = "".join('<rect x="%d" y="%d" width="%d" height="16" rx="4" fill="#2a4a57"/>' % (vx + 18, vy + 14 + i * lh, vw2 - 70) for i in range(rowsn))
+        body.append('<g clip-path="url(#%s-clip)"><g class="%s-sc">%s</g></g>' % (cid, cid, inner))
+        dist = rowsn * lh + 14 - vh2
+        kf(cid + "k", "0%%{transform:translateY(0)}45%%{transform:translateY(-%dpx)}55%%{transform:translateY(-%dpx)}100%%{transform:translateY(0)}" % (dist, dist))
+        anim(cid + "-sc", cid + "k", "4.0", "linear")
+        body.append('<rect class="%s-th" x="%d" y="%d" width="6" height="40" rx="3" fill="#01aefd"/>' % (cid, vx + vw2 - 12, vy + 8))
+        kf(cid + "t", "0%%{transform:translateY(0)}45%%{transform:translateY(%dpx)}55%%{transform:translateY(%dpx)}100%%{transform:translateY(0)}" % (vh2 - 56, vh2 - 56))
+        anim(cid + "-th", cid + "t", "4.0", "linear")
+
+    elif k == "card":                                  # an object as a key:value card
+        rows = vis.get("rows", [("role", "user"), ("text", "hi")])
+        n = len(rows)
+        cw, rh = 380, 46
+        ch = 30 + n * rh
+        cx, cy = (_VW - cw) // 2, (_VH - ch) // 2
+        body.append('<rect class="vmachine" x="%d" y="%d" width="%d" height="%d" rx="14"/>' % (cx, cy, cw, ch))
+        for i, (kk, vv) in enumerate(rows):
+            ry = cy + 22 + i * rh
+            body.append('<text x="%d" y="%d" style="fill:#7fd8ff;font:700 22px Consolas,monospace;dominant-baseline:central">%s:</text>' % (cx + 26, ry, esc(kk)))
+            body.append('<text x="%d" y="%d" style="fill:#e6f2f6;font:700 22px Consolas,monospace;text-anchor:end;dominant-baseline:central">%s</text>' % (cx + cw - 26, ry, esc(vv)))
+        hy = cy + 22 - (rh - 8) // 2
+        body.append('<rect class="%s-hl vb-hi" x="%d" y="%d" width="%d" height="%d" rx="8"/>' % (cid, cx + 10, hy, cw - 20, rh - 8))
+        frames = []
+        for i in range(n):
+            a, hold = i * (100 // n), i * (100 // n) + (100 // n) // 2
+            frames.append("%d%%{transform:translateY(%dpx)}" % (a, i * rh))
+            frames.append("%d%%{transform:translateY(%dpx)}" % (hold, i * rh))
+        frames.append("100%{transform:translateY(0)}")
+        kf(cid + "k", "".join(frames))
+        css.append(".%s-hl{opacity:.55;animation:%sk %.1fs ease-in-out infinite}" % (cid, cid, max(2.4, n * 0.9)))
+
+    elif k == "tiles":                                 # labelled parts of a line, swept
+        parts = vis["parts"]
+        n = len(parts)
+        ws = [max(84, 28 + len(str(p)) * 15) for p in parts]
+        g = 14
+        total = sum(ws) + g * (n - 1)
+        x = (_VW - total) // 2
+        xs = []
+        for w in ws:
+            xs.append(x)
+            x += w + g
+        for i, p in enumerate(parts):
+            body.append(_vtile(xs[i], _ROWY, ws[i], 64, p))
+        dur = max(2.4, n * 0.85)
+        kf(cid + "k", "0%{opacity:0}12%{opacity:.85}26%{opacity:0}100%{opacity:0}")
+        for i in range(n):
+            body.append('<rect class="%s-h%d vb-hi" x="%d" y="%d" width="%d" height="76" rx="12"/>' % (cid, i, xs[i], _ROWY - 6, ws[i]))
+            css.append(".%s-h%d{opacity:0;animation:%sk %.1fs ease-in-out infinite;animation-delay:%.2fs}" % (cid, i, cid, dur, i * dur / n))
+
+    elif k == "flex":                                  # items settling into a layout
+        mode = vis.get("mode", "row")
+        items = vis.get("items", ["A", "B", "C"])
+        n = len(items)
+        tw, th = 104, 64
+        rowy = _VH // 2 - th // 2
+
+        def _spread(gap):
+            tot = n * tw + (n - 1) * gap
+            sx = (_VW - tot) // 2
+            return [(sx + i * (tw + gap), rowy) for i in range(n)]
+
+        if mode == "gap":
+            start, target = _spread(2), _spread(48)
+        elif mode == "column":
+            start = _spread(20)
+            th = 50
+            ch = n * th + (n - 1) * 8
+            sy = (_VH - ch) // 2
+            target = [((_VW - tw) // 2, sy + i * (th + 8)) for i in range(n)]
+        elif mode == "end":
+            left = [(40 + i * (tw + 16), rowy) for i in range(n)]
+            start = left[:]
+            target = left[:]
+            target[-1] = (_VW - 40 - tw, rowy)
+        elif mode == "wrap":
+            per = (n + 1) // 2
+
+            def _rowpos(idxs, y):
+                m = len(idxs)
+                tot = m * tw + (m - 1) * 16
+                sx = (_VW - tot) // 2
+                return {idxs[j]: (sx + j * (tw + 16), y) for j in range(m)}
+            tpos = {}
+            tpos.update(_rowpos(list(range(per)), rowy - 40))
+            tpos.update(_rowpos(list(range(per, n)), rowy + 40))
+            start = [((_VW - tw) // 2, rowy)] * n
+            target = [tpos[i] for i in range(n)]
+        else:  # row
+            start, target = [((_VW - tw) // 2, rowy)] * n, _spread(20)
+        for i, it in enumerate(items):
+            s, t = start[i], target[i]
+            body.append('<g class="%s-i%d">%s</g>' % (cid, i, _vtile(s[0], s[1], tw, th, it)))
+            kf("%si%d" % (cid, i), "0%%{transform:translate(0,0)}42%%{transform:translate(%dpx,%dpx)}"
+               "84%%{transform:translate(%dpx,%dpx)}100%%{transform:translate(0,0)}"
+               % (t[0] - s[0], t[1] - s[1], t[0] - s[0], t[1] - s[1]))
+            anim("%s-i%d" % (cid, i), "%si%d" % (cid, i), "3.6")
+
+    svg = '<svg viewBox="0 0 %d %d" role="img" aria-label="%s">%s</svg>' % (
+        _VW, _VH, esc(vis.get("cap", "")), "".join(body))
+    return '<div class="vis"><style>%s</style>%s</div>' % ("".join(css), svg)
+
+
 def deck_render_html(desc):
     """One deck slide as HTML, for any descriptor slide_plan() produces."""
     kind, d = desc
@@ -1058,6 +1529,13 @@ def deck_render_html(desc):
         if d.get("sub"):
             code_ish = any(mark in d["sub"] for mark in ("(", "{", "[", "=", ".", "/", ":", ";", "<"))
             sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(d["sub"]))
+        # A concept with a visual metaphor shows the animation and one caption
+        # in place of the text bullets; without one it keeps the bullet list.
+        if d.get("vis"):
+            vis = d["vis"]
+            cap = '<p class="vis-cap">{0}</p>'.format(esc(vis["cap"])) if vis.get("cap") else ""
+            return ('<section class="slide concept-vis">{0}<h2>{1}</h2>{2}{3}{4}</section>').format(
+                eyebrow, esc(d["title"]), sub, concept_visual(vis), cap)
         pts = "".join("<li>{0}</li>".format(esc(pt)) for pt in d.get("bullets", []))
         pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
         return '<section class="slide">{0}<h2>{1}</h2>{2}{3}</section>'.format(
@@ -1389,6 +1867,33 @@ font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
 .cp-row{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}
 .cp-row.error{color:#ff9d8e}.cp-row.warn{color:#f4c869}.cp-row.net{color:#8fb3bd}.cp-row.info{color:#9fd8ee}
 @media (max-width:640px){.bar .hint{display:none}}
+.slide.concept-vis{align-items:center;text-align:center;justify-content:center}
+.slide.concept-vis .sub{margin-top:.4em}
+.vis{width:100%;max-width:min(780px,94%);margin:clamp(12px,2.6vh,26px) auto 0}
+.vis svg{width:100%;height:auto;display:block;overflow:visible}
+.vis-cap{color:#0a6299;text-align:center;font-size:clamp(16px,2.1vw,27px);font-weight:600;
+margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
+.vb-rect{fill:#132833;stroke:#33586a;stroke-width:2.5}
+.vb-txt{fill:#e6f2f6;font:700 30px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vb-in .vb-rect{fill:#20301b;stroke:#ffd633}
+.vb-hi{fill:rgba(1,174,253,.30);stroke:#01aefd;stroke-width:3}
+.vmachine{fill:#0f2c38;stroke:#01aefd;stroke-width:3}
+.vmlabel{fill:#7fd8ff;font:800 26px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vtile rect{fill:#16303a;stroke:#33586a;stroke-width:2.5}
+.vtile text{fill:#e6f2f6;font:700 23px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vt-in rect{stroke:#ffd633}
+.vt-out rect{fill:#16321f;stroke:#7fe0a0}
+.vt-cloud rect{fill:#0f2c38;stroke:#01aefd}
+.vplus{fill:#7fd8ff;font:800 42px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.varrow{fill:#5b8aa0;font:800 30px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vswap-off{fill:#2a2030;stroke:#c98be0;stroke-width:3}
+.vswap-on{fill:#16321f;stroke:#7fe0a0;stroke-width:3}
+.vb-pick .vb-rect{fill:#16321f;stroke:#7fe0a0}
+.vt-btn rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag text{fill:#7fd8ff}
+.vt-no rect{fill:#1a2730;stroke:#7c909d}
+.vt-no text{fill:#aebfcb}
 """
 
 DECK_JS = r"""

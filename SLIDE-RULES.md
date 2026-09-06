@@ -44,13 +44,35 @@ not just the named features:
 
 A concept explainer carries three things: a **one-line code example** in the
 monospace sub-line (the real line from the project, so they recognise it when
-they type it), and **2–3 short bullets** that both say what it does AND **tie it
-back to a concept from an earlier week** ("a side of margin (week 1)", "the
-opposite end from .push (week 7)", "the reverse of JSON.stringify (week 4)").
-Every new idea builds on an old one — name that link so the course reads as one
-thing, not forty. In `course.py`, `CONCEPTS[key]` is `(kind, title, [bullets])`
-or, richer, `(kind, title, [bullets], "example")`. The teaching lives on these
-slides, so keep code comments in the files light — do NOT rely on comments.
+they type it), and — in the HTML deck — an **animated visual metaphor** that
+SHOWS what the idea does, with a single caption line under it (not a wall of
+bullets). A box slides onto the end of a list for `.push`; a token flows through
+a machine for a function; a request bounces to a server and back for `fetch`; the
+CSS box-model breathes its layers for `margin`. The metaphor is picked from a
+small library of reusable "kinds" (see below), so authoring one concept is a
+couple of lines.
+
+In `course.py`:
+
+- `CONCEPTS[key]` is `(kind, title, [bullets])` or, richer, `(kind, title,
+  [bullets], "example")`. The bullets are still authored — they tie the idea to
+  an earlier week ("the opposite end from .push (week 7)", "the reverse of
+  JSON.stringify (week 4)") — and are what the **`.pptx`** shows, since it cannot
+  animate. Keep them honest even when a visual exists.
+- `VISUALS[key]` (optional) gives the concept a metaphor: `{"kind": ...,
+  "cap": "one caption line", ...labels}`. When present, the **HTML** slide shows
+  the animation + caption INSTEAD of the bullets. Kinds live in
+  `build.concept_visual`: arr-add / arr-remove / loop / pick (lists), machine
+  (transforms), network (fetch/await), glue (string +), box (variables), card
+  (objects), fork (if/compare/try), event / dom (DOM & clicks), swap / tag
+  (state & HTML tags), boxmodel / swatch / resize / round / textsize / linegap /
+  flex / scroll / motion / tiles (CSS & structure). Each renders a self-contained
+  inline `<svg>` with its own scoped, uniquely-named `@keyframes` — no JS, no
+  libraries — so it loops forever on CSS alone.
+
+Both decks stay ONE slide per concept, so the count-drift guard passes. The
+teaching lives on these slides, so keep code comments in the files light — do NOT
+rely on comments.
 
 ## 3. One line of code per slide
 
