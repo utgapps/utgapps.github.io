@@ -31,7 +31,10 @@ export function gatewayAsk(
     // that does not know the token logs "Unrecognized feature" and the fetch is
     // blocked - that is what happens away from a fleet Chrome.
     frame.setAttribute("allow", PREVIEW_ALLOW);
-    frame.style.display = "none";
+    // Off-screen rather than display:none. Permissions policy does not depend on
+    // visibility, but a frame that is never rendered is the kind of thing an
+    // engine treats specially, and this costs nothing to rule out.
+    frame.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;border:0;";
     // The frame waits for the request (so the key is not in the srcdoc), fetches
     // the gateway, and posts the JSON (or the error) back. The closing script
     // tag is split so this file never contains a literal one.
