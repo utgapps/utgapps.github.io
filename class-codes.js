@@ -14,6 +14,16 @@ window.UTG_CLASSROOMS = [
     id: "ai102",
     courseId: "AI102",
     className: "AI102 - AI Creative Studio"
+  },
+  {
+    id: "ccl",
+    courseId: "CCL",
+    className: "CCL - Canadian Coding League"
+  },
+  {
+    id: "wb601",
+    courseId: "WB601",
+    className: "WB601 - Web Development Level 1"
   }
 ];
 

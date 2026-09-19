@@ -41,6 +41,8 @@ export function classroomForId(classId: string) {
   const known: ClassroomDefinition[] = [
     { id: "ai101", courseId: "AI101", className: "AI101 - Talk to the Machine" },
     { id: "ai102", courseId: "AI102", className: "AI102 - AI Creative Studio" },
+    { id: "ccl", courseId: "CCL", className: "CCL - Canadian Coding League" },
+    { id: "wb601", courseId: "WB601", className: "WB601 - Web Development Level 1" },
   ];
   return known.find((item) => item.id === classId) || null;
 }
