@@ -15,9 +15,11 @@ function accessDevice() {
 }
 
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
-export type ProjectKind = "web" | "java";
+export type ProjectKind = "web" | "java" | "pixelpad";
 // The picker list deliberately carries no files - see the worker's GET /projects.
-export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null };
+/* owner is somebody else's name, and only on a project shared WITH you: your
+   own projects have it null. members is how many people it is shared with. */
+export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null; owner: string | null; members: number };
 export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
 export type ApiSharedProject = { title: string; html: string; updatedAt: number };
 export type ApiClassStudent = { id: string; name: string; lastSeen: number; projects: number;
@@ -170,8 +172,24 @@ export async function apiGetProjectById(token: string, id: string): Promise<ApiP
 export async function apiSaveProjectById(token: string, id: string, body: { title?: string; files?: Record<string, string> }): Promise<void> {
   await req(`/projects/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) }, token);
 }
+/** The owner deletes; anybody else it was shared with leaves. Same request:
+ *  the server knows which of the two this student is. */
 export async function apiDeleteProject(token: string, id: string): Promise<void> {
   await req(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" }, token);
+}
+
+/* Opening a shared project. Exactly one browser writes it to the account and
+   everybody else types through that one's live document, so this asks the
+   server which of the two this browser is about to be.
+
+   claim is the way back from a host that stopped answering: only the browser
+   on the other end of the connection can tell that it is gone, so it says so
+   here. A host that was still alive finds out on its next beat and rejoins as
+   a guest, which is how the two of them end up with one writer again. */
+export type ApiProjectSession = { role: "host" | "guest"; room: ApiCoeditRoom };
+export async function apiEnterProject(token: string, id: string, opts: { claim?: boolean; renew?: boolean } = {}): Promise<ApiProjectSession> {
+  const got = await req(`/projects/${encodeURIComponent(id)}/session`, { method: "POST", body: JSON.stringify(opts) }, token);
+  return { role: got.role, room: got.room };
 }
 /** Publish a snapshot at an unguessable link. Off until a student asks for it. */
 export async function apiShareProject(token: string, id: string): Promise<string> {
@@ -215,6 +233,23 @@ export async function apiGetLiveRoom(token: string, classId: string): Promise<Ap
 }
 export async function apiCloseLiveRoom(token: string, classId: string): Promise<void> {
   await req(`/live/${encodeURIComponent(classId)}`, { method: "DELETE" }, token);
+}
+
+/* Co-editing. The owner opens a room on one of their projects and reads out the
+   code; a friend redeems it for the owner's peer id. Only the introduction goes
+   through the API - the document itself never leaves the two browsers. */
+export type ApiCoeditRoom = { code: string; peerId: string; projectId: string; title: string;
+                              kind: ProjectKind; host: string; hostId?: string; expiresAt: number };
+/** renew keeps the code the child read out and issues a fresh peer id behind
+ *  it, which is how a host recovers from a signalling id it cannot reclaim. */
+export async function apiOpenCoedit(token: string, projectId: string, renew = false): Promise<ApiCoeditRoom> {
+  return (await req("/coedit/open", { method: "POST", body: JSON.stringify({ projectId, renew }) }, token)).room;
+}
+export async function apiGetCoedit(token: string, code: string): Promise<ApiCoeditRoom> {
+  return (await req(`/coedit/${encodeURIComponent(code)}`, {}, token)).room;
+}
+export async function apiCloseCoedit(token: string, code: string): Promise<void> {
+  await req(`/coedit/${encodeURIComponent(code)}`, { method: "DELETE" }, token);
 }
 export async function apiGetTurnCredentials(token: string): Promise<RTCIceServer[]> {
   if (!TURN) return [];

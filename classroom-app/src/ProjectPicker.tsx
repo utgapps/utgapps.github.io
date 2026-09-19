@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { apiListProjects, apiCreateProject, apiDeleteProject, apiSaveProjectById, type ApiProjectSummary } from "./lib/api";
+import { apiListProjects, apiCreateProject, apiDeleteProject, apiSaveProjectById, type ApiProjectSummary, type ApiCoeditRoom } from "./lib/api";
+import { CoEditJoinDialog } from "./CoEdit";
 import { starterFiles, type ProjectKind } from "./lib/types";
 
 const LOGO = "https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg";
+
+/* Module scope on purpose: it is per browsing session, not per mount. */
+let offeredFirstProject = false;
+
+const KIND_LABEL: Record<ProjectKind, string> = { web: "Web", java: "Java", pixelpad: "Game" };
 
 function edited(at: number) {
   const minutes = Math.round((Date.now() - at) / 60000);
@@ -14,24 +20,31 @@ function edited(at: number) {
   return `edited ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function ProjectPicker({ token, className, status, live, onOpen, onSignOut, exitLabel = "Sign out" }: {
+export function ProjectPicker({ token, className, status, live, onOpen, onSignOut, onJoinCoedit, exitLabel = "Sign out" }: {
   token: string; className: string; status: string; live: boolean;
   onOpen: (id: string) => void; onSignOut: () => void;
+  // Redeeming a friend's code. Optional so a screen that has nowhere to put a
+  // co-edit session simply does not offer one.
+  onJoinCoedit?: (room: ApiCoeditRoom) => void;
   // A teacher browsing their own projects is stepping out of the class, not
   // out of their account - the same control needs a different name there.
   exitLabel?: string;
 }) {
   const [projects, setProjects] = useState<ApiProjectSummary[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [joining, setJoining] = useState(false);
   const [note, setNote] = useState("");
 
   useEffect(() => {
     apiListProjects(token)
       .then((list) => {
         setProjects(list);
-        // A student signing in for the first time should never meet an empty
-        // screen with a button on it; go straight to naming their first project.
-        if (list.length === 0) setCreating(true);
+        /* A student signing in for the first time should never meet an empty
+           screen with a button on it; go straight to naming their first
+           project. Once only: a child who is here to join somebody else's
+           project owns nothing yet, and meeting this dialog every time they
+           leave a session is an obstacle, not a shortcut. */
+        if (list.length === 0 && !offeredFirstProject) { offeredFirstProject = true; setCreating(true); }
       })
       .catch(() => { setProjects([]); setNote("Your projects could not be loaded. Check your connection and refresh."); });
   }, [token]);
@@ -43,12 +56,19 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
       onOpen(made.id);
     } catch (error) { setNote((error as Error).message || "That project could not be created."); }
   }
+  /* Leaving and deleting are the same request - the server knows which of the
+     two this student is - but they are not the same thing to ask a child, so
+     the wording has to be the truth: a shared project you leave is still
+     there, and its owner still has it. */
   async function remove(project: ApiProjectSummary) {
-    if (!window.confirm(`Delete "${project.title}"? You have 30 days to ask your teacher to get it back.`)) return;
+    const question = project.owner
+      ? `Leave "${project.title}"? It stays on ${project.owner}'s projects screen, and you would need their code again to come back.`
+      : `Delete "${project.title}"? You have 30 days to ask your teacher to get it back.`;
+    if (!window.confirm(question)) return;
     try {
       await apiDeleteProject(token, project.id);
       setProjects((list) => (list || []).filter((item) => item.id !== project.id));
-      setNote(`Deleted "${project.title}".`);
+      setNote(project.owner ? `You left "${project.title}".` : `Deleted "${project.title}".`);
     } catch (error) { setNote((error as Error).message || "That project could not be deleted."); }
   }
   async function rename(project: ApiProjectSummary) {
@@ -71,18 +91,26 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
       {projects === null
         ? <p className="empty">Loading your projects…</p>
         : <div className="project-grid">
-            {projects.map((project) => <div className="project-card" key={project.id}>
+            {/* Shared projects sit in the same grid as your own, because that
+                is what they are now: yours to open on any day. The card says
+                whose it is, so that renaming or leaving one is never a
+                surprise. */}
+            {projects.map((project) => <div className={`project-card${project.owner ? " shared" : ""}`} key={project.id}>
               <button className="project-open" onClick={() => onOpen(project.id)}>
-                <span className={`kind-badge ${project.kind}`}>{project.kind === "java" ? "Java" : "Web"}</span>
+                <span className={`kind-badge ${project.kind}`}>{KIND_LABEL[project.kind] ?? "Web"}</span>
                 <strong>{project.title}</strong>
                 <small>{edited(project.updatedAt)}</small>
+                {project.owner
+                  ? <small className="shared-by">Shared by {project.owner}</small>
+                  : project.members > 0 && <small className="shared-by">Shared with {project.members} {project.members === 1 ? "person" : "people"}</small>}
               </button>
               <div className="project-actions">
                 <button className="text-button" onClick={() => rename(project)}>Rename</button>
-                <button className="text-button danger" onClick={() => remove(project)}>Delete</button>
+                <button className="text-button danger" onClick={() => remove(project)}>{project.owner ? "Leave" : "Delete"}</button>
               </div>
             </div>)}
-            <button className="project-card new" onClick={() => setCreating(true)}><span className="plus">＋</span><strong>New project</strong></button>
+            <button className="project-card new" onClick={() => setCreating(true)}><span className="plus">＋</span><strong>Project</strong><small>Start your own</small></button>
+            {onJoinCoedit && <button className="project-card coedit" onClick={() => setJoining(true)}><span className="plus">＋</span><strong>Shared project</strong><small>Type a classmate&rsquo;s code</small></button>}
           </div>}
       <p className="notice">{status}</p>
     </section>
@@ -90,7 +118,14 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
       suggested={`Project ${(projects?.length || 0) + 1}`}
       onCreate={create}
       onCancel={() => setCreating(false)}
-      canCancel={(projects?.length || 0) > 0}
+      // A child who signed in only to join a friend's code must be able to get
+      // out of this dialog, even though they own nothing yet.
+      canCancel={(projects?.length || 0) > 0 || !!onJoinCoedit}
+    />}
+    {joining && onJoinCoedit && <CoEditJoinDialog
+      token={token}
+      onJoined={(room) => { setJoining(false); onJoinCoedit(room); }}
+      onCancel={() => setJoining(false)}
     />}
   </main>;
 }
@@ -109,6 +144,10 @@ function NewProjectDialog({ suggested, onCreate, onCancel, canCancel }: {
         <button className={kind === "web" ? "kind-card selected" : "kind-card"} onClick={() => setKind("web")}>
           <strong>HTML / CSS / JavaScript</strong>
           <span>Web pages that run right here, with a preview and a console.</span>
+        </button>
+        <button className={kind === "pixelpad" ? "kind-card selected" : "kind-card"} onClick={() => setKind("pixelpad")}>
+          <strong>PixelPad game</strong>
+          <span>Python games that run right here. You get a monster on the screen the moment you press Run.</span>
         </button>
         {/* Deliberately secondary, and honest about it. A chooser whose second
             option quietly does nothing reads as broken software to a 12-year-old. */}

@@ -7,13 +7,15 @@ import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userCol
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiShareProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type WeekStates } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiEnterProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type ApiCoeditRoom, type WeekStates } from "./lib/api";
 import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { buildPreview, isPreviewMessage, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
+import { buildGamePreview, GAME_ENTRY } from "./lib/pixelpad";
 import { ProjectPicker } from "./ProjectPicker";
+import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
 import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
@@ -611,22 +613,17 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
 /* The teacher's view of an offline student's last save. This used to mount the
    iframe the instant a student was selected, so clicking down a roster of
    fifteen ran fifteen students' API-calling code from the teacher's browser. */
-/* Sharing publishes a snapshot at a link with no name in it. Re-pressing Share
-   is how you publish newer work, so the button says so rather than pretending
-   the link is live. */
-function ShareBox({ token, projectId, initialSlug }: { token: string; projectId: string; initialSlug: string | null }) {
+/* Publishing a project to a public link is no longer offered on this screen.
+   Links made before it went are still live, and a child who cannot take their
+   own page down again would be worse off than before it was removed - so the
+   OFF switch stays, and only for a project that actually has a link. */
+function PublicLink({ token, projectId, initialSlug }: { token: string; projectId: string; initialSlug: string | null }) {
   const [slug, setSlug] = useState<string | null>(initialSlug);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   useEffect(() => { setSlug(initialSlug); setNote(""); }, [initialSlug, projectId]);
   const link = slug ? `${window.location.origin}/${slug}/` : "";
 
-  async function share() {
-    setBusy(true);
-    try { setSlug(await apiShareProject(token, projectId)); setNote("Anyone with this link can see your project."); }
-    catch (error) { setNote((error as Error).message || "Could not make a link."); }
-    setBusy(false);
-  }
   async function unshare() {
     if (!window.confirm("Turn off the link? Anyone who has it will stop being able to open it.")) return;
     setBusy(true);
@@ -635,29 +632,72 @@ function ShareBox({ token, projectId, initialSlug }: { token: string; projectId:
     setBusy(false);
   }
 
+  if (!slug && !note) return null;
   return <div className="share-box">
-    {slug ? <>
+    {slug && <>
+      <span className="share-label">This project has a public link.</span>
       <input readOnly value={link} onFocus={(event) => event.target.select()} />
       <button className="text-button" onClick={() => { navigator.clipboard?.writeText(link); setNote("Link copied."); }}>Copy</button>
-      <button className="text-button" disabled={busy} onClick={share}>Update</button>
-      <button className="text-button danger" disabled={busy} onClick={unshare}>Turn off</button>
-    </> : (
-      <button className="text-button" disabled={busy} onClick={share}>{busy ? "Working..." : "Share a link"}</button>
-    )}
+      <button className="text-button danger" disabled={busy} onClick={unshare}>Turn it off</button>
+    </>}
     {note && <span className="share-note">{note}</span>}
+  </div>;
+}
+
+/* One gear instead of a row of words. Everything a student might do to the
+   whole project - rather than to the code in front of them - lives behind it,
+   which leaves the header saying only which project is open and whether it is
+   saved. Closes on Escape and on a click anywhere else, because a menu a child
+   cannot get rid of is a menu covering the thing they meant to press. */
+function GearMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDown(event: MouseEvent) {
+      if (!boxRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) { if (event.key === "Escape") setOpen(false); }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return <div className="gear-menu" ref={boxRef}>
+    <button className="gear-button" aria-haspopup="menu" aria-expanded={open} aria-label="Project menu"
+            title="Project menu" onClick={() => setOpen((was) => !was)}>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+        {/* Eight teeth around a hole, drawn here rather than borrowed, so it
+            renders the same on every machine in the room. */}
+        <path fill="currentColor" fillRule="evenodd" d="M18.58 9.61 L22.01 10.05 L22.01 13.95 L18.58 14.39 L18.34 14.96 L20.46 17.70 L17.70 20.46 L14.96 18.34 L14.39 18.58 L13.95 22.01 L10.05 22.01 L9.61 18.58 L9.04 18.34 L6.30 20.46 L3.54 17.70 L5.66 14.96 L5.42 14.39 L1.99 13.95 L1.99 10.05 L5.42 9.61 L5.66 9.04 L3.54 6.30 L6.30 3.54 L9.04 5.66 L9.61 5.42 L10.05 1.99 L13.95 1.99 L14.39 5.42 L14.96 5.66 L17.70 3.54 L20.46 6.30 L18.34 9.04 Z M8.50 12.00 a3.50 3.50 0 1 0 7.00 0 a3.50 3.50 0 1 0 -7.00 0 Z" />
+      </svg>
+    </button>
+    {open && <div className="gear-list" role="menu">
+      {items.map((item) => <button key={item.label} role="menuitem" className={item.danger ? "danger" : undefined}
+                                   onClick={() => { setOpen(false); item.onClick(); }}>{item.label}</button>)}
+    </div>}
   </div>;
 }
 
 function StaticPreview({ files, kind }: { files: Record<string, string>; kind: ProjectKind }) {
   const [nonce, setNonce] = useState("");
   if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
+  const build = kind === "pixelpad" ? buildGamePreview : buildPreview;
   return nonce
-    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={buildPreview(files, nonce)} />
+    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={build(files, nonce)} />
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
 }
 
 function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void; initialCode: string; initialGrant: string }) {
-  const [step, setStep] = useState<"join" | "waiting" | "picker" | "room">("join");
+  const [step, setStep] = useState<"join" | "waiting" | "picker" | "room" | "coedit">("join");
+  /* A shared project that somebody else's browser is currently saving. It is a
+     separate step rather than another project because this screen must not
+     autosave: there is one writer, and it is the other one - see CoEditGuest. */
+  const [coeditRoom, setCoeditRoom] = useState<ApiCoeditRoom | null>(null);
+  const [coeditOwned, setCoeditOwned] = useState(false);
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -691,6 +731,19 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const kindRef = useRef<ProjectKind>("web");
   const epochRef = useRef<string>("");
   const [shareSlug, setShareSlug] = useState<string | null>(null);
+  const coeditRef = useRef<CoEditHandle | null>(null);
+  const [coediting, setCoediting] = useState(false);
+  /* The room this browser was handed when it opened a shared project, and how
+     many people it is shared with. Both are null/0 for a project nobody else
+     has - which is most of them, and they stay as simple as they ever were. */
+  const [hostRoom, setHostRoom] = useState<ApiCoeditRoom | null>(null);
+  const [memberCount, setMemberCount] = useState(0);
+  /* Whose project this is, when it is not this student's. Owning it is what
+     decides the things a member must not be offered at all - publishing it to
+     the web, and taking that link down again. */
+  const [projectOwner, setProjectOwner] = useState<string | null>(null);
+  // Read from a timer that was scheduled a render or two ago, so a ref.
+  const ownerRef = useRef<string | null>(null);
   const sessionRef = useRef<{ token: string; name: string; className: string; classId: string } | null>(null);
   const [files, setFiles] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<ProjectKind>("web");
@@ -707,7 +760,9 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   async function saveNow() {
     const token = apiTokenRef.current, doc = docRef.current, id = localProjectIdRef.current;
     if (!token || !doc || !id) return;
-    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setStatus("Saved to your account."); }
+    // "Your account" is where a project of this student's own is saved. A
+    // shared one is saved to the project itself, which is not the same claim.
+    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setStatus(ownerRef.current ? "Saved to the shared project." : "Saved to your account."); }
     catch { /* keep working; retry on next change */ }
   }
   function scheduleSave() {
@@ -770,7 +825,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (classId) connectToTeacher(classId, token, displayName);
   }
 
-  async function openProject(id: string) {
+  async function openProject(id: string, claim = false) {
     const session = sessionRef.current;
     if (!session) return;
     await flushSave();
@@ -779,6 +834,23 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     try { project = await apiGetProjectById(session.token, id); }
     catch { setStep("picker"); setStatus("That project could not be opened. Try again."); return; }
     if (!project) { setStep("picker"); setStatus("That project is not there any more."); return; }
+
+    /* A shared project has to ask who is saving it before anything else. If
+       somebody already is, this browser joins them and never touches the
+       account; if nobody is, it takes that job and starts hosting the room the
+       others connect to. Asking first is the whole reason two students cannot
+       save over each other. */
+    let room: ApiCoeditRoom | null = null;
+    if (project.owner || project.members > 0) {
+      let entered;
+      try { entered = await apiEnterProject(session.token, project.id, { claim }); }
+      catch { setStep("picker"); setStatus("That shared project could not be opened just now. Try again in a moment."); return; }
+      if (entered.role === "guest") {
+        setCoeditRoom(entered.room); setCoeditOwned(!project.owner); setStep("coedit");
+        return;
+      }
+      room = entered.room;
+    }
 
     // Explicit teardown: the unmount cleanup only fires when the whole component
     // goes away, so without this every switch leaks a Y.Doc and its listeners.
@@ -805,7 +877,10 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     apiTokenRef.current = session.token;
     setFiles(docToFiles(doc)); setTitle(project.title); setKind(project.kind);
     setShareSlug(project.shareSlug ?? null);
-    setStep("room"); setStatus("Your work is saved to your account.");
+    setHostRoom(room); setMemberCount(project.members || 0);
+    setProjectOwner(project.owner ?? null); ownerRef.current = project.owner ?? null;
+    setStep("room");
+    setStatus(room ? "You are the one saving this shared project." : "Your work is saved to your account.");
     announceProject();
   }
 
@@ -821,6 +896,19 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   async function backToPicker() {
     await flushSave();
     setStep("picker"); setStatus("Choose a project, or start a new one.");
+  }
+
+  /* The other browser stopped answering, so this one takes the project over.
+     Its text goes to the account FIRST: the partner who was saving has gone,
+     and everything typed since their last save exists only here. */
+  async function takeOver(files: Record<string, string>) {
+    const session = sessionRef.current, room = coeditRoom;
+    if (!session || !room) return;
+    setStep("waiting"); setStatus("Taking over…");
+    try { await apiSaveProjectById(session.token, room.projectId, { files }); }
+    catch { /* the claim below is still worth trying - the doc is unharmed */ }
+    setCoeditRoom(null);
+    await openProject(room.projectId, true);
   }
 
   // A signed-in student sees their saved classrooms (rendered below) and picks
@@ -900,7 +988,14 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (data.type === "close") setStatus(data.message);
   }
 
-  if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={openProject} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
+  if (step === "coedit" && coeditRoom && sessionRef.current) return <CoEditGuest
+    token={sessionRef.current.token} name={sessionRef.current.name} room={coeditRoom} owned={coeditOwned}
+    onLeave={() => { setCoeditRoom(null); setStep("picker"); setStatus("Choose a project, or start a new one."); }}
+    onCopied={(id) => { setCoeditRoom(null); void openProject(id); }}
+    onTakeOver={(files) => { void takeOver(files); }}>
+    {(props) => <CollabWorkspace {...props} />}
+  </CoEditGuest>;
+  if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={(id) => { void openProject(id); }} onJoinCoedit={(room) => { void openProject(room.projectId); }} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card">
     <a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
     <p className="eyebrow">Student classroom</p>
@@ -924,7 +1019,41 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     <p className="notice">{status}</p>
     <small>{useAccount ? "No account yet? Ask your teacher, or join with the class code instead." : "Sharing a first name with a classmate? Ask your teacher for an account so your work stays yours."}</small>
   </section></main>;
-  return <main className="student-shell"><header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{className}</strong></div><div className="connection"><i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}<button className="text-button" onClick={backToPicker}>My projects</button><button className="text-button" onClick={() => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2))}>Export backup</button><button className="text-button" onClick={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }}>Sign out</button></div></header><section className="student-project"><div className="workspace-top"><div><p className="eyebrow">My individual project</p><h1>{title}</h1></div><span className="save-label">{status}</span></div>{accountToken && kind === "web" && <ShareBox token={accountToken} projectId={localProjectIdRef.current} initialSlug={shareSlug} />}<CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />{accountToken && <MediaPanel token={accountToken} />}</section></main>;
+  return <main className="student-shell">
+    <header className="room-header">
+      <div>
+        <a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
+        {/* Top left, next to the logo: the way back out of a project is the
+            same control in the same place on every screen in the app. */}
+        <button className="text-button projects-button" onClick={backToPicker}>◀ Projects</button>
+        <span className="slash">/</span><strong>{className}</strong>
+      </div>
+      <div className="connection">
+        <i className={live ? "online" : "offline"}></i>{live ? "Live with teacher" : "Saved to your account"}
+        <GearMenu items={[
+          ...(accountToken && !coediting
+            ? [{ label: "Share this project", onClick: () => coeditRef.current?.start() }]
+            : []),
+          { label: "Export backup", onClick: () => downloadFile("my-utg-project.json", JSON.stringify({ title, files }, null, 2)) },
+          { label: "Sign out", danger: true, onClick: () => { localStorage.removeItem("utg_account"); window.location.href = "../"; } },
+        ]} />
+      </div>
+    </header>
+    <section className="student-project">
+      <div className="workspace-top"><div><p className="eyebrow">{projectOwner ? `${projectOwner}'s project, shared with you` : memberCount > 0 || hostRoom ? "Shared project" : "My individual project"}</p><h1>{title}</h1></div><span className="save-label">{status}</span></div>
+      {accountToken && kind === "web" && !projectOwner && <PublicLink token={accountToken} projectId={localProjectIdRef.current} initialSlug={shareSlug} />}
+      {/* Keyed by project: switching projects must end the old session rather
+          than quietly re-point a live code at different code. Two beats missed
+          and somebody else holds this project: stop saving and join them,
+          rather than both writing over the same record. */}
+      {accountToken && <CoEditBox ref={coeditRef} key={localProjectIdRef.current} token={accountToken} projectId={localProjectIdRef.current}
+                                  doc={docRef.current} awareness={awarenessRef.current} name={sessionRef.current?.name || "Me"}
+                                  onOpenChange={setCoediting} initialRoom={hostRoom} members={memberCount} ownerName={projectOwner}
+                                  onUsurped={(room) => { apiTokenRef.current = null; setHostRoom(null); setCoeditRoom(room); setCoeditOwned(true); setStep("coedit"); }} />}
+      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />
+      {accountToken && <MediaPanel token={accountToken} />}
+    </section>
+  </main>;
 }
 
 function MediaPanel({ token }: { token: string }) {
@@ -970,7 +1099,9 @@ function MediaPanel({ token }: { token: string }) {
 
 export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
-  const [file, setFile] = useState(names.includes(ENTRY_FILE) ? ENTRY_FILE : (names[0] || ENTRY_FILE));
+  // Where a run starts: the page for a web project, the first panel for a game.
+  const entry = kind === "pixelpad" ? GAME_ENTRY : ENTRY_FILE;
+  const [file, setFile] = useState(names.includes(entry) ? entry : (names[0] || entry));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
 
   /* File operations edit the shared document directly, so they sync to the
@@ -995,15 +1126,15 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly 
     if (file === from) setFile(to);
   }
   function removeFile(path: string) {
-    const warning = path === ENTRY_FILE
-      ? `${ENTRY_FILE} is the page the preview shows. Delete it and there is nothing to run. Are you sure?`
+    const warning = path === entry
+      ? `${entry} is where your project starts. Delete it and there is nothing to run. Are you sure?`
       : `Delete ${path}? This cannot be undone.`;
     if (!window.confirm(warning)) return;
     filesMap(doc).delete(path);
   }
 
   return <div className="editor-grid">
-    <FileTree files={names} active={file} onOpen={setFile} onAdd={addFile}
+    <FileTree files={names} active={file} entry={entry} onOpen={setFile} onAdd={addFile}
               onRename={renameFile} onDelete={removeFile} readOnly={readOnly} />
     <section className="code-panel">
       <div className="code-head"><span className="code-path">{file}</span></div>
@@ -1015,7 +1146,7 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly 
           <p>Your code saves as you type, syncs to your account, and your teacher can see it live — everything works except running it here.</p>
           <p className="muted">Running Java in the browser is not built yet. Use this for writing practice and for code you will run somewhere else.</p>
         </div></section>
-      : <RunPanel files={files} />}
+      : <RunPanel files={files} kind={kind} />}
   </div>;
 }
 
@@ -1024,12 +1155,17 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly 
    scheduleDerive - so script.js re-executed on essentially every keystroke.
    For a course whose whole point is calling a rate-limited API, that spends a
    student's 40-requests-per-minute budget while they are still typing the call. */
-function RunPanel({ files }: { files: Record<string, string> }) {
+function RunPanel({ files, kind = "web" }: { files: Record<string, string>; kind?: ProjectKind }) {
+  const game = kind === "pixelpad";
   const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
   const [runId, setRunId] = useState(0);       // key bump: forces a real unmount
   const [nonce, setNonce] = useState("");      // identifies this run's messages
   const [log, setLog] = useState<PreviewMessage[]>([]);
   const [onlyErrors, setOnlyErrors] = useState(false);
+  /* A web project runs full screen: the page a student wrote is the thing they
+     came to see, and a third of a column is not a web page. A game already
+     fills its own canvas at the size it was designed for, so it stays put. */
+  const [full, setFull] = useState(false);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const tailRef = useRef<HTMLDivElement | null>(null);
   const stale = runFiles !== null && !sameFiles(runFiles, files);
@@ -1038,11 +1174,12 @@ function RunPanel({ files }: { files: Record<string, string> }) {
   function run() {
     const next = crypto.randomUUID();
     setLog([]); setNonce(next); setRunFiles({ ...files }); setRunId((id) => id + 1);
+    if (!game) setFull(true);
   }
   function stop() {
     // Unmounting is the only reliable way to stop a page's timers, listeners
     // and in-flight requests. Clearing srcDoc would leave them running.
-    setRunFiles(null); setNonce("");
+    setRunFiles(null); setNonce(""); setFull(false);
     setLog((prev) => [...prev, { __utg: "", kind: "system", text: "Stopped.", at: Date.now() }]);
   }
 
@@ -1059,23 +1196,52 @@ function RunPanel({ files }: { files: Record<string, string> }) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); run(); }
+      if (event.key === "Escape" && full) { event.preventDefault(); setFull(false); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
   useEffect(() => { tailRef.current?.scrollIntoView({ block: "end" }); }, [log.length]);
+  /* Nothing behind the running page should scroll, and without this the page
+     is a scrollbar's width short of the screen - a strip of the app showing
+     down one side of what is supposed to be full screen. */
+  useEffect(() => {
+    if (!full) return;
+    document.body.classList.add("running-full");
+    return () => document.body.classList.remove("running-full");
+  }, [full]);
 
   const shown = onlyErrors ? log.filter((entry) => entry.kind === "error") : log;
-  return <section className="preview-panel">
+  /* Full screen is a class on the panel that is already here, not a second
+     copy of it somewhere else in the tree. Moving the iframe to a new parent
+     would unmount it, and unmounting is how this panel STOPS a run - a child
+     pressing Exit would silently restart their page from the top. */
+  return <section className={`preview-panel${full ? " preview-full" : ""}`}>
     <div className="preview-top">
-      <strong>Preview</strong>
+      <strong>{game ? "Game" : "Preview"}</strong>
       {stale && <span className="stale-hint">Your code changed since you last ran it</span>}
       <button className={stale || !runFiles ? "primary compact" : "text-button"} onClick={run}>{runFiles ? "Run again" : "▶ Run"}</button>
+      {runFiles && !game && <button className="text-button" onClick={() => setFull(true)}>Full screen</button>}
       {runFiles && <button className="text-button" onClick={stop}>Stop</button>}
     </div>
+    {/* The way out sits over the page, in the middle of the top edge, and never
+        hides: a student whose own code covers the screen must not have to guess
+        where the exit went. The console is hidden while full screen, so an
+        error says so here rather than waiting silently underneath. */}
+    {full && <div className="preview-exit">
+      <button className="secondary" onClick={() => setFull(false)}>✕ Exit full screen</button>
+      {errorCount > 0 && <button className="exit-errors" onClick={() => setFull(false)}>
+        {errorCount === 1 ? "1 error — exit to read it" : `${errorCount} errors — exit to read them`}
+      </button>}
+    </div>}
     {runFiles
-      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={buildPreview(runFiles, nonce)} />
-      : <div className="preview-idle"><p>Press <strong>▶ Run</strong> to see your project.</p><p className="muted">Nothing runs until you ask it to, so your project never sends a request you did not mean to send.</p></div>}
+      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={(game ? buildGamePreview : buildPreview)(runFiles, nonce)} />
+      : <div className="preview-idle">
+          <p>Press <strong>▶ Run</strong> to {game ? "play your game" : "see your project"}.</p>
+          <p className="muted">{game
+            ? "Your game starts fresh every time you run it, so you always see exactly what your code does now."
+            : "Nothing runs until you ask it to, so your project never sends a request you did not mean to send."}</p>
+        </div>}
     <div className="console-panel">
       <div className="console-head">
         <strong>Console</strong>
@@ -1085,7 +1251,9 @@ function RunPanel({ files }: { files: Record<string, string> }) {
       </div>
       <div className="console-body">
         {shown.length === 0
-          ? <span className="muted">Anything you <code>console.log()</code> shows up here, along with errors and network requests.</span>
+          ? (game
+              ? <span className="muted">Anything you <code>print()</code> shows up here, and so does every mistake the game finds - it tells you which panel and which line.</span>
+              : <span className="muted">Anything you <code>console.log()</code> shows up here, along with errors and network requests.</span>)
           : shown.map((entry, index) => <div className={`console-row ${entry.kind}`} key={index}>{entry.text}</div>)}
         <div ref={tailRef} />
       </div>

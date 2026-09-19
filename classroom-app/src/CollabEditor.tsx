@@ -8,12 +8,16 @@ import { indentWithTab } from "@codemirror/commands";
 import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
+import { python } from "@codemirror/lang-python";
 import { yCollab } from "y-codemirror.next";
 import { fileText } from "./lib/collab";
 
 function langFor(file: string) {
   if (file.endsWith(".css")) return css();
   if (file.endsWith(".js")) return javascript();
+  // PixelPad panels are Python, and indentation is the one thing that breaks a
+  // game at this age - so it gets a mode that indents rather than plain text.
+  if (file.endsWith(".py")) return python();
   return html();
 }
 

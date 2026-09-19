@@ -1,0 +1,4366 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PixelPAD — Offline</title>
+<style>
+/* ============================================================
+   PixelPAD offline clone — styles mirror the live IDE's
+   computed values (colours, metrics, borders) 1:1.
+   ============================================================ */
+:root{
+  --ide-bg:#F8F8FF;      /* #pp3d-ide background          */
+  --ui-bg:#E7E9EB;       /* .ide-ui background            */
+  --ui-fg:#343A40;       /* .ide-ui colour                */
+  --ui-border:#D5DBE1;   /* column-adjust / tab borders   */
+  --tab-active:#F3F5F7;  /* active tab + editor border    */
+  --tab-hover:#EAECEE;
+  --accent:#17A2B8;      /* .pp-script-active             */
+  --success:#10B981;     /* .btn-success                  */
+  --dark:#1F2937;        /* .bg-dark                      */
+  --stage:#343A40;       /* #pp-block2 rendered background */
+  --purple:#45156C;      /* .bg-pixelpad                  */
+  --purple-lt:#6D399F;   /* .debugButton                  */
+  --purple-dk:#2F1C40;   /* #debugPanel                   */
+  --ed-bg:#FFFFFF;
+  --ed-fg:#000000;
+  --ed-gutter:#237893;
+  --ed-gutter-active:#0B216F;
+  --ed-line:#EEEEEE;
+  --ed-sel:#ADD6FF;
+  --tk-com:#008000;
+  --tk-str:#A31515;
+  --tk-num:#098658;
+  --tk-key:#0000FF;
+  --sug-bg:#F3F3F3;
+  --sug-border:#C8C8C8;
+  --sug-sel:#0060C0;
+}
+body.pp-dark{
+  --ide-bg:#1E1E1E;
+  --ui-bg:#252526;
+  --ui-fg:#CCCCCC;
+  --ui-border:#3E3E42;
+  --tab-active:#2D2D30;
+  --tab-hover:#333337;
+  --ed-bg:#1E1E1E;
+  --ed-fg:#D4D4D4;
+  --ed-gutter:#858585;
+  --ed-gutter-active:#C6C6C6;
+  --ed-line:#2A2A2A;
+  --ed-sel:#264F78;
+  --tk-com:#6A9955;
+  --tk-str:#CE9178;
+  --tk-num:#B5CEA8;
+  --tk-key:#569CD6;
+  --sug-bg:#252526;
+  --sug-border:#454545;
+  --sug-sel:#04395E;
+}
+
+*{box-sizing:border-box}
+/* PixelPAD's page sets a 14px root, so every rem below is 14px-based */
+html{font-size:14px}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Rubik,"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  color:var(--dark);
+  background:var(--ide-bg);
+  overflow:hidden;
+}
+.usel{-webkit-user-select:none;user-select:none}
+svg.i{width:1em;height:1em;fill:currentColor;vertical-align:-.125em;flex:none}
+svg.i2x{width:1.4em;height:1.4em}
+
+/* ---------- root ---------- */
+#pp3d-ide{height:100vh;background:var(--ide-bg);overflow:hidden}
+
+/* ---------- left column : assets ---------- */
+#pp-block0{
+  float:left;height:100%;width:12%;
+  padding:.5rem;
+  background:var(--ui-bg);color:var(--ui-fg);
+  overflow-x:hidden;overflow-y:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+#pp-block0:hover{overflow-y:auto}
+#pp-block0::-webkit-scrollbar{width:10px}
+#pp-block0::-webkit-scrollbar-thumb{background:rgba(0,0,0,.25)}
+.toggle-row{display:flex;flex-wrap:wrap;margin-bottom:.25rem}
+.form-check-inline{display:inline-flex;align-items:center;margin-right:.25rem;cursor:pointer}
+.form-check-inline label{padding-right:.25rem;cursor:pointer;display:inline-flex}
+.form-check-inline input{margin:0;cursor:pointer}
+.assetHeader{font-weight:700;line-height:21px;display:flex;align-items:center}
+.assetHeader:hover{background:rgba(255,255,255,.25)}
+body.pp-dark .assetHeader:hover{background:rgba(255,255,255,.08)}
+.assetHeader .add{margin-left:auto;cursor:pointer;display:inline-flex;transition:transform .1s}
+.assetHeader .add:hover{transform:scale(1.2)}
+.pp-asset-list{list-style:none;margin:0;padding:.5rem 0;}
+.pp-asset-list li{
+  padding:0 .5rem;line-height:21px;height:21px;list-style:none;
+  display:flex;align-items:center;white-space:nowrap;overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+.pp-asset-list li .name{overflow:hidden;text-overflow:ellipsis}
+.pp-asset-list li>svg:first-child{margin-right:.25rem}
+.pp-asset-list li:hover{background:rgba(255,255,255,.25);cursor:pointer}
+body.pp-dark .pp-asset-list li:hover{background:rgba(255,255,255,.08)}
+.pp-script-inactive{background:none}
+.pp-script-active,.pp-asset-list .pp-script-active:hover{background:var(--accent);color:#fff}
+.pp-asset-delete{display:none;margin-left:auto;padding-left:.25rem}
+.pp-asset-list li:hover .pp-asset-delete{display:inline-flex}
+.pp-asset-delete:hover{transform:scale(1.15)}
+
+/* ---------- draggable column dividers ---------- */
+#pp-col-adjust-code,#pp-col-adjust-canvas{
+  float:left;height:100%;width:.75rem;
+  background:var(--ui-bg);
+  border-left:1px solid var(--ui-border);
+  border-right:1px solid var(--ui-border);
+  font-weight:900;text-align:center;position:relative;z-index:50;
+  -webkit-user-select:none;user-select:none;
+}
+#pp-col-adjust-code:hover,#pp-col-adjust-canvas:hover{cursor:col-resize;filter:brightness(150%)}
+.text-vert{transform:rotate(90deg);display:block;white-space:nowrap;top:30%;position:relative;font-size:10px;opacity:.45}
+
+/* ---------- middle column : code ---------- */
+#pp-block1{float:left;height:100%;width:45%}
+#pp-block1-child{height:100%}
+#vLayout{display:flex;height:100%;flex-direction:column}
+#vLayout.hidden,#hLayout.hidden{display:none}
+#vLayoutStartTab,#vLayoutLoopTab{
+  color:var(--ui-fg);background:var(--ui-bg);
+  border-top:1px solid var(--ui-border);
+  border-bottom:1px solid var(--ui-border);
+  text-align:center;font-weight:700;width:100%;flex:none;
+  display:flex;align-items:center;justify-content:center;gap:.5rem;
+  padding:.25rem;height:30px;cursor:pointer;
+  -webkit-user-select:none;user-select:none;
+}
+#vLayoutLoopTab{padding:0}
+#vLayoutLoopTab>div{padding:.25rem;display:flex;align-items:center;gap:.5rem;width:100%;justify-content:center}
+#vLayoutStartTab:hover,#vLayoutLoopTab:hover{background:var(--tab-hover)}
+#vLayoutStartTab.active,#vLayoutLoopTab.active{background:var(--tab-active)}
+.pp-code-host{width:100%;height:50%;border:2px solid var(--tab-active);overflow:hidden}
+.pp-code-host.active{border:2px solid var(--ui-bg)}
+
+/* ---------- asset preview ---------- */
+#pp-block1-asset{height:100%;display:flex;flex-direction:column}
+#pp-block1-asset.hidden{display:none}
+#assetPreviewTab{
+  color:var(--ui-fg);background:var(--tab-active);
+  border-top:1px solid var(--ui-border);border-bottom:1px solid var(--ui-border);
+  text-align:center;font-weight:700;width:100%;flex:none;height:30px;
+  display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.25rem;
+  -webkit-user-select:none;user-select:none;
+}
+#assetPreviewBody{
+  flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
+  background:var(--tab-active);overflow:hidden;position:relative;
+}
+#spritePreview{display:none;max-width:100%;max-height:100%;image-rendering:auto;cursor:zoom-in}
+#pp-audio{display:none;margin:auto;width:80%;max-width:320px}
+#assetPreviewInfo{
+  flex:none;background:var(--ui-bg);color:var(--ui-fg);
+  border-top:1px solid var(--ui-border);padding:.5rem .75rem;
+  font-family:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size:.8125rem;line-height:1.5;white-space:pre-wrap;
+  -webkit-user-select:text;user-select:text;
+}
+/* horizontal (tabbed) layout */
+#hLayout{height:100%;flex-direction:column}
+#hLayout.on{display:flex}
+.startloop-row{display:flex}
+.startloop{
+  border-radius:.5rem .5rem 0 0;background:var(--ui-bg);color:var(--ui-fg);
+  text-align:center;font-weight:700;padding:.5rem;width:50%;
+  display:flex;align-items:center;justify-content:center;gap:.5rem;
+  -webkit-user-select:none;user-select:none;cursor:pointer;
+}
+.startloop.active{background:var(--tab-active)}
+#startloop-container{flex:1 1 auto;min-height:0;border:2px solid var(--tab-active)}
+
+/* ---------- right column : stage ---------- */
+#pp-block2{
+  height:100%;position:relative;overflow:hidden;
+  background:var(--stage);color:#fff;
+  -webkit-user-select:none;user-select:none;
+}
+#pp-block2-child{height:100%;display:flex;flex-direction:column}
+#toolbar{width:100%;text-align:center;flex:none}
+.btn{
+  display:inline-block;font-weight:700;text-align:center;vertical-align:middle;
+  padding:.375rem .75rem;font-size:14px;line-height:1.5;border-radius:.25rem;
+  margin:.25rem;cursor:pointer;border:1px solid transparent;
+  -webkit-user-select:none;user-select:none;
+}
+.btn-success{color:#fff;background:var(--success);border-color:var(--success)}
+.btn-success:hover{filter:brightness(93%)}
+.btn-danger{color:#fff;background:#E21313;border-color:#E21313}
+#canvasContainer{flex-grow:1;background:var(--stage);display:flex;min-height:0}
+#debugContainer{margin:auto;position:relative;max-width:100%;max-height:100%}
+#debugPanel{
+  width:100%;height:30px;background:var(--purple-dk);
+  display:none;align-items:center;padding:0 2px;
+}
+#debugPanel.on{display:flex}
+.debugButton{
+  width:25px;height:25px;background:var(--purple-lt);color:#fff;
+  margin-left:2px;margin-right:2px;display:flex;align-items:center;
+  justify-content:center;border-radius:.2rem;cursor:pointer;font-size:12px;
+}
+.debugButton.on{background:var(--accent)}
+#debugReadout{margin-left:auto;padding-right:.5rem;font-size:11px;opacity:.8;white-space:nowrap}
+#stage{display:block;margin:auto;outline:none;touch-action:none;image-rendering:auto;background:#000}
+#pp-console{
+  height:20vh;flex:none;padding:1rem 0 1rem 1rem;overflow:hidden;
+  background:var(--ui-bg);color:var(--ui-fg);
+  -webkit-user-select:none;user-select:none;
+}
+#pp-console:hover{overflow:auto}
+#output{
+  padding:0;margin:0;height:100%;overflow:auto;
+  font-family:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size:.875rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;
+  background:var(--ui-bg);color:var(--ui-fg);
+  -webkit-user-select:text;user-select:text;
+}
+#output .err{color:#D8000C;font-weight:700}
+body.pp-dark #output .err{color:#F48771}
+#output .sys{opacity:.6}
+
+/* ---------- code editor widget ---------- */
+.ppe{
+  position:relative;height:100%;width:100%;overflow:auto;
+  background:var(--ed-bg);color:var(--ed-fg);
+  font-family:Consolas,"Courier New",monospace;
+  font-size:14px;line-height:19px;
+  font-feature-settings:"liga" 0,"calt" 0;
+  cursor:text;
+}
+.ppe-inner{position:relative;display:flex;min-width:100%;min-height:100%}
+.ppe-gutter{
+  position:sticky;left:0;z-index:2;flex:none;width:64px;
+  background:var(--ed-bg);color:var(--ed-gutter);
+  text-align:right;padding-right:26px;
+  -webkit-user-select:none;user-select:none;
+}
+.ppe-gutter div{height:19px}
+.ppe-gutter div.cur{color:var(--ed-gutter-active)}
+.ppe-code{position:relative;flex:1 0 auto}
+.ppe-hl,.ppe-ta{
+  margin:0;padding:0;border:0;outline:none;
+  font:inherit;line-height:19px;letter-spacing:0;
+  white-space:pre;overflow:hidden;
+  width:100%;height:100%;
+}
+.ppe-hl{position:absolute;top:0;left:0;pointer-events:none;z-index:1}
+.ppe-ta{
+  position:absolute;top:0;left:0;z-index:2;resize:none;
+  background:transparent;color:transparent;caret-color:var(--ed-fg);
+  -webkit-text-fill-color:transparent;
+}
+.ppe-ta::selection{background:var(--ed-sel);color:transparent}
+.ppe-curline{position:absolute;left:0;right:0;height:19px;background:var(--ed-line);z-index:0}
+.tk-c{color:var(--tk-com)}
+.tk-s{color:var(--tk-str)}
+.tk-n{color:var(--tk-num)}
+.tk-k{color:var(--tk-key)}
+
+/* ---------- suggest widget ---------- */
+#suggest{
+  position:fixed;z-index:400;display:none;min-width:200px;max-height:172px;
+  overflow:auto;background:var(--sug-bg);border:1px solid var(--sug-border);
+  font-family:Consolas,"Courier New",monospace;font-size:13px;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);color:var(--ed-fg);
+}
+#suggest div{padding:1px 8px;white-space:nowrap;cursor:pointer;display:flex;gap:8px}
+#suggest div .kind{opacity:.55;margin-left:auto;font-size:11px}
+#suggest div.sel{background:var(--sug-sel);color:#fff}
+#suggest div.sel .kind{color:#fff}
+
+/* ---------- modal (rename / new asset) ---------- */
+#modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;
+  display:none;align-items:center;justify-content:center;
+}
+#modal.on{display:flex}
+#modal .box{
+  background:#fff;color:var(--dark);border-radius:.4rem;padding:1.25rem;
+  min-width:300px;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.4);
+}
+body.pp-dark #modal .box{background:#2D2D30;color:#CCC}
+#modal h5{margin:0 0 .75rem;font-weight:700}
+#modal input{
+  width:100%;padding:.375rem .5rem;font:inherit;border:1px solid #CED4DA;
+  border-radius:.25rem;background:transparent;color:inherit;
+}
+#modal .row{margin-top:1rem;text-align:right}
+#modal .btn-sec{background:#6C757D;border-color:#6C757D;color:#fff}
+</style>
+
+<div id="pp3d-ide">
+
+  <!-- ============ assets sidebar ============ -->
+  <div id="pp-block0" class="ide-ui usel">
+    <div class="toggle-row">
+      <label class="form-check-inline" title="Dark theme">
+        <label for="theme"><svg class="i" data-ic="adjust"></svg></label>
+        <input type="checkbox" id="theme">
+      </label>
+      <label class="form-check-inline" title="Tabbed layout">
+        <label for="layout"><svg class="i" data-ic="columns"></svg></label>
+        <input type="checkbox" id="layout">
+      </label>
+      <label class="form-check-inline" title="Debug overlay">
+        <label for="debug"><svg class="i" data-ic="bug"></svg></label>
+        <input type="checkbox" id="debug">
+      </label>
+      <label class="form-check-inline" title="Suggestions">
+        <label for="suggestions"><svg class="i" data-ic="lightbulb"></svg></label>
+        <input type="checkbox" id="suggestions" checked>
+      </label>
+    </div>
+
+    <div class="assetHeader">Classes <span class="add" id="pp-add-script" title="New class"><svg class="i" data-ic="plus"></svg></span></div>
+    <ul id="pp-script-list" class="pp-asset-list"></ul>
+
+    <div class="assetHeader">Rooms <span class="add" id="pp-add-room" title="New room"><svg class="i" data-ic="plus"></svg></span></div>
+    <ul id="pp-room-list" class="pp-asset-list"></ul>
+
+    <div class="assetHeader">Sprites <span class="add" id="pp-add-texture" title="Upload sprite"><svg class="i" data-ic="plus"></svg></span></div>
+    <ul id="pp-texture-list" class="pp-asset-list"></ul>
+
+    <div class="assetHeader">Sounds <span class="add" id="pp-add-sound" title="Upload sound"><svg class="i" data-ic="plus"></svg></span></div>
+    <ul id="pp-sound-list" class="pp-asset-list"></ul>
+
+    <div class="assetHeader">Functions <span class="add" id="pp-add-function" title="New function"><svg class="i" data-ic="plus"></svg></span></div>
+    <ul id="pp-function-list" class="pp-asset-list"></ul>
+
+    <div class="assetHeader">Project</div>
+    <ul class="pp-asset-list" style="padding-bottom:3rem">
+      <li id="newProject" title="Erase the saved project and start fresh"><svg class="i" data-ic="file"></svg><span class="name">New</span></li>
+      <li id="exportProject" title="Export a .pp2d file — opens on pixelpad.io"><svg class="i" data-ic="download"></svg><span class="name">Export</span></li>
+      <li id="exportBundle" title="Export a .ppoff bundle — everything packed in one offline file"><svg class="i" data-ic="package"></svg><span class="name">Export All</span></li>
+      <li id="importProject" title="Import a .pp2d file or a .ppoff bundle"><svg class="i" data-ic="upload"></svg><span class="name">Import</span></li>
+    </ul>
+  </div>
+
+  <div id="pp-col-adjust-code"><span class="text-vert">• • •</span></div>
+
+  <!-- ============ code column ============ -->
+  <div id="pp-block1">
+    <div id="pp-block1-child">
+
+      <div id="hLayout" class="hidden">
+        <div class="startloop-row">
+          <div class="startloop start active" data-half="start"><svg class="i" data-ic="flag"></svg><span class="startName">Game</span> Start</div>
+          <div class="startloop loop" data-half="loop"><svg class="i" data-ic="redo"></svg><span class="loopName">Game</span> Loop</div>
+        </div>
+        <div id="startloop-container"></div>
+      </div>
+
+      <div id="vLayout">
+        <div id="vLayoutStartTab" class="active">
+          <svg class="i" data-ic="flag"></svg><span><span class="startName">Game</span> Start</span>
+        </div>
+        <div id="pp-block1code" class="pp-code-host active"></div>
+        <div id="vLayoutLoopTab">
+          <div><svg class="i" data-ic="redo"></svg><span><span class="loopName">Game</span> Loop</span></div>
+        </div>
+        <div id="pp-block1loop" class="pp-code-host"></div>
+      </div>
+
+    </div>
+
+    <!-- asset preview replaces the code column, as in the original -->
+    <div id="pp-block1-asset" class="hidden">
+      <div id="assetPreviewTab"></div>
+      <div id="assetPreviewBody">
+        <canvas id="spritePreview"></canvas>
+        <audio id="pp-audio" controls></audio>
+      </div>
+      <div id="assetPreviewInfo"></div>
+    </div>
+  </div>
+
+  <div id="pp-col-adjust-canvas"><span class="text-vert">• • •</span></div>
+
+  <!-- ============ stage column ============ -->
+  <div id="pp-block2">
+    <div id="pp-block2-child">
+      <div id="toolbar">
+        <div id="pp-save" class="btn btn-success">SAVED</div>
+        <div id="pp-start" class="btn btn-success">PLAY</div>
+      </div>
+      <div id="canvasContainer">
+        <div id="debugContainer">
+          <div id="debugPanel">
+            <a class="debugButton" id="generalDebug" title="Info overlay"><svg class="i" data-ic="info"></svg></a>
+            <a class="debugButton" id="objectDebug" title="Inspect objects"><svg class="i" data-ic="hand"></svg></a>
+            <a class="debugButton" id="pauseDebug" title="Pause"><svg class="i" data-ic="pause"></svg></a>
+            <a class="debugButton" id="rulerDebug" title="Grid"><svg class="i" data-ic="ruler"></svg></a>
+            <span id="debugReadout"></span>
+          </div>
+          <canvas id="stage" tabindex="0"></canvas>
+        </div>
+      </div>
+      <div id="pp-console" class="ide-ui"><pre id="output"></pre></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="suggest"></div>
+<div id="modal"><div class="box">
+  <h5 id="modal-title">Name</h5>
+  <input id="modal-input" autocomplete="off">
+  <div class="row">
+    <span class="btn btn-sec" id="modal-cancel">Cancel</span>
+    <span class="btn btn-success" id="modal-ok">OK</span>
+  </div>
+</div></div>
+<input type="file" id="filepick" style="display:none">
+
+<script>
+/* ============================================================
+   1. ICONS — inline SVG stand-ins for the Font Awesome glyphs
+      the live IDE uses (no webfont => no network).
+   ============================================================ */
+const ICONS = {
+  adjust:'<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.6a6.4 6.4 0 0 0 0 12.8z"/>',
+  columns:'<rect x="1" y="2.5" width="14" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.2 3v10h1.6V3z"/>',
+  bug:'<path d="M8 2a2.6 2.6 0 0 1 2.3 1.4l1.1-.8.7 1-1.3.9c.2.4.3.9.3 1.4H5c0-.5.1-1 .3-1.4l-1.3-.9.7-1 1.1.8A2.6 2.6 0 0 1 8 2zM4.9 7h6.2v1.5c0 .5-.1 1-.2 1.4l1.4.8-.6 1.1-1.4-.8A3.6 3.6 0 0 1 8 12.6a3.6 3.6 0 0 1-2.3-1.6l-1.4.8-.6-1.1 1.4-.8a4.6 4.6 0 0 1-.2-1.4z"/>',
+  lightbulb:'<path d="M8 1.5A4.2 4.2 0 0 0 3.8 5.7c0 1.5.8 2.5 1.5 3.3.4.5.6.8.7 1.3h4c.1-.5.3-.8.7-1.3.7-.8 1.5-1.8 1.5-3.3A4.2 4.2 0 0 0 8 1.5z" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 11.4h4v1H6zm.4 2h3.2c-.2.7-.8 1.1-1.6 1.1s-1.4-.4-1.6-1.1z"/>',
+  plus:'<circle cx="8" cy="8" r="7"/><path d="M7.2 4.4h1.6v7.2H7.2z" fill="#E7E9EB"/><path d="M4.4 7.2h7.2v1.6H4.4z" fill="#E7E9EB"/>',
+  university:'<path d="M8 1.4 15 5v1.2H1V5zM2.6 7.4h1.7v4.4H2.6zm2.9 0h1.7v4.4H5.5zm2.9 0h1.7v4.4H8.4zm2.9 0H13v4.4h-1.7zM1 12.8h14V14H1z"/>',
+  cube:'<path d="M8 1.3 14 4.5v7L8 14.7 2 11.5v-7zm0 1.8L3.9 5.3 8 7.5l4.1-2.2zM3.4 6.4v4.4L7.3 13V8.5zm5.3 2.1V13l3.9-2.2V6.4z"/>',
+  image:'<rect x="1.2" y="3" width="13.6" height="10" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.4" cy="6.4" r="1.3"/><path d="M2.6 11.6l3-3.4 2 2.2 2.6-3 3.2 4.2z"/>',
+  volume:'<path d="M7.6 2.6 4.4 5.4H2v5.2h2.4l3.2 2.8zM9.6 5.4a3.6 3.6 0 0 1 0 5.2l.9 1a5 5 0 0 0 0-7.2zM11.4 3.3a6.2 6.2 0 0 1 0 9.4l.9 1a7.6 7.6 0 0 0 0-11.4z"/>',
+  trash:'<path d="M6.2 1.6h3.6l.5.9h2.9v1.4H2.8V2.5h2.9zM3.6 5.1h8.8l-.6 8a1.4 1.4 0 0 1-1.4 1.3H5.6a1.4 1.4 0 0 1-1.4-1.3zm2 1.5.2 6h1l-.2-6zm3.8 0-.2 6h1l.2-6z"/>',
+  flag:'<path d="M3 1.6h1.4v12.8H3zM5.4 2.6h7.8l-1.6 2.8 1.6 2.8H5.4z" />',
+  redo:'<path d="M8 2.6a5.4 5.4 0 1 0 5.2 6.8h-1.7A3.8 3.8 0 1 1 8 4.2c1 0 1.9.4 2.6 1L8.6 7.2H14V1.8l-1.8 1.8A5.4 5.4 0 0 0 8 2.6z"/>',
+  info:'<circle cx="8" cy="8" r="7"/><path d="M7.1 6.6h1.8v5.2H7.1zM7.1 3.9h1.8v1.8H7.1z" fill="#6D399F"/>',
+  hand:'<path d="M6.4 1.8c.5 0 .9.4.9.9v4.1h.5V3.5a.9.9 0 0 1 1.8 0v3.3h.5V4.6a.9.9 0 0 1 1.8 0v4.6c0 2.6-1.6 4.6-4 4.6-1.6 0-2.7-.7-3.6-2.2L3 9.4a.9.9 0 0 1 1.4-1.1l1.1 1.2V2.7c0-.5.4-.9.9-.9z"/>',
+  pause:'<path d="M4 2.6h3v10.8H4zm5 0h3v10.8H9z"/>',
+  ruler:'<path d="M1.4 10.2 10.2 1.4l4.4 4.4-8.8 8.8zm2.6 0 .9.9.9-.9-.9-.9zm2.2-2.2.9.9.9-.9-.9-.9zm2.2-2.2.9.9.9-.9-.9-.9z"/>',
+  download:'<path d="M7.1 1.4h1.8v6.7l2.5-2.5 1.3 1.3L8 11.6 3.3 6.9l1.3-1.3 2.5 2.5zM2.2 12.2h11.6v2.2H2.2z"/>',
+  upload:'<path d="M8 1.4l4.7 4.7-1.3 1.3-2.5-2.5v6.7H7.1V4.9L4.6 7.4 3.3 6.1zM2.2 12.2h11.6v2.2H2.2z"/>',
+  text:'<path d="M2 2h12v3h-2V4H9v8h1.6v2H5.4v-2H7V4H4v1H2z"/>',
+  file:'<path d="M3 1.4h6l4 4v9.2H3zm5.6 1.4v3h3zM6.2 8.2h1.2v1.6H9v1.2H7.4v1.6H6.2v-1.6H4.6V9.8h1.6z"/>',
+  package:'<path d="M8 1.2 14.4 4v8L8 14.8 1.6 12V4zm0 1.7L4.3 4.5l1.9.8 3.7-1.6zm0 3.1L3.1 4.9v6.2L8 13.1l4.9-2V4.9zM4.6 6.9l2.2.9v2.6l-2.2-.9z"/>',
+};
+for (const el of document.querySelectorAll('svg.i')) {
+  el.setAttribute('viewBox', '0 0 16 16');
+  el.innerHTML = ICONS[el.dataset.ic] || '';
+}
+function icon(name, cls) {
+  return '<svg class="i ' + (cls || '') + '" viewBox="0 0 16 16">' + (ICONS[name] || '') + '</svg>';
+}
+
+/* ============================================================
+   2. ASSETS — sprites are drawn procedurally onto canvases and
+      sounds are synthesised, so the file needs zero network.
+      Uploaded PNG/MP3 files replace them at runtime.
+   ============================================================ */
+function sheet(fw, fh, frames, draw) {
+  const c = document.createElement('canvas');
+  c.width = fw * frames; c.height = fh;
+  const x = c.getContext('2d');
+  for (let f = 0; f < frames; f++) {
+    x.save(); x.translate(f * fw, 0);
+    x.beginPath(); x.rect(0, 0, fw, fh); x.clip();
+    draw(x, f, fw, fh);
+    x.restore();
+  }
+  return c;
+}
+const ART = {};
+
+/* half-stage size, so the demo's scaleX/scaleY of 2 fills 1280x720 exactly */
+ART['background.jpg'] = () => sheet(640, 360, 1, (c, f, w, h) => {
+  const sky = c.createLinearGradient(0, 0, 0, h * .72);
+  sky.addColorStop(0, '#2E6BB8'); sky.addColorStop(.55, '#7FB2E5'); sky.addColorStop(1, '#F2C879');
+  c.fillStyle = sky; c.fillRect(0, 0, w, h);
+  c.fillStyle = 'rgba(255,246,214,.95)';
+  c.beginPath(); c.arc(w * .78, h * .2, h * .085, 0, 7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  for (const [fx, fy, s] of [[.16, .19, 1], [.38, .31, .7], [.70, .17, .85], [.86, .36, .6]]) {
+    const cx = w * fx, cy = h * fy, r = h * .072 * s;
+    c.beginPath();
+    c.arc(cx, cy, r, 0, 7); c.arc(cx + r * 1.1, cy + r * .24, r * .77, 0, 7); c.arc(cx - r * 1.1, cy + r * .3, r * .7, 0, 7);
+    c.fill();
+  }
+  c.fillStyle = '#3E7A46';
+  c.beginPath(); c.moveTo(-20, h * .78);
+  const step = w / 8;
+  for (let i = 0; i <= 8; i++)
+    c.quadraticCurveTo(i * step + step / 2, h * (.62 + (i % 2) * .09), (i + 1) * step, h * .78);
+  c.lineTo(w + 20, h); c.lineTo(-20, h); c.fill();
+  const gr = c.createLinearGradient(0, h * .74, 0, h);
+  gr.addColorStop(0, '#6BA84F'); gr.addColorStop(1, '#3F6B32');
+  c.fillStyle = gr; c.fillRect(0, h * .8, w, h * .2);
+  c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 2;
+  for (let i = 0; i < 60; i++) {
+    const gx = (i * 137) % w, gy = h * .82 + (i * 53) % (h * .16);
+    c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + 3, gy - 9); c.stroke();
+  }
+});
+
+ART['black.png'] = () => sheet(32, 32, 1, (c) => { c.fillStyle = '#000'; c.fillRect(0, 0, 32, 32); });
+
+function bugArt(body, wing) {
+  return () => sheet(44, 40, 1, (c, f, w, h) => {
+    c.strokeStyle = '#2B2B2B'; c.lineWidth = 2.5; c.lineCap = 'round';
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
+      c.beginPath(); c.moveTo(22 + s * 7, 16 + i * 6);
+      c.lineTo(22 + s * 18, 12 + i * 8); c.stroke();
+    }
+    c.fillStyle = wing;
+    c.beginPath(); c.ellipse(22, 22, 15, 13, 0, 0, 7); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.28)';
+    c.beginPath(); c.ellipse(22, 24, 2, 12, 0, 0, 7); c.fill();
+    c.fillStyle = body;
+    c.beginPath(); c.ellipse(22, 10, 9, 8, 0, 0, 7); c.fill();
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(18, 9, 3.2, 0, 7); c.arc(26, 9, 3.2, 0, 7); c.fill();
+    c.fillStyle = '#111';
+    c.beginPath(); c.arc(18.6, 9.4, 1.6, 0, 7); c.arc(26.6, 9.4, 1.6, 0, 7); c.fill();
+  });
+}
+ART['bluebug.png'] = bugArt('#2B4C8C', '#3E77D6');
+ART['yellowbug.png'] = bugArt('#8A6B14', '#E8C337');
+ART['redbug.png'] = bugArt('#8C2323', '#D64545');
+
+/* 5-frame trotting boar */
+ART['pumba.png'] = () => sheet(120, 96, 5, (c, f, w, h) => {
+  const bob = [0, -2, -3, -2, 0][f], sw = [0, 1, 0, -1, 0][f];
+  c.translate(0, bob);
+  c.fillStyle = '#5A3A22'; c.lineWidth = 0;
+  for (const [lx, dir] of [[38, 1], [50, -1], [78, -1], [90, 1]]) {
+    c.save(); c.translate(lx, 62); c.rotate(dir * sw * .35);
+    c.fillRect(-5, 0, 10, 26); c.restore();
+  }
+  c.fillStyle = '#7A4B28';
+  c.beginPath(); c.ellipse(64, 48, 34, 24, 0, 0, 7); c.fill();
+  c.fillStyle = '#8C5730';
+  c.beginPath(); c.ellipse(30, 44, 20, 18, 0, 0, 7); c.fill();
+  c.fillStyle = '#5A3A22';
+  c.beginPath(); c.moveTo(34, 28); c.lineTo(24, 12); c.lineTo(44, 24); c.fill();
+  c.fillStyle = '#6B4423';
+  for (let i = 0; i < 5; i++) { c.beginPath(); c.moveTo(52 - i * 3, 26 + i); c.lineTo(58 - i * 3, 12 + i * 2); c.lineTo(64 - i * 3, 26 + i); c.fill(); }
+  c.fillStyle = '#D98CA0';
+  c.beginPath(); c.ellipse(12, 48, 9, 7, 0, 0, 7); c.fill();
+  c.fillStyle = '#8A5566';
+  c.beginPath(); c.arc(9, 47, 1.7, 0, 7); c.arc(15, 47, 1.7, 0, 7); c.fill();
+  c.fillStyle = '#F2EEE4';
+  c.beginPath(); c.moveTo(16, 54); c.lineTo(8, 62); c.lineTo(15, 58); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(28, 38, 4, 0, 7); c.fill();
+  c.fillStyle = '#111'; c.beginPath(); c.arc(26.8, 38.4, 2, 0, 7); c.fill();
+  c.strokeStyle = '#5A3A22'; c.lineWidth = 3; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(97, 40); c.quadraticCurveTo(108 + sw * 4, 34, 104, 24); c.stroke();
+});
+
+/* 8-frame running meerkat */
+ART['timon.png'] = () => sheet(96, 120, 8, (c, f, w, h) => {
+  const ph = f / 8 * Math.PI * 2, bob = Math.sin(ph * 2) * 3, sw = Math.sin(ph);
+  c.translate(0, bob);
+  c.strokeStyle = '#8A6B3A'; c.lineWidth = 7; c.lineCap = 'round';
+  for (const d of [1, -1]) {
+    c.beginPath(); c.moveTo(48, 84); c.lineTo(48 + d * sw * 16, 108); c.stroke();
+  }
+  c.strokeStyle = '#C99B4E'; c.lineWidth = 6;
+  for (const d of [1, -1]) {
+    c.beginPath(); c.moveTo(48, 52); c.lineTo(48 - d * sw * 15, 70); c.stroke();
+  }
+  c.strokeStyle = '#B4873F'; c.lineWidth = 8;
+  c.beginPath(); c.moveTo(44, 82); c.quadraticCurveTo(20, 76, 16 - sw * 6, 52); c.stroke();
+  c.fillStyle = '#C99B4E';
+  c.beginPath(); c.ellipse(48, 62, 19, 26, 0, 0, 7); c.fill();
+  c.fillStyle = '#E8D4A8';
+  c.beginPath(); c.ellipse(50, 66, 11, 18, 0, 0, 7); c.fill();
+  c.fillStyle = '#C99B4E';
+  c.beginPath(); c.ellipse(48, 28, 16, 15, 0, 0, 7); c.fill();
+  c.beginPath(); c.arc(36, 18, 6, 0, 7); c.arc(60, 18, 6, 0, 7); c.fill();
+  c.fillStyle = '#8A6B3A';
+  c.beginPath(); c.arc(36, 18, 3, 0, 7); c.arc(60, 18, 3, 0, 7); c.fill();
+  c.fillStyle = '#F0E2C0';
+  c.beginPath(); c.ellipse(48, 36, 9, 7, 0, 0, 7); c.fill();
+  c.fillStyle = '#fff';
+  c.beginPath(); c.arc(41, 27, 5, 0, 7); c.arc(55, 27, 5, 0, 7); c.fill();
+  c.fillStyle = '#111';
+  c.beginPath(); c.arc(42, 28, 2.4, 0, 7); c.arc(56, 28, 2.4, 0, 7); c.fill();
+  c.fillStyle = '#5B4526';
+  c.beginPath(); c.ellipse(48, 34, 3.4, 2.6, 0, 0, 7); c.fill();
+});
+
+/* 7-frame A/D key prompt */
+ART['wasd.png'] = () => sheet(220, 120, 7, (c, f, w, h) => {
+  const hot = f % 6 < 3 ? 0 : 1;
+  const key = (x, y, label, on) => {
+    c.fillStyle = on ? '#17A2B8' : 'rgba(255,255,255,.88)';
+    c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 3;
+    c.beginPath(); c.roundRect(x, y, 62, 62, 10); c.fill(); c.stroke();
+    c.fillStyle = on ? '#fff' : '#222';
+    c.font = 'bold 34px Consolas,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(label, x + 31, y + 33);
+  };
+  key(18, 30, 'A', hot === 0);
+  key(140, 30, 'D', hot === 1);
+  c.fillStyle = 'rgba(255,255,255,.9)';
+  c.font = 'bold 16px Rubik,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText('MOVE', 110, 106);
+});
+
+/* --- WebAudio one-shots stand in for uploaded sound files --- */
+let AC = null;
+function audioCtx() {
+  if (!AC) { const K = window.AudioContext || window.webkitAudioContext; if (K) AC = new K(); }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+const SYNTH = {
+  crunch(c) {
+    const n = c.sampleRate * .18, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.5);
+    const s = c.createBufferSource(); s.buffer = b;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = .8;
+    const g = c.createGain(); g.gain.value = .35;
+    s.connect(f); f.connect(g); g.connect(c.destination); s.start();
+  },
+  blip(c) {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'square'; o.frequency.setValueAtTime(660, c.currentTime);
+    o.frequency.exponentialRampToValueAtTime(220, c.currentTime + .12);
+    g.gain.setValueAtTime(.18, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, c.currentTime + .14);
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + .15);
+  },
+};
+</script>
+<!--@ICONS@-->
+<script>
+/* ============================================================
+   3. PYTHON SUBSET — tokenizer + parser.
+      Enough of the language for the classroom: expressions,
+      control flow, functions, classes, comprehensions, f-strings.
+   ============================================================ */
+/* Error text mirrors Skulpt (the Python runtime the original IDE uses),
+   because PixelPAD prints the bare exception message with no type prefix.
+   Its parser reports almost every malformed line as "bad input". */
+class PyError extends Error {
+  constructor(type, msg, line) { super(msg); this.type = type; this.line = line || 0; }
+  get display() { return this.type + ': ' + this.message; }
+}
+/* Skulpt's catch-all parse failure */
+function badInput(line) { return new PyError('SyntaxError', 'bad input', line); }
+const KEYWORDS = new Set(['and','as','assert','break','class','continue','def','del','elif','else','except',
+  'False','finally','for','from','global','if','import','in','is','lambda','None','nonlocal','not','or','pass',
+  'raise','return','True','try','while','with','yield','self']);
+
+const OPS3 = ['**=','//=','...'];
+const OPS2 = ['**','//','==','!=','<=','>=','+=','-=','*=','/=','%=','->','<<','>>'];
+
+function tokenize(src) {
+  src = String(src).replace(/\r\n?/g, '\n');
+  let srcNewlines = 0;
+  for (const ch of src) if (ch === '\n') srcNewlines++;
+  if (!src.endsWith('\n')) src += '\n';
+  const toks = [], indents = [0];
+  let i = 0, line = 1, depth = 0, lineStart = true;
+  const push = (t, v) => toks.push({ t, v, line });
+
+  while (i < src.length) {
+    if (lineStart && depth === 0) {
+      let j = i, ind = 0;
+      while (j < src.length && (src[j] === ' ' || src[j] === '\t')) { ind += src[j] === '\t' ? 4 : 1; j++; }
+      if (j >= src.length) break;
+      if (src[j] === '\n') { i = j + 1; line++; continue; }
+      if (src[j] === '#') { while (j < src.length && src[j] !== '\n') j++; i = j; continue; }
+      if (ind > indents[indents.length - 1]) { indents.push(ind); push('INDENT'); }
+      else while (ind < indents[indents.length - 1]) {
+        indents.pop(); push('DEDENT');
+        if (ind > indents[indents.length - 1])
+          throw new PyError('SyntaxError', 'unindent does not match any outer indentation level', line);
+      }
+      i = j; lineStart = false; continue;
+    }
+    const c = src[i];
+    if (c === ' ' || c === '\t' || c === '\r') { i++; continue; }
+    if (c === '\\' && src[i + 1] === '\n') { i += 2; line++; continue; }
+    if (c === '#') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '\n') { if (depth === 0) { push('NEWLINE'); lineStart = true; } line++; i++; continue; }
+
+    /* string (with optional f / r / b prefix) */
+    const pm = /^([fFrRbB]{0,2})(['"])/.exec(src.slice(i, i + 3));
+    if (pm && (pm[1].length === 0 ? /['"]/.test(c) : true)) {
+      const pre = pm[1].toLowerCase(), q = pm[2];
+      let k = i + pre.length;
+      const triple = src.startsWith(q.repeat(3), k);
+      const term = triple ? q.repeat(3) : q;
+      k += term.length;
+      let out = '';
+      while (k < src.length && !src.startsWith(term, k)) {
+        if (src[k] === '\\' && !pre.includes('r')) {
+          const e = src[k + 1];
+          const map = { n: '\n', t: '\t', r: '\r', '\\': '\\', "'": "'", '"': '"', '0': '\0' };
+          if (e === '\n') { line++; k += 2; continue; }
+          out += (e in map) ? map[e] : '\\' + e; k += 2; continue;
+        }
+        if (src[k] === '\n') { if (!triple) throw badInput(line); line++; }
+        out += src[k++];
+      }
+      if (k >= src.length) throw badInput(line);
+      i = k + term.length;
+      if (pre.includes('f')) push('FSTR', out); else push('STR', out);
+      continue;
+    }
+    /* number */
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] || ''))) {
+      const m = /^(?:0[xX][0-9a-fA-F_]+|(?:[0-9_]*\.[0-9_]+|[0-9_]+\.?)(?:[eE][+-]?[0-9]+)?)/.exec(src.slice(i));
+      const raw = m[0]; i += raw.length;
+      push('NUM', raw.startsWith('0x') || raw.startsWith('0X') ? parseInt(raw.replace(/_/g, ''), 16) : parseFloat(raw.replace(/_/g, '')));
+      continue;
+    }
+    /* name */
+    if (/[A-Za-z_]/.test(c)) {
+      const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(src.slice(i));
+      i += m[0].length; push('NAME', m[0]); continue;
+    }
+    /* operator */
+    const three = src.substr(i, 3), two = src.substr(i, 2);
+    if (OPS3.includes(three)) { push('OP', three); i += 3; continue; }
+    if (OPS2.includes(two)) { push('OP', two); i += 2; continue; }
+    if ('([{'.includes(c)) depth++;
+    if (')]}'.includes(c)) depth = Math.max(0, depth - 1);
+    if (!'+-*/%<>=!&|^~.,:;()[]{}@'.includes(c))
+      throw new PyError('SyntaxError', 'bad token T_OP', line);
+    push('OP', c); i++;
+  }
+  /* a bracket left open when the source runs out: Skulpt reports this at
+     the line two past the final newline, not at the opening bracket */
+  /* A bracket left open swallows the newlines after it. Skulpt only calls
+     that "EOF in multi-line statement" when the parse runs clean off the
+     end; if a later token breaks the parse first it is plain "bad input".
+     Record the position, emit no closing NEWLINE so the parser actually
+     reaches EOF, and let it decide which of the two applies. */
+  if (depth === 0 && !lineStart) push('NEWLINE');
+  while (indents.length > 1) { indents.pop(); push('DEDENT'); }
+  push('EOF');
+  if (depth > 0) toks.unclosed = srcNewlines + 2;
+  return toks;
+}
+
+const AUGOPS = { '+=':'+', '-=':'-', '*=':'*', '/=':'/', '//=':'//', '%=':'%', '**=':'**' };
+const COMPOPS = ['<', '>', '<=', '>=', '==', '!='];
+
+function parse(src) {
+  const toks = tokenize(src);
+  let p = 0;
+  const cur = () => toks[p];
+  const at = (t, v) => toks[p].t === t && (v === undefined || toks[p].v === v);
+  const atKw = (v) => toks[p].t === 'NAME' && toks[p].v === v;
+  const eat = (t, v) => at(t, v) ? toks[p++] : null;
+  const eatKw = (v) => atKw(v) ? toks[p++] : null;
+  /* Skulpt blames the line the parser choked on; a NEWLINE/EOF token
+     carries the line after the offending one, so step back to it. */
+  function blame() {
+    const tok = toks[p];
+    if ((tok.t === 'NEWLINE' || tok.t === 'EOF' || tok.t === 'DEDENT') && p > 0) {
+      for (let q = p - 1; q >= 0; q--) {
+        if (toks[q].t !== 'NEWLINE' && toks[q].t !== 'INDENT' && toks[q].t !== 'DEDENT' && toks[q].t !== 'EOF')
+          return toks[q].line;
+      }
+    }
+    return tok.line;
+  }
+  /* running out of tokens inside an unclosed bracket is the EOF case */
+  function fail() {
+    if (toks.unclosed && toks[p].t === 'EOF')
+      return new PyError('SyntaxError', 'EOF in multi-line statement', toks.unclosed);
+    return badInput(blame());
+  }
+  function want(t, v) {
+    const k = eat(t, v);
+    if (!k) throw fail();
+    return k;
+  }
+  const ln = () => toks[p].line;
+
+  /* ---------- statements ---------- */
+  function parseSuite() {
+    want('OP', ':');
+    if (eat('NEWLINE')) {
+      want('INDENT');
+      const body = [];
+      while (!at('DEDENT') && !at('EOF')) body.push(...parseStatement());
+      eat('DEDENT');
+      return body;
+    }
+    return parseSimpleLine();
+  }
+  function parseSimpleLine() {
+    const out = [parseSimple()];
+    while (eat('OP', ';')) { if (at('NEWLINE')) break; out.push(parseSimple()); }
+    eat('NEWLINE');
+    return out;
+  }
+  function parseStatement() {
+    while (eat('NEWLINE')) {}
+    if (at('EOF') || at('DEDENT')) return [];
+    const line = ln();
+    if (atKw('if')) { p++; return [parseIf(line)]; }
+    if (atKw('while')) {
+      p++; const test = parseExpr(), body = parseSuite();
+      let orelse = null;
+      if (atKw('else')) { p++; orelse = parseSuite(); }
+      return [{ k: 'While', test, body, orelse, line }];
+    }
+    if (atKw('for')) {
+      p++; const target = parseTarget();
+      if (!eatKw('in')) throw fail();
+      const iter = parseExpr(), body = parseSuite();
+      let orelse = null;
+      if (atKw('else')) { p++; orelse = parseSuite(); }
+      return [{ k: 'For', target, iter, body, orelse, line }];
+    }
+    if (atKw('def')) { p++; return [parseDef(line)]; }
+    if (atKw('class')) {
+      p++; const name = want('NAME').v;
+      let bases = [];
+      if (eat('OP', '(')) { while (!at('OP', ')')) { bases.push(parseExpr()); if (!eat('OP', ',')) break; } want('OP', ')'); }
+      return [{ k: 'ClassDef', name, bases, body: parseSuite(), line }];
+    }
+    if (atKw('try')) {
+      p++; const body = parseSuite(), handlers = [];
+      while (atKw('except')) {
+        p++; let type = null, name = null;
+        if (!at('OP', ':')) { type = parseExpr(); if (eatKw('as')) name = want('NAME').v; }
+        handlers.push({ type, name, body: parseSuite() });
+      }
+      let orelse = null, fin = null;
+      if (atKw('else')) { p++; orelse = parseSuite(); }
+      if (atKw('finally')) { p++; fin = parseSuite(); }
+      return [{ k: 'Try', body, handlers, orelse, fin, line }];
+    }
+    if (atKw('with')) {
+      p++; const ctx = parseExpr();
+      let name = null; if (eatKw('as')) name = want('NAME').v;
+      return [{ k: 'With', ctx, name, body: parseSuite(), line }];
+    }
+    return parseSimpleLine();
+  }
+  function parseIf(line) {
+    const test = parseExpr(), body = parseSuite();
+    let orelse = null;
+    if (atKw('elif')) { const l2 = ln(); p++; orelse = [parseIf(l2)]; }
+    else if (atKw('else')) { p++; orelse = parseSuite(); }
+    return { k: 'If', test, body, orelse, line };
+  }
+  function parseDef(line) {
+    const name = want('NAME').v;
+    want('OP', '(');
+    const params = [];
+    while (!at('OP', ')')) {
+      if (eat('OP', '*')) { if (at('NAME')) params.push({ name: want('NAME').v, star: true }); }
+      else {
+        const pn = want('NAME').v;
+        let def = null;
+        if (eat('OP', '=')) def = parseExpr();
+        params.push({ name: pn, def });
+      }
+      if (!eat('OP', ',')) break;
+    }
+    want('OP', ')');
+    if (eat('OP', '->')) parseExpr();
+    return { k: 'FuncDef', name, params, body: parseSuite(), line };
+  }
+  function parseSimple() {
+    const line = ln();
+    if (eatKw('pass')) return { k: 'Pass', line };
+    if (eatKw('break')) return { k: 'Break', line };
+    if (eatKw('continue')) return { k: 'Continue', line };
+    if (eatKw('return')) return { k: 'Return', value: (at('NEWLINE') || at('OP', ';') || at('EOF')) ? null : parseExprList(), line };
+    if (eatKw('raise')) return { k: 'Raise', value: (at('NEWLINE') || at('EOF')) ? null : parseExpr(), line };
+    if (eatKw('global') || eatKw('nonlocal')) {
+      const names = [want('NAME').v];
+      while (eat('OP', ',')) names.push(want('NAME').v);
+      return { k: 'Global', names, line };
+    }
+    if (eatKw('del')) {
+      const targets = [parseExpr()];
+      while (eat('OP', ',')) targets.push(parseExpr());
+      return { k: 'Del', targets, line };
+    }
+    if (atKw('import')) {
+      p++; const mods = [];
+      do {
+        let mod = want('NAME').v;
+        while (eat('OP', '.')) mod += '.' + want('NAME').v;
+        let alias = eatKw('as') ? want('NAME').v : mod.split('.')[0];
+        mods.push({ mod, alias });
+      } while (eat('OP', ','));
+      return { k: 'Import', mods, line };
+    }
+    if (atKw('from')) {
+      p++; let mod = want('NAME').v;
+      while (eat('OP', '.')) mod += '.' + want('NAME').v;
+      if (!eatKw('import')) throw fail();
+      const names = [];
+      if (eat('OP', '*')) names.push({ name: '*', alias: '*' });
+      else do {
+        const n = want('NAME').v;
+        names.push({ name: n, alias: eatKw('as') ? want('NAME').v : n });
+      } while (eat('OP', ','));
+      return { k: 'FromImport', mod, names, line };
+    }
+    if (eatKw('assert')) {
+      const test = parseExpr();
+      let msg = null; if (eat('OP', ',')) msg = parseExpr();
+      return { k: 'Assert', test, msg, line };
+    }
+
+    const first = parseExprList();
+    if (at('OP') && AUGOPS[cur().v]) {
+      const op = AUGOPS[toks[p++].v];
+      checkTarget(first);
+      return { k: 'AugAssign', target: first, op, value: parseExprList(), line };
+    }
+    if (at('OP', ':')) {                       /* annotated assignment */
+      p++; parseExpr();
+      if (eat('OP', '=')) return { k: 'Assign', targets: [first], value: parseExprList(), line };
+      return { k: 'Expr', value: first, line };
+    }
+    if (at('OP', '=')) {
+      const targets = [first];
+      let value = null;
+      while (eat('OP', '=')) { value = parseExprList(); targets.push(value); }
+      targets.pop();
+      targets.forEach(checkTarget);
+      return { k: 'Assign', targets, value, line };
+    }
+    return { k: 'Expr', value: first, line };
+  }
+  /* Python rejects bad assignment targets while parsing, so mirror
+     Skulpt's wording here rather than failing later at run time */
+  const TARGET_ERR = {
+    Num: 'literal', Str: 'literal', FStr: 'literal', Const: 'literal',
+    Call: 'function call', Bin: 'operator', Unary: 'operator', Bool: 'operator',
+    Compare: 'comparison', IfExp: 'conditional expression', Lambda: 'lambda',
+    Comp: 'comprehension', Dict: 'literal', Set: 'literal',
+  };
+  function checkTarget(n) {
+    if (!n) return;
+    if (n.k === 'Name' || n.k === 'Attr' || n.k === 'Index' || n.k === 'Slice') return;
+    if (n.k === 'Tuple' || n.k === 'List') { n.items.forEach(checkTarget); return; }
+    throw new PyError('SyntaxError', "can't assign to " + (TARGET_ERR[n.k] || 'expression'), n.line);
+  }
+  function parseTarget() {
+    const first = parsePostfix();
+    if (at('OP', ',')) {
+      const items = [first];
+      while (eat('OP', ',')) { if (at('NAME') || at('OP', '(') || at('OP', '[')) items.push(parsePostfix()); else break; }
+      return { k: 'Tuple', items, line: first.line };
+    }
+    return first;
+  }
+  function parseExprList() {
+    const first = parseExpr();
+    if (!at('OP', ',')) return first;
+    const items = [first];
+    while (eat('OP', ',')) {
+      if (at('NEWLINE') || at('EOF') || at('OP', '=') || at('OP', ')') || at('OP', ']') || at('OP', '}')) break;
+      items.push(parseExpr());
+    }
+    return { k: 'Tuple', items, line: first.line };
+  }
+
+  /* ---------- expressions ---------- */
+  function parseExpr() { return parseTernary(); }
+  function parseTernary() {
+    const body = parseOr();
+    if (atKw('if')) {
+      const line = ln(); p++;
+      const test = parseOr();
+      if (!eatKw('else')) throw fail();
+      return { k: 'IfExp', test, body, orelse: parseTernary(), line };
+    }
+    return body;
+  }
+  function parseOr() {
+    let l = parseAnd();
+    while (atKw('or')) { const line = ln(); p++; l = { k: 'Bool', op: 'or', l, r: parseAnd(), line }; }
+    return l;
+  }
+  function parseAnd() {
+    let l = parseNot();
+    while (atKw('and')) { const line = ln(); p++; l = { k: 'Bool', op: 'and', l, r: parseNot(), line }; }
+    return l;
+  }
+  function parseNot() {
+    if (atKw('not')) { const line = ln(); p++; return { k: 'Unary', op: 'not', v: parseNot(), line }; }
+    return parseComparison();
+  }
+  function parseComparison() {
+    const first = parseArith();
+    const ops = [], rights = [];
+    for (;;) {
+      let op = null;
+      if (at('OP') && COMPOPS.includes(cur().v)) op = toks[p++].v;
+      else if (atKw('in')) { p++; op = 'in'; }
+      else if (atKw('not') && toks[p + 1].t === 'NAME' && toks[p + 1].v === 'in') { p += 2; op = 'not in'; }
+      else if (atKw('is')) { p++; op = (atKw('not') && (p++, true)) ? 'is not' : 'is'; }
+      else break;
+      ops.push(op); rights.push(parseArith());
+    }
+    if (!ops.length) return first;
+    return { k: 'Compare', left: first, ops, rights, line: first.line };
+  }
+  const binLevel = (next, opsList) => function () {
+    let l = next();
+    while (at('OP') && opsList.includes(cur().v)) { const line = ln(); const op = toks[p++].v; l = { k: 'Bin', op, l, r: next(), line }; }
+    return l;
+  };
+  const parseTerm = () => binLevel(parseFactor, ['*', '/', '//', '%', '@'])();
+  const parseArithRaw = () => binLevel(parseTerm, ['+', '-'])();
+  const parseShift = () => binLevel(parseArithRaw, ['<<', '>>'])();
+  const parseBitAnd = () => binLevel(parseShift, ['&'])();
+  const parseBitXor = () => binLevel(parseBitAnd, ['^'])();
+  function parseArith() { return binLevel(parseBitXor, ['|'])(); }
+  function parseFactor() {
+    if (at('OP', '-') || at('OP', '+') || at('OP', '~')) {
+      const line = ln(); const op = toks[p++].v;
+      return { k: 'Unary', op, v: parseFactor(), line };
+    }
+    return parsePower();
+  }
+  function parsePower() {
+    const base = parsePostfix();
+    if (at('OP', '**')) { const line = ln(); p++; return { k: 'Bin', op: '**', l: base, r: parseFactor(), line }; }
+    return base;
+  }
+  function parsePostfix() {
+    let node = parseAtom();
+    for (;;) {
+      const line = ln();
+      if (eat('OP', '.')) { node = { k: 'Attr', obj: node, name: want('NAME').v, line }; continue; }
+      if (eat('OP', '(')) {
+        const args = [], kwargs = [];
+        while (!at('OP', ')')) {
+          if (at('NAME') && toks[p + 1].t === 'OP' && toks[p + 1].v === '=' ) {
+            const key = want('NAME').v; want('OP', '=');
+            kwargs.push({ key, value: parseExpr() });
+          } else if (eat('OP', '*')) { args.push({ star: true, value: parseExpr() }); }
+          else args.push({ value: parseExpr() });
+          if (!eat('OP', ',')) break;
+        }
+        want('OP', ')');
+        node = { k: 'Call', fn: node, args, kwargs, line }; continue;
+      }
+      if (eat('OP', '[')) {
+        let lo = null, hi = null, step = null, isSlice = false;
+        if (!at('OP', ':')) lo = parseExprList();
+        if (eat('OP', ':')) {
+          isSlice = true;
+          if (!at('OP', ']') && !at('OP', ':')) hi = parseExpr();
+          if (eat('OP', ':') && !at('OP', ']')) step = parseExpr();
+        }
+        want('OP', ']');
+        node = isSlice ? { k: 'Slice', obj: node, lo, hi, step, line } : { k: 'Index', obj: node, idx: lo, line };
+        continue;
+      }
+      break;
+    }
+    return node;
+  }
+  function parseComprehension(elt, closer, kind, valueElt) {
+    const clauses = [];
+    while (atKw('for')) {
+      p++; const target = parseTarget();
+      if (!eatKw('in')) throw fail();
+      const iter = parseOr();
+      const ifs = [];
+      while (atKw('if')) { p++; ifs.push(parseOr()); }
+      clauses.push({ target, iter, ifs });
+    }
+    want('OP', closer);
+    return { k: 'Comp', kind, elt, valueElt: valueElt || null, clauses, line: elt.line };
+  }
+  function parseAtom() {
+    const tk = cur(), line = tk.line;
+    if (tk.t === 'NUM') { p++; return { k: 'Num', v: tk.v, line }; }
+    if (tk.t === 'STR') {
+      p++; let s = tk.v;
+      while (at('STR')) s += toks[p++].v;
+      return { k: 'Str', v: s, line };
+    }
+    if (tk.t === 'FSTR') { p++; return { k: 'FStr', parts: compileFString(tk.v, line), line }; }
+    if (tk.t === 'NAME') {
+      if (tk.v === 'True') { p++; return { k: 'Const', v: true, line }; }
+      if (tk.v === 'False') { p++; return { k: 'Const', v: false, line }; }
+      if (tk.v === 'None') { p++; return { k: 'Const', v: null, line }; }
+      if (tk.v === 'lambda') {
+        p++; const params = [];
+        while (!at('OP', ':')) {
+          const pn = want('NAME').v;
+          params.push({ name: pn, def: eat('OP', '=') ? parseExpr() : null });
+          if (!eat('OP', ',')) break;
+        }
+        want('OP', ':');
+        return { k: 'Lambda', params, body: parseExpr(), line };
+      }
+      p++; return { k: 'Name', id: tk.v, line };
+    }
+    if (tk.t === 'OP') {
+      if (tk.v === '(') {
+        p++;
+        if (eat('OP', ')')) return { k: 'Tuple', items: [], line };
+        const first = parseExpr();
+        if (atKw('for')) return parseComprehension(first, ')', 'list');
+        if (at('OP', ',')) {
+          const items = [first];
+          while (eat('OP', ',')) { if (at('OP', ')')) break; items.push(parseExpr()); }
+          want('OP', ')');
+          return { k: 'Tuple', items, line };
+        }
+        want('OP', ')');
+        return first;
+      }
+      if (tk.v === '[') {
+        p++;
+        if (eat('OP', ']')) return { k: 'List', items: [], line };
+        const first = parseExpr();
+        if (atKw('for')) return parseComprehension(first, ']', 'list');
+        const items = [first];
+        while (eat('OP', ',')) { if (at('OP', ']')) break; items.push(parseExpr()); }
+        want('OP', ']');
+        return { k: 'List', items, line };
+      }
+      if (tk.v === '{') {
+        p++;
+        if (eat('OP', '}')) return { k: 'Dict', keys: [], values: [], line };
+        const firstKey = parseExpr();
+        if (eat('OP', ':')) {
+          const firstVal = parseExpr();
+          if (atKw('for')) return parseComprehension(firstKey, '}', 'dict', firstVal);
+          const keys = [firstKey], values = [firstVal];
+          while (eat('OP', ',')) {
+            if (at('OP', '}')) break;
+            keys.push(parseExpr()); want('OP', ':'); values.push(parseExpr());
+          }
+          want('OP', '}');
+          return { k: 'Dict', keys, values, line };
+        }
+        if (atKw('for')) return parseComprehension(firstKey, '}', 'set');
+        const items = [firstKey];
+        while (eat('OP', ',')) { if (at('OP', '}')) break; items.push(parseExpr()); }
+        want('OP', '}');
+        return { k: 'Set', items, line };
+      }
+    }
+    throw fail();
+  }
+
+  /* f-string: split into literal chunks and embedded expressions */
+  function compileFString(raw, line) {
+    const parts = [];
+    let buf = '';
+    for (let i = 0; i < raw.length; i++) {
+      const c = raw[i];
+      if (c === '{' && raw[i + 1] === '{') { buf += '{'; i++; continue; }
+      if (c === '}' && raw[i + 1] === '}') { buf += '}'; i++; continue; }
+      if (c === '{') {
+        if (buf) { parts.push({ lit: buf }); buf = ''; }
+        let d = 1, j = i + 1, expr = '';
+        while (j < raw.length && d > 0) {
+          if (raw[j] === '{') d++;
+          else if (raw[j] === '}') { d--; if (!d) break; }
+          expr += raw[j++];
+        }
+        i = j;
+        const fmt = expr.split(/(?<!\!)\:(?![^\[]*\])/);
+        let spec = null, src = expr;
+        if (fmt.length > 1) { src = fmt[0]; spec = fmt.slice(1).join(':'); }
+        src = src.replace(/![rsa]$/, '');
+        parts.push({ node: parse(src.trim()).body[0].value, spec });
+        continue;
+      }
+      buf += c;
+    }
+    if (buf) parts.push({ lit: buf });
+    return parts;
+  }
+
+  const body = [];
+  while (!at('EOF')) {
+    const before = p;
+    body.push(...parseStatement());
+    if (p === before && !at('EOF')) throw fail();
+  }
+  return { k: 'Module', body };
+}
+</script>
+<!--@PYTHON@-->
+<script>
+/* ============================================================
+   4. PYTHON SUBSET — evaluator.
+   ============================================================ */
+class PyFunc {
+  constructor(name, params, body, scope, self) {
+    this.name = name; this.params = params; this.body = body; this.scope = scope; this.self = self;
+  }
+  bind(inst) { const f = new PyFunc(this.name, this.params, this.body, this.scope, inst); return f; }
+}
+class PyClass {
+  constructor(name, bases) { this.name = name; this.bases = bases || []; this.methods = new Map(); }
+  lookup(n) {
+    if (this.methods.has(n)) return this.methods.get(n);
+    for (const b of this.bases) { const v = b.lookup && b.lookup(n); if (v !== undefined) return v; }
+    return undefined;
+  }
+}
+class PyObj {
+  constructor(cls) { this.cls = cls; this.attrs = new Map(); }
+  get(n) { return this.attrs.get(n); }
+  set(n, v) { this.attrs.set(n, v); return v; }
+}
+class PyTuple extends Array {}
+class Scope {
+  constructor(parent, globals) { this.v = new Map(); this.parent = parent || null; this.globals = globals || this; this.globalNames = null; }
+  has(n) { return this.v.has(n) || (this.parent ? this.parent.has(n) : false); }
+  get(n, line) {
+    let s = this;
+    while (s) { if (s.v.has(n)) return s.v.get(n); s = s.parent; }
+    throw new PyError('NameError', "name '" + n + "' is not defined", line);
+  }
+  set(n, val) {
+    if (this.globalNames && this.globalNames.has(n)) { this.globals.v.set(n, val); return val; }
+    this.v.set(n, val); return val;
+  }
+}
+const BREAK = { sig: 'break' }, CONTINUE = { sig: 'continue' };
+class ReturnSig { constructor(v) { this.value = v; } }
+
+const isNum = v => typeof v === 'number';
+const isStr = v => typeof v === 'string';
+const isList = v => Array.isArray(v);
+const isDict = v => v instanceof Map;
+const isSet = v => v instanceof Set;
+
+function pyBool(v) {
+  if (v === null || v === undefined || v === false) return false;
+  if (v === true) return true;
+  if (isNum(v)) return v !== 0;
+  if (isStr(v)) return v.length > 0;
+  if (isList(v)) return v.length > 0;
+  if (isDict(v) || isSet(v)) return v.size > 0;
+  return true;
+}
+function fmtNum(n) {
+  if (!isFinite(n)) return n > 0 ? 'inf' : (n < 0 ? '-inf' : 'nan');
+  if (Number.isInteger(n)) return String(n);
+  const s = String(n);
+  return s.includes('e') ? s : s;
+}
+function repr(v) {
+  if (isStr(v)) return "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  return str(v);
+}
+function str(v) {
+  if (v === null || v === undefined) return 'None';
+  if (v === true) return 'True';
+  if (v === false) return 'False';
+  if (isNum(v)) return fmtNum(v);
+  if (isStr(v)) return v;
+  if (v instanceof PyTuple) return '(' + [...v].map(repr).join(', ') + (v.length === 1 ? ',' : '') + ')';
+  if (isList(v)) return '[' + v.map(repr).join(', ') + ']';
+  if (isDict(v)) return '{' + [...v.entries()].map(([k, x]) => repr(k) + ': ' + repr(x)).join(', ') + '}';
+  if (isSet(v)) return v.size ? '{' + [...v].map(repr).join(', ') + '}' : 'set()';
+  if (v instanceof PyError) return v.message;
+  if (v instanceof PyObj) {
+    const s = v.cls && v.cls.lookup && v.cls.lookup('__str__');
+    if (s) return str(INTERP.callFunc(s.bind(v), [], [], 0));
+    return '<' + (v.cls ? v.cls.name : 'object') + ' object>';
+  }
+  if (v instanceof PyClass) return "<class '" + v.name + "'>";
+  if (v instanceof PyFunc) return '<function ' + v.name + '>';
+  if (typeof v === 'function') return '<built-in function ' + (v.pyName || v.name) + '>';
+  if (v && v.__module) return "<module '" + v.__module + "'>";
+  if (v && v.__sprite) return '<sprite ' + v.name + '>';
+  if (v && v.__anim) return '<animation>';
+  return String(v);
+}
+function typeName(v) {
+  if (v === null || v === undefined) return 'NoneType';
+  if (typeof v === 'boolean') return 'bool';
+  if (isNum(v)) return Number.isInteger(v) ? 'int' : 'float';
+  if (isStr(v)) return 'str';
+  if (v instanceof PyTuple) return 'tuple';
+  if (isList(v)) return 'list';
+  if (isDict(v)) return 'dict';
+  if (isSet(v)) return 'set';
+  if (v instanceof PyObj) return v.cls ? v.cls.name : 'object';
+  if (v instanceof PyClass) return 'type';
+  return 'object';
+}
+function iterate(v, line) {
+  if (isStr(v)) return v.split('');
+  if (isList(v)) return v.slice();
+  if (isSet(v)) return [...v];
+  if (isDict(v)) return [...v.keys()];
+  if (v && v.__range) return v.toArray();
+  if (v instanceof PyObj) {
+    const it = v.cls && v.cls.lookup('__iter__');
+    if (it) return iterate(INTERP.callFunc(it.bind(v), [], [], line), line);
+  }
+  throw new PyError('TypeError', "'" + typeName(v) + "' object is not iterable", line);
+}
+function eq(a, b) {
+  if (a === b) return true;
+  if (isNum(a) && isNum(b)) return a === b;
+  if (a instanceof PyTuple !== b instanceof PyTuple) { /* still compare elementwise */ }
+  if (isList(a) && isList(b)) return a.length === b.length && a.every((x, i) => eq(x, b[i]));
+  if (isDict(a) && isDict(b)) {
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) { if (!b.has(k) || !eq(v, b.get(k))) return false; }
+    return true;
+  }
+  if ((a === null || a === undefined) && (b === null || b === undefined)) return true;
+  return false;
+}
+function cmpLt(a, b, line) {
+  if (isNum(a) && isNum(b)) return a < b;
+  if (isStr(a) && isStr(b)) return a < b;
+  if (isList(a) && isList(b)) {
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      if (!eq(a[i], b[i])) return cmpLt(a[i], b[i], line);
+    }
+    return a.length < b.length;
+  }
+  throw new PyError('TypeError', "'<' not supported between instances of '" + typeName(a) + "' and '" + typeName(b) + "'", line);
+}
+function contains(hay, needle, line) {
+  if (isStr(hay)) return isStr(needle) ? hay.includes(needle) : false;
+  if (isList(hay)) return hay.some(x => eq(x, needle));
+  if (isDict(hay)) { for (const k of hay.keys()) if (eq(k, needle)) return true; return false; }
+  if (isSet(hay)) { for (const k of hay) if (eq(k, needle)) return true; return false; }
+  throw new PyError('TypeError', "argument of type '" + typeName(hay) + "' is not iterable", line);
+}
+function normIndex(i, len, line, allowEnd, kind) {
+  let n = Math.trunc(i);
+  if (n < 0) n += len;
+  if (n < 0 || (allowEnd ? n > len : n >= len))
+    throw new PyError('IndexError', (kind || 'list') + ' index out of range', line);
+  return n;
+}
+
+/* ---------- method tables ---------- */
+function strMethods(s) {
+  return {
+    upper: () => s.toUpperCase(), lower: () => s.toLowerCase(),
+    strip: (c) => c === undefined ? s.trim() : s.replace(new RegExp('^[' + c + ']+|[' + c + ']+$', 'g'), ''),
+    lstrip: () => s.replace(/^\s+/, ''), rstrip: () => s.replace(/\s+$/, ''),
+    split: (sep, n) => sep === undefined || sep === null ? s.split(/\s+/).filter(x => x) : s.split(sep),
+    join: (arr) => iterate(arr, 0).map(str).join(s),
+    replace: (a, b) => s.split(a).join(b),
+    startswith: (a) => s.startsWith(a), endswith: (a) => s.endsWith(a),
+    find: (a) => s.indexOf(a), index: (a) => { const i = s.indexOf(a); if (i < 0) throw new PyError('ValueError', 'substring not found', 0); return i; },
+    count: (a) => a === '' ? s.length + 1 : s.split(a).length - 1,
+    capitalize: () => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(),
+    title: () => s.replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1).toLowerCase()),
+    isdigit: () => /^[0-9]+$/.test(s), isalpha: () => /^[A-Za-z]+$/.test(s),
+    isspace: () => /^\s+$/.test(s), isupper: () => s === s.toUpperCase() && /[A-Z]/.test(s),
+    islower: () => s === s.toLowerCase() && /[a-z]/.test(s),
+    format: (...a) => { let i = 0; return s.replace(/\{(\d*)\}/g, (_, d) => str(d === '' ? a[i++] : a[+d])); },
+    zfill: (n) => s.padStart(n, '0'),
+  };
+}
+function listMethods(l) {
+  return {
+    append: (v) => { l.push(v); return null; },
+    extend: (v) => { l.push(...iterate(v, 0)); return null; },
+    pop: (i) => { if (!l.length) throw new PyError('IndexError', 'pop from empty list', 0); return i === undefined ? l.pop() : l.splice(normIndex(i, l.length, 0), 1)[0]; },
+    insert: (i, v) => { l.splice(Math.max(0, i < 0 ? l.length + i : i), 0, v); return null; },
+    remove: (v) => { const i = l.findIndex(x => eq(x, v)); if (i < 0) throw new PyError('ValueError', 'list.remove(x): x not in list', 0); l.splice(i, 1); return null; },
+    index: (v) => { const i = l.findIndex(x => eq(x, v)); if (i < 0) throw new PyError('ValueError', 'is not in list', 0); return i; },
+    count: (v) => l.filter(x => eq(x, v)).length,
+    clear: () => { l.length = 0; return null; },
+    copy: () => l.slice(),
+    reverse: () => { l.reverse(); return null; },
+    sort: () => { sortInPlace(l, takeKw()); return null; },
+  };
+}
+/* keyword arguments for the current builtin call */
+let PENDING_KW = null;
+function takeKw() { const k = PENDING_KW || {}; PENDING_KW = null; return k; }
+
+function sortInPlace(l, kw) {
+  kw = kw || {};
+  const key = kw.key || null, rev = pyBool(kw.reverse);
+  l.sort((a, b) => {
+    const ka = key ? INTERP.callAny(key, [a], 0) : a, kb = key ? INTERP.callAny(key, [b], 0) : b;
+    if (eq(ka, kb)) return 0;
+    return cmpLt(ka, kb, 0) ? -1 : 1;
+  });
+  if (rev) l.reverse();
+}
+function dictMethods(d) {
+  const findKey = (k) => { for (const kk of d.keys()) if (eq(kk, k)) return kk; return undefined; };
+  return {
+    get: (k, dflt) => { const kk = findKey(k); return kk === undefined ? (dflt === undefined ? null : dflt) : d.get(kk); },
+    keys: () => [...d.keys()], values: () => [...d.values()],
+    items: () => [...d.entries()].map(([k, v]) => PyTuple.from([k, v])),
+    pop: (k, dflt) => { const kk = findKey(k); if (kk === undefined) { if (dflt !== undefined) return dflt; throw new PyError('KeyError', str(k), 0); } const v = d.get(kk); d.delete(kk); return v; },
+    update: (o) => { if (isDict(o)) for (const [k, v] of o) d.set(k, v); return null; },
+    clear: () => { d.clear(); return null; },
+    copy: () => new Map(d),
+    setdefault: (k, v) => { const kk = findKey(k); if (kk !== undefined) return d.get(kk); d.set(k, v === undefined ? null : v); return d.get(k); },
+    __find: findKey,
+  };
+}
+function setMethods(s) {
+  return {
+    add: (v) => { if (!contains(s, v, 0)) s.add(v); return null; },
+    remove: (v) => { for (const x of s) if (eq(x, v)) { s.delete(x); return null; } throw new PyError('KeyError', str(v), 0); },
+    discard: (v) => { for (const x of s) if (eq(x, v)) { s.delete(x); break; } return null; },
+    clear: () => { s.clear(); return null; },
+    copy: () => new Set(s),
+  };
+}
+
+/* ---------- interpreter ---------- */
+class Interp {
+  constructor() {
+    this.globals = new Scope(null);
+    this.globals.globals = this.globals;
+    this.steps = 0; this.limit = 3000000;
+    this.stdout = (s) => console.log(s);
+  }
+  reset() {
+    this.globals = new Scope(null);
+    this.globals.globals = this.globals;
+    installBuiltins(this.globals);
+  }
+  tick(line) {
+    if (++this.steps > this.limit)
+      throw new PyError('RuntimeError', 'script ran too long (possible infinite loop)', line);
+  }
+  run(body, scope) { for (const s of body) this.exec(s, scope); }
+
+  exec(n, sc) {
+    this.tick(n.line);
+    switch (n.k) {
+      case 'Expr': this.eval(n.value, sc); return;
+      case 'Pass': return;
+      case 'Assign': {
+        const v = this.eval(n.value, sc);
+        for (const t of n.targets) this.assign(t, v, sc);
+        return;
+      }
+      case 'AugAssign': {
+        const curv = this.eval(n.target, sc);
+        this.assign(n.target, this.binop(n.op, curv, this.eval(n.value, sc), n.line), sc);
+        return;
+      }
+      case 'If': {
+        if (pyBool(this.eval(n.test, sc))) this.run(n.body, sc);
+        else if (n.orelse) this.run(n.orelse, sc);
+        return;
+      }
+      case 'While': {
+        let broke = false;
+        while (pyBool(this.eval(n.test, sc))) {
+          this.tick(n.line);
+          try { this.run(n.body, sc); }
+          catch (e) { if (e === BREAK) { broke = true; break; } if (e === CONTINUE) continue; throw e; }
+        }
+        if (!broke && n.orelse) this.run(n.orelse, sc);
+        return;
+      }
+      case 'For': {
+        const seq = iterate(this.eval(n.iter, sc), n.line);
+        let broke = false;
+        for (const item of seq) {
+          this.tick(n.line);
+          this.assign(n.target, item, sc);
+          try { this.run(n.body, sc); }
+          catch (e) { if (e === BREAK) { broke = true; break; } if (e === CONTINUE) continue; throw e; }
+        }
+        if (!broke && n.orelse) this.run(n.orelse, sc);
+        return;
+      }
+      case 'Break': throw BREAK;
+      case 'Continue': throw CONTINUE;
+      case 'Return': throw new ReturnSig(n.value ? this.eval(n.value, sc) : null);
+      case 'FuncDef': sc.set(n.name, new PyFunc(n.name, n.params, n.body, sc, null)); return;
+      case 'ClassDef': {
+        const bases = n.bases.map(b => this.eval(b, sc));
+        const cls = new PyClass(n.name, bases.filter(b => b instanceof PyClass));
+        const inner = new Scope(sc, sc.globals);
+        this.run(n.body, inner);
+        for (const [k, v] of inner.v) cls.methods.set(k, v);
+        sc.set(n.name, cls);
+        return;
+      }
+      case 'Global': {
+        if (!sc.globalNames) sc.globalNames = new Set();
+        for (const nm of n.names) sc.globalNames.add(nm);
+        return;
+      }
+      case 'Del': {
+        for (const t of n.targets) {
+          if (t.k === 'Name') sc.v.delete(t.id);
+          else if (t.k === 'Index') {
+            const o = this.eval(t.obj, sc), i = this.eval(t.idx, sc);
+            if (isList(o)) o.splice(normIndex(i, o.length, n.line), 1);
+            else if (isDict(o)) dictMethods(o).pop(i);
+          } else if (t.k === 'Attr') {
+            const o = this.eval(t.obj, sc);
+            if (o instanceof PyObj) o.attrs.delete(t.name);
+          }
+        }
+        return;
+      }
+      case 'Import': {
+        for (const m of n.mods) {
+          const mod = MODULES[m.mod.split('.')[0]];
+          if (!mod) throw new PyError('ModuleNotFoundError', "No module named '" + m.mod + "'", n.line);
+          sc.set(m.alias, mod);
+        }
+        return;
+      }
+      case 'FromImport': {
+        const mod = MODULES[n.mod];
+        if (!mod) throw new PyError('ModuleNotFoundError', "No module named '" + n.mod + "'", n.line);
+        for (const nm of n.names) {
+          if (nm.name === '*') { for (const k of Object.keys(mod)) if (!k.startsWith('__')) sc.set(k, mod[k]); }
+          else {
+            if (!(nm.name in mod)) throw new PyError('ImportError', "cannot import name '" + nm.name + "'", n.line);
+            sc.set(nm.alias, mod[nm.name]);
+          }
+        }
+        return;
+      }
+      case 'Assert': {
+        if (!pyBool(this.eval(n.test, sc)))
+          throw new PyError('AssertionError', n.msg ? str(this.eval(n.msg, sc)) : '', n.line);
+        return;
+      }
+      case 'Raise': {
+        const v = n.value ? this.eval(n.value, sc) : null;
+        if (v instanceof PyError) throw v;
+        throw new PyError(v && v.__exc ? v.__exc : 'Exception', v === null ? '' : str(v), n.line);
+      }
+      case 'Try': {
+        try { this.run(n.body, sc); if (n.orelse) this.run(n.orelse, sc); }
+        catch (e) {
+          if (e === BREAK || e === CONTINUE || e === ABORT || e instanceof ReturnSig) { if (n.fin) this.run(n.fin, sc); throw e; }
+          const err = (e instanceof PyError) ? e : new PyError('RuntimeError', e.message || String(e), n.line);
+          let handled = false;
+          for (const h of n.handlers) {
+            let match = true;
+            if (h.type) {
+              const names = h.type.k === 'Tuple' ? h.type.items.map(x => x.id) : [h.type.id || (h.type.k === 'Name' ? h.type.id : null)];
+              match = names.includes('Exception') || names.includes(err.type);
+            }
+            if (match) {
+              if (h.name) sc.set(h.name, err);
+              this.run(h.body, sc); handled = true; break;
+            }
+          }
+          if (n.fin) this.run(n.fin, sc);
+          if (!handled) throw err;
+          return;
+        }
+        if (n.fin) this.run(n.fin, sc);
+        return;
+      }
+      case 'With': {
+        const v = this.eval(n.ctx, sc);
+        if (n.name) sc.set(n.name, v);
+        this.run(n.body, sc);
+        return;
+      }
+      default: throw badInput(n.line);
+    }
+  }
+
+  assign(t, v, sc) {
+    switch (t.k) {
+      case 'Name': sc.set(t.id, v); return;
+      case 'Attr': {
+        const o = this.eval(t.obj, sc);
+        if (o instanceof PyObj) { o.set(t.name, v); if (o.__hooks && o.__hooks[t.name]) o.__hooks[t.name](v); return; }
+        if (o instanceof PyClass) { o.methods.set(t.name, v); return; }
+        if (o && typeof o === 'object') { o[t.name] = v; return; }
+        throw new PyError('AttributeError', "cannot set attribute on '" + typeName(o) + "'", t.line);
+      }
+      case 'Index': {
+        const o = this.eval(t.obj, sc), i = this.eval(t.idx, sc);
+        if (isList(o)) { o[normIndex(i, o.length, t.line)] = v; return; }
+        if (isDict(o)) { const kk = dictMethods(o).__find(i); o.set(kk === undefined ? i : kk, v); return; }
+        throw new PyError('TypeError', "'" + typeName(o) + "' object does not support item assignment", t.line);
+      }
+      case 'Tuple': case 'List': {
+        const items = iterate(v, t.line);
+        if (items.length !== t.items.length)
+          throw new PyError('ValueError', items.length > t.items.length
+            ? 'too many values to unpack (expected ' + t.items.length + ')'
+            : 'need more than ' + items.length + ' value' + (items.length === 1 ? '' : 's') + ' to unpack', t.line);
+        t.items.forEach((tt, i) => this.assign(tt, items[i], sc));
+        return;
+      }
+      default: throw new PyError('SyntaxError', 'cannot assign to expression', t.line);
+    }
+  }
+
+  eval(n, sc) {
+    this.tick(n.line);
+    switch (n.k) {
+      case 'Num': case 'Str': return n.v;
+      case 'Const': return n.v;
+      case 'Name': return sc.get(n.id, n.line);
+      case 'FStr': {
+        let out = '';
+        for (const part of n.parts) {
+          if (part.lit !== undefined) { out += part.lit; continue; }
+          let v = this.eval(part.node, sc);
+          if (part.spec) {
+            const m = /^\.(\d+)f$/.exec(part.spec);
+            if (m && isNum(v)) { out += v.toFixed(+m[1]); continue; }
+            const w = /^(\d+)$/.exec(part.spec);
+            if (w) { out += str(v).padStart(+w[1]); continue; }
+          }
+          out += str(v);
+        }
+        return out;
+      }
+      case 'List': return n.items.map(x => this.eval(x, sc));
+      case 'Tuple': return PyTuple.from(n.items.map(x => this.eval(x, sc)));
+      case 'Set': { const s = new Set(); for (const it of n.items) { const v = this.eval(it, sc); if (!contains(s, v, n.line)) s.add(v); } return s; }
+      case 'Dict': {
+        const d = new Map();
+        n.keys.forEach((k, i) => d.set(this.eval(k, sc), this.eval(n.values[i], sc)));
+        return d;
+      }
+      case 'Comp': {
+        const outList = [], outDict = new Map(), outSet = new Set();
+        const walk = (ci, scope) => {
+          if (ci >= n.clauses.length) {
+            if (n.kind === 'dict') outDict.set(this.eval(n.elt, scope), this.eval(n.valueElt, scope));
+            else if (n.kind === 'set') { const v = this.eval(n.elt, scope); if (!contains(outSet, v, n.line)) outSet.add(v); }
+            else outList.push(this.eval(n.elt, scope));
+            return;
+          }
+          const cl = n.clauses[ci];
+          for (const item of iterate(this.eval(cl.iter, scope), n.line)) {
+            this.tick(n.line);
+            this.assign(cl.target, item, scope);
+            if (cl.ifs.every(c => pyBool(this.eval(c, scope)))) walk(ci + 1, scope);
+          }
+        };
+        const inner = new Scope(sc, sc.globals);
+        walk(0, inner);
+        return n.kind === 'dict' ? outDict : n.kind === 'set' ? outSet : outList;
+      }
+      case 'Bool': {
+        const l = this.eval(n.l, sc);
+        if (n.op === 'and') return pyBool(l) ? this.eval(n.r, sc) : l;
+        return pyBool(l) ? l : this.eval(n.r, sc);
+      }
+      case 'Unary': {
+        const v = this.eval(n.v, sc);
+        if (n.op === 'not') return !pyBool(v);
+        if (n.op === '-') { this.needNum(v, n.line); return -v; }
+        if (n.op === '+') { this.needNum(v, n.line); return +v; }
+        if (n.op === '~') { this.needNum(v, n.line); return ~v; }
+        return v;
+      }
+      case 'Bin': return this.binop(n.op, this.eval(n.l, sc), this.eval(n.r, sc), n.line);
+      case 'Compare': {
+        let left = this.eval(n.left, sc);
+        for (let i = 0; i < n.ops.length; i++) {
+          const right = this.eval(n.rights[i], sc), op = n.ops[i];
+          let ok;
+          switch (op) {
+            case '==': ok = eq(left, right); break;
+            case '!=': ok = !eq(left, right); break;
+            case '<': ok = cmpLt(left, right, n.line); break;
+            case '>': ok = cmpLt(right, left, n.line); break;
+            case '<=': ok = eq(left, right) || cmpLt(left, right, n.line); break;
+            case '>=': ok = eq(left, right) || cmpLt(right, left, n.line); break;
+            case 'in': ok = contains(right, left, n.line); break;
+            case 'not in': ok = !contains(right, left, n.line); break;
+            case 'is': ok = left === right || (left == null && right == null); break;
+            case 'is not': ok = !(left === right || (left == null && right == null)); break;
+          }
+          if (!ok) return false;
+          left = right;
+        }
+        return true;
+      }
+      case 'IfExp': return pyBool(this.eval(n.test, sc)) ? this.eval(n.body, sc) : this.eval(n.orelse, sc);
+      case 'Lambda': return new PyFunc('<lambda>', n.params, [{ k: 'Return', value: n.body, line: n.line }], sc, null);
+      case 'Attr': return this.getattr(this.eval(n.obj, sc), n.name, n.line);
+      case 'Index': {
+        const o = this.eval(n.obj, sc), i = this.eval(n.idx, sc);
+        if (isStr(o)) return o[normIndex(i, o.length, n.line, false, 'string')];
+        if (isList(o)) return o[normIndex(i, o.length, n.line)];
+        if (isDict(o)) {
+          const kk = dictMethods(o).__find(i);
+          if (kk === undefined) throw new PyError('KeyError', str(i), n.line);
+          return o.get(kk);
+        }
+        if (o instanceof PyObj) {
+          const gi = o.cls && o.cls.lookup('__getitem__');
+          if (gi) return this.callFunc(gi.bind(o), [i], [], n.line);
+        }
+        throw new PyError('TypeError', "'" + typeName(o) + "' object is not subscriptable", n.line);
+      }
+      case 'Slice': {
+        const o = this.eval(n.obj, sc);
+        const len = isStr(o) || isList(o) ? o.length : 0;
+        if (!isStr(o) && !isList(o)) throw new PyError('TypeError', "'" + typeName(o) + "' object is not subscriptable", n.line);
+        const st = n.step === null || n.step === undefined ? 1 : Math.trunc(this.eval(n.step, sc));
+        if (st === 0) throw new PyError('ValueError', 'slice step cannot be zero', n.line);
+        let lo = n.lo === null || n.lo === undefined ? (st > 0 ? 0 : len - 1) : Math.trunc(this.eval(n.lo, sc));
+        let hi = n.hi === null || n.hi === undefined ? (st > 0 ? len : -len - 1) : Math.trunc(this.eval(n.hi, sc));
+        if (lo < 0) lo += len; if (hi < 0 && !(n.hi === null || n.hi === undefined)) hi += len;
+        const out = [];
+        if (st > 0) { for (let i = Math.max(0, lo); i < Math.min(len, hi); i += st) out.push(o[i]); }
+        else { for (let i = Math.min(len - 1, lo); i > Math.max(-1, hi); i += st) out.push(o[i]); }
+        return isStr(o) ? out.join('') : out;
+      }
+      case 'Call': {
+        const fn = this.eval(n.fn, sc);
+        const args = [];
+        for (const a of n.args) {
+          const v = this.eval(a.value, sc);
+          if (a.star) args.push(...iterate(v, n.line)); else args.push(v);
+        }
+        const kw = {};
+        for (const k of n.kwargs) kw[k.key] = this.eval(k.value, sc);
+        try { return this.callAny(fn, args, n.line, kw, n.fn); }
+        catch (e) { if (e instanceof PyError && !e.line) e.line = n.line; throw e; }
+      }
+      default: throw badInput(n.line);
+    }
+  }
+
+  needNum(v, line) {
+    if (!isNum(v) && typeof v !== 'boolean')
+      throw new PyError('TypeError', "bad operand type: '" + typeName(v) + "'", line);
+  }
+  binop(op, a, b, line) {
+    if (op === '+') {
+      if (isStr(a) && isStr(b)) return a + b;
+      if (isList(a) && isList(b)) return a.concat(b);
+      if (isNum(a) && isNum(b)) return a + b;
+      if (isStr(a) || isList(a))
+        throw new PyError('TypeError', "cannot concatenate '" + typeName(a) + "' and '" + typeName(b) + "' objects", line);
+    }
+    if (op === '*') {
+      if (isStr(a) && isNum(b)) return b > 0 ? a.repeat(Math.trunc(b)) : '';
+      if (isNum(a) && isStr(b)) return a > 0 ? b.repeat(Math.trunc(a)) : '';
+      if (isList(a) && isNum(b)) { const o = []; for (let i = 0; i < Math.trunc(b); i++) o.push(...a); return o; }
+      if (isList(b) && isNum(a)) { const o = []; for (let i = 0; i < Math.trunc(a); i++) o.push(...b); return o; }
+    }
+    if (op === '%' && isStr(a)) {
+      const vals = isList(b) || b instanceof PyTuple ? [...b] : [b];
+      let i = 0;
+      return a.replace(/%(?:\.(\d+))?([sdif%])/g, (m, prec, kind) => {
+        if (kind === '%') return '%';
+        const v = vals[i++];
+        if (kind === 'd' || kind === 'i') return String(Math.trunc(v));
+        if (kind === 'f') return Number(v).toFixed(prec === undefined ? 6 : +prec);
+        return str(v);
+      });
+    }
+    if (!isNum(a) && typeof a !== 'boolean' || !isNum(b) && typeof b !== 'boolean')
+      throw new PyError('TypeError', "unsupported operand type(s) for " + op + ": '" + typeName(a) + "' and '" + typeName(b) + "'", line);
+    const x = Number(a), y = Number(b);
+    switch (op) {
+      case '+': return x + y;
+      case '-': return x - y;
+      case '*': return x * y;
+      case '/': if (y === 0) throw new PyError('ZeroDivisionError', 'integer division or modulo by zero', line); return x / y;
+      case '//': if (y === 0) throw new PyError('ZeroDivisionError', 'integer division or modulo by zero', line); return Math.floor(x / y);
+      case '%': if (y === 0) throw new PyError('ZeroDivisionError', 'integer division or modulo by zero', line); return ((x % y) + y) % y;
+      case '**': return Math.pow(x, y);
+      case '&': return x & y; case '|': return x | y; case '^': return x ^ y;
+      case '<<': return x << y; case '>>': return x >> y;
+    }
+    throw new PyError('TypeError', "unsupported operand type(s) for " + op + ": '" + typeName(a) + "' and '" + typeName(b) + "'", line);
+  }
+
+  getattr(o, name, line) {
+    if (o instanceof PyObj) {
+      if (o.attrs.has(name)) return o.attrs.get(name);
+      if (o.__computed && o.__computed[name]) return o.__computed[name]();
+      const m = o.cls && o.cls.lookup(name);
+      if (m !== undefined) return (m instanceof PyFunc) ? m.bind(o) : m;
+      throw new PyError('AttributeError', "'" + typeName(o) + "' object has no attribute '" + name + "'", line);
+    }
+    if (o instanceof PyClass) {
+      const m = o.lookup(name);
+      if (m !== undefined) return m;
+      throw new PyError('AttributeError', "type object '" + o.name + "' has no attribute '" + name + "'", line);
+    }
+    if (isStr(o)) { const t = strMethods(o); if (name in t) return t[name]; }
+    else if (isList(o)) { const t = listMethods(o); if (name in t) return t[name]; }
+    else if (isDict(o)) { const t = dictMethods(o); if (name in t) return t[name]; }
+    else if (isSet(o)) { const t = setMethods(o); if (name in t) return t[name]; }
+    else if (o instanceof PyError) {
+      if (name === 'args') return PyTuple.from([o.message]);
+      if (name === 'message') return o.message;
+    }
+    else if (o && typeof o === 'object' && name in o) return o[name];
+    throw new PyError('AttributeError', "'" + typeName(o) + "' object has no attribute '" + name + "'", line);
+  }
+
+  callAny(fn, args, line, kw, fnNode) {
+    kw = kw || {};
+    if (fn instanceof PyFunc) return this.callFunc(fn, args, kw, line);
+    if (fn instanceof PyClass) return this.instantiate(fn, args, kw, line);
+    if (typeof fn === 'function') {
+      /* rest-parameter builtins rebuild their argument array, so keyword
+         arguments travel on the interpreter instead of on `args` */
+      PENDING_KW = kw;
+      const r = fn.apply(null, args);
+      PENDING_KW = null;
+      return r === undefined ? null : r;
+    }
+    throw new PyError('TypeError', "'" + typeName(fn) + "' object is not callable", line);
+  }
+  callFunc(fn, args, kw, line) {
+    kw = kw || {};
+    const sc = new Scope(fn.scope, this.globals);
+    let ai = 0;
+    const params = fn.params.slice();
+    if (fn.self !== null && fn.self !== undefined && params.length && params[0].name === 'self')
+      sc.set('self', fn.self), params.shift();
+    if (!params.some(pp => pp.star) && args.length > params.length)
+      /* the doubled space before "given" is Skulpt's own wording */
+      throw new PyError('TypeError', fn.name + '() takes ' + params.length + ' positional argument' +
+        (params.length === 1 ? '' : 's') + ' but ' + args.length + ' were  given', line);
+    for (const prm of params) {
+      if (prm.star) { sc.set(prm.name, PyTuple.from(args.slice(ai))); ai = args.length; continue; }
+      if (ai < args.length) sc.set(prm.name, args[ai++]);
+      else if (prm.name in kw) sc.set(prm.name, kw[prm.name]);
+      else if (prm.def) sc.set(prm.name, this.eval(prm.def, fn.scope));
+      else throw new PyError('TypeError', fn.name + '() missing 1 required argument: ' + prm.name, line);
+    }
+    try { this.run(fn.body, sc); }
+    catch (e) { if (e instanceof ReturnSig) return e.value; throw e; }
+    return null;
+  }
+  instantiate(cls, args, kw, line) {
+    if (cls.__native) return cls.__native(args, kw, line);
+    const o = new PyObj(cls);
+    const init = cls.lookup('__init__');
+    if (init) this.callFunc(init.bind(o), args, kw, line);
+    return o;
+  }
+}
+const INTERP = new Interp();
+
+/* ---------- builtins & modules ---------- */
+function makeRange(a, b, c) {
+  const start = b === undefined ? 0 : a;
+  const stop = b === undefined ? a : b;
+  const step = c === undefined ? 1 : c;
+  if (step === 0) throw new PyError('ValueError', 'range() arg 3 must not be zero', 0);
+  return {
+    __range: true, start, stop, step,
+    toArray() {
+      const out = [];
+      if (step > 0) for (let i = start; i < stop; i += step) { out.push(i); if (out.length > 2000000) break; }
+      else for (let i = start; i > stop; i += step) { out.push(i); if (out.length > 2000000) break; }
+      return out;
+    },
+    get length() { return Math.max(0, Math.ceil((stop - start) / step)); },
+  };
+}
+function installBuiltins(g) {
+  const B = {
+    print: (...a) => {
+      const kw = takeKw();
+      const sep = kw.sep !== undefined ? kw.sep : ' ';
+      const end = kw.end !== undefined ? kw.end : '\n';
+      INTERP.stdout(a.map(str).join(sep) + end);
+      return null;
+    },
+    len: (v) => {
+      if (isStr(v) || isList(v)) return v.length;
+      if (isDict(v) || isSet(v)) return v.size;
+      if (v && v.__range) return v.length;
+      throw new PyError('TypeError', "object of type '" + typeName(v) + "' has no len()", 0);
+    },
+    range: makeRange,
+    int: (v, base) => {
+      if (v === undefined) return 0;
+      if (isStr(v)) { const n = parseInt(v.trim(), base || 10); if (isNaN(n)) throw new PyError('ValueError', "invalid literal for int() with base " + (base || 10) + ": " + repr(v), 0); return n; }
+      if (typeof v === 'boolean') return v ? 1 : 0;
+      if (isNum(v)) return Math.trunc(v);
+      throw new PyError('TypeError', "int() argument must be a string or a number", 0);
+    },
+    float: (v) => { if (isStr(v)) { const n = parseFloat(v); if (isNaN(n)) throw new PyError('ValueError', 'could not convert string to float: ' + repr(v), 0); return n; } return Number(v); },
+    str: (v) => v === undefined ? '' : str(v),
+    repr: (v) => repr(v),
+    bool: (v) => pyBool(v),
+    abs: (v) => Math.abs(v),
+    round: (v, d) => { const f = Math.pow(10, d || 0); const r = Math.round(Math.abs(v) * f) / f * Math.sign(v); return d ? r : Math.round(v); },
+    min: (...a) => { const l = a.length === 1 ? iterate(a[0], 0) : a; return l.reduce((m, x) => cmpLt(x, m, 0) ? x : m); },
+    max: (...a) => { const l = a.length === 1 ? iterate(a[0], 0) : a; return l.reduce((m, x) => cmpLt(m, x, 0) ? x : m); },
+    sum: (v, s) => iterate(v, 0).reduce((t, x) => t + x, s === undefined ? 0 : s),
+    list: (v) => v === undefined ? [] : iterate(v, 0),
+    tuple: (v) => PyTuple.from(v === undefined ? [] : iterate(v, 0)),
+    set: (v) => { const s = new Set(); if (v !== undefined) for (const x of iterate(v, 0)) if (!contains(s, x, 0)) s.add(x); return s; },
+    dict: (v) => {
+      const kw = takeKw(), d = new Map();
+      if (isDict(v)) for (const [k, x] of v) d.set(k, x);
+      else if (isList(v)) for (const pair of v) { const p = iterate(pair, 0); d.set(p[0], p[1]); }
+      for (const k in kw) d.set(k, kw[k]);
+      return d;
+    },
+    sorted: (v) => { const arr = iterate(v, 0).slice(); sortInPlace(arr, takeKw()); return arr; },
+    reversed: (v) => iterate(v, 0).reverse(),
+    enumerate: (v, s) => iterate(v, 0).map((x, i) => PyTuple.from([i + (s || 0), x])),
+    zip: (...a) => { const ls = a.map(x => iterate(x, 0)); const n = Math.min(...ls.map(l => l.length)); const o = []; for (let i = 0; i < n; i++) o.push(PyTuple.from(ls.map(l => l[i]))); return o; },
+    map: (f, v) => iterate(v, 0).map(x => INTERP.callAny(f, [x], 0)),
+    filter: (f, v) => iterate(v, 0).filter(x => pyBool(f === null ? x : INTERP.callAny(f, [x], 0))),
+    any: (v) => iterate(v, 0).some(pyBool),
+    all: (v) => iterate(v, 0).every(pyBool),
+    type: (v) => typeName(v),
+    isinstance: (v, t) => {
+      const names = (isList(t) || t instanceof PyTuple) ? [...t] : [t];
+      return names.some(x => {
+        const nm = (x instanceof PyClass) ? x.name : (typeof x === 'function' ? (x.pyName || x.name) : str(x));
+        if (nm === 'int') return isNum(v) && Number.isInteger(v);
+        if (nm === 'float') return isNum(v);
+        if (nm === 'str') return isStr(v);
+        if (nm === 'bool') return typeof v === 'boolean';
+        if (nm === 'list') return isList(v);
+        if (nm === 'dict') return isDict(v);
+        if (x instanceof PyClass && v instanceof PyObj) {
+          let c = v.cls; const seen = [];
+          const walk = (cc) => { if (!cc) return false; if (cc === x) return true; return (cc.bases || []).some(walk); };
+          return walk(c);
+        }
+        return typeName(v) === nm;
+      });
+    },
+    ord: (c) => c.charCodeAt(0),
+    chr: (n) => String.fromCharCode(n),
+    input: () => '',
+    hasattr: (o, n) => { try { INTERP.getattr(o, n, 0); return true; } catch (e) { return false; } },
+    getattr: (o, n, d) => { try { return INTERP.getattr(o, n, 0); } catch (e) { if (d !== undefined) return d; throw e; } },
+    setattr: (o, n, v) => { if (o instanceof PyObj) o.set(n, v); return null; },
+    id: (o) => 0,
+    divmod: (a, b) => PyTuple.from([Math.floor(a / b), ((a % b) + b) % b]),
+    pow: (a, b) => Math.pow(a, b),
+    format: (v, spec) => { const m = /^\.(\d+)f$/.exec(spec || ''); return m ? Number(v).toFixed(+m[1]) : str(v); },
+  };
+  for (const k in B) { B[k].pyName = k; g.set(k, B[k]); }
+  return g;
+}
+let RNGSEED = 123456789;
+function rnd() {
+  RNGSEED ^= RNGSEED << 13; RNGSEED ^= RNGSEED >>> 17; RNGSEED ^= RNGSEED << 5;
+  return ((RNGSEED >>> 0) % 1000000) / 1000000;
+}
+const MODULES = {
+  random: {
+    __module: 'random',
+    random: () => rnd(),
+    randint: (a, b) => Math.floor(rnd() * (b - a + 1)) + a,
+    randrange: (a, b, s) => { if (b === undefined) { b = a; a = 0; } s = s || 1; const n = Math.floor((b - a) / s); return a + Math.floor(rnd() * n) * s; },
+    uniform: (a, b) => a + rnd() * (b - a),
+    choice: (l) => { const arr = iterate(l, 0); if (!arr.length) throw new PyError('IndexError', 'Cannot choose from an empty sequence', 0); return arr[Math.floor(rnd() * arr.length)]; },
+    shuffle: (l) => { for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; } return null; },
+    sample: (l, k) => { const a = iterate(l, 0); const o = []; for (let i = 0; i < k && a.length; i++) o.push(a.splice(Math.floor(rnd() * a.length), 1)[0]); return o; },
+    seed: (s) => { RNGSEED = (Number(s) || 1) | 0 || 1; return null; },
+  },
+  math: {
+    __module: 'math', pi: Math.PI, e: Math.E, tau: Math.PI * 2, inf: Infinity,
+    sqrt: (x) => { if (x < 0) throw new PyError('ValueError', 'math domain error', 0); return Math.sqrt(x); },
+    sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos,
+    atan: Math.atan, atan2: Math.atan2, hypot: Math.hypot, exp: Math.exp,
+    log: (x, b) => b === undefined ? Math.log(x) : Math.log(x) / Math.log(b),
+    log10: Math.log10, log2: Math.log2,
+    floor: Math.floor, ceil: Math.ceil, trunc: Math.trunc, fabs: Math.abs,
+    pow: Math.pow, degrees: (r) => r * 180 / Math.PI, radians: (d) => d * Math.PI / 180,
+    copysign: (a, b) => Math.sign(b) * Math.abs(a),
+  },
+  time: { __module: 'time', time: () => performance.now() / 1000, sleep: () => null },
+};
+for (const m of Object.values(MODULES)) for (const k in m) if (typeof m[k] === 'function') m[k].pyName = k;
+</script>
+<!--@ENGINE@-->
+<script>
+/* ============================================================
+   5. ENGINE — 1600x900 world, origin centre, +y up.
+      Mirrors the PixelPAD script model: every class owns a
+      START block (runs once at spawn) and a LOOP block
+      (runs every frame), with `self` bound to the instance.
+   ============================================================ */
+/* the stage matches the original's camera: 1280x720 with the origin at
+   the centre, so x runs -640..640 and y runs -360..360 (y up) */
+const WORLD_W = 1280, WORLD_H = 720;
+/* thrown to unwind a script whose error has already been reported */
+const ABORT = { abort: true };
+
+const Engine = {
+  canvas: null, ctx: null,
+  running: false, paused: false,
+  objects: [], nextId: 1,
+  keys: new Set(), keysDown: new Set(), keysUp: new Set(),
+  /* x/y are world units; sx/sy are canvas pixels, for drawing the readout */
+  mouse: { x: 0, y: 0, sx: 0, sy: 0, over: false, down: false, pressed: false, released: false },
+  camera: { x: 0, y: 0, zoom: 1, w: WORLD_W, h: WORLD_H },
+  graphics: [], nextGraphicId: 1,
+  sprites: new Map(),          // name -> {canvas, cols, rows}
+  classes: new Map(),          // name -> {name, start, loop, ast}
+  gameObj: null,
+  frame: 0, fps: 0, _fpsT: 0, _fpsN: 0,
+  debug: { on: false, info: false, inspect: false, grid: false },
+  selected: null,
+  onError: null, onStop: null,
+
+  /* ---------- sprite registry ---------- */
+  loadSprite(name, canvas) { this.sprites.set(name, canvas); },
+  spriteHandle(name, rows, cols, line) {
+    const img = this.sprites.get(name);
+    if (!img) throw new PyError('ValueError', "sprite '" + name + "' not found", line);
+    rows = rows || 1; cols = cols || 1;
+    /* frame size is read live: an <img> built from a data: URI decodes
+       asynchronously, so caching it here would pin the sprite at 0x0 for
+       any script that ran before the decode finished */
+    return {
+      __sprite: true, name, img, rows, cols,
+      get fw() { return (img.naturalWidth || img.width || 0) / cols; },
+      get fh() { return (img.naturalHeight || img.height || 0) / rows; },
+    };
+  },
+
+  /* ---------- lifecycle ---------- */
+  start(project, out) {
+    this.stopLoop();
+    this.objects = []; this.nextId = 1; this.frame = 0;
+    this.keys.clear(); this.keysDown.clear(); this.keysUp.clear();
+    this.selected = null;
+    this.camera = { x: 0, y: 0, zoom: 1, w: WORLD_W, h: WORLD_H };
+    this.graphics = []; this.nextGraphicId = 1;
+    stopAllSounds();
+    this.fit();          /* re-fit: a previous run may have resized the camera */
+    RNGSEED = (Date.now() & 0x7fffffff) || 1;
+
+    INTERP.reset();
+    INTERP.stdout = out;
+    this.classes.clear();
+
+    /* compile every class's start/loop up front so syntax errors
+       surface before anything runs, exactly like a build step */
+    let broken = false;
+    for (const cls of project.classes) {
+      const rec = { name: cls.name, isGame: cls.isGame };
+      rec.startAst = this.compile(cls.start, cls.name + '.start()');
+      rec.loopAst = this.compile(cls.loop, cls.name + '.loop()');
+      if (!rec.startAst || !rec.loopAst) broken = true;
+      this.classes.set(cls.name, rec);
+    }
+    /* rooms behave exactly like object scripts: set_room() instantiates
+       one, so they share the same record shape and constructor table */
+    for (const room of (project.rooms || [])) {
+      const rec = { name: room.name, isRoom: true };
+      rec.startAst = this.compile(room.start, room.name + '.start()');
+      rec.loopAst = this.compile(room.loop, room.name + '.loop()');
+      if (!rec.startAst || !rec.loopAst) broken = true;
+      this.classes.set(room.name, rec);
+    }
+    if (broken) { this.running = false; return false; }
+    /* shared functions run at module level */
+    this.running = true;
+    for (const fn of project.functions) {
+      const ast = this.compile(fn.body, 'functions: ' + fn.name);
+      if (!this.execAst(ast, INTERP.globals, 'functions: ' + fn.name)) return false;
+    }
+
+    /* expose each class as a constructor in the Python globals */
+    for (const [name, rec] of this.classes) {
+      if (rec.isGame) continue;
+      const cls = new PyClass(name, []);
+      cls.__native = (args, kw, line) => this.spawn(name, args[0] || null, line);
+      INTERP.globals.set(name, cls);
+    }
+    installEngineApi(INTERP.globals);
+
+    /* the Game class instance is the root `self`; the original rebinds
+       the globals `Game` and `game` to that instance, which is how
+       projects hang shared state off `Game.something` */
+    const gameRec = [...this.classes.values()].find(c => c.isGame);
+    this.gameObj = new PyObj(new PyClass(gameRec ? gameRec.name : 'Game', []));
+    this.gameObj.__rec = gameRec;
+    INTERP.globals.set('Game', this.gameObj);
+    INTERP.globals.set('game', this.gameObj);
+    this.gameRec = gameRec;
+    this.currentRoom = null;
+    this.running = true; this.paused = false;
+
+    /* As in the original: if start() fails the error is logged and the
+       loops never run, but the game stays "playing" and keeps drawing. */
+    this.startOk = gameRec ? this.execAst(gameRec.startAst, this.scopeFor(this.gameObj), gameRec.name + '.start()') : true;
+    this._fpsT = performance.now(); this._fpsN = 0;
+    this.raf = requestAnimationFrame(this.tick.bind(this));
+    return true;
+  },
+  compile(src, where) {
+    try { return parse(src || ''); }
+    catch (e) {
+      this.reportError(e, where);
+      return null;
+    }
+  },
+  scopeFor(obj) {
+    const sc = new Scope(INTERP.globals, INTERP.globals);
+    sc.v.set('self', obj);
+    return sc;
+  },
+  /* Runs one block. Returns false if it failed — the error is reported
+     here, and ABORT marks a failure already reported further down the
+     call chain (e.g. an object's start() raised while being constructed). */
+  execAst(ast, scope, where) {
+    if (!ast) return false;
+    try { INTERP.steps = 0; INTERP.run(ast.body, scope); return true; }
+    catch (e) {
+      if (e === ABORT) return false;
+      if (e instanceof ReturnSig) return true;
+      this.reportError(e, where);
+      return false;
+    }
+  },
+  reportError(e, where) {
+    /* only Python-level errors carry a block and line, matching the
+       original's fallback of logging a bare message for anything else */
+    const isPy = e instanceof PyError;
+    const err = isPy ? e : new PyError('InternalError', e.message || String(e), 0);
+    if (this.onError) this.onError(where, err, isPy);
+  },
+  crash() { this.stopLoop(); if (this.onStop) this.onStop(); },
+  stopLoop() {
+    this.running = false;
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = null;
+  },
+  stop() { this.stopLoop(); this.objects = []; this.render(); },
+
+  /* ---------- objects ---------- */
+  spawn(clsName, spriteArg, line) {
+    const rec = this.classes.get(clsName);
+    if (!rec) throw new PyError('NameError', "name '" + clsName + "' is not defined", line);
+    const pcls = new PyClass(clsName, []);
+    const o = new PyObj(pcls);
+    o.__id = this.nextId++;
+    o.__rec = rec;
+    o.__alive = true;
+    o.__anim = null;
+    o.__frame = 0; o.__ftime = 0;
+    o.attrs.set('x', 0); o.attrs.set('y', 0); o.attrs.set('z', 0);
+    o.attrs.set('scaleX', 1); o.attrs.set('scaleY', 1);
+    o.attrs.set('angle', 0); o.attrs.set('rotation', 0); o.attrs.set('alpha', 1);
+    o.attrs.set('sprite', spriteArg && spriteArg.__sprite ? spriteArg : null);
+    o.attrs.set('visible', true);
+    o.attrs.set('persistent', false);
+    o.attrs.set('skewX', 0); o.attrs.set('skewY', 0);
+    attachAliases(o);
+    this.objects.push(o);
+    /* a failed start() is reported against that class, then unwinds the
+       script that was constructing the object */
+    if (!this.execAst(rec.startAst, this.scopeFor(o), clsName + '.start()')) throw ABORT;
+    return o;
+  },
+  destroy(o) { if (o instanceof PyObj) o.__alive = false; },
+  attachAliases(o) { return attachAliases(o); },
+  /* set_room: destroy everything not flagged persistent, then spawn the
+     room's own script so its start() runs and its loop() ticks */
+  setRoom(name, line) {
+    if (!this.classes.has(name)) throw new PyError('NameError', "name '" + name + "' is not defined", line);
+    for (const o of this.objects) {
+      if (!o.__alive) continue;
+      if (pyBool(o.attrs.get('persistent'))) continue;
+      o.__alive = false;
+    }
+    this.currentRoom = name;
+    return this.spawn(name, null, line);
+  },
+  makeText(s) {
+    const o = new PyObj(new PyClass('Text', []));
+    o.__id = this.nextId++;
+    o.__rec = { name: 'Text', startAst: null, loopAst: null };
+    o.__alive = true; o.__anim = null; o.__frame = 0; o.__ftime = 0;
+    o.__isText = true;
+    o.attrs.set('x', 0); o.attrs.set('y', 0); o.attrs.set('z', 0);
+    o.attrs.set('scaleX', 1); o.attrs.set('scaleY', 1);
+    o.attrs.set('angle', 0); o.attrs.set('rotation', 0); o.attrs.set('alpha', 1);
+    o.attrs.set('visible', true); o.attrs.set('persistent', false);
+    o.attrs.set('sprite', null);
+    o.attrs.set('text', s === undefined || s === null ? '' : str(s));
+    o.attrs.set('fontSize', 30);
+    o.attrs.set('color', '#FFFFFF');
+    o.attrs.set('skewX', 0); o.attrs.set('skewY', 0);
+    attachAliases(o);
+    this.objects.push(o);
+    return o;
+  },
+  objectsOf(name) { return this.objects.filter(o => o.__alive && o.__rec && o.__rec.name === name); },
+  bbox(o) {
+    const sp = o.attrs.get('sprite'), an = o.__anim;
+    const s = an ? an.sprite : sp;
+    const w = s ? s.fw : 40, h = s ? s.fh : 40;
+    const sx = Math.abs(Number(o.attrs.get('scaleX')) || 1), sy = Math.abs(Number(o.attrs.get('scaleY')) || 1);
+    const x = Number(o.attrs.get('x')) || 0, y = Number(o.attrs.get('y')) || 0;
+    return { l: x - w * sx / 2, r: x + w * sx / 2, b: y - h * sy / 2, t: y + h * sy / 2, w: w * sx, h: h * sy };
+  },
+  overlap(a, b) {
+    const A = this.bbox(a), B = this.bbox(b);
+    return A.l < B.r && A.r > B.l && A.b < B.t && A.t > B.b;
+  },
+
+  /* ---------- frame ---------- */
+  tick(now) {
+    if (!this.running) return;
+    this.raf = requestAnimationFrame(this.tick.bind(this));
+    this._fpsN++;
+    if (now - this._fpsT >= 500) { this.fps = Math.round(this._fpsN * 1000 / (now - this._fpsT)); this._fpsT = now; this._fpsN = 0; }
+
+    /* start() failed: the original keeps ticking and drawing but never
+       runs a loop, so the error is reported once rather than per frame */
+    if (!this.paused && this.startOk) {
+      this.frame++;
+      let ok = true;
+      if (this.gameRec && this.gameRec.loopAst)
+        ok = this.execAst(this.gameRec.loopAst, this.scopeFor(this.gameObj), this.gameRec.name + '.loop()');
+      /* snapshot: objects spawned this frame start looping next frame */
+      if (ok) {
+        for (const o of this.objects.slice()) {
+          if (!o.__alive || !o.__rec.loopAst) continue;
+          /* the original runs every object's loop inside one Python call,
+             so the first failure skips the rest of the objects this frame */
+          if (!this.execAst(o.__rec.loopAst, this.scopeFor(o), o.__rec.name + '.loop()')) break;
+        }
+      }
+      /* animation advance + reap */
+      for (const o of this.objects) {
+        const an = o.__anim;
+        if (an && an.fps > 0) {
+          o.__ftime += an.fps / 60;
+          const span = an.end - an.start + 1;
+          if (o.__ftime >= 1) { o.__ftime -= 1; o.__frame = (o.__frame + 1) % span; }
+        }
+      }
+      const before = this.objects.length;
+      this.objects = this.objects.filter(o => {
+        if (!o.__alive) return false;
+        const x = Number(o.attrs.get('x')) || 0, y = Number(o.attrs.get('y')) || 0;
+        return Math.abs(x) < 20000 && Math.abs(y) < 20000;   /* runaway guard */
+      });
+      this.keysDown.clear(); this.keysUp.clear();
+      this.mouse.pressed = false; this.mouse.released = false;
+    }
+    this.render();
+  },
+
+  /* ---------- render ---------- */
+  fit() {
+    const host = document.getElementById('canvasContainer');
+    const panel = document.getElementById('debugPanel');
+    const ph = this.debug.on ? 30 : 0;
+    const availW = host.clientWidth, availH = host.clientHeight - ph;
+    if (availW <= 0 || availH <= 0) return;
+    const cw = this.camera.w, ch = this.camera.h;
+    let w = availW, h = w * ch / cw;
+    if (h > availH) { h = availH; w = h * cw / ch; }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.canvas.style.width = Math.floor(w) + 'px';
+    this.canvas.style.height = Math.floor(h) + 'px';
+    this.canvas.width = Math.floor(w * dpr);
+    this.canvas.height = Math.floor(h * dpr);
+    panel.style.width = Math.floor(w) + 'px';
+    this.scale = (w * dpr) / cw;
+  },
+  w2s(x, y) {
+    const c = this.camera, k = this.scale * c.zoom;
+    return [this.canvas.width / 2 + (x - c.x) * k, this.canvas.height / 2 - (y - c.y) * k];
+  },
+  s2w(px, py) {
+    const r = this.canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return [this.camera.x, this.camera.y];
+    const c = this.camera;
+    const x = c.x + ((px - r.left) / r.width - 0.5) * c.w / c.zoom;
+    const y = c.y - ((py - r.top) / r.height - 0.5) * c.h / c.zoom;
+    return [x, y];
+  },
+  render() {
+    const c = this.ctx;
+    if (!c) return;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = '#000';
+    c.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    const order = this.objects.slice().sort((a, b) => (Number(a.attrs.get('z')) || 0) - (Number(b.attrs.get('z')) || 0) || a.__id - b.__id);
+    for (const o of order) {
+      if (!pyBool(o.attrs.get('visible'))) continue;
+      const an = o.__anim, sp = an ? an.sprite : o.attrs.get('sprite');
+      const x = Number(o.attrs.get('x')) || 0, y = Number(o.attrs.get('y')) || 0;
+      const sx = Number(o.attrs.get('scaleX')); const sy = Number(o.attrs.get('scaleY'));
+      const rot = (Number(o.attrs.get('angle')) || 0) * Math.PI / 180;
+      const alpha = o.attrs.get('alpha');
+      const [px, py] = this.w2s(x, y);
+      if (o.__isText) {
+        const fs = (Number(o.attrs.get('fontSize')) || 30) * this.scale;
+        c.save();
+        c.globalAlpha = Math.max(0, Math.min(1, isNum(alpha) ? alpha : 1));
+        c.translate(px, py);
+        if (rot) c.rotate(-rot);
+        c.font = Math.max(1, fs) + 'px Rubik,"Segoe UI",system-ui,sans-serif';
+        c.textAlign = 'left'; c.textBaseline = 'middle';
+        c.fillStyle = str(o.attrs.get('color') || '#FFFFFF');
+        c.fillText(str(o.attrs.get('text')), 0, 0);
+        c.restore();
+        continue;
+      }
+      if (!sp || !sp.__sprite) continue;
+      let fi = 0;
+      if (an) fi = an.start + (o.__frame % (an.end - an.start + 1));
+      const col = fi % sp.cols, row = Math.floor(fi / sp.cols) % sp.rows;
+      c.save();
+      c.globalAlpha = Math.max(0, Math.min(1, isNum(alpha) ? alpha : 1));
+      c.translate(px, py);
+      if (rot) c.rotate(-rot);
+      c.scale((isNum(sx) ? sx : 1) * this.scale, (isNum(sy) ? sy : 1) * this.scale);
+      c.imageSmoothingEnabled = true;
+      try {
+        c.drawImage(sp.img, col * sp.fw, row * sp.fh, sp.fw, sp.fh, -sp.fw / 2, -sp.fh / 2, sp.fw, sp.fh);
+      } catch (e) { /* zero-size frame */ }
+      c.restore();
+    }
+    /* drawRect / drawLine graphics sit above the sprites */
+    for (const gr of this.graphics) {
+      c.save();
+      c.lineWidth = Math.max(1, gr.thickness * this.scale * this.camera.zoom);
+      if (gr.kind === 'rect') {
+        const [x1, y1] = this.w2s(gr.x1, gr.y1), [x2, y2] = this.w2s(gr.x2, gr.y2);
+        if (gr.fill !== null) { c.fillStyle = gr.fill; c.fillRect(x1, y1, x2 - x1, y2 - y1); }
+        if (gr.line !== null && gr.thickness > 0) { c.strokeStyle = gr.line; c.strokeRect(x1, y1, x2 - x1, y2 - y1); }
+      } else {
+        const [x1, y1] = this.w2s(gr.x1, gr.y1), [x2, y2] = this.w2s(gr.x2, gr.y2);
+        c.strokeStyle = gr.line; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      }
+      c.restore();
+    }
+    if (this.debug.on) this.renderDebug();
+  },
+  renderDebug() {
+    const c = this.ctx, S = this.scale;
+    if (this.debug.grid) {
+      const fs = Math.max(9, Math.round(this.canvas.height / 40));
+      c.save();
+      c.strokeStyle = 'rgba(23,162,184,.35)'; c.lineWidth = 1;
+      c.font = fs + 'px Consolas,monospace';
+      c.fillStyle = 'rgba(23,162,184,.9)';
+      c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+      for (let gx = -640; gx <= 640; gx += 160) {
+        const [px] = this.w2s(gx, 0);
+        c.beginPath(); c.moveTo(px, 0); c.lineTo(px, this.canvas.height); c.stroke();
+        if (gx !== 0) c.fillText(String(gx), px + 3, fs + 4);
+      }
+      for (let gy = -360; gy <= 360; gy += 120) {
+        const [, py] = this.w2s(0, gy);
+        c.beginPath(); c.moveTo(0, py); c.lineTo(this.canvas.width, py); c.stroke();
+        if (gy !== 0) c.fillText(String(gy), 4, py - 4);
+      }
+      c.strokeStyle = 'rgba(255,255,255,.6)';
+      const [cx, cy] = this.w2s(0, 0);
+      c.beginPath(); c.moveTo(cx, 0); c.lineTo(cx, this.canvas.height); c.moveTo(0, cy); c.lineTo(this.canvas.width, cy); c.stroke();
+
+      /* live readout of the world coordinate under the pointer */
+      if (this.mouse.over) {
+        const mx = Math.round(this.mouse.x), my = Math.round(this.mouse.y);
+        const px = this.mouse.sx, py = this.mouse.sy;
+        c.strokeStyle = 'rgba(255,209,0,.9)'; c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(px - fs, py); c.lineTo(px + fs, py);
+        c.moveTo(px, py - fs); c.lineTo(px, py + fs);
+        c.stroke();
+
+        const label = mx + ', ' + my;
+        c.font = 'bold ' + fs + 'px Consolas,monospace';
+        const tw = c.measureText(label).width;
+        const bw = tw + fs, bh = fs * 1.6;
+        /* keep the box inside the stage when the pointer nears an edge */
+        let bx = px + fs * .7, by = py - bh - fs * .4;
+        if (bx + bw > this.canvas.width) bx = px - bw - fs * .7;
+        if (by < 0) by = py + fs * .5;
+        c.fillStyle = 'rgba(47,28,64,.9)';
+        c.fillRect(bx, by, bw, bh);
+        c.strokeStyle = 'rgba(255,209,0,.9)';
+        c.strokeRect(bx, by, bw, bh);
+        c.fillStyle = '#FFD100';
+        c.textBaseline = 'middle';
+        c.fillText(label, bx + fs / 2, by + bh / 2);
+      }
+      c.restore();
+    }
+    if (this.debug.inspect) {
+      c.save();
+      c.lineWidth = 2; c.strokeStyle = 'rgba(255,209,0,.9)';
+      for (const o of this.objects) {
+        const b = this.bbox(o);
+        const [l, t] = this.w2s(b.l, b.t);
+        c.strokeRect(l, t, b.w * this.scale, b.h * this.scale);
+      }
+      if (this.selected && this.selected.__alive) {
+        const b = this.bbox(this.selected);
+        const [l, t] = this.w2s(b.l, b.t);
+        c.strokeStyle = '#17A2B8'; c.lineWidth = 3;
+        c.strokeRect(l, t, b.w * this.scale, b.h * this.scale);
+      }
+      c.restore();
+    }
+    if (this.debug.info) {
+      const lines = ['fps ' + this.fps, 'frame ' + this.frame, 'objects ' + this.objects.length];
+      if (this.selected && this.selected.__alive) {
+        const o = this.selected;
+        lines.push('— ' + o.__rec.name + ' #' + o.__id);
+        for (const [k, v] of o.attrs) {
+          if (k === 'sprite') { lines.push('  sprite = ' + (v ? v.name : 'None')); continue; }
+          lines.push('  ' + k + ' = ' + (isNum(v) ? fmtNum(Math.round(v * 100) / 100) : str(v)).slice(0, 28));
+        }
+      }
+      c.save();
+      const fs = Math.max(11, Math.round(this.canvas.height / 42));
+      c.font = fs + 'px Consolas,monospace';
+      const wmax = Math.max(...lines.map(l => c.measureText(l).width)) + 16;
+      c.fillStyle = 'rgba(47,28,64,.82)';
+      c.fillRect(8, 8, wmax, lines.length * (fs + 3) + 12);
+      c.fillStyle = '#EDE7F6'; c.textBaseline = 'top';
+      lines.forEach((l, i) => c.fillText(l, 16, 14 + i * (fs + 3)));
+      c.restore();
+    }
+  },
+};
+
+/* ---------- the PixelPAD standard library ---------- */
+function installEngineApi(g) {
+  const E = Engine;
+  const need = (o, what, line) => {
+    if (!(o instanceof PyObj)) throw new PyError('TypeError', what + ' expected an object', line);
+    return o;
+  };
+  const API = {
+    sprite: (name, rows, cols) => {
+      if (!isStr(name)) throw new PyError('TypeError', 'sprite() expects a file name', 0);
+      return E.spriteHandle(name, rows, cols, 0);
+    },
+    animation: (sp, fps, start, end) => {
+      if (!sp || !sp.__sprite) throw new PyError('TypeError', 'animation() expects a sprite', 0);
+      const total = sp.rows * sp.cols;
+      return {
+        __anim: true, sprite: sp,
+        fps: fps === undefined ? 10 : fps,
+        start: start === undefined ? 0 : Math.max(0, Math.trunc(start)),
+        end: end === undefined ? total - 1 : Math.min(total - 1, Math.trunc(end)),
+      };
+    },
+    set_animation: (o, an) => {
+      need(o, 'set_animation()', 0);
+      if (an && an.__sprite) an = API.animation(an, 0, 0, 0);
+      if (an && !an.__anim) throw new PyError('TypeError', 'set_animation() expects an animation', 0);
+      o.__anim = an; o.__frame = 0; o.__ftime = 0;
+      if (an) o.attrs.set('sprite', an.sprite);
+      return null;
+    },
+    set_sprite: (o, sp) => { need(o, 'set_sprite()', 0); o.__anim = null; o.attrs.set('sprite', sp); return null; },
+    destroy: (o) => { E.destroy(o); return null; },
+    get_collision: (o, clsName) => {
+      need(o, 'get_collision()', 0);
+      for (const other of E.objects) {
+        if (other === o || !other.__alive) continue;
+        if (clsName !== undefined && clsName !== null && other.__rec.name !== str(clsName)) continue;
+        if (E.overlap(o, other)) return other;
+      }
+      return null;
+    },
+    get_collisions: (o, clsName) => {
+      need(o, 'get_collisions()', 0);
+      return E.objects.filter(other => other !== o && other.__alive &&
+        (clsName === undefined || clsName === null || other.__rec.name === str(clsName)) && E.overlap(o, other));
+    },
+    get_objects: (clsName) => clsName === undefined ? E.objects.filter(o => o.__alive) : E.objectsOf(str(clsName)),
+    count_objects: (clsName) => (clsName === undefined ? E.objects.filter(o => o.__alive) : E.objectsOf(str(clsName))).length,
+    distance: (a, b) => {
+      need(a, 'distance()', 0); need(b, 'distance()', 0);
+      const dx = (a.attrs.get('x') || 0) - (b.attrs.get('x') || 0);
+      const dy = (a.attrs.get('y') || 0) - (b.attrs.get('y') || 0);
+      return Math.hypot(dx, dy);
+    },
+    key_is_pressed: (k) => E.keys.has(normKey(k)),
+    key_was_pressed: (k) => E.keysDown.has(normKey(k)),
+    key_was_released: (k) => E.keysUp.has(normKey(k)),
+    mouse_x: () => E.mouse.x,
+    mouse_y: () => E.mouse.y,
+    mouse_is_pressed: () => E.mouse.down,
+    mouse_was_pressed: () => E.mouse.pressed,
+    /* sound() hands back a handle; play_sound takes a handle or a name */
+    sound: (name) => ({ __sound: true, name: str(name) }),
+    play_sound: (what) => { playSound(what, false); return null; },
+    set_room: (name) => E.setRoom(str(name), 0),
+    get_room: () => E.currentRoom,
+    text: (s) => E.makeText(s),
+    new_text: (s) => E.makeText(s),
+    screen_width: () => WORLD_W,
+    screen_height: () => WORLD_H,
+    frame_count: () => E.frame,
+    clear_console: () => { document.getElementById('output').textContent = ''; return null; },
+    stop_game: () => { E.crash(); return null; },
+
+    /* --- object construction by name --- */
+    new_object: (clsName) => E.spawn(str(clsName), null, 0),
+
+    /* --- collisions --- */
+    get_collision_list: (o, t) => API.get_collisions(o, t),
+    collision_check_all: (o, t) => API.get_collisions(o, t),
+
+    /* --- measurements --- */
+    get_width: (o) => { need(o, 'get_width()', 0); return E.bbox(o).w; },
+    get_height: (o) => { need(o, 'get_height()', 0); return E.bbox(o).h; },
+    get_bounds: (o) => {
+      need(o, 'get_bounds()', 0);
+      const b = E.bbox(o), d = new Map();
+      d.set('topLeft', PyTuple.from([b.l, b.t]));
+      d.set('topRight', PyTuple.from([b.r, b.t]));
+      d.set('bottomLeft', PyTuple.from([b.l, b.b]));
+      d.set('bottomRight', PyTuple.from([b.r, b.b]));
+      return d;
+    },
+
+    /* --- camera --- */
+    get_camera_x: () => E.camera.x,
+    get_camera_y: () => E.camera.y,
+    set_camera: (x, y) => { E.camera.x = Number(x) || 0; E.camera.y = Number(y) || 0; return E.camera.x; },
+    move_camera: (dx, dy) => { E.camera.x += Number(dx) || 0; E.camera.y += Number(dy) || 0; return E.camera.x; },
+    zoom_camera: (z) => { E.camera.zoom = Math.max(0.05, Number(z) || 1); return E.camera.zoom; },
+    set_camera_size: (w, h) => {
+      E.camera.w = Math.max(1, Number(w) || WORLD_W);
+      E.camera.h = Math.max(1, Number(h) || WORLD_H);
+      E.fit();
+      const d = new Map();
+      d.set('camera_width', E.camera.w); d.set('camera_height', E.camera.h);
+      return d;
+    },
+
+    /* --- sound control --- */
+    loop_sound: (s) => { playSound(s, true); return s; },
+    stop_sound: (s) => { stopSound(s); return null; },
+    set_volume: (s, v) => { setSoundVolume(s, Number(v)); return null; },
+    sound_playing: (s) => isSoundPlaying(s),
+    get_sounds_playing: () => [...ACTIVE_SOUNDS.keys()].map(n => ({ __sound: true, name: n })),
+
+    /* --- room object list --- */
+    get_room_objects: () => E.objects.filter(o => o.__alive),
+    add_room_object: (o) => { if (o instanceof PyObj && !E.objects.includes(o)) E.objects.push(o); return o; },
+    clean_room_objects: () => { E.objects = E.objects.filter(o => o.__alive); return null; },
+
+    /* --- input extras --- */
+    mouse_was_released: () => E.mouse.released,
+    set_mouse_x: (x) => { E.mouse.x = Number(x) || 0; return E.mouse.x; },
+    set_mouse_y: (y) => { E.mouse.y = Number(y) || 0; return E.mouse.y; },
+    simulate_key_down: (k) => { const n = normKey(k); if (!E.keys.has(n)) E.keysDown.add(n); E.keys.add(n); return null; },
+    simulate_key_up: (k) => { const n = normKey(k); E.keys.delete(n); E.keysUp.add(n); return null; },
+
+    /* --- misc --- */
+    get_fps: () => E.fps,
+    consolelog: (o) => { INTERP.stdout(str(o) + '\n'); return o; },
+    wait: () => null,
+
+    /* --- graphics --- */
+    drawRect: (x1, y1, x2, y2, thickness, lineColor, fillColor) => {
+      const g2 = {
+        id: E.nextGraphicId++, kind: 'rect',
+        x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100),
+        thickness: num(thickness, 2), line: hexColor(lineColor, 0x000000), fill: hexColor(fillColor, 0x228B22),
+      };
+      E.graphics.push(g2); return g2.id;
+    },
+    drawLine: (x1, y1, x2, y2, thickness, lineColor) => {
+      const g2 = {
+        id: E.nextGraphicId++, kind: 'line',
+        x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100),
+        thickness: num(thickness, 2), line: hexColor(lineColor, 0x228B22), fill: null,
+      };
+      E.graphics.push(g2); return g2.id;
+    },
+    destroy_graphic: (id) => { E.graphics = E.graphics.filter(x => x.id !== id); return null; },
+
+    /* --- accepted but inert offline --- */
+    add_filter: () => null,
+    remove_filter: () => null,
+    vibrate_phone: () => null,
+
+    /* --- saved data (per browser) --- */
+    data_save: (k, v) => { try { localStorage.setItem(DATA_PREFIX + str(k), JSON.stringify(toPlain(v))); } catch (e) {} return null; },
+    data_load: (k, dflt) => {
+      try {
+        const raw = localStorage.getItem(DATA_PREFIX + str(k));
+        if (raw === null) return dflt === undefined ? null : dflt;
+        return fromPlain(JSON.parse(raw));
+      } catch (e) { return dflt === undefined ? null : dflt; }
+    },
+    data_clear: () => {
+      try {
+        for (const k of Object.keys(localStorage)) if (k.startsWith(DATA_PREFIX)) localStorage.removeItem(k);
+      } catch (e) {}
+      return null;
+    },
+  };
+
+  /* multiplayer needs a server, so fail loudly instead of NameError */
+  for (const name of ['init_multiplayer', 'create_server', 'join_server', 'inspect_server', 'get_server_event',
+                      'send_message', 'get_messages', 'get_player_count', 'leave_server', 'get_servers']) {
+    API[name] = () => { throw new PyError('RuntimeError', name + '() needs a server and is not available offline', 0); };
+  }
+  /* touch input: report "nothing touched" rather than blowing up */
+  API.get_touches = () => [];
+  API.touch_start = () => [];
+  API.touch_end = () => [];
+  API.touch_move = () => [];
+  API.editor_open = () => null;
+
+  /* the original exposes several spellings of the same call */
+  const ALIASES = {
+    object_new: 'new_object',
+    Sprite: 'sprite', new_sprite: 'sprite', sprite_new: 'sprite', image: 'sprite',
+    new_animation: 'animation', animation_new: 'animation',
+    animation_set: 'set_animation',
+    collision_check: 'get_collision',
+    new_sound: 'sound', sound_new: 'sound',
+    sound_play: 'play_sound', sound_loop: 'loop_sound', sound_stop: 'stop_sound', sound_volume: 'set_volume',
+    room_set: 'set_room', room_get: 'get_room',
+    camera_x: 'get_camera_x', camera_y: 'get_camera_y',
+    camera_set: 'set_camera', camera_move: 'move_camera',
+    destroyGraphic: 'destroy_graphic',
+    draw_rect: 'drawRect', draw_line: 'drawLine',
+  };
+  for (const alias in ALIASES) if (API[ALIASES[alias]]) API[alias] = API[ALIASES[alias]];
+
+  for (const k in API) { API[k].pyName = k; g.set(k, API[k]); }
+  return API;
+}
+const num = (v, d) => (v === undefined || v === null || !isFinite(Number(v))) ? d : Number(v);
+function hexColor(v, dflt) {
+  if (v === null) return null;
+  let n = (v === undefined) ? dflt : v;
+  if (isStr(n)) return n;                       /* allow "#ff0000" too */
+  n = Math.max(0, Math.trunc(Number(n) || 0));
+  return '#' + n.toString(16).padStart(6, '0');
+}
+/* convert between Python values and JSON for data_save / data_load */
+function toPlain(v) {
+  if (isList(v)) return v.map(toPlain);
+  if (isDict(v)) { const o = {}; for (const [k, x] of v) o[str(k)] = toPlain(x); return o; }
+  if (isSet(v)) return [...v].map(toPlain);
+  if (v instanceof PyObj) return null;
+  return v === undefined ? null : v;
+}
+function fromPlain(v) {
+  if (Array.isArray(v)) return v.map(fromPlain);
+  if (v && typeof v === 'object') { const d = new Map(); for (const k in v) d.set(k, fromPlain(v[k])); return d; }
+  return v;
+}
+const DATA_PREFIX = 'pixelpad.offline.data.';
+/* The original exposes several spellings of the same object property, plus
+   two read-only ones. Writes mirror through __hooks; reads that are not
+   stored attributes resolve through __computed. */
+const PROP_ALIASES = [
+  ['angle', 'rotation'],
+  ['scaleX', 'scale_x'],
+  ['scaleY', 'scale_y'],
+  ['skewX', 'skew_x'],
+  ['skewY', 'skew_y'],
+  ['sprite', 'image'],
+];
+function attachAliases(o) {
+  const hooks = {};
+  for (const [a, b] of PROP_ALIASES) {
+    hooks[a] = v => o.attrs.set(b, v);
+    hooks[b] = v => o.attrs.set(a, v);
+    if (o.attrs.has(a) && !o.attrs.has(b)) o.attrs.set(b, o.attrs.get(a));
+  }
+  o.__hooks = hooks;
+  o.__computed = {
+    sprite_width: () => Engine.bbox(o).w,
+    sprite_height: () => Engine.bbox(o).h,
+  };
+  return o;
+}
+const KEYMAP = { ' ': 'space', 'space': 'space', 'arrowleft': 'left', 'arrowright': 'right', 'arrowup': 'up', 'arrowdown': 'down', 'escape': 'esc', 'enter': 'enter' };
+function normKey(k) {
+  const s = String(k).toLowerCase();
+  return KEYMAP[s] || s;
+}
+const SOUNDS = new Map();
+
+/* Playback bookkeeping so loop_sound / stop_sound / set_volume /
+   sound_playing all work against the same handle. */
+const ACTIVE_SOUNDS = new Map();          /* name -> [{src, gain}] */
+const SOUND_VOLUME = new Map();           /* name -> 0..1 */
+const soundName = (s) => (s && s.__sound) ? s.name : str(s);
+
+function playSound(what, loop) {
+  const name = soundName(what);
+  const c = audioCtx(); if (!c) return null;
+  const vol = SOUND_VOLUME.has(name) ? SOUND_VOLUME.get(name) : 1;
+  const entry = SOUNDS.get(name);
+  if (entry && entry.buffer) {
+    const src = c.createBufferSource(), gain = c.createGain();
+    src.buffer = entry.buffer; src.loop = !!loop; gain.gain.value = vol;
+    src.connect(gain); gain.connect(c.destination); src.start();
+    const list = ACTIVE_SOUNDS.get(name) || [];
+    const rec = { src, gain };
+    list.push(rec); ACTIVE_SOUNDS.set(name, list);
+    src.onended = () => {
+      const l = ACTIVE_SOUNDS.get(name);
+      if (!l) return;
+      const i = l.indexOf(rec);
+      if (i >= 0) l.splice(i, 1);
+      if (!l.length) ACTIVE_SOUNDS.delete(name);
+    };
+    return null;
+  }
+  /* synthesised fallback: short, so looping it is not worth tracking */
+  (SYNTH[name.replace(/\.\w+$/, '')] || SYNTH.blip)(c);
+  return null;
+}
+function stopSound(what) {
+  const name = soundName(what);
+  for (const rec of ACTIVE_SOUNDS.get(name) || []) { try { rec.src.stop(); } catch (e) {} }
+  ACTIVE_SOUNDS.delete(name);
+}
+function stopAllSounds() {
+  for (const list of ACTIVE_SOUNDS.values())
+    for (const rec of list) { try { rec.src.stop(); } catch (e) {} }
+  ACTIVE_SOUNDS.clear();
+}
+function setSoundVolume(what, v) {
+  const name = soundName(what);
+  const vol = Math.max(0, Math.min(1, isFinite(v) ? v : 1));
+  SOUND_VOLUME.set(name, vol);
+  for (const rec of ACTIVE_SOUNDS.get(name) || []) rec.gain.gain.value = vol;
+}
+function isSoundPlaying(what) {
+  const list = ACTIVE_SOUNDS.get(soundName(what));
+  return !!(list && list.length);
+}
+</script>
+<!--@EDITOR@-->
+<script>
+/* ============================================================
+   6. EDITOR — transparent textarea over a highlighted <pre>,
+      styled to match the Monaco "vs" theme the live IDE uses
+      (Consolas 14px / 19px line height, same token colours).
+   ============================================================ */
+const PY_KEYWORDS = ['and','as','assert','break','class','continue','def','del','elif','else','except','finally',
+  'for','from','global','if','import','in','is','lambda','nonlocal','not','or','pass','raise','return','try',
+  'while','with','yield','True','False','None','self'];
+const PY_KW_SET = new Set(PY_KEYWORDS);
+
+const API_NAMES = ['sprite','animation','set_animation','set_sprite','new_object','destroy','get_collision',
+  'get_collision_list','get_objects','count_objects','distance','get_bounds','get_width','get_height',
+  'key_is_pressed','key_was_pressed','key_was_released','mouse_x','mouse_y',
+  'mouse_is_pressed','mouse_was_pressed','mouse_was_released','simulate_key_down','simulate_key_up',
+  'sound','play_sound','loop_sound','stop_sound','set_volume','sound_playing',
+  'set_room','get_room','get_room_objects','add_room_object','clean_room_objects','text','new_text',
+  'set_camera','move_camera','zoom_camera','get_camera_x','get_camera_y','set_camera_size',
+  'drawRect','drawLine','destroy_graphic','data_save','data_load','data_clear',
+  'get_fps','screen_width','screen_height','frame_count','clear_console','consolelog',
+  'stop_game','print','len','range','int','float','str','abs','round','min','max','sum','list','dict','sorted',
+  'enumerate','zip','type','isinstance','random','math'];
+const ATTR_NAMES = ['x','y','z','scaleX','scaleY','scale_x','scale_y','angle','rotation','skewX','skewY',
+  'alpha','sprite','image','visible','persistent','sprite_width','sprite_height','text','fontSize','color'];
+
+function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function highlightPython(text) {
+  const lines = text.split('\n');
+  let inTriple = null;
+  const out = [];
+  for (const raw of lines) {
+    let html = '', i = 0;
+    if (inTriple) {
+      const end = raw.indexOf(inTriple);
+      if (end < 0) { out.push('<span class="tk-s">' + escHtml(raw) + '</span>'); continue; }
+      html += '<span class="tk-s">' + escHtml(raw.slice(0, end + 3)) + '</span>';
+      i = end + 3; inTriple = null;
+    }
+    while (i < raw.length) {
+      const c = raw[i];
+      if (c === '#') { html += '<span class="tk-c">' + escHtml(raw.slice(i)) + '</span>'; i = raw.length; break; }
+      const tq = raw.substr(i, 3);
+      if (tq === '"""' || tq === "'''") {
+        const end = raw.indexOf(tq, i + 3);
+        if (end < 0) { html += '<span class="tk-s">' + escHtml(raw.slice(i)) + '</span>'; inTriple = tq; i = raw.length; break; }
+        html += '<span class="tk-s">' + escHtml(raw.slice(i, end + 3)) + '</span>'; i = end + 3; continue;
+      }
+      if (c === '"' || c === "'") {
+        let j = i + 1;
+        while (j < raw.length && raw[j] !== c) { if (raw[j] === '\\') j++; j++; }
+        html += '<span class="tk-s">' + escHtml(raw.slice(i, Math.min(j + 1, raw.length))) + '</span>';
+        i = j + 1; continue;
+      }
+      if (/[0-9]/.test(c) && !/[A-Za-z0-9_]/.test(raw[i - 1] || '')) {
+        const m = /^[0-9][0-9_]*\.?[0-9_]*(?:[eE][+-]?[0-9]+)?/.exec(raw.slice(i));
+        html += '<span class="tk-n">' + escHtml(m[0]) + '</span>'; i += m[0].length; continue;
+      }
+      if (/[A-Za-z_]/.test(c)) {
+        const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(raw.slice(i));
+        const w = m[0];
+        html += PY_KW_SET.has(w) ? '<span class="tk-k">' + w + '</span>' : escHtml(w);
+        i += w.length; continue;
+      }
+      html += escHtml(c); i++;
+    }
+    out.push(html);
+  }
+  return out.join('\n');
+}
+
+class CodeEditor {
+  constructor(host, opts) {
+    this.opts = opts || {};
+    host.innerHTML =
+      '<div class="ppe"><div class="ppe-inner">' +
+      '<div class="ppe-gutter"></div>' +
+      '<div class="ppe-code"><div class="ppe-curline"></div><pre class="ppe-hl"></pre>' +
+      '<textarea class="ppe-ta" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>' +
+      '</div></div></div>';
+    this.root = host.querySelector('.ppe');
+    this.gutter = host.querySelector('.ppe-gutter');
+    this.hl = host.querySelector('.ppe-hl');
+    this.ta = host.querySelector('.ppe-ta');
+    this.curline = host.querySelector('.ppe-curline');
+    this.inner = host.querySelector('.ppe-inner');
+
+    const ta = this.ta;
+    ta.addEventListener('input', () => { this.refresh(); this.dirty(); Suggest.maybe(this); });
+    ta.addEventListener('keydown', e => this.onKey(e));
+    ta.addEventListener('click', () => { this.refresh(); Suggest.hide(); });
+    ta.addEventListener('blur', () => setTimeout(() => Suggest.hide(), 120));
+    ta.addEventListener('scroll', () => { ta.scrollTop = 0; ta.scrollLeft = 0; });
+    ta.addEventListener('keyup', e => { if (!['ArrowUp','ArrowDown','Enter','Tab','Escape'].includes(e.key)) this.refresh(); });
+    this.root.addEventListener('click', e => { if (e.target === this.root || e.target === this.inner) ta.focus(); });
+    this.root.addEventListener('scroll', () => Suggest.reposition(this));
+    this.cw = this.measureChar();
+    this.setValue('');
+  }
+  /* the monospace advance width varies with the available font, so measure it */
+  measureChar() {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font:14px/19px Consolas,"Courier New",monospace';
+    probe.textContent = 'x'.repeat(100);
+    document.body.appendChild(probe);
+    const w = probe.getBoundingClientRect().width / 100;
+    probe.remove();
+    return w > 1 ? w : 8.43;
+  }
+  dirty() { if (this.opts.onChange) this.opts.onChange(this); }
+  get value() { return this.ta.value; }
+  setValue(v) { this.ta.value = v == null ? '' : v; this.refresh(); }
+  focus() { this.ta.focus(); }
+
+  refresh() {
+    const text = this.ta.value;
+    this.hl.innerHTML = highlightPython(text) + '\n';
+    const lines = text.split('\n');
+    const curLine = text.slice(0, this.ta.selectionStart).split('\n').length;
+    /* gutter */
+    let g = '';
+    for (let i = 1; i <= lines.length; i++) g += '<div' + (i === curLine ? ' class="cur"' : '') + '>' + i + '</div>';
+    this.gutter.innerHTML = g;
+    /* sizing: the wrapper scrolls, textarea + pre cover the whole content */
+    const h = Math.max(lines.length * 19 + 19, this.root.clientHeight);
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
+    const w = Math.max(longest * this.cw + 40, this.root.clientWidth - 64);
+    this.inner.style.height = h + 'px';
+    const code = this.hl.parentElement;
+    code.style.height = h + 'px';
+    code.style.width = w + 'px';
+    this.curline.style.top = ((curLine - 1) * 19) + 'px';
+    this.curline.style.display = this.ta === document.activeElement ? 'block' : 'none';
+    this.scrollCaretIntoView(curLine);
+  }
+  scrollCaretIntoView(curLine) {
+    const top = (curLine - 1) * 19, bot = top + 19;
+    if (top < this.root.scrollTop) this.root.scrollTop = top;
+    else if (bot > this.root.scrollTop + this.root.clientHeight) this.root.scrollTop = bot - this.root.clientHeight;
+  }
+  lineInfo() {
+    const v = this.ta.value, pos = this.ta.selectionStart;
+    const start = v.lastIndexOf('\n', pos - 1) + 1;
+    let end = v.indexOf('\n', pos); if (end < 0) end = v.length;
+    return { start, end, text: v.slice(start, end), before: v.slice(start, pos), pos };
+  }
+  insert(text, selStart, selEnd) {
+    const ta = this.ta, s = ta.selectionStart, e = ta.selectionEnd;
+    ta.setRangeText(text, s, e, 'end');
+    if (selStart !== undefined) ta.setSelectionRange(selStart, selEnd === undefined ? selStart : selEnd);
+    this.refresh(); this.dirty();
+  }
+  onKey(e) {
+    if (Suggest.onKey(this, e)) return;
+    const ta = this.ta;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const { start, end } = this.lineInfo();
+      if (ta.selectionStart !== ta.selectionEnd || e.shiftKey) {
+        const v = ta.value;
+        const s0 = v.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+        let e0 = v.indexOf('\n', ta.selectionEnd); if (e0 < 0) e0 = v.length;
+        const block = v.slice(s0, e0);
+        const shifted = e.shiftKey
+          ? block.split('\n').map(l => l.replace(/^ {1,4}/, '')).join('\n')
+          : block.split('\n').map(l => '    ' + l).join('\n');
+        ta.setRangeText(shifted, s0, e0, 'preserve');
+        ta.setSelectionRange(s0, s0 + shifted.length);
+        this.refresh(); this.dirty();
+        return;
+      }
+      this.insert('    ');
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const { before } = this.lineInfo();
+      let indent = (/^[ \t]*/.exec(before) || [''])[0];
+      if (/:\s*$/.test(before)) indent += '    ';
+      if (/^\s*(return|break|continue|pass)\b/.test(before)) indent = indent.slice(0, Math.max(0, indent.length - 4));
+      this.insert('\n' + indent);
+      return;
+    }
+    if (e.key === 'Backspace' && ta.selectionStart === ta.selectionEnd) {
+      const { before } = this.lineInfo();
+      if (before.length >= 4 && /^ +$/.test(before) && before.length % 4 === 0) {
+        e.preventDefault();
+        const s = ta.selectionStart;
+        ta.setRangeText('', s - 4, s, 'end');
+        this.refresh(); this.dirty();
+        return;
+      }
+    }
+    if (e.key === ']' || e.key === ')' || e.key === '}') {
+      const ta2 = this.ta;
+      if (ta2.value[ta2.selectionStart] === e.key && ta2.selectionStart === ta2.selectionEnd) {
+        e.preventDefault();
+        ta2.setSelectionRange(ta2.selectionStart + 1, ta2.selectionStart + 1);
+        this.refresh();
+        return;
+      }
+    }
+    const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+    if (pairs[e.key] && ta.selectionStart === ta.selectionEnd) {
+      const next = ta.value[ta.selectionStart] || '';
+      if (!/[A-Za-z0-9_]/.test(next)) {
+        e.preventDefault();
+        const s = ta.selectionStart;
+        this.insert(e.key + pairs[e.key], s + 1);
+        return;
+      }
+    }
+  }
+}
+
+/* ---------- suggest widget ---------- */
+const Suggest = {
+  el: null, items: [], sel: 0, ed: null, prefix: '', enabled: true,
+  init() { this.el = document.getElementById('suggest'); },
+  words(ed) {
+    const set = new Set([...PY_KEYWORDS, ...API_NAMES]);
+    for (const n of Project.classes.map(c => c.name)) set.add(n);
+    for (const f of Project.functions) set.add(f.name);
+    for (const s of Project.sprites) set.add("'" + s.name + "'");
+    const src = ed.value;
+    for (const m of src.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) set.add(m[0]);
+    return set;
+  },
+  maybe(ed) {
+    if (!this.enabled) return this.hide();
+    const { before } = ed.lineInfo();
+    const dot = /(?:^|[^\w.])self\.([A-Za-z0-9_]*)$/.exec(before);
+    let cands, prefix;
+    if (dot) {
+      prefix = dot[1];
+      cands = ATTR_NAMES.filter(a => a.toLowerCase().startsWith(prefix.toLowerCase()));
+    } else {
+      const m = /([A-Za-z_][A-Za-z0-9_]*)$/.exec(before);
+      if (!m || m[1].length < 2) return this.hide();
+      if (/\.$/.test(before.slice(0, before.length - m[1].length))) return this.hide();
+      prefix = m[1];
+      cands = [...this.words(ed)].filter(w => w.toLowerCase().startsWith(prefix.toLowerCase()) && w !== prefix);
+    }
+    if (!cands.length) return this.hide();
+    cands.sort((a, b) => {
+      const ra = API_NAMES.includes(a) ? 0 : PY_KW_SET.has(a) ? 1 : 2;
+      const rb = API_NAMES.includes(b) ? 0 : PY_KW_SET.has(b) ? 1 : 2;
+      return ra - rb || a.localeCompare(b);
+    });
+    this.items = cands.slice(0, 40); this.sel = 0; this.ed = ed; this.prefix = prefix;
+    this.render(); this.reposition(ed);
+  },
+  render() {
+    this.el.innerHTML = this.items.map((w, i) =>
+      '<div class="' + (i === this.sel ? 'sel' : '') + '" data-i="' + i + '">' + escHtml(w) +
+      '<span class="kind">' + (API_NAMES.includes(w) ? 'fn' : PY_KW_SET.has(w) ? 'keyword' : ATTR_NAMES.includes(w) ? 'property' : 'word') + '</span></div>').join('');
+    this.el.style.display = 'block';
+    this.el.querySelectorAll('div').forEach(d => {
+      d.onmousedown = ev => { ev.preventDefault(); this.sel = +d.dataset.i; this.accept(); };
+    });
+  },
+  reposition(ed) {
+    if (this.el.style.display !== 'block' || this.ed !== ed) return;
+    const { before } = ed.lineInfo();
+    const lineNo = ed.value.slice(0, ed.ta.selectionStart).split('\n').length;
+    const r = ed.root.getBoundingClientRect();
+    const x = r.left + 64 + before.length * ed.cw - ed.root.scrollLeft;
+    const y = r.top + lineNo * 19 - ed.root.scrollTop + 2;
+    this.el.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+    const flip = y + 172 > window.innerHeight;
+    this.el.style.top = (flip ? Math.max(4, y - 19 - Math.min(172, this.items.length * 19 + 4)) : y) + 'px';
+  },
+  hide() { if (this.el) this.el.style.display = 'none'; this.items = []; },
+  visible() { return this.el && this.el.style.display === 'block' && this.items.length > 0; },
+  move(d) {
+    this.sel = (this.sel + d + this.items.length) % this.items.length;
+    this.render();
+    const node = this.el.children[this.sel];
+    if (node) node.scrollIntoView({ block: 'nearest' });
+  },
+  accept() {
+    const ed = this.ed, word = this.items[this.sel];
+    const s = ed.ta.selectionStart;
+    ed.ta.setRangeText(word, s - this.prefix.length, s, 'end');
+    this.hide(); ed.refresh(); ed.dirty();
+  },
+  onKey(ed, e) {
+    if (!this.visible() || this.ed !== ed) return false;
+    if (e.key === 'ArrowDown') { e.preventDefault(); this.move(1); return true; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); this.move(-1); return true; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); this.accept(); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); this.hide(); return true; }
+    return false;
+  },
+};
+</script>
+<script>
+/* ============================================================
+   7. .pp2d IMPORT / EXPORT — the interchange format the online
+   IDE uses. Shape (verified against a live export):
+
+     { "pythonAssets": {
+         "script":   [ {"Game": {"type":"game script",   "start":"","loop":""}}, ... ],
+         "room":     [ {"Play": {"type":"room script",   "start":"","loop":""}}, ... ],
+         "texture":  [ {"a.png": {"type":"image", "uri":"…"}}, ... ],
+         "sound":    [ {"a.wav": {"type":"audio", "uri":"…"}}, ... ],
+         "function": [ {"imports.py": {"type":"function script","head":""}} ]
+     } }
+
+   Every list entry is a one-key object. A folder is the same shape
+   but its value is an ARRAY of nested entries, so folders are
+   flattened on the way in and their contents kept.
+
+   The online IDE points `uri` at its media server. We write data:
+   URIs instead so an exported file is self-contained and still
+   loads there; on import an http(s) uri cannot be fetched offline,
+   so the asset is registered as missing and reported.
+   ============================================================ */
+const PP2D = {
+  /* ---------- export ---------- */
+  buildManifest() {
+    const scripts = Project.classes.map(c => ({
+      [c.name]: { type: c.isGame ? 'game script' : 'object script', start: c.start || '', loop: c.loop || '' },
+    }));
+    const rooms = (Project.rooms || []).map(r => ({
+      [r.name]: { type: 'room script', start: r.start || '', loop: r.loop || '' },
+    }));
+    const textures = (Project.sprites || []).map(s => ({
+      [s.name]: { type: 'image', uri: this.spriteUri(s) },
+    }));
+    const sounds = (Project.sounds || []).map(s => ({
+      [s.name]: { type: 'audio', uri: this.soundUri(s) },
+    }));
+    const functions = (Project.functions || []).map(f => ({
+      [/\.py$/.test(f.name) ? f.name : f.name + '.py']: { type: 'function script', head: f.body || '' },
+    }));
+    return { pythonAssets: { script: scripts, room: rooms, texture: textures, sound: sounds, function: functions } };
+  },
+  spriteUri(s) {
+    if (s.data) return s.data;                       /* uploaded file */
+    if (s.uri) return s.uri;                         /* came from an import */
+    const c = Engine.sprites.get(s.name);            /* procedurally drawn */
+    try { return c && c.toDataURL ? c.toDataURL('image/png') : ''; } catch (e) { return ''; }
+  },
+  soundUri(s) {
+    if (s.data) return s.data;
+    if (s.uri) return s.uri;
+    const synth = String(s.name).replace(/\.\w+$/, '');
+    return SYNTH[synth] ? wavDataUri(renderSynth(synth)) : '';
+  },
+  export() {
+    const manifest = this.buildManifest();
+    const name = (Project.name || 'project').replace(/[^\w\-. ]+/g, '_');
+    const a = document.createElement('a');
+    a.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifest)));
+    a.setAttribute('download', name + '.pp2d');
+    a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    logLine('Exported ' + name + '.pp2d — ' + Project.classes.length + ' classes, ' +
+      (Project.rooms || []).length + ' rooms, ' + (Project.sprites || []).length + ' sprites, ' +
+      (Project.sounds || []).length + ' sounds.', 'sys');
+  },
+
+  /* ---------- import ---------- */
+  /* walk one asset list, flattening folders but keeping their contents */
+  walk(list, out, path) {
+    if (!Array.isArray(list)) return out;
+    for (const entry of list) {
+      if (!entry || typeof entry !== 'object') continue;
+      for (const name of Object.keys(entry)) {
+        const v = entry[name];
+        if (Array.isArray(v)) this.walk(v, out, path.concat(name));   /* folder */
+        else if (v && typeof v === 'object') out.push({ name, def: v, folder: path.join('/') });
+      }
+    }
+    return out;
+  },
+  parse(text) {
+    let data = text;
+    if (typeof data === 'string') data = JSON.parse(data);
+    const pa = data && data.pythonAssets ? data.pythonAssets : data;
+    if (!pa || typeof pa !== 'object') throw new Error('no pythonAssets section');
+    const kinds = {};
+    for (const k of ['script', 'room', 'texture', 'sound', 'function']) kinds[k] = this.walk(pa[k], [], []);
+    if (!kinds.script.length) throw new Error('no scripts found');
+    return kinds;
+  },
+  import(text) {
+    let kinds;
+    try { kinds = this.parse(text); }
+    catch (e) { alert('Invalid pp2d file.'); console.error(e); return false; }
+
+    const proj = { classes: [], rooms: [], sprites: [], sounds: [], functions: [] };
+    for (const { name, def } of kinds.script) {
+      proj.classes.push({
+        name, isGame: def.type === 'game script' || name === 'Game',
+        start: def.start || '', loop: def.loop || '',
+      });
+    }
+    if (!proj.classes.some(c => c.isGame)) proj.classes[0].isGame = true;
+    /* the game script must lead, the rest keep their order */
+    proj.classes.sort((a, b) => (b.isGame ? 1 : 0) - (a.isGame ? 1 : 0));
+
+    for (const { name, def } of kinds.room)
+      proj.rooms.push({ name, start: def.start || '', loop: def.loop || '' });
+    for (const { name, def } of kinds.function)
+      proj.functions.push({ name: name.replace(/\.py$/, ''), body: def.head || '' });
+
+    const remote = [];
+    for (const { name, def } of kinds.texture) {
+      const uri = def.uri || '';
+      const rec = { name };
+      if (/^data:/i.test(uri)) rec.data = uri;
+      else if (uri) { rec.uri = uri; rec.missing = true; remote.push(name); }
+      else rec.missing = true;
+      proj.sprites.push(rec);
+    }
+    for (const { name, def } of kinds.sound) {
+      const uri = def.uri || '';
+      const rec = { name };
+      if (/^data:/i.test(uri)) rec.data = uri;
+      else if (uri) { rec.uri = uri; rec.missing = true; remote.push(name); }
+      proj.sounds.push(rec);
+    }
+
+    Project = proj;
+    sel.cls = proj.classes[0].name; sel.half = 'start';
+    stopProject();
+    Engine.sprites.clear(); SOUNDS.clear();
+    buildBuiltinSprites();
+    for (const s of proj.sprites) if (s.missing) Engine.loadSprite(s.name, missingSprite(s.name));
+    markDirty(); renderSidebar(); syncEditors();
+    document.getElementById('output').textContent = '';
+    logLine('Imported ' + proj.classes.length + ' classes, ' + proj.rooms.length + ' rooms, ' +
+      proj.sprites.length + ' sprites, ' + proj.sounds.length + ' sounds, ' +
+      proj.functions.length + ' functions.', 'sys');
+    if (remote.length) {
+      logLine('These ' + remote.length + ' asset(s) live on pixelpad.io and cannot be downloaded offline:', 'err');
+      logLine('  ' + remote.join(', '), 'err');
+      logLine('Placeholders are in use — re-add the files with the + buttons to replace them.', 'sys');
+    }
+    return true;
+  },
+};
+
+/* ============================================================
+   .ppoff — the offline bundle.
+
+   .pp2d has to stay JSON for pixelpad.io, so its artwork rides
+   along as base64 (about a third bigger than the raw bytes).
+   This container stores the files themselves:
+
+     "PPOFF1\n"                     7-byte magic
+     uint32 little-endian           manifest length
+     manifest JSON (UTF-8)          code + an index of the blobs
+     raw file bytes                 concatenated, in index order
+
+   It also keeps what .pp2d has nowhere to put: the project name,
+   which assets are built in, and the original pixelpad.io uri of
+   anything imported from there, so a later .pp2d export still
+   points at the right artwork.
+   ============================================================ */
+const PPOFF_MAGIC = 'PPOFF1\n';
+
+function dataUriToBytes(uri) {
+  const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(uri || '');
+  if (!m) return null;
+  const mime = m[1] || 'application/octet-stream';
+  if (!m[2]) return { mime, bytes: new TextEncoder().encode(decodeURIComponent(m[3])) };
+  const bin = atob(m[3]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { mime, bytes };
+}
+function bytesToDataUri(mime, bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return 'data:' + mime + ';base64,' + btoa(bin);
+}
+
+const PPOFF = {
+  /* ---------- export ---------- */
+  build() {
+    const blobs = [];
+    let offset = 0;
+    const pack = (rec, uri) => {
+      const entry = { name: rec.name, builtin: !!rec.builtin, uri: rec.uri || null, missing: !!rec.missing };
+      const d = uri ? dataUriToBytes(uri) : null;
+      if (d) {
+        entry.mime = d.mime; entry.off = offset; entry.len = d.bytes.length;
+        blobs.push(d.bytes); offset += d.bytes.length;
+      } else {
+        entry.mime = null; entry.off = 0; entry.len = 0;
+      }
+      return entry;
+    };
+    const manifest = {
+      format: 'ppoff', version: 1,
+      name: Project.name || 'project',
+      classes: Project.classes.map(c => ({ name: c.name, isGame: !!c.isGame, start: c.start || '', loop: c.loop || '' })),
+      rooms: (Project.rooms || []).map(r => ({ name: r.name, start: r.start || '', loop: r.loop || '' })),
+      functions: (Project.functions || []).map(f => ({ name: f.name, body: f.body || '' })),
+      sprites: (Project.sprites || []).map(s => pack(s, PP2D.spriteUri(s))),
+      sounds: (Project.sounds || []).map(s => pack(s, PP2D.soundUri(s))),
+    };
+    const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+    const magicBytes = new TextEncoder().encode(PPOFF_MAGIC);
+    const total = magicBytes.length + 4 + manifestBytes.length + offset;
+    const out = new Uint8Array(total);
+    let p = 0;
+    out.set(magicBytes, p); p += magicBytes.length;
+    new DataView(out.buffer).setUint32(p, manifestBytes.length, true); p += 4;
+    out.set(manifestBytes, p); p += manifestBytes.length;
+    for (const b of blobs) { out.set(b, p); p += b.length; }
+    return out;
+  },
+  export() {
+    let bytes;
+    try { bytes = this.build(); }
+    catch (e) { logLine('Could not build the bundle: ' + e.message, 'err'); return; }
+    const name = (Project.name || 'project').replace(/[^\w\-. ]+/g, '_');
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name + '.ppoff'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const kb = Math.round(bytes.length / 1024);
+    logLine('Exported ' + name + '.ppoff — ' + kb + ' KB, everything included (' +
+      Project.classes.length + ' classes, ' + (Project.rooms || []).length + ' rooms, ' +
+      (Project.sprites || []).length + ' sprites, ' + (Project.sounds || []).length + ' sounds).', 'sys');
+  },
+
+  /* ---------- import ---------- */
+  looksLikeBundle(buf) {
+    if (buf.byteLength < PPOFF_MAGIC.length + 4) return false;
+    const head = new Uint8Array(buf, 0, PPOFF_MAGIC.length);
+    return String.fromCharCode.apply(null, head) === PPOFF_MAGIC;
+  },
+  parse(buf) {
+    const magicLen = PPOFF_MAGIC.length;
+    const view = new DataView(buf);
+    const mlen = view.getUint32(magicLen, true);
+    const mStart = magicLen + 4, mEnd = mStart + mlen;
+    if (mEnd > buf.byteLength) throw new Error('bundle is truncated');
+    const manifest = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, mStart, mlen)));
+    if (!manifest || !Array.isArray(manifest.classes) || !manifest.classes.length)
+      throw new Error('bundle has no classes');
+    const base = mEnd;
+    const unpack = (e) => {
+      const rec = { name: e.name };
+      if (e.builtin) rec.builtin = true;
+      if (e.uri) rec.uri = e.uri;
+      if (e.len > 0 && e.mime) {
+        if (base + e.off + e.len > buf.byteLength) throw new Error('bundle is truncated');
+        rec.data = bytesToDataUri(e.mime, new Uint8Array(buf, base + e.off, e.len));
+      } else if (e.missing) rec.missing = true;
+      return rec;
+    };
+    return {
+      name: manifest.name || 'project',
+      classes: manifest.classes.map(c => ({ name: c.name, isGame: !!c.isGame, start: c.start || '', loop: c.loop || '' })),
+      rooms: (manifest.rooms || []).map(r => ({ name: r.name, start: r.start || '', loop: r.loop || '' })),
+      functions: (manifest.functions || []).map(f => ({ name: f.name, body: f.body || '' })),
+      sprites: (manifest.sprites || []).map(unpack),
+      sounds: (manifest.sounds || []).map(unpack),
+    };
+  },
+  import(buf) {
+    let proj;
+    try { proj = this.parse(buf); }
+    catch (e) { alert('This .ppoff bundle could not be read.'); console.error(e); return false; }
+    if (!proj.classes.some(c => c.isGame)) proj.classes[0].isGame = true;
+
+    Project = proj;
+    sel.cls = proj.classes[0].name; sel.half = 'start';
+    stopProject();
+    Engine.sprites.clear(); SOUNDS.clear();
+    buildBuiltinSprites();
+    markDirty(); renderSidebar(); syncEditors();
+    document.getElementById('output').textContent = '';
+    const withArt = proj.sprites.filter(s => s.data).length;
+    logLine('Imported bundle "' + proj.name + '" — ' + proj.classes.length + ' classes, ' +
+      proj.rooms.length + ' rooms, ' + proj.sprites.length + ' sprites (' + withArt + ' with artwork), ' +
+      proj.sounds.length + ' sounds, ' + proj.functions.length + ' functions.', 'sys');
+    return true;
+  },
+};
+
+/* One import button for both formats: bundles start with a magic
+   string, anything else is treated as .pp2d JSON. */
+const Importer = {
+  load(buf, filename) {
+    if (PPOFF.looksLikeBundle(buf)) return PPOFF.import(buf);
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buf)); }
+    catch (e) { alert('That file could not be read.'); return false; }
+    if (!/^\s*[{[]/.test(text)) {
+      alert('Unrecognised file.\n\nExpected a .pp2d project or a .ppoff offline bundle.');
+      return false;
+    }
+    const ok = PP2D.import(text);
+    if (ok && filename) Project.name = String(filename).replace(/\.(pp2d|json|txt)$/i, '');
+    return ok;
+  },
+};
+
+/* A visibly-wrong stand-in so an imported project still lays out and
+   collides correctly when its artwork could not be fetched. */
+function missingSprite(name) {
+  return sheet(96, 96, 1, (c, f, w, h) => {
+    c.fillStyle = '#3A2E4A'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#C86FD9'; c.lineWidth = 3;
+    c.strokeRect(2, 2, w - 4, h - 4);
+    c.beginPath(); c.moveTo(2, 2); c.lineTo(w - 2, h - 2); c.moveTo(w - 2, 2); c.lineTo(2, h - 2); c.stroke();
+    c.fillStyle = '#E9D5FF'; c.font = 'bold 13px Consolas,monospace';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('missing', w / 2, h / 2 - 8);
+    const short = String(name).length > 13 ? String(name).slice(0, 12) + '…' : String(name);
+    c.font = '11px Consolas,monospace';
+    c.fillText(short, w / 2, h / 2 + 8);
+  });
+}
+
+/* --- minimal PCM WAV writer, so synthesised sounds can be exported --- */
+function renderSynth(kind, rate) {
+  rate = rate || 22050;
+  const n = Math.floor(rate * (kind === 'crunch' ? 0.18 : 0.15));
+  const d = new Float32Array(n);
+  if (kind === 'crunch') {
+    let seed = 1;
+    for (let i = 0; i < n; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      d[i] = ((seed / 0x3fffffff) - 1) * Math.pow(1 - i / n, 2.5) * 0.5;
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const t = i / rate, f = 660 * Math.pow(220 / 660, Math.min(1, t / 0.12));
+      d[i] = (Math.sin(2 * Math.PI * f * t) > 0 ? 0.18 : -0.18) * Math.pow(1 - i / n, 2);
+    }
+  }
+  return { data: d, rate };
+}
+function wavDataUri(pcm) {
+  const n = pcm.data.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const tag = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  tag(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); tag(8, 'WAVE');
+  tag(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, pcm.rate, true); v.setUint32(28, pcm.rate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  tag(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm.data[i])) * 32767, true);
+  let bin = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+</script>
+
+<script>
+/* ============================================================
+   8. IDE — project model, sidebar, tabs, toolbar, persistence.
+   ============================================================ */
+const STORE_KEY = 'pixelpad.offline.project.v1';
+
+const DEMO = {
+  classes: [
+    { name: 'Game', isGame: true, start:
+`#self refers to the game class
+
+#make the background, then the two characters
+self.bg = Background(sprite("background.jpg"))
+
+self.runner = Timone()
+self.runner.x = -800
+self.runner.y = 300
+
+self.player = Pumba()
+self.player.y = -250
+self.player.speed = 1
+`, loop:
+`
+if key_is_pressed("a"):
+    self.player.x -= self.player.speed
+    self.player.scaleX = -1
+
+if key_is_pressed("d"):
+    self.player.x += self.player.speed
+    self.player.scaleX = 1
+` },
+    { name: 'Pumba', start:
+`#Pumba start
+
+set_animation(self, animation(sprite("pumba.png", 1, 5), 10, 0, 4))
+`, loop:
+`#Pumba loop
+
+#eat any bug we are touching
+bug = get_collision(self, "Bug")
+if bug:
+    destroy(bug)
+    play_sound("crunch.mp3")
+` },
+    { name: 'Timone', start:
+`#Timone start
+
+self.bugTimer = 30
+set_animation(self, animation(sprite("timon.png", 1, 8), 30, 0, 7))
+`, loop:
+`#Timone loop
+
+import random
+
+#run to the right, wrap around at the edge
+self.x += 10
+if self.x > 800:
+    self.x = -800
+
+#count down, then drop a random bug
+self.bugTimer -= 1
+if self.bugTimer < 0:
+    self.bugTimer = random.randint(0, 15) + 60
+    r = random.randint(1, 3)
+    if r == 1:
+        b = Bug(sprite("yellowbug.png"))
+        b.speed = 1
+    if r == 2:
+        b = Bug(sprite("redbug.png"))
+        b.speed = 2
+    if r == 3:
+        b = Bug(sprite("bluebug.png"))
+        b.speed = 3
+    b.x = self.x
+    b.y = self.y
+` },
+    { name: 'Background', start:
+`#Background start
+
+self.scaleX = 2
+self.scaleY = 2
+
+Wasd()
+Shadow()
+`, loop: `#Background loop
+` },
+    { name: 'Bug', start: `#Bug start
+`, loop:
+`#Bug loop
+
+#each bug falls at its own speed
+self.y -= self.speed
+` },
+    { name: 'Wasd', start:
+`#Wasd start
+
+set_animation(self, animation(sprite("wasd.png", 1, 7), 10, 0, 4))
+self.z = 100
+`, loop:
+`#Wasd loop
+
+if key_was_pressed("a") or key_was_pressed("d"):
+    destroy(self)
+` },
+    { name: 'Shadow', start:
+`#Shadow start
+
+self.z = 99
+self.sprite = sprite("black.png")
+self.scaleX = 10
+self.scaleY = 3
+self.alpha = 0.5
+`, loop:
+`#Shadow loop
+
+if key_was_pressed("a") or key_was_pressed("d"):
+    destroy(self)
+` },
+  ],
+  rooms: [],
+  sprites: ['bluebug.png', 'yellowbug.png', 'redbug.png', 'timon.png', 'pumba.png', 'background.jpg', 'wasd.png', 'black.png'].map(n => ({ name: n, builtin: true })),
+  sounds: [{ name: 'crunch.mp3', builtin: true }],
+  functions: [],
+};
+
+let Project = null;
+let Editors = { start: null, loop: null, single: null };
+let sel = { cls: 'Game', half: 'start' };
+let saved = true;
+let horizontal = false;
+
+/* ---------- project helpers ---------- */
+function newProject() { return JSON.parse(JSON.stringify(DEMO)); }
+/* true when the project is still an untouched clean slate */
+function isBlank(p) {
+  return p.classes.length === 1 && p.classes[0].name === 'Game' &&
+    !(p.rooms || []).length && !(p.sprites || []).length &&
+    !(p.sounds || []).length && !(p.functions || []).length &&
+    !/\S/.test(p.classes[0].start.replace(/#.*/g, '')) &&
+    !/\S/.test(p.classes[0].loop.replace(/#.*/g, ''));
+}
+/* a clean slate: one empty Game class, no assets */
+function blankProject() {
+  return {
+    name: 'project',
+    classes: [{ name: 'Game', isGame: true, start: '#Game start\n\n', loop: '#Game loop\n\n' }],
+    rooms: [], sprites: [], sounds: [], functions: [],
+  };
+}
+function clsByName(n) { return Project.classes.find(c => c.name === n); }
+function uniqueName(base, list) {
+  let n = base, i = 2;
+  while (list.some(x => (x.name || x) === n)) n = base + i++;
+  return n;
+}
+/* unsaved work turns the button red so it actually gets noticed */
+function markDirty() {
+  if (!saved) return;
+  saved = false;
+  const b = document.getElementById('pp-save');
+  b.textContent = 'SAVE';
+  b.classList.remove('btn-success');
+  b.classList.add('btn-danger');
+}
+function markSaved() {
+  saved = true;
+  const b = document.getElementById('pp-save');
+  b.textContent = 'SAVED';
+  b.classList.remove('btn-danger');
+  b.classList.add('btn-success');
+}
+function saveProject() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      classes: Project.classes, rooms: Project.rooms, functions: Project.functions,
+      name: Project.name || null,
+      sprites: Project.sprites.map(s => ({ name: s.name, builtin: s.builtin, data: s.data || null, uri: s.uri || null, missing: !!s.missing })),
+      sounds: Project.sounds.map(s => ({ name: s.name, builtin: s.builtin, data: s.data || null, uri: s.uri || null, missing: !!s.missing })),
+    }));
+    markSaved();
+  } catch (e) {
+    logLine('Could not save to local storage: ' + e.message, 'err');
+  }
+}
+let loadedDemo = false;
+function loadProject() {
+  try {
+    const q = location.search + location.hash;
+    /* ...pixelpad-offline.html?demo  loads the worked example
+       ...pixelpad-offline.html?reset wipes back to an empty project */
+    if (/[?#]demo/i.test(q)) { loadedDemo = true; return newProject(); }
+    if (/[?#]reset/i.test(q)) { localStorage.removeItem(STORE_KEY); return blankProject(); }
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return blankProject();        /* first ever open: start empty */
+    const p = JSON.parse(raw);
+    if (!p || !Array.isArray(p.classes) || !p.classes.length) return blankProject();
+    p.rooms = p.rooms || []; p.functions = p.functions || [];
+    p.sprites = p.sprites || []; p.sounds = p.sounds || [];
+    return p;
+  } catch (e) { return blankProject(); }
+}
+
+/* ---------- console ---------- */
+function logLine(text, cls) {
+  const out = document.getElementById('output');
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text.endsWith('\n') ? text : text + '\n';
+  out.appendChild(span);
+  out.scrollTop = out.scrollHeight;
+  while (out.childNodes.length > 600) out.removeChild(out.firstChild);
+}
+
+/* ---------- sidebar rendering ---------- */
+function renderSidebar() {
+  const scripts = document.getElementById('pp-script-list');
+  scripts.innerHTML = '';
+  for (const c of Project.classes) {
+    const li = document.createElement('li');
+    li.className = c.name === sel.cls ? 'pp-script-active' : 'pp-script-inactive';
+    li.innerHTML = icon(c.isGame ? 'university' : 'cube') +
+      '<span class="name">' + escHtml(c.name) + '</span>' +
+      (c.isGame ? '' : '<span class="pp-asset-delete" title="Delete">' + icon('trash') + '</span>');
+    li.onclick = (e) => {
+      if (e.target.closest('.pp-asset-delete')) {
+        if (confirm('Delete class "' + c.name + '"?')) {
+          Project.classes = Project.classes.filter(x => x !== c);
+          if (sel.cls === c.name) sel.cls = Project.classes[0].name;
+          markDirty(); renderSidebar(); syncEditors();
+        }
+        return;
+      }
+      sel.cls = c.name; renderSidebar(); syncEditors();
+    };
+    li.ondblclick = () => {
+      if (c.isGame) { logLine('The Game class cannot be renamed — it is the project entry point.', 'sys'); return; }
+      renameAsset(c, 'class');
+    };
+    scripts.appendChild(li);
+  }
+
+  const rooms = document.getElementById('pp-room-list');
+  rooms.innerHTML = '';
+  for (const r of Project.rooms) {
+    const li = document.createElement('li');
+    li.className = (sel.cls === '@room:' + r.name) ? 'pp-script-active' : 'pp-script-inactive';
+    li.innerHTML = icon('university') + '<span class="name">' + escHtml(r.name) + '</span>' +
+      '<span class="pp-asset-delete" title="Delete">' + icon('trash') + '</span>';
+    li.onclick = e => {
+      if (e.target.closest('.pp-asset-delete')) {
+        if (!confirm('Delete room "' + r.name + '"?')) return;
+        Project.rooms = Project.rooms.filter(x => x !== r);
+        if (sel.cls === '@room:' + r.name) sel.cls = Project.classes[0].name;
+        markDirty(); renderSidebar(); syncEditors(); return;
+      }
+      sel.cls = '@room:' + r.name; renderSidebar(); syncEditors();
+    };
+    li.ondblclick = () => renameAsset(r, 'room');
+    rooms.appendChild(li);
+  }
+
+  const tex = document.getElementById('pp-texture-list');
+  tex.innerHTML = '';
+  for (const s of Project.sprites) {
+    const li = document.createElement('li');
+    li.className = (sel.cls === '@sprite:' + s.name) ? 'pp-script-active' : 'pp-script-inactive';
+    li.title = s.name;
+    li.innerHTML = icon('image') + '<span class="name">' + escHtml(s.name) + '</span>' +
+      '<span class="pp-asset-delete" title="Delete">' + icon('trash') + '</span>';
+    li.onclick = e => {
+      if (e.target.closest('.pp-asset-delete')) {
+        if (!confirm('Delete sprite "' + s.name + '"?')) return;
+        Project.sprites = Project.sprites.filter(x => x !== s);
+        Engine.sprites.delete(s.name);
+        if (sel.cls === '@sprite:' + s.name) sel.cls = Project.classes[0].name;
+        markDirty(); renderSidebar(); syncEditors(); return;
+      }
+      sel.cls = '@sprite:' + s.name; renderSidebar(); syncEditors();
+    };
+    li.ondblclick = e => { if (!e.target.closest('.pp-asset-delete')) renameAsset(s, 'sprite'); };
+    tex.appendChild(li);
+  }
+
+  const snd = document.getElementById('pp-sound-list');
+  snd.innerHTML = '';
+  for (const s of Project.sounds) {
+    const li = document.createElement('li');
+    li.className = (sel.cls === '@sound:' + s.name) ? 'pp-script-active' : 'pp-script-inactive';
+    li.title = s.name;
+    li.innerHTML = icon('volume') + '<span class="name">' + escHtml(s.name) + '</span>' +
+      '<span class="pp-asset-delete" title="Delete">' + icon('trash') + '</span>';
+    li.onclick = e => {
+      if (e.target.closest('.pp-asset-delete')) {
+        if (!confirm('Delete sound "' + s.name + '"?')) return;
+        Project.sounds = Project.sounds.filter(x => x !== s);
+        SOUNDS.delete(s.name);
+        if (sel.cls === '@sound:' + s.name) sel.cls = Project.classes[0].name;
+        markDirty(); renderSidebar(); syncEditors(); return;
+      }
+      sel.cls = '@sound:' + s.name; renderSidebar(); syncEditors();
+    };
+    li.ondblclick = e => { if (!e.target.closest('.pp-asset-delete')) renameAsset(s, 'sound'); };
+    snd.appendChild(li);
+  }
+
+  const fns = document.getElementById('pp-function-list');
+  fns.innerHTML = '';
+  for (const f of Project.functions) {
+    const li = document.createElement('li');
+    li.className = (sel.cls === '@fn:' + f.name) ? 'pp-script-active' : 'pp-script-inactive';
+    li.innerHTML = icon('cube') + '<span class="name">' + escHtml(f.name) + '</span>' +
+      '<span class="pp-asset-delete">' + icon('trash') + '</span>';
+    li.onclick = e => {
+      if (e.target.closest('.pp-asset-delete')) {
+        Project.functions = Project.functions.filter(x => x !== f);
+        if (sel.cls === '@fn:' + f.name) sel.cls = Project.classes[0].name;
+        markDirty(); renderSidebar(); syncEditors(); return;
+      }
+      sel.cls = '@fn:' + f.name; renderSidebar(); syncEditors();
+    };
+    li.ondblclick = e => { if (!e.target.closest('.pp-asset-delete')) renameAsset(f, 'function'); };
+    fns.appendChild(li);
+  }
+}
+
+/* ---------- editors ---------- */
+/* the editor pane shows a class, a room (both start+loop) or a
+   function (a single body), keyed off sel.cls */
+function currentTarget() {
+  if (sel.cls.startsWith('@fn:')) {
+    const f = Project.functions.find(x => x.name === sel.cls.slice(4));
+    if (f) return { kind: 'fn', obj: f };
+  }
+  if (sel.cls.startsWith('@room:')) {
+    const r = Project.rooms.find(x => x.name === sel.cls.slice(6));
+    if (r) return { kind: 'room', obj: r };
+  }
+  if (sel.cls.startsWith('@sprite:')) {
+    const s = Project.sprites.find(x => x.name === sel.cls.slice(8));
+    if (s) return { kind: 'sprite', obj: s };
+  }
+  if (sel.cls.startsWith('@sound:')) {
+    const s = Project.sounds.find(x => x.name === sel.cls.slice(7));
+    if (s) return { kind: 'sound', obj: s };
+  }
+  return { kind: 'class', obj: clsByName(sel.cls) || Project.classes[0] };
+}
+
+/* ---------- asset preview panel ---------- */
+let previewZoom = 1;
+function hideAssetPreview() {
+  document.getElementById('pp-block1-asset').classList.add('hidden');
+  document.getElementById('pp-block1-child').style.display = '';
+  const a = document.getElementById('pp-audio');
+  a.pause(); a.removeAttribute('src'); a.load();
+}
+function showAssetPreview(t) {
+  /* the original swaps the whole code column out for the viewer */
+  document.getElementById('pp-block1-child').style.display = 'none';
+  document.getElementById('pp-block1-asset').classList.remove('hidden');
+  const tab = document.getElementById('assetPreviewTab');
+  const info = document.getElementById('assetPreviewInfo');
+  const cv = document.getElementById('spritePreview');
+  const audio = document.getElementById('pp-audio');
+  const isSprite = t.kind === 'sprite';
+  tab.innerHTML = icon(isSprite ? 'image' : 'volume') + '<span>' + escHtml(t.obj.name) + '</span>';
+
+  if (isSprite) {
+    audio.style.display = 'none'; audio.pause(); audio.removeAttribute('src');
+    cv.style.display = 'block';
+    previewZoom = 1;
+    drawSpritePreview(t.obj);
+  } else {
+    cv.style.display = 'none';
+    audio.style.display = 'block';
+    const src = soundPreviewSrc(t.obj);
+    if (src) { audio.src = src; } else { audio.removeAttribute('src'); }
+    const bytes = src ? Math.round(src.length * 0.75 / 1024) : 0;
+    info.textContent = t.obj.name + '\n' +
+      (t.obj.missing ? 'missing — file lives on pixelpad.io, re-add it with +'
+        : src ? 'playable · about ' + bytes + ' KB' : 'no audio data') +
+      '\n\nplay_sound("' + t.obj.name + '")';
+  }
+}
+function soundPreviewSrc(s) {
+  if (s.data) return s.data;
+  const synth = String(s.name).replace(/\.\w+$/, '');
+  if (SYNTH[synth]) return wavDataUri(renderSynth(synth));
+  return null;
+}
+function drawSpritePreview(s) {
+  const cv = document.getElementById('spritePreview');
+  const info = document.getElementById('assetPreviewInfo');
+  const img = Engine.sprites.get(s.name);
+  const host = document.getElementById('assetPreviewBody');
+  if (!img || !img.width) {
+    cv.width = 1; cv.height = 1;
+    info.textContent = s.name + '\nno image data';
+    return;
+  }
+  const avail = Math.max(40, host.clientWidth - 24), availH = Math.max(40, host.clientHeight - 24);
+  const fit = Math.min(avail / img.width, availH / img.height, 4);
+  const z = Math.max(0.05, fit * previewZoom);
+  cv.width = Math.max(1, Math.round(img.width * z));
+  cv.height = Math.max(1, Math.round(img.height * z));
+  const c = cv.getContext('2d');
+  /* checkerboard so transparent regions are obvious */
+  const sq = 8;
+  for (let y = 0; y < cv.height; y += sq) for (let x = 0; x < cv.width; x += sq) {
+    c.fillStyle = ((x / sq + y / sq) | 0) % 2 ? '#D8DCE0' : '#F0F2F4';
+    c.fillRect(x, y, sq, sq);
+  }
+  c.imageSmoothingEnabled = z < 3;
+  c.drawImage(img, 0, 0, cv.width, cv.height);
+  const rec = Project.sprites.find(x => x.name === s.name) || {};
+  info.textContent = s.name + '\n' + img.width + ' x ' + img.height + ' px' +
+    (rec.missing ? '  ·  missing, showing placeholder' : '') +
+    '  ·  zoom ' + Math.round(z * 100) + '%\n\nsprite("' + s.name + '")';
+}
+function currentFn() { const t = currentTarget(); return t.kind === 'fn' ? t.obj : null; }
+function activeEditor() {
+  if (horizontal) return Editors.single;
+  return sel.half === 'loop' ? Editors.loop : Editors.start;
+}
+function syncEditors() {
+  const t = currentTarget();
+  if (t.kind === 'sprite' || t.kind === 'sound') { showAssetPreview(t); return; }
+  hideAssetPreview();
+  const fn = t.kind === 'fn' ? t.obj : null;
+  const c = fn ? null : t.obj;
+  if (!fn && !c) return;
+  const name = fn ? fn.name : c.name;
+
+  document.querySelectorAll('.startName').forEach(e => e.textContent = name);
+  document.querySelectorAll('.loopName').forEach(e => e.textContent = name);
+  const loopTab = document.getElementById('vLayoutLoopTab');
+  const hLoop = document.querySelector('.startloop.loop');
+  loopTab.style.display = fn ? 'none' : '';
+  if (hLoop) hLoop.style.display = fn ? 'none' : '';
+  document.getElementById('pp-block1loop').style.display = fn ? 'none' : '';
+  document.getElementById('pp-block1code').style.height = fn ? '100%' : '50%';
+
+  if (horizontal) {
+    Editors.single.setValue(fn ? fn.body : (sel.half === 'loop' ? c.loop : c.start));
+  } else {
+    Editors.start.setValue(fn ? fn.body : c.start);
+    if (!fn) Editors.loop.setValue(c.loop);
+  }
+  updateTabActive();
+}
+function updateTabActive() {
+  const isLoop = sel.half === 'loop';
+  document.getElementById('vLayoutStartTab').classList.toggle('active', !isLoop);
+  document.getElementById('vLayoutLoopTab').classList.toggle('active', isLoop);
+  document.getElementById('pp-block1code').classList.toggle('active', !isLoop);
+  document.getElementById('pp-block1loop').classList.toggle('active', isLoop);
+  document.querySelectorAll('.startloop').forEach(el => el.classList.toggle('active', el.dataset.half === sel.half));
+}
+function captureEditor(which, ed) {
+  const t = currentTarget();
+  if (t.kind === 'fn') { t.obj.body = ed.value; markDirty(); return; }
+  const c = t.obj;
+  if (!c) return;
+  if (horizontal) { if (sel.half === 'loop') c.loop = ed.value; else c.start = ed.value; }
+  else if (which === 'loop') c.loop = ed.value;
+  else c.start = ed.value;
+  markDirty();
+}
+
+/* ---------- modal prompt ---------- */
+function ask(title, value) {
+  return new Promise(res => {
+    const m = document.getElementById('modal'), inp = document.getElementById('modal-input');
+    document.getElementById('modal-title').textContent = title;
+    inp.value = value || '';
+    m.classList.add('on');
+    setTimeout(() => { inp.focus(); inp.select(); }, 10);
+    const done = (v) => { m.classList.remove('on'); cleanup(); res(v); };
+    const ok = () => done(inp.value.trim() || null);
+    const cancel = () => done(null);
+    const key = e => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); };
+    function cleanup() {
+      document.getElementById('modal-ok').removeEventListener('click', ok);
+      document.getElementById('modal-cancel').removeEventListener('click', cancel);
+      inp.removeEventListener('keydown', key);
+    }
+    document.getElementById('modal-ok').addEventListener('click', ok);
+    document.getElementById('modal-cancel').addEventListener('click', cancel);
+    inp.addEventListener('keydown', key);
+  });
+}
+const SEL_PREFIX = { class: '', room: '@room:', function: '@fn:', sprite: '@sprite:', sound: '@sound:' };
+/* Keep the extension of the file that was actually uploaded: the student
+   types a bare name and the real type is re-attached. Typing the extension
+   anyway is fine, and typing a wrong one is corrected rather than stacked. */
+function applyExtension(name, ext) {
+  if (!ext) return name;
+  if (name.toLowerCase().endsWith(ext.toLowerCase())) return name;
+  return name.replace(/\.[A-Za-z0-9]{1,5}$/, '') + ext;
+}
+async function renameAsset(obj, kind) {
+  const old = obj.name;
+  const isFile = kind === 'sprite' || kind === 'sound';
+  const ext = isFile ? (/\.[A-Za-z0-9]+$/.exec(old) || [''])[0] : '';
+  const base = ext ? old.slice(0, -ext.length) : old;
+
+  const typed = await ask('Rename ' + kind + (ext ? ' (' + ext + ' is kept)' : ''), isFile ? base : old);
+  if (!typed) return;
+  const name = isFile ? applyExtension(typed, ext) : typed;
+  if (name === old) return;
+
+  if (isFile) {
+    if (!/^[\w\-. ]+$/.test(name)) { alert('File names can use letters, digits, spaces, dots, dashes and underscores.'); return; }
+    const list = kind === 'sprite' ? Project.sprites : Project.sounds;
+    if (list.some(a => a !== obj && a.name === name)) { alert('That name is already used.'); return; }
+    /* keep the engine's lookup table in step with the rename */
+    if (kind === 'sprite') {
+      const img = Engine.sprites.get(old);
+      Engine.sprites.delete(old);
+      if (img) Engine.sprites.set(name, img);
+    } else {
+      const s = SOUNDS.get(old);
+      SOUNDS.delete(old);
+      if (s) SOUNDS.set(name, s);
+    }
+  } else {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) { alert('Names must be letters, digits and underscores, starting with a letter.'); return; }
+    const taken = Project.classes.some(c => c !== obj && c.name === name) ||
+                  Project.rooms.some(r => r !== obj && r.name === name) ||
+                  Project.functions.some(f => f !== obj && f.name === name);
+    if (taken) { alert('That name is already used.'); return; }
+  }
+
+  if (sel.cls === SEL_PREFIX[kind] + old) sel.cls = SEL_PREFIX[kind] + name;
+  obj.name = name;
+  markDirty(); renderSidebar(); syncEditors();
+  if (isFile) logLine('Renamed to ' + name + ' — update any code that still says "' + old + '".', 'sys');
+}
+
+/* ---------- sprites / sounds loading ---------- */
+function buildBuiltinSprites() {
+  for (const s of Project.sprites) {
+    if (s.missing && !s.data) { Engine.loadSprite(s.name, missingSprite(s.name)); continue; }
+    if (s.data) {
+      const img = new Image();
+      img.onload = () => {
+        Engine.loadSprite(s.name, img);
+        /* redraw once the artwork is actually decoded */
+        if (!Engine.running) Engine.render();
+        const t = currentTarget();
+        if (t.kind === 'sprite' && t.obj.name === s.name) drawSpritePreview(t.obj);
+      };
+      img.src = s.data;
+      Engine.loadSprite(s.name, img);
+    } else if (ART[s.name]) {
+      Engine.loadSprite(s.name, ART[s.name]());
+    }
+  }
+  for (const s of Project.sounds) {
+    if (s.data) {
+      SOUNDS.set(s.name, { data: s.data, buffer: null });
+      decodeSound(s.name, s.data);
+    }
+  }
+}
+function decodeSound(name, dataUri) {
+  const c = audioCtx(); if (!c) return;
+  fetch(dataUri).then(r => r.arrayBuffer()).then(b => c.decodeAudioData(b))
+    .then(buf => { const e = SOUNDS.get(name); if (e) e.buffer = buf; })
+    .catch(() => {});
+}
+/* mode: "dataurl" (default, for assets) | "text" | "buffer" */
+function pickFile(accept, mode) {
+  return new Promise(res => {
+    const inp = document.getElementById('filepick');
+    inp.value = ''; inp.accept = accept;
+    inp.onchange = () => {
+      const f = inp.files[0];
+      if (!f) return res(null);
+      const rd = new FileReader();
+      rd.onload = () => res({ name: f.name, data: rd.result, text: rd.result, buffer: rd.result });
+      if (mode === 'text') rd.readAsText(f);
+      else if (mode === 'buffer') rd.readAsArrayBuffer(f);
+      else rd.readAsDataURL(f);
+    };
+    inp.click();
+  });
+}
+
+/* ---------- run / stop ---------- */
+function runProject() {
+  const out = document.getElementById('output');
+  out.textContent = '';
+  Engine.debug.on = document.getElementById('debug').checked;
+  document.getElementById('debugPanel').classList.toggle('on', Engine.debug.on);
+  Engine.fit();
+  const ok = Engine.start(Project, (s) => logLine(s.replace(/\n$/, ''), null));
+  const btn = document.getElementById('pp-start');
+  if (ok && Engine.running) {
+    btn.textContent = 'STOP';
+    btn.classList.remove('btn-success'); btn.classList.add('btn-danger');
+    document.getElementById('stage').focus();
+  } else {
+    stopProject();
+  }
+}
+function stopProject() {
+  Engine.stop();
+  const btn = document.getElementById('pp-start');
+  btn.textContent = 'PLAY';
+  btn.classList.add('btn-success'); btn.classList.remove('btn-danger');
+}
+
+/* ---------- column resizing ---------- */
+function setupResize(handleId, apply) {
+  const h = document.getElementById(handleId);
+  h.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const ide = document.getElementById('pp3d-ide');
+    const move = ev => { apply(ev.clientX, ide.clientWidth); Engine.fit(); Engine.render(); refreshEditors(); };
+    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.style.cursor = ''; };
+    document.body.style.cursor = 'col-resize';
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+}
+function refreshEditors() {
+  for (const k in Editors) if (Editors[k]) Editors[k].refresh();
+  const t = currentTarget();
+  if (t.kind === 'sprite') drawSpritePreview(t.obj);
+}
+
+/* ============================================================
+   boot
+   ============================================================ */
+(function boot() {
+  Suggest.init();
+  Project = loadProject();
+  if (!Project.classes.some(c => c.isGame)) Project.classes[0].isGame = true;
+  sel.cls = Project.classes[0].name;
+
+  /* editors */
+  Editors.start = new CodeEditor(document.getElementById('pp-block1code'), { onChange: ed => captureEditor('start', ed) });
+  Editors.loop = new CodeEditor(document.getElementById('pp-block1loop'), { onChange: ed => captureEditor('loop', ed) });
+  Editors.single = new CodeEditor(document.getElementById('startloop-container'), { onChange: ed => captureEditor(sel.half, ed) });
+
+  document.getElementById('vLayoutStartTab').onclick = () => { sel.half = 'start'; updateTabActive(); Editors.start.focus(); };
+  document.getElementById('vLayoutLoopTab').onclick = () => { sel.half = 'loop'; updateTabActive(); Editors.loop.focus(); };
+  document.querySelectorAll('.startloop').forEach(el => {
+    el.onclick = () => { sel.half = el.dataset.half; syncEditors(); Editors.single.focus(); };
+  });
+
+  /* canvas */
+  Engine.canvas = document.getElementById('stage');
+  Engine.ctx = Engine.canvas.getContext('2d');
+  /* PixelPAD's logPyErrors: the bare exception message, no type prefix,
+     suffixed with the block it came from and the line within that block. */
+  Engine.onError = (where, err, isPy) =>
+    logLine(isPy ? err.message + ' in ' + where + ' on line ' + err.line : err.message);
+  Engine.onStop = () => stopProject();
+
+  buildBuiltinSprites();
+  renderSidebar();
+  syncEditors();
+  Engine.fit();
+  Engine.render();
+
+  /* scroll to zoom the sprite preview, as the original does */
+  document.getElementById('assetPreviewBody').addEventListener('wheel', e => {
+    const t = currentTarget();
+    if (t.kind !== 'sprite') return;
+    e.preventDefault();
+    previewZoom = Math.max(0.1, Math.min(16, previewZoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    drawSpritePreview(t.obj);
+  }, { passive: false });
+  document.getElementById('spritePreview').addEventListener('dblclick', () => {
+    const t = currentTarget();
+    if (t.kind !== 'sprite') return;
+    previewZoom = 1; drawSpritePreview(t.obj);
+  });
+
+  /* project new / import / export */
+  document.getElementById('newProject').onclick = () => {
+    if (!confirm('Start a new project?\n\nThis erases the project saved in this browser. ' +
+                 'Export it first if you want to keep a copy.')) return;
+    stopProject();
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    Project = blankProject();
+    sel.cls = 'Game'; sel.half = 'start';
+    Engine.sprites.clear(); SOUNDS.clear();
+    renderSidebar(); syncEditors();
+    document.getElementById('output').textContent = '';
+    logLine('New project. Add classes, sprites and sounds with the + buttons.', 'sys');
+    markSaved();       /* an untouched blank project has nothing to save yet */
+    Engine.fit(); Engine.render();
+  };
+  document.getElementById('exportProject').onclick = () => PP2D.export();
+  document.getElementById('exportBundle').onclick = () => PPOFF.export();
+  document.getElementById('importProject').onclick = async () => {
+    if (!saved && !confirm('Import will replace the current project. Continue?')) return;
+    const f = await pickFile('.pp2d,.ppoff,application/json,application/octet-stream,text/plain', 'buffer');
+    if (!f) return;
+    Importer.load(f.buffer, f.name);   /* format is detected from the bytes */
+  };
+
+  /* toolbar */
+  document.getElementById('pp-save').onclick = saveProject;
+  document.getElementById('pp-start').onclick = () => { if (Engine.running) stopProject(); else runProject(); };
+
+  /* add-buttons */
+  document.getElementById('pp-add-script').onclick = async () => {
+    const name = await ask('New class name', uniqueName('Object', Project.classes));
+    if (!name) return;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || Project.classes.some(c => c.name === name)) { alert('Invalid or duplicate name.'); return; }
+    Project.classes.push({ name, start: '#' + name + ' start\n\n', loop: '#' + name + ' loop\n\n' });
+    sel.cls = name; sel.half = 'start';
+    markDirty(); renderSidebar(); syncEditors();
+  };
+  document.getElementById('pp-add-room').onclick = async () => {
+    const name = await ask('New room name', uniqueName('Room', Project.rooms));
+    if (!name) return;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
+        Project.rooms.some(r => r.name === name) || Project.classes.some(c => c.name === name)) {
+      alert('Invalid or duplicate name.'); return;
+    }
+    Project.rooms.push({ name, start: '#' + name + ' start\n\n', loop: '#' + name + ' loop\n\n' });
+    sel.cls = '@room:' + name; sel.half = 'start';
+    markDirty(); renderSidebar(); syncEditors();
+  };
+  document.getElementById('pp-add-function').onclick = async () => {
+    const name = await ask('New function name', uniqueName('helper', Project.functions));
+    if (!name) return;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) { alert('Invalid name.'); return; }
+    Project.functions.push({ name, body: 'def ' + name + '():\n    pass\n' });
+    sel.cls = '@fn:' + name; sel.half = 'start';
+    markDirty(); renderSidebar(); syncEditors();
+  };
+  document.getElementById('pp-add-texture').onclick = async () => {
+    const f = await pickFile('image/*');
+    if (!f) return;
+    if (Project.sprites.some(s => s.name === f.name)) { alert('A sprite with that name already exists.'); return; }
+    Project.sprites.push({ name: f.name, data: f.data });
+    const img = new Image();
+    img.onload = () => { Engine.loadSprite(f.name, img); renderSidebar(); };
+    img.src = f.data;
+    markDirty(); renderSidebar();
+  };
+  document.getElementById('pp-add-sound').onclick = async () => {
+    const f = await pickFile('audio/*');
+    if (!f) return;
+    if (Project.sounds.some(s => s.name === f.name)) { alert('A sound with that name already exists.'); return; }
+    Project.sounds.push({ name: f.name, data: f.data });
+    SOUNDS.set(f.name, { data: f.data, buffer: null });
+    decodeSound(f.name, f.data);
+    markDirty(); renderSidebar();
+  };
+
+  /* toggles */
+  document.getElementById('theme').onchange = e => {
+    document.body.classList.toggle('pp-dark', e.target.checked);
+    refreshEditors();
+  };
+  document.getElementById('layout').onchange = e => {
+    horizontal = e.target.checked;
+    document.getElementById('vLayout').classList.toggle('hidden', horizontal);
+    document.getElementById('hLayout').classList.toggle('hidden', !horizontal);
+    document.getElementById('hLayout').classList.toggle('on', horizontal);
+    syncEditors(); refreshEditors();
+  };
+  document.getElementById('debug').onchange = e => {
+    Engine.debug.on = e.target.checked;
+    if (!e.target.checked) { Engine.debug.info = Engine.debug.inspect = Engine.debug.grid = false; Engine.paused = false; syncDebugButtons(); }
+    document.getElementById('debugPanel').classList.toggle('on', e.target.checked);
+    Engine.fit(); Engine.render();
+  };
+  document.getElementById('suggestions').onchange = e => { Suggest.enabled = e.target.checked; if (!e.target.checked) Suggest.hide(); };
+
+  /* debug buttons */
+  function syncDebugButtons() {
+    document.getElementById('generalDebug').classList.toggle('on', Engine.debug.info);
+    document.getElementById('objectDebug').classList.toggle('on', Engine.debug.inspect);
+    document.getElementById('pauseDebug').classList.toggle('on', Engine.paused);
+    document.getElementById('rulerDebug').classList.toggle('on', Engine.debug.grid);
+    document.getElementById('debugReadout').textContent = Engine.running ? (Engine.fps + ' fps · ' + Engine.objects.length + ' objs') : '';
+  }
+  document.getElementById('generalDebug').onclick = () => { Engine.debug.info = !Engine.debug.info; syncDebugButtons(); Engine.render(); };
+  document.getElementById('objectDebug').onclick = () => { Engine.debug.inspect = !Engine.debug.inspect; syncDebugButtons(); Engine.render(); };
+  document.getElementById('pauseDebug').onclick = () => { Engine.paused = !Engine.paused; syncDebugButtons(); };
+  document.getElementById('rulerDebug').onclick = () => { Engine.debug.grid = !Engine.debug.grid; syncDebugButtons(); Engine.render(); };
+  setInterval(syncDebugButtons, 500);
+
+  /* resizing */
+  setupResize('pp-col-adjust-code', (x, total) => {
+    const pct = Math.max(6, Math.min(40, x / total * 100));
+    document.getElementById('pp-block0').style.width = pct + '%';
+  });
+  setupResize('pp-col-adjust-canvas', (x, total) => {
+    const b0 = document.getElementById('pp-block0').getBoundingClientRect().width;
+    const pct = Math.max(15, Math.min(75, (x - b0 - 12) / total * 100));
+    document.getElementById('pp-block1').style.width = pct + '%';
+  });
+  window.addEventListener('resize', () => { Engine.fit(); Engine.render(); refreshEditors(); });
+
+  /* input */
+  const stage = document.getElementById('stage');
+  const keyTarget = document.getElementById('pp-block2');
+  function keyName(e) {
+    let k = e.key;
+    if (k === ' ') return 'space';
+    if (k.length === 1) return k.toLowerCase();
+    return normKey(k);
+  }
+  window.addEventListener('keydown', e => {
+    if (document.activeElement && /TEXTAREA|INPUT/.test(document.activeElement.tagName)) return;
+    const k = keyName(e);
+    if (!Engine.keys.has(k)) Engine.keysDown.add(k);
+    Engine.keys.add(k);
+    if (Engine.running && ['space', 'up', 'down', 'left', 'right'].includes(k)) e.preventDefault();
+  });
+  window.addEventListener('keyup', e => {
+    if (document.activeElement && /TEXTAREA|INPUT/.test(document.activeElement.tagName)) return;
+    const k = keyName(e);
+    Engine.keys.delete(k); Engine.keysUp.add(k);
+  });
+  window.addEventListener('blur', () => { Engine.keys.clear(); });
+  stage.addEventListener('mousemove', e => {
+    const [x, y] = Engine.s2w(e.clientX, e.clientY);
+    const r = stage.getBoundingClientRect();
+    Engine.mouse.x = x; Engine.mouse.y = y;
+    Engine.mouse.sx = (e.clientX - r.left) / r.width * stage.width;
+    Engine.mouse.sy = (e.clientY - r.top) / r.height * stage.height;
+    Engine.mouse.over = true;
+    /* while stopped nothing is ticking, so redraw for the coordinate readout */
+    if (!Engine.running && Engine.debug.on && Engine.debug.grid) Engine.render();
+  });
+  stage.addEventListener('mouseleave', () => {
+    Engine.mouse.over = false;
+    if (!Engine.running && Engine.debug.on && Engine.debug.grid) Engine.render();
+  });
+  stage.addEventListener('mousedown', e => {
+    Engine.mouse.down = true; Engine.mouse.pressed = true;
+    if (Engine.debug.inspect) {
+      const [x, y] = Engine.s2w(e.clientX, e.clientY);
+      Engine.selected = Engine.objects.slice().reverse().find(o => {
+        const b = Engine.bbox(o);
+        return x >= b.l && x <= b.r && y >= b.b && y <= b.t;
+      }) || null;
+      Engine.render();
+    }
+  });
+  window.addEventListener('mouseup', () => { Engine.mouse.down = false; Engine.mouse.released = true; });
+
+  /* keyboard shortcuts */
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(); }
+    if (e.key === 'F5' || (e.ctrlKey && e.key === 'Enter')) {
+      e.preventDefault();
+      if (Engine.running) stopProject(); else runProject();
+    }
+  });
+  window.addEventListener('beforeunload', e => {
+    if (!saved) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  logLine('PixelPAD offline — press PLAY (or F5) to run. Ctrl+S saves to this browser.', 'sys');
+  if (loadedDemo) logLine('Demo project. Use A and D to move your character.', 'sys');
+  else if (isBlank(Project)) logLine('Empty project. Add classes, sprites and sounds with the + buttons.', 'sys');
+})();
+
+/* ------------------------------------------------------------
+   Error-message conformance suite.
+   Every expectation below was captured from the real Skulpt build
+   the online IDE runs. Call ppSelfTest() from the browser console.
+   ------------------------------------------------------------ */
+const ERROR_CONFORMANCE = [
+  ['if True\n    print(1)\n',                'bad input', 1],
+  ['for i in range(3)\n    print(i)\n',      'bad input', 1],
+  ['def f()\n    return 1\n',                'bad input', 1],
+  ['while True\n    print(1)\n',             'bad input', 1],
+  ['print("hi"\n',                           'EOF in multi-line statement', 3],
+  ['x = 1\nprint("hi"\n',                    'EOF in multi-line statement', 4],
+  ['x = (\n1 +\n2\n',                        'EOF in multi-line statement', 5],
+  ['x = (1 + 2\ny = 3\n',                    'bad input', 2],
+  ['x = [1, 2\ny = 3\n',                     'bad input', 2],
+  ['d = {"a": 1\ny = 2\n',                   'bad input', 2],
+  ['print("hi"))\n',                         'bad input', 1],
+  ['x = [1 2, 3]\n',                         'bad input', 1],
+  ['print(1 2)\n',                           'bad input', 1],
+  ['d = {"a": 1 "b": 2}\n',                  'bad input', 1],
+  ['print("hi)\n',                           'bad input', 1],
+  ["x = 'abc\n",                             'bad input', 1],
+  ['self..x = 1\n',                          'bad input', 1],
+  ['x = self.\n',                            'bad input', 1],
+  ['x = self.(1)\n',                         'bad input', 1],
+  ['if True:\nprint(1)\n',                   'bad input', 2],
+  ['x = 1\n    y = 2\n',                     'bad input', 2],
+  ['if True:\n        x = 1\n    y = 2\n',   'unindent does not match any outer indentation level', 3],
+  ['5 = x\n',                                "can't assign to literal", 1],
+  ['f() = 5\n',                              "can't assign to function call", 1],
+  ['x = 5 $ 3\n',                            'bad token T_OP', 1],
+  ['x = 5 ** * 3\n',                         'bad input', 1],
+  ['x = *\n',                                'bad input', 1],
+  ['if x = 5:\n    print(1)\n',              'bad input', 1],
+  ['print(nope)\n',                          "name 'nope' is not defined", 1],
+  ['x = 1\nprint(x + missing)\n',            "name 'missing' is not defined", 2],
+  ['x = 5\nx.foo()\n',                       "'int' object has no attribute 'foo'", 2],
+  ['s = "a"\ns.nope()\n',                    "'str' object has no attribute 'nope'", 2],
+  ['x = "a" + 1\n',                          "cannot concatenate 'str' and 'int' objects", 1],
+  ['x = 1 + "a"\n',                          "unsupported operand type(s) for +: 'int' and 'str'", 1],
+  ['x = "a" - 1\n',                          "unsupported operand type(s) for -: 'str' and 'int'", 1],
+  ['x = "a" + [1]\n',                        "cannot concatenate 'str' and 'list' objects", 1],
+  ['x = 1/0\n',                              'integer division or modulo by zero', 1],
+  ['x = 1%0\n',                              'integer division or modulo by zero', 1],
+  ['a=[1]\nprint(a[5])\n',                   'list index out of range', 2],
+  ['s="ab"\nprint(s[9])\n',                  'string index out of range', 2],
+  ['d={}\nprint(d["k"])\n',                  'k', 2],
+  ['x = 5\nx()\n',                           "'int' object is not callable", 2],
+  ['def f(a):\n    return a\nf()\n',         'f() missing 1 required argument: a', 3],
+  ['def f(a):\n    return a\nf(1,2)\n',      'f() takes 1 positional argument but 2 were  given', 3],
+  ['int("abc")\n',                           "invalid literal for int() with base 10: 'abc'", 1],
+  ['a, b = [1,2,3]\n',                       'too many values to unpack (expected 2)', 1],
+  ['len(5)\n',                               "object of type 'int' has no len()", 1],
+  ['for i in 5:\n    print(i)\n',            "'int' object is not iterable", 1],
+  ['a=[1]\na.remove(9)\n',                   'list.remove(x): x not in list', 2],
+];
+function ppSelfTest() {
+  const fails = [];
+  for (const [src, msg, line] of ERROR_CONFORMANCE) {
+    INTERP.reset(); INTERP.stdout = () => {};
+    let got;
+    try { INTERP.run(parse(src).body, INTERP.globals); got = { msg: '(no error)', line: null }; }
+    catch (e) { got = (e instanceof PyError) ? { msg: e.message, line: e.line } : { msg: 'JS:' + e.message, line: null }; }
+    if (got.msg !== msg || got.line !== line)
+      fails.push({ src, expected: msg + ' @' + line, got: got.msg + ' @' + got.line });
+  }
+  const r = { passed: ERROR_CONFORMANCE.length - fails.length, total: ERROR_CONFORMANCE.length, fails };
+  console.log(fails.length ? r : 'error conformance: all ' + r.total + ' cases match Skulpt');
+  return r;
+}
+</script>
+<!--@IDE@-->

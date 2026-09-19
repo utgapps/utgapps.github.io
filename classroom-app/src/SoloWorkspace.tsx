@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
 import { seedDoc, docToFiles, userColor } from "./lib/collab";
-import { apiGetProjectById, apiSaveProjectById, apiSaveProjectBeacon } from "./lib/api";
+import { apiGetProjectById, apiSaveProjectById, apiSaveProjectBeacon, type ApiCoeditRoom } from "./lib/api";
 import { ProjectPicker } from "./ProjectPicker";
+import { CoEditBox, CoEditGuest } from "./CoEdit";
 import type { ProjectKind } from "./lib/types";
 
 /* The teacher's own projects.
@@ -20,7 +21,11 @@ export function SoloWorkspace({ token, who, onExit, children }: {
   onExit: () => void;
   children: (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind }) => React.ReactNode;
 }) {
-  const [step, setStep] = useState<"picker" | "room">("picker");
+  const [step, setStep] = useState<"picker" | "room" | "coedit">("picker");
+  // A project somebody else owns, opened with their code. Teachers get this for
+  // the same reason students do: sitting inside a child's code with them is the
+  // fastest way to unstick it.
+  const [coeditRoom, setCoeditRoom] = useState<ApiCoeditRoom | null>(null);
   const [files, setFiles] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<ProjectKind>("web");
   const [title, setTitle] = useState("");
@@ -108,23 +113,35 @@ export function SoloWorkspace({ token, who, onExit, children }: {
 
   async function back() { await flush(); setStep("picker"); setStatus("Choose a project, or start a new one."); }
 
+  if (step === "coedit" && coeditRoom) {
+    return <CoEditGuest token={token} name={who} room={coeditRoom}
+                        onLeave={() => { setCoeditRoom(null); setStep("picker"); }}
+                        onCopied={(id) => { setCoeditRoom(null); void open(id); }}>
+      {children}
+    </CoEditGuest>;
+  }
   if (step === "picker") {
     return <ProjectPicker token={token} className={`${who} · my projects`} status={status}
                           live={false} onOpen={open} onSignOut={onExit}
+                          onJoinCoedit={(room) => { setCoeditRoom(room); setStep("coedit"); }}
                           exitLabel="Back to the class" />;
   }
   if (!docRef.current || !awarenessRef.current) return null;
 
   return <main className="student-shell">
     <header className="room-header">
-      <div><strong>{title}</strong></div>
+      <div>
+        <button className="text-button projects-button" onClick={back}>◀ Projects</button>
+        <span className="slash">/</span><strong>{title}</strong>
+      </div>
       <div className="connection">
         <span className="save-label">{status}</span>
-        <button className="text-button" onClick={back}>My projects</button>
         <button className="text-button" onClick={() => { void flush().then(onExit); }}>Back to the class</button>
       </div>
     </header>
     <section className="student-project">
+      <CoEditBox key={idRef.current} token={token} projectId={idRef.current}
+                 doc={docRef.current} awareness={awarenessRef.current} name={who} />
       {children({ doc: docRef.current, awareness: awarenessRef.current, files, kind })}
     </section>
   </main>;

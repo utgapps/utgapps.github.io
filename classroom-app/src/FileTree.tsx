@@ -10,7 +10,7 @@ import { ENTRY_FILE } from "./lib/preview";
    what is in it. The cost is that a folder with nothing in it cannot exist, so
    "New folder" asks for the first file at the same time. */
 
-const ALLOWED = [".html", ".css", ".js", ".json", ".svg", ".txt", ".md"];
+const ALLOWED = [".html", ".css", ".js", ".json", ".svg", ".txt", ".md", ".py"];
 const MAX_FILES = 40;
 const MAX_DEPTH = 4;
 
@@ -65,12 +65,16 @@ function icon(name: string) {
   if (name.endsWith(".html")) return "◧";
   if (name.endsWith(".css")) return "◆";
   if (name.endsWith(".js")) return "▸";
+  if (name.endsWith(".py")) return "▸";
   return "•";
 }
 
-export function FileTree({ files, active, onOpen, onAdd, onRename, onDelete, readOnly }: {
+export function FileTree({ files, active, entry = ENTRY_FILE, onOpen, onAdd, onRename, onDelete, readOnly }: {
   files: string[];
   active: string;
+  // Which file the Run button starts from. index.html for a web project,
+  // Game.start.py for a game - so the "start" badge points at the right one.
+  entry?: string;
   onOpen: (path: string) => void;
   onAdd: (path: string) => void;
   onRename: (from: string, to: string) => void;
@@ -103,7 +107,7 @@ export function FileTree({ files, active, onOpen, onAdd, onRename, onDelete, rea
            style={{ paddingLeft: 10 + depth * 13 }}>
         <button className="tf-open" onClick={() => onOpen(node.path)} title={node.path}>
           <span className="tf-icon">{icon(node.name)}</span>{node.name}
-          {node.path === ENTRY_FILE && <span className="tf-entry" title="This is the page the preview shows">start</span>}
+          {node.path === entry && <span className="tf-entry" title="This is where the preview starts">start</span>}
         </button>
         {!readOnly && (
           <span className="tf-actions">

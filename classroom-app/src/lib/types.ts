@@ -16,7 +16,7 @@ export type Device = {
   revoked?: boolean;
 };
 
-export type ProjectKind = "web" | "java";
+export type ProjectKind = "web" | "java" | "pixelpad";
 
 export type Project = {
   id: string;
@@ -64,7 +64,7 @@ export type PendingJoin = {
 // Required argument rather than a default: both call sites should be looked at
 // when a new kind appears, not silently fall through to "web".
 export const starterFiles = (kind: ProjectKind): Record<string, string> =>
-  kind === "java" ? javaStarter() : webStarter();
+  kind === "java" ? javaStarter() : kind === "pixelpad" ? gameStarter() : webStarter();
 
 // Only the page to start with. Making a stylesheet and a script - and wiring
 // them up yourself - is worth learning, so the editor no longer does it behind
@@ -98,4 +98,40 @@ const javaStarter = (): Record<string, string> => ({
     "Running Java in the browser is not built yet, so there is no preview on this\n" +
     "kind of project. Use it for writing practice and for work you will run\n" +
     "somewhere else.\n",
+});
+
+// A game that already runs. Press Run and there is a monster on the screen -
+// which is the whole point at this age: the first thing you do is not type for
+// ten minutes, it is press a button and see your monster. What it does NEXT is
+// left undone on purpose, and Monster.loop.py says exactly which line to try.
+//
+// One file per code panel, named <Thing>.<start or loop>.py. Anything not named
+// as a room in game.txt is a thing you can make lots of.
+const gameStarter = (): Record<string, string> => ({
+  "game.txt":
+    "# This file tells the game about your screens and your pictures.\n" +
+    "# Anything after a # is a note to yourself - the game ignores it.\n" +
+    "\n" +
+    "# A room is one screen. Play is where the game happens.\n" +
+    "room Play\n" +
+    "\n" +
+    "# A picture: its name, a colour, how wide, how tall.\n" +
+    "# Drawn your own? Upload it below, then paste the link where green is.\n" +
+    "sprite monster.png green 48 48\n",
+  "Game.start.py":
+    "# The very first thing that happens. Which screen do we open?\n" +
+    "set_room('Play')\n",
+  "Play.start.py":
+    "# The Play screen is being made. Put your things in it.\n" +
+    "Game.monster = Monster()\n",
+  "Monster.start.py":
+    "# One monster is being made. What does it look like, and where is it?\n" +
+    "self.image = sprite('monster.png')\n" +
+    "self.y = -210\n",
+  "Monster.loop.py":
+    "# This runs over and over, about sixty times a second.\n" +
+    "# Nothing in here yet, so your monster just sits there.\n" +
+    "#\n" +
+    "# Try typing this line, with no # in front, and press Run:\n" +
+    "# self.x = mouse_x()\n",
 });
