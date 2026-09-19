@@ -7,16 +7,19 @@
    way, because nothing about a preview frame LOOKS broken until a child presses
    Run.
 
-   It also holds the generated file to its generator: src/lib/pixelpad-engine.js
-   is cut out of vendor/pixelpad-offline.html, and a hand-edit there would be
+   It also holds every generated file to its generator: the engine, the word
+   list, the stylesheet and the glyphs are all cut out of
+   vendor/pixelpad-offline.html, and a hand-edit to any of them would be
    invisible - it would work, right up until the next regeneration silently
-   threw it away.
+   threw it away. The stylesheet is the one that would hurt most quietly: the
+   game editor is meant to BE the offline IDE, so a rule tuned by hand here
+   makes the two drift apart one afternoon at a time.
 
        node test/offline-engine.mjs
 */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cutEngine, cutApi, OUT, API_OUT } from "../tools/build-engine.mjs";
+import { cutEngine, cutApi, cutIdeCss, cutIcons, OUT, API_OUT, CSS_OUT, ICONS_OUT } from "../tools/build-engine.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const read = (p) => readFileSync(here + p, "utf8");
@@ -40,6 +43,24 @@ check(API_OUT + " is what tools/build-engine.mjs produces",
       read("../" + API_OUT) === api.text,
       "re-run `node tools/build-engine.mjs`; the suggestions in the classroom " +
       "editor are the offline IDE's own list and are not maintained by hand");
+
+// 1c. and so is the stylesheet the game editor wears
+const css = cutIdeCss();
+check(CSS_OUT + " is what tools/build-engine.mjs produces",
+      read("../" + CSS_OUT) === css.text,
+      "re-run `node tools/build-engine.mjs`; the game editor's look is the " +
+      "offline IDE's own stylesheet and is not tuned by hand");
+
+// 1d. and so are its glyphs
+check(ICONS_OUT + " is what tools/build-engine.mjs produces",
+      read("../" + ICONS_OUT) === cutIcons().text,
+      "re-run `node tools/build-engine.mjs`");
+
+// 1e. every rule in it stays inside the editor. Unscoped, one of these would
+//     repaint the rest of the classroom - and only on the pages a game is on.
+const loose = css.text.split("\n")
+  .filter((line) => /^[.#a-zA-Z:*\\[]/.test(line) && !line.includes(".pp3d-ide"));
+check("the IDE stylesheet touches nothing outside .pp3d-ide", loose.length === 0, loose[0]);
 
 // 2. it reaches nothing outside the frame
 check("the engine has no http(s) URL in it", !/https?:\/\//.test(committed),

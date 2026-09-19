@@ -145,8 +145,7 @@ function App() {
        one's open project, unsaved edits and share code. */
     return <SoloWorkspace key={signedIn} token={account.token} who={account.account.name || "Teacher"}
                           exitLabel="Back to the start" onExit={() => setMode("home")}>
-      {({ doc, awareness, files, kind }) =>
-        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} token={account.token} />}
+      {(props) => <CollabWorkspace {...props} token={account.token} />}
     </SoloWorkspace>;
   }
   if (mode === "instructor" && activeClass) {
@@ -475,8 +474,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   if (ownProjects) {
     return <SoloWorkspace token={token} who={courseInfo ? courseInfo.courseId : "Teacher"}
                           onExit={() => setOwnProjects(false)}>
-      {({ doc, awareness, files, kind }) =>
-        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} token={token} />}
+      {(props) => <CollabWorkspace {...props} token={token} />}
     </SoloWorkspace>;
   }
 
@@ -811,6 +809,10 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const [title, setTitle] = useState("My project");
   const [live, setLive] = useState(false);
   const [accountToken, setAccountToken] = useState<string | null>(null);
+  /* Whether everything typed has reached the server. The game editor shows it
+     on a SAVED button, the way the offline IDE does, and pressing that button
+     stops waiting for the eight-second debounce. */
+  const [saved, setSaved] = useState(true);
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
   function sendConn(msg: WireMessage) { const c = connectionRef.current; if (c && c.open) c.send(msg); }
@@ -823,11 +825,13 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (!token || !doc || !id) return;
     // "Your account" is where a project of this student's own is saved. A
     // shared one is saved to the project itself, which is not the same claim.
-    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setStatus(ownerRef.current ? "Saved to the shared project." : "Saved to your account."); }
+    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setSaved(true); setStatus(ownerRef.current ? "Saved to the shared project." : "Saved to your account."); }
     catch { /* keep working; retry on next change */ }
   }
   function scheduleSave() {
-    if (!apiTokenRef.current || saveTimer.current !== null) return;
+    if (!apiTokenRef.current) return;
+    setSaved(false);
+    if (saveTimer.current !== null) return;
     saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void saveNow(); }, 8000);
   }
   /* Anything that leaves the current project has to flush first. With one
@@ -1111,7 +1115,8 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
                                   doc={docRef.current} awareness={awarenessRef.current} name={sessionRef.current?.name || "Me"}
                                   onOpenChange={setCoediting} initialRoom={hostRoom} members={memberCount} ownerName={projectOwner}
                                   onUsurped={(room) => { apiTokenRef.current = null; setHostRoom(null); setCoeditRoom(room); setCoeditOwned(true); setStep("coedit"); }} />}
-      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} token={accountToken ?? undefined} />
+      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} token={accountToken ?? undefined}
+                       saved={saved} save={() => { void flushSave(); }} />
       {accountToken && <MediaPanel token={accountToken} />}
     </section>
   </main>;
@@ -1158,7 +1163,7 @@ function MediaPanel({ token }: { token: string }) {
   </div>;
 }
 
-export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly, token }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean; token?: string }) {
+export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly, token, saved, save }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean; token?: string; saved?: boolean; save?: () => void }) {
   /* A game is not a folder of files with a page beside it, so it does not get
      the file tree: PixelPadIde shows the same shared document as classes,
      rooms and pictures, the way the offline PixelPad does.
@@ -1167,7 +1172,7 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly,
      project keeps this element mounted, so a student going from a web page to
      a game would change which hooks run - React counts them, and mismatched
      counts is the crash where the editor goes blank mid-lesson. */
-  if (kind === "pixelpad") return <PixelPadIde doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} />;
+  if (kind === "pixelpad") return <PixelPadIde doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} saved={saved} onSave={save} />;
   return <FileWorkspace doc={doc} awareness={awareness} files={files} kind={kind} readOnly={readOnly} />;
 }
 

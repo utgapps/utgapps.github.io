@@ -17,6 +17,7 @@
 // text matches the real IDE's word for word.
 
 import ENGINE from "./pixelpad-engine.js?raw";
+import { ICONS } from "./pixelpad-icons";
 
 export const MANIFEST_FILE = "game.txt";
 export const GAME_ENTRY = "Game.start.py";
@@ -242,27 +243,31 @@ function bridge(nonce: string): string {
    hidden until the app asks for it. It has to live in here: every switch on it
    is a field on the Engine running in this frame. */
 const STAGE_CSS =
-  "html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}" +
-  "#canvasContainer{display:flex;align-items:center;justify-content:center;width:100%;height:100%}" +
+  "html,body{margin:0;height:100%;overflow:hidden;background:#343A40}" +
+  "#canvasContainer{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#343A40}" +
   "#debugContainer{margin:auto;position:relative;max-width:100%;max-height:100%}" +
-  "#stage{display:block;outline:none}" +
-  "#debugPanel{width:100%;height:30px;background:#2f1c40;display:none;align-items:center;padding:0 2px}" +
+  "#stage{display:block;margin:auto;outline:none;touch-action:none;image-rendering:auto;background:#000}" +
+  "#debugPanel{width:100%;height:30px;background:#2F1C40;display:none;align-items:center;padding:0 2px}" +
   "#debugPanel.on{display:flex}" +
-  ".debugButton{width:25px;height:25px;margin:0 2px;border:0;border-radius:.2rem;background:#6d399f;color:#fff;" +
-  "display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 12px system-ui,sans-serif}" +
-  ".debugButton.on{background:#17a2b8}" +
-  "#debugReadout{margin-left:auto;padding-right:.5rem;color:#fff;opacity:.8;white-space:nowrap;font:11px system-ui,sans-serif}" +
+  ".debugButton{width:25px;height:25px;background:#6D399F;color:#fff;margin-left:2px;margin-right:2px;" +
+  "display:flex;align-items:center;justify-content:center;border-radius:2.8px;cursor:pointer;border:0;padding:0}" +
+  ".debugButton.on{background:#17A2B8}" +
+  "svg.i{width:1em;height:1em;fill:currentColor;vertical-align:-.125em;flex:none}" +
+  '#debugReadout{margin-left:auto;padding-right:7px;font:11px Rubik,"Segoe UI",system-ui,sans-serif;' +
+  "color:#fff;opacity:.8;white-space:nowrap}" +
   "#output{display:none}";
 
 /* The bar itself. Four switches, each one a single Engine field, in the order
    the offline IDE puts them: what the game thinks is happening, what one thing
    is holding, hold still, and where the middle of the screen is. */
+const glyph = (name: string) => '<svg class="i" viewBox="0 0 16 16">' + (ICONS[name] || "") + "</svg>";
+
 const DEBUG_BAR =
   '<div id="debugPanel">' +
-  '<button class="debugButton" id="generalDebug" title="Show what the game is doing">i</button>' +
-  '<button class="debugButton" id="objectDebug" title="Click a thing to look inside it">\u25ce</button>' +
-  '<button class="debugButton" id="pauseDebug" title="Freeze the game">\u275a\u275a</button>' +
-  '<button class="debugButton" id="rulerDebug" title="Show the grid">#</button>' +
+  '<button class="debugButton" id="generalDebug" title="Show what the game is doing">' + glyph("info") + "</button>" +
+  '<button class="debugButton" id="objectDebug" title="Click a thing to look inside it">' + glyph("hand") + "</button>" +
+  '<button class="debugButton" id="pauseDebug" title="Freeze the game">' + glyph("pause") + "</button>" +
+  '<button class="debugButton" id="rulerDebug" title="Show the grid">' + glyph("ruler") + "</button>" +
   '<span id="debugReadout"></span></div>';
 
 /** The script that turns one config into a running game.
@@ -379,7 +384,7 @@ function runner(config: GameConfig, nonce: string): string {
 "    el(\"objectDebug\").classList.toggle(\"on\", Engine.debug.inspect);\n" +
 "    el(\"pauseDebug\").classList.toggle(\"on\", Engine.paused);\n" +
 "    el(\"rulerDebug\").classList.toggle(\"on\", Engine.debug.grid);\n" +
-"    el(\"debugReadout\").textContent = Engine.running ? Engine.fps + \" fps - \" + Engine.objects.length + \" things\" : \"\";\n" +
+"    el(\"debugReadout\").textContent = Engine.running ? Engine.fps + \" fps \\u00b7 \" + Engine.objects.length + \" objs\" : \"\";\n" +
 "  }\n" +
 "  el(\"generalDebug\").onclick = function () { Engine.debug.info = !Engine.debug.info; syncDebug(); Engine.render(); };\n" +
 "  el(\"objectDebug\").onclick = function () { Engine.debug.inspect = !Engine.debug.inspect; syncDebug(); Engine.render(); };\n" +
@@ -410,4 +415,128 @@ export function buildGamePreview(files: Record<string, string>, nonce: string): 
     "<script>\n" + ENGINE.replaceAll("</script", "<\\/script") + "\n<\/script>" +
     runner(config, nonce) +
     "</body></html>";
+}
+
+
+/* ---------- .pp2d ---------------------------------------------------------
+
+   The file pixelpad.io itself reads and writes, so a game made here opens
+   there and a game made there opens here. Its shape, verified against a live
+   export and mirrored in vendor/pixelpad-offline.html:
+
+     { "pythonAssets": {
+         "script":   [ {"Game": {"type":"game script",    "start":"", "loop":""}} ],
+         "room":     [ {"Play": {"type":"room script",    "start":"", "loop":""}} ],
+         "texture":  [ {"a.png": {"type":"image", "uri":"..."}} ],
+         "sound":    [ {"a.wav": {"type":"audio", "uri":"..."}} ],
+         "function": [ {"helpers.py": {"type":"function script", "head":""}} ]
+     } }
+
+   Every entry is a one-key object, and a folder is the same shape with an
+   array for its value - so folders flatten on the way in and keep what is in
+   them. */
+
+type Pp2dDef = { type?: string; start?: string; loop?: string; head?: string; uri?: string };
+type Pp2dEntry = Record<string, Pp2dDef>;
+
+/** A plain colour as a picture, for a project that leaves this IDE. game.txt
+ *  can say "green"; a .pp2d has nowhere to put that, only a uri. */
+function colourUri(rgb: [number, number, number], width: number, height: number): string {
+  return "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">' +
+    '<rect width="100%" height="100%" fill="rgb(' + rgb.join(",") + ')"/></svg>');
+}
+
+/** This project as a .pp2d document. */
+export function toPp2d(files: Record<string, string>): string {
+  const manifest = parseManifest(files[MANIFEST_FILE] ?? "");
+  const panels = new Map<string, Panels>();
+  const functions: Pp2dEntry[] = [];
+  for (const path of Object.keys(files).sort()) {
+    const shared = functionOf(path);
+    if (shared) { functions.push({ [shared + ".py"]: { type: "function script", head: files[path] ?? "" } }); continue; }
+    const panel = panelOf(path);
+    if (!panel) continue;
+    const both = panels.get(panel.asset) ?? { start: "", loop: "" };
+    both[panel.tab] = files[path] ?? "";
+    panels.set(panel.asset, both);
+  }
+  const script: Pp2dEntry[] = [];
+  const room: Pp2dEntry[] = [];
+  for (const [name, both] of panels) {
+    if (manifest.rooms.includes(name)) room.push({ [name]: { type: "room script", start: both.start, loop: both.loop } });
+    else script.push({ [name]: { type: name === "Game" ? "game script" : "object script", start: both.start, loop: both.loop } });
+  }
+  /* The game script leads, as it does in a live export. */
+  script.sort((a, b) => Number(Object.values(b)[0].type === "game script") - Number(Object.values(a)[0].type === "game script"));
+  const texture: Pp2dEntry[] = manifest.sprites.map((sprite) => ({
+    [sprite.name]: {
+      type: "image",
+      uri: isLink(sprite.source) ? sprite.source : colourUri(RGB[sprite.source], sprite.width, sprite.height),
+    },
+  }));
+  return JSON.stringify({ pythonAssets: { script, room, texture, sound: [], function: functions } });
+}
+
+function walkPp2d(list: unknown, out: { name: string; def: Pp2dDef }[] = []): { name: string; def: Pp2dDef }[] {
+  if (!Array.isArray(list)) return out;
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object") continue;
+    for (const name of Object.keys(entry)) {
+      const value = (entry as Record<string, unknown>)[name];
+      if (Array.isArray(value)) walkPp2d(value, out);                       // a folder
+      else if (value && typeof value === "object") out.push({ name, def: value as Pp2dDef });
+    }
+  }
+  return out;
+}
+
+/** A .pp2d document as files this editor can open. Anything it cannot bring
+ *  across is said out loud rather than dropped quietly. */
+export function fromPp2d(text: string): { files: Record<string, string>; notes: string[] } {
+  let data: unknown;
+  try { data = JSON.parse(text); }
+  catch { throw new Error("That file is not a .pp2d - a .pp2d is JSON, and this would not parse."); }
+  const holder = data as { pythonAssets?: unknown };
+  const assets = (holder && holder.pythonAssets ? holder.pythonAssets : data) as Record<string, unknown>;
+  if (!assets || typeof assets !== "object") throw new Error("That file has no pythonAssets section, so it is not a .pp2d.");
+  const scripts = walkPp2d(assets.script);
+  if (!scripts.length) throw new Error("There are no scripts in that file.");
+
+  const files: Record<string, string> = {};
+  const notes: string[] = [];
+  const rooms: string[] = [];
+  const sprites: string[] = [];
+
+  const asPanels = (name: string, def: Pp2dDef) => {
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) { notes.push('Skipped "' + name + '": a name has to be letters and numbers.'); return false; }
+    files[name + ".start.py"] = def.start ?? "";
+    if ((def.loop ?? "").trim()) files[name + ".loop.py"] = def.loop as string;
+    return true;
+  };
+  for (const { name, def } of scripts) asPanels(name, def);
+  for (const { name, def } of walkPp2d(assets.room)) if (asPanels(name, def)) rooms.push(name);
+  for (const { name, def } of walkPp2d(assets.function)) {
+    const clean = name.replace(/\.py$/, "");
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(clean)) { notes.push('Skipped the function "' + name + '": a name has to be letters and numbers.'); continue; }
+    files[clean + ".fn.py"] = def.head ?? "";
+  }
+  /* A picture's size is not in a .pp2d - the engine measures the real thing
+     every frame, so the numbers here only decide how big a plain colour is. */
+  for (const { name, def } of walkPp2d(assets.texture)) {
+    const uri = def.uri ?? "";
+    if (!uri) { notes.push('The picture "' + name + '" had no image in it, so it came across as a green square.'); }
+    if (/\s/.test(name)) { notes.push('Skipped the picture "' + name + '": a name cannot have a space in it.'); continue; }
+    sprites.push("sprite " + name + " " + (uri && isLink(uri) ? uri : "green") + " 48 48");
+  }
+  for (const { name } of walkPp2d(assets.sound)) {
+    notes.push('The sound "' + name + '" stayed behind: sounds here are the two the engine makes itself, blip and crunch.');
+  }
+
+  files[MANIFEST_FILE] =
+    "# This file tells the game about your screens and your pictures.\n" +
+    "# Anything after a # is a note to yourself - the game ignores it.\n" +
+    (rooms.length ? "\n# A room is one screen.\n" + rooms.map((name) => "room " + name).join("\n") + "\n" : "") +
+    (sprites.length ? "\n# A picture: its name, a colour or a link, how wide, how tall.\n" + sprites.join("\n") + "\n" : "");
+  return { files, notes };
 }

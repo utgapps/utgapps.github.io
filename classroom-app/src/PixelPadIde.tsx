@@ -1,44 +1,70 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from "react";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { CollabEditor } from "./CollabEditor";
-import { RunPanel } from "./RunPanel";
 import { docToFiles, fileText, filesMap } from "./lib/collab";
-import { MANIFEST_FILE, RGB, functionOf, panelOf, parseManifest, type Sprite } from "./lib/pixelpad";
+import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, type Sprite } from "./lib/pixelpad";
+import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
+import { ICONS } from "./lib/pixelpad-icons";
+import { starterFiles } from "./lib/types";
+import { downloadFile } from "./lib/classroom";
 import { apiUploadMedia } from "./lib/api";
 import { compressImage } from "./lib/media";
+import "./pixelpad-ide.css";
 
-/* The PixelPad editor, laid out like the offline one in
-   vendor/pixelpad-offline.html: the things in the game down the left, the code
-   for whichever one is selected in the middle - start above, loop below - and
-   the stage with its console on the right.
-
-   What is different is underneath. The offline IDE keeps its project in one
-   browser's localStorage; here every panel is a file in the shared document,
-   so the same code autosaves to the student's account, syncs to whoever they
-   are sharing with, and appears live on the teacher's screen. This screen
-   holds no state of its own except which thing is selected: press ＋ and a
-   file appears, because the sidebar is a view of the files.
-
-       Classes     Monster.start.py  +  Monster.loop.py
-       Rooms       Play.start.py     +  Play.loop.py      + "room Play" in game.txt
-       Functions   Helpers.fn.py
-       Sprites     a "sprite" line in game.txt
-
-   game.txt stays a file a child can open and read, because the PXP101 textbook
-   teaches it as one. The sidebar writes the same lines they would type. */
+/* The PixelPad editor.
+ *
+ * This is the offline IDE - vendor/pixelpad-offline.html - rather than a
+ * screen that resembles it. Its stylesheet and its glyphs are cut out of that
+ * file by tools/build-engine.mjs, and the markup below is the markup in it,
+ * id for id: #pp-block0 down the left with the things in the game, #pp-block1
+ * in the middle with start above and loop below, #pp-block2 on the right with
+ * the stage over the console, and two draggable dividers between them. A child
+ * who learns one of these two editors has learned the other.
+ *
+ * What is different is underneath, and none of it shows:
+ *
+ *   - the project is not in localStorage, it is the shared document. Every
+ *     panel is a file in it, so the same code autosaves to the student's
+ *     account, syncs to whoever they are sharing with, and appears live on the
+ *     teacher's screen. This screen holds no state of its own beyond which
+ *     thing is selected - press + and a file appears, because the sidebar is a
+ *     view of the files.
+ *   - the game runs in a sandboxed frame rather than in this page, so a
+ *     runaway loop takes the frame down and not the editor. The debug bar is
+ *     inside that frame because every switch on it is a field on the Engine
+ *     running there; PLAY, the console and the four toggles are out here.
+ *   - a picture goes to the student's own media on the server, which is what
+ *     makes it survive the next laptop they sit down at.
+ *
+ *       Classes     Monster.start.py  +  Monster.loop.py
+ *       Rooms       Play.start.py     +  Play.loop.py      + "room Play" in game.txt
+ *       Functions   Helpers.fn.py
+ *       Sprites     a "sprite" line in game.txt
+ *
+ * game.txt stays a file a child can open and read, because the PXP101 textbook
+ * teaches it as one. The sidebar writes the same lines they would type.
+ */
 
 type Selection =
   | { kind: "panels"; name: string }      // a class or a room: start and loop
   | { kind: "function"; name: string }    // shared code: one body
   | { kind: "sprite"; name: string }      // "" while a new one is being made
+  | { kind: "sound"; name: string }       // one of the two the engine makes
   | { kind: "file"; name: string };       // game.txt, or anything else in there
 
 const GAME = "Game";
 
+/* The engine synthesises these two and nothing else, so they need no file and
+   cannot be deleted. They are on the list because a child who cannot see them
+   cannot know they are there to be played. */
+const SOUNDS = ["blip", "crunch"];
+
 const startPath = (name: string) => name + ".start.py";
 const loopPath = (name: string) => name + ".loop.py";
 const fnPath = (name: string) => name + ".fn.py";
+const isLink = (source: string) => /^(https?:|data:)/i.test(source);
+const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
 /* A name has to work as a Python class name: somebody's code will say
    Monster(). The message says what to do rather than quoting the rule. */
@@ -68,8 +94,20 @@ const STARTER_MANIFEST =
   "\n" +
   "room Play\n";
 
-export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
+/** One of the offline IDE's glyphs. They are paths in a 16x16 box that take
+ *  the colour of whatever they sit in, cut out of the vendored file. */
+function Icon({ name, className }: { name: string; className?: string }) {
+  return <svg className={className ? "i " + className : "i"} viewBox="0 0 16 16"
+              dangerouslySetInnerHTML={{ __html: ICONS[name] ?? "" }} />;
+}
+
+export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = true, onSave }: {
   doc: Y.Doc; awareness: Awareness; files: Record<string, string>; token?: string; readOnly?: boolean;
+  /** Whether everything typed has reached the server. The offline IDE's SAVE
+   *  button is the one thing on this screen that cannot be copied honestly:
+   *  saving here is automatic, so the button reports it and forces it. */
+  saved?: boolean;
+  onSave?: () => void;
 }) {
   /* The parent re-derives `files` on a debounce, which is soon enough for the
      stage but not for a sidebar that has to show a new class the instant a
@@ -80,12 +118,45 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
   const touched = () => setVersion((n) => n + 1);
 
   const [selected, setSelected] = useState<Selection>({ kind: "panels", name: GAME });
-  const [tabbed, setTabbed] = useState(() => localStorage.getItem("utg_pp_layout") === "tabbed");
   const [half, setHalf] = useState<"start" | "loop">("start");
   const [ask, setAsk] = useState<AskState | null>(null);
 
+  /* The four switches along the top of the sidebar, remembered per browser the
+     way the offline IDE remembers them: a child who works in the dark theme
+     should not have to turn it on every morning. */
+  const [dark, setDark] = useState(() => localStorage.getItem("utg_pp_theme") === "dark");
+  const [tabbed, setTabbed] = useState(() => localStorage.getItem("utg_pp_layout") === "tabbed");
+  const [debug, setDebug] = useState(() => localStorage.getItem("utg_pp_debug") === "on");
+  const [suggest, setSuggest] = useState(() => localStorage.getItem("utg_pp_suggest") !== "off");
+
+  /* Column widths, as percentages of the whole editor, clamped where the
+     offline IDE clamps them. */
+  const [sideWidth, setSideWidth] = useState(12);
+  const [codeWidth, setCodeWidth] = useState(45);
+  const sideRef = useRef(sideWidth);
+  sideRef.current = sideWidth;
+
+  const importRef = useRef<HTMLInputElement>(null);
+  const ideRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  /* The offline IDE is the whole window. Here there is a classroom page above
+     it - a title, the share box - so it takes the rest of the window instead,
+     measured rather than guessed at, because how tall that page is depends on
+     whether this student is sharing and whether their teacher is watching. */
+  useLayoutEffect(() => {
+    const element = ideRef.current;
+    if (!element) return;
+    function measure() {
+      if (!element) return;
+      const top = element.getBoundingClientRect().top + window.scrollY;
+      setHeight(Math.max(520, window.innerHeight - top - 16));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
   const manifest = useMemo(() => parseManifest(snapshot[MANIFEST_FILE] ?? ""), [snapshot]);
-  const hasManifest = MANIFEST_FILE in snapshot;
 
   /* Everything in the project, sorted into the sidebar's sections. A panel
      whose name game.txt calls a room is a room; anything else is a thing you
@@ -119,6 +190,43 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
       (selected.kind === "file" && selected.name !== MANIFEST_FILE && !others.includes(selected.name));
     if (gone) setSelected({ kind: "panels", name: GAME });
   }, [classes, rooms, functions, others, manifest, selected]);
+
+  // ---- running the game ----------------------------------------------------
+
+  const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
+  const [runId, setRunId] = useState(0);        // key bump: forces a real unmount
+  const [nonce, setNonce] = useState("");       // identifies this run's messages
+  const [log, setLog] = useState<PreviewMessage[]>([]);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const outRef = useRef<HTMLPreElement>(null);
+
+  function play() {
+    const next = crypto.randomUUID();
+    setLog([]); setNonce(next); setRunFiles({ ...snapshot }); setRunId((id) => id + 1);
+  }
+  function stop() {
+    // Unmounting is the only reliable way to stop a page's timers, listeners
+    // and in-flight requests. Clearing srcDoc would leave them running.
+    setRunFiles(null); setNonce("");
+    say("system", "Your game stopped.");
+  }
+  function say(kind: PreviewMessage["kind"], text: string) {
+    setLog((prev) => [...prev, { __utg: "", kind, text, at: Date.now() }]);
+  }
+  function tellFrameDebug(on: boolean) {
+    frameRef.current?.contentWindow?.postMessage({ __utg: nonce, debug: on }, "*");
+  }
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const message = isPreviewMessage(event, frameRef.current, nonce);
+      if (!message) return;   // includes stale output from a previous run, dropped by nonce
+      setLog((prev) => (prev.length >= 300 ? [...prev.slice(-299), message] : [...prev, message]));
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [nonce]);
+  useEffect(() => { if (outRef.current) outRef.current.scrollTop = outRef.current.scrollHeight; }, [log.length]);
 
   // ---- writing to the shared document -------------------------------------
 
@@ -235,6 +343,56 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
     touched();
   }
 
+  // ---- the Project list ----------------------------------------------------
+
+  /* Erase and start again, as the offline IDE's New does. It says what it is
+     about to throw away, because here that is work saved to an account rather
+     than to this browser. */
+  function newProject() {
+    if (!window.confirm("Start a new game? Everything in this project is replaced by the starter game, and that cannot be undone.")) return;
+    const starter = starterFiles("pixelpad");
+    doc.transact(() => {
+      const map = filesMap(doc);
+      for (const path of [...map.keys()]) map.delete(path);
+      for (const [path, text] of Object.entries(starter)) {
+        const body = new Y.Text();
+        map.set(path, body);
+        body.insert(0, text);
+      }
+    });
+    touched();
+    setSelected({ kind: "panels", name: GAME });
+    say("system", "Started a new game.");
+  }
+
+  function exportProject() {
+    downloadFile("game.pp2d", toPp2d(snapshot), "application/json");
+    say("system", "Exported game.pp2d - it opens here and on pixelpad.io.");
+  }
+
+  async function importProject(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    let brought;
+    try { brought = fromPp2d(await file.text()); }
+    catch (err) { say("error", (err as Error).message); return; }
+    if (!window.confirm("Open " + file.name + "? Everything in this project is replaced by what is in that file.")) return;
+    doc.transact(() => {
+      const map = filesMap(doc);
+      for (const path of [...map.keys()]) map.delete(path);
+      for (const [path, text] of Object.entries(brought.files)) {
+        const body = new Y.Text();
+        map.set(path, body);
+        body.insert(0, text);
+      }
+    });
+    touched();
+    setSelected({ kind: "panels", name: GAME });
+    say("system", "Imported " + file.name + ".");
+    for (const note of brought.notes) say("system", note);
+  }
+
   // ---- the naming box ------------------------------------------------------
 
   const askNewClass = () => setAsk({
@@ -257,52 +415,106 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
   // ---- what the middle column shows ----------------------------------------
 
   const spriteShown = selected.kind === "sprite" && selected.name
-    ? manifest.sprites.find((s) => s.name === selected.name) || null
+    ? manifest.sprites.find((s) => s.name === selected.name) ?? null
     : null;
+  const showingAsset = selected.kind === "sprite" || selected.kind === "sound";
 
   const codeFiles: { path: string; label: string }[] =
     selected.kind === "panels" ? [
-      { path: startPath(selected.name), label: selected.name + " Start" },
-      { path: loopPath(selected.name), label: selected.name + " Loop" },
+      { path: startPath(selected.name), label: selected.name },
+      { path: loopPath(selected.name), label: selected.name },
     ]
     : selected.kind === "function" ? [{ path: fnPath(selected.name), label: selected.name }]
     : selected.kind === "file" ? [{ path: selected.name, label: selected.name }]
     : [];
-
-  const one = codeFiles.length === 1;
+  /* One editor, not two. A picture or a sound has no panels at all, and the
+     code column is still mounted behind it - hidden, the way the offline IDE
+     hides it - so this has to be true of nothing as well as of one. */
+  const one = codeFiles.length <= 1;
+  const shownName = codeFiles.length ? codeFiles[0].label : GAME;
 
   /* A panel nobody has written yet. The starter has Game.start.py and no
      Game.loop.py, because a game with nothing moving needs no loop - so this
      is the ordinary state of a new project, not an error. Writing it is one
      press, and the file appears with the same note in it a new panel gets. */
   function pane(path: string) {
-    if (path in snapshot) return <CollabEditor doc={doc} file={path} awareness={awareness} readOnly={readOnly} />;
+    if (path in snapshot) return <CollabEditor doc={doc} file={path} awareness={awareness} readOnly={readOnly} ppe suggest={suggest} />;
     const name = path.slice(0, path.indexOf("."));
-    const starter = path.endsWith(".fn.py") ? starterFunction(name)
+    const starter = path === MANIFEST_FILE ? STARTER_MANIFEST
+      : path.endsWith(".fn.py") ? starterFunction(name)
       : path.endsWith(".loop.py") ? starterLoop(name)
       : rooms.includes(name) ? starterRoomStart(name) : starterStart(name);
     return <div className="pp-blank">
-      <p>{path.endsWith(".loop.py")
-        ? name + " does nothing over and over yet."
+      <p>{path === MANIFEST_FILE ? "This game has no " + MANIFEST_FILE + " yet."
+        : path.endsWith(".loop.py") ? name + " does nothing over and over yet."
         : "Nothing happens when " + name + " is made yet."}</p>
-      {!readOnly && <button className="secondary" onClick={() => { makeFile(path, starter); touched(); }}>Write {path}</button>}
+      {!readOnly && <span className="btn btn-success" onClick={() => { makeFile(path, starter); touched(); }}>Write {path}</span>}
     </div>;
   }
 
-  return <div className="pp-ide">
-    <aside className="pp-side">
-      <div className="pp-layout-row">
-        <button className={tabbed ? "pp-layout" : "pp-layout on"} title="Start and loop, one above the other"
-                onClick={() => { setTabbed(false); localStorage.setItem("utg_pp_layout", "split"); }}>Split</button>
-        <button className={tabbed ? "pp-layout on" : "pp-layout"} title="One panel at a time"
-                onClick={() => { setTabbed(true); localStorage.setItem("utg_pp_layout", "tabbed"); }}>Tabs</button>
+  function drag(which: "code" | "canvas") {
+    return (event: ReactMouseEvent) => {
+      event.preventDefault();
+      const ide = ideRef.current;
+      if (!ide) return;
+      function move(moved: globalThis.MouseEvent) {
+        if (!ide) return;
+        const total = ide.clientWidth;
+        const x = moved.clientX - ide.getBoundingClientRect().left;
+        if (which === "code") setSideWidth(clamp(x / total * 100, 6, 40));
+        else setCodeWidth(clamp((x - total * sideRef.current / 100 - 12) / total * 100, 15, 75));
+      }
+      function up() {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+        document.body.style.cursor = "";
+      }
+      document.body.style.cursor = "col-resize";
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+    };
+  }
+
+  const startTab = <><Icon name="flag" /><span><span>{shownName}</span> Start</span></>;
+  const loopTab = <><Icon name="redo" /><span><span>{shownName}</span> Loop</span></>;
+
+  return <div id="pp3d-ide" ref={ideRef} className={dark ? "pp3d-ide pp-dark" : "pp3d-ide"}
+              style={height ? { height: height + "px" } : undefined}>
+
+    {/* ============ assets sidebar ============ */}
+    <div id="pp-block0" className="ide-ui usel" style={{ width: sideWidth + "%" }}>
+      <div className="toggle-row">
+        <label className="form-check-inline" title="Dark theme">
+          <span><Icon name="adjust" /></span>
+          <input type="checkbox" checked={dark}
+                 onChange={(event) => { setDark(event.target.checked); localStorage.setItem("utg_pp_theme", event.target.checked ? "dark" : "light"); }} />
+        </label>
+        <label className="form-check-inline" title="Tabbed layout">
+          <span><Icon name="columns" /></span>
+          <input type="checkbox" checked={tabbed}
+                 onChange={(event) => { setTabbed(event.target.checked); localStorage.setItem("utg_pp_layout", event.target.checked ? "tabbed" : "split"); }} />
+        </label>
+        <label className="form-check-inline" title="Debug overlay">
+          <span><Icon name="bug" /></span>
+          <input type="checkbox" checked={debug}
+                 onChange={(event) => {
+                   setDebug(event.target.checked);
+                   localStorage.setItem("utg_pp_debug", event.target.checked ? "on" : "off");
+                   tellFrameDebug(event.target.checked);
+                 }} />
+        </label>
+        <label className="form-check-inline" title="Suggestions">
+          <span><Icon name="lightbulb" /></span>
+          <input type="checkbox" checked={suggest}
+                 onChange={(event) => { setSuggest(event.target.checked); localStorage.setItem("utg_pp_suggest", event.target.checked ? "on" : "off"); }} />
+        </label>
       </div>
 
       <SideHead title="Classes" add="New class" onAdd={readOnly ? undefined : askNewClass} />
-      <ul className="pp-list">
-        <SideItem name={GAME} active={selected.kind === "panels" && selected.name === GAME}
+      <ul className="pp-asset-list">
+        <SideItem name={GAME} icon="university" active={selected.kind === "panels" && selected.name === GAME}
                   onOpen={() => setSelected({ kind: "panels", name: GAME })} />
-        {classes.map((name) => <SideItem key={name} name={name}
+        {classes.map((name) => <SideItem key={name} name={name} icon="cube"
           active={selected.kind === "panels" && selected.name === name}
           onOpen={() => setSelected({ kind: "panels", name })}
           onRename={readOnly ? undefined : () => askRename(name, "panels")}
@@ -310,9 +522,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
       </ul>
 
       <SideHead title="Rooms" add="New room" onAdd={readOnly ? undefined : askNewRoom} />
-      <ul className="pp-list">
-        {rooms.length === 0 && <li className="pp-empty">No screens yet.</li>}
-        {rooms.map((name) => <SideItem key={name} name={name}
+      <ul className="pp-asset-list">
+        {rooms.map((name) => <SideItem key={name} name={name} icon="university"
           active={selected.kind === "panels" && selected.name === name}
           onOpen={() => setSelected({ kind: "panels", name })}
           onRename={readOnly ? undefined : () => askRename(name, "panels")}
@@ -320,18 +531,23 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
       </ul>
 
       <SideHead title="Sprites" add="New picture" onAdd={readOnly ? undefined : () => setSelected({ kind: "sprite", name: "" })} />
-      <ul className="pp-list">
-        {manifest.sprites.length === 0 && <li className="pp-empty">No pictures yet.</li>}
-        {manifest.sprites.map((sprite) => <SideItem key={sprite.name} name={sprite.name}
+      <ul className="pp-asset-list">
+        {manifest.sprites.map((sprite) => <SideItem key={sprite.name} name={sprite.name} icon="image"
           active={selected.kind === "sprite" && selected.name === sprite.name}
           onOpen={() => setSelected({ kind: "sprite", name: sprite.name })}
           onDelete={readOnly ? undefined : () => deleteSprite(sprite.name)} />)}
       </ul>
 
+      <SideHead title="Sounds" />
+      <ul className="pp-asset-list">
+        {SOUNDS.map((name) => <SideItem key={name} name={name} icon="volume"
+          active={selected.kind === "sound" && selected.name === name}
+          onOpen={() => setSelected({ kind: "sound", name })} />)}
+      </ul>
+
       <SideHead title="Functions" add="New function" onAdd={readOnly ? undefined : askNewFunction} />
-      <ul className="pp-list">
-        {functions.length === 0 && <li className="pp-empty">None yet.</li>}
-        {functions.map((name) => <SideItem key={name} name={name}
+      <ul className="pp-asset-list">
+        {functions.map((name) => <SideItem key={name} name={name} icon="cube"
           active={selected.kind === "function" && selected.name === name}
           onOpen={() => setSelected({ kind: "function", name })}
           onRename={readOnly ? undefined : () => askRename(name, "function")}
@@ -339,46 +555,97 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly }: {
       </ul>
 
       <SideHead title="Project" />
-      <ul className="pp-list">
-        <SideItem name={MANIFEST_FILE} active={selected.kind === "file" && selected.name === MANIFEST_FILE}
+      <ul className="pp-asset-list" style={{ paddingBottom: "42px" }}>
+        <SideItem name={MANIFEST_FILE} icon="text" active={selected.kind === "file" && selected.name === MANIFEST_FILE}
+                  title="The file that lists your rooms and your pictures"
                   onOpen={() => setSelected({ kind: "file", name: MANIFEST_FILE })} />
-        {others.map((path) => <SideItem key={path} name={path}
+        {others.map((path) => <SideItem key={path} name={path} icon="file"
           active={selected.kind === "file" && selected.name === path}
           onOpen={() => setSelected({ kind: "file", name: path })}
           onDelete={readOnly ? undefined : () => deleteFile(path)} />)}
+        {!readOnly && <>
+          <SideItem name="New" icon="file" active={false} title="Throw this game away and start again" onOpen={newProject} />
+          <SideItem name="Export" icon="download" active={false} title="Save a .pp2d file - it opens on pixelpad.io" onOpen={exportProject} />
+          <SideItem name="Import" icon="upload" active={false} title="Open a .pp2d file"
+                    onOpen={() => importRef.current?.click()} />
+        </>}
       </ul>
-    </aside>
+      <input ref={importRef} type="file" accept=".pp2d,application/json" style={{ display: "none" }} onChange={(event) => { void importProject(event); }} />
+    </div>
 
-    <section className="pp-code">
-      {selected.kind === "sprite"
-        ? <SpriteBox sprite={spriteShown} taken={manifest.sprites.map((s) => s.name)} token={token} readOnly={readOnly}
-                     onSave={(sprite) => saveSprite(spriteShown, sprite)}
-                     onCancel={() => setSelected({ kind: "panels", name: GAME })} />
-        : selected.kind === "file" && selected.name === MANIFEST_FILE && !hasManifest
-          ? <div className="pp-blank">
-              <h3>This game has no {MANIFEST_FILE}</h3>
-              <p>That is the file that says which of your screens is a room, and what your pictures are called.</p>
-              {!readOnly && <button className="primary" onClick={() => { makeFile(MANIFEST_FILE, STARTER_MANIFEST); touched(); }}>Make {MANIFEST_FILE}</button>}
-            </div>
-        : tabbed || one
-          ? <div className="pp-panes">
-              <div className="pp-tabs">
-                {codeFiles.map((file, index) => <button key={file.path}
-                  className={one || (half === "start") === (index === 0) ? "pp-tab active" : "pp-tab"}
-                  onClick={() => setHalf(index === 0 ? "start" : "loop")}>{file.label}</button>)}
+    <div id="pp-col-adjust-code" onMouseDown={drag("code")}><span className="text-vert">• • •</span></div>
+
+    {/* ============ code column ============ */}
+    <div id="pp-block1" style={{ width: codeWidth + "%" }}>
+      <div id="pp-block1-child" style={showingAsset ? { display: "none" } : undefined}>
+
+        {tabbed
+          ? <div id="hLayout" className="on">
+              <div className="startloop-row">
+                <div className={half === "start" ? "startloop start active" : "startloop start"}
+                     onClick={() => setHalf("start")}>{startTab}</div>
+                {!one && <div className={half === "loop" ? "startloop loop active" : "startloop loop"}
+                     onClick={() => setHalf("loop")}>{loopTab}</div>}
               </div>
-              <div className="pp-host">{pane(one || half === "start" ? codeFiles[0].path : codeFiles[1].path)}</div>
+              <div id="startloop-container">
+                {codeFiles.length > 0 && pane(one || half === "start" ? codeFiles[0].path : codeFiles[1].path)}
+              </div>
             </div>
-          : <div className="pp-panes split">
-              {codeFiles.map((file, index) => <div key={file.path} className="pp-half">
-                <button className={(half === "start") === (index === 0) ? "pp-tab active" : "pp-tab"}
-                        onClick={() => setHalf(index === 0 ? "start" : "loop")}>{file.label}</button>
-                <div className="pp-host">{pane(file.path)}</div>
-              </div>)}
+          : <div id="vLayout">
+              <div id="vLayoutStartTab" className={half === "start" ? "active" : undefined}
+                   onClick={() => setHalf("start")}>{startTab}</div>
+              <div id="pp-block1code" className={half === "start" ? "pp-code-host active" : "pp-code-host"}
+                   style={one ? { height: "100%" } : undefined}>
+                {codeFiles.length > 0 && pane(codeFiles[0].path)}
+              </div>
+              {!one && <>
+                <div id="vLayoutLoopTab" className={half === "loop" ? "active" : undefined}
+                     onClick={() => setHalf("loop")}><div>{loopTab}</div></div>
+                <div id="pp-block1loop" className={half === "loop" ? "pp-code-host active" : "pp-code-host"}>
+                  {pane(codeFiles[1].path)}
+                </div>
+              </>}
             </div>}
-    </section>
 
-    <RunPanel files={snapshot} kind="pixelpad" />
+      </div>
+
+      {/* the asset preview replaces the code column, as in the original */}
+      <div id="pp-block1-asset" className={showingAsset ? undefined : "hidden"}>
+        {selected.kind === "sprite"
+          ? <SpritePane sprite={spriteShown} taken={manifest.sprites.map((s) => s.name)} token={token} readOnly={readOnly}
+                        onSave={(sprite) => saveSprite(spriteShown, sprite)}
+                        onCancel={() => setSelected({ kind: "panels", name: GAME })} />
+          : selected.kind === "sound" ? <SoundPane name={selected.name} /> : null}
+      </div>
+    </div>
+
+    <div id="pp-col-adjust-canvas" onMouseDown={drag("canvas")}><span className="text-vert">• • •</span></div>
+
+    {/* ============ stage column ============ */}
+    <div id="pp-block2">
+      <div id="pp-block2-child">
+        <div id="toolbar">
+          <div id="pp-save" className={saved ? "btn btn-success" : "btn btn-danger"}
+               title={saved ? "Everything you have typed is saved to your account" : "Save now"}
+               onClick={() => onSave?.()}>{saved ? "SAVED" : "SAVE"}</div>
+          <div id="pp-start" className={runFiles ? "btn btn-danger" : "btn btn-success"}
+               onClick={() => (runFiles ? stop() : play())}>{runFiles ? "STOP" : "PLAY"}</div>
+        </div>
+        <div id="canvasContainer">
+          {runFiles
+            ? <iframe key={runId} ref={frameRef} title="Game" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
+                      onLoad={() => { if (debug) tellFrameDebug(true); }}
+                      srcDoc={buildGamePreview(runFiles, nonce)} />
+            : <div className="pp-stage-idle">Press PLAY to start your game.</div>}
+        </div>
+        <div id="pp-console" className="ide-ui">
+          <pre id="output" ref={outRef}>
+            {log.map((entry, index) => <div key={index}
+              className={entry.kind === "error" ? "err" : entry.kind === "system" ? "sys" : undefined}>{entry.text}</div>)}
+          </pre>
+        </div>
+      </div>
+    </div>
 
     {ask && <AskBox state={ask} onClose={() => setAsk(null)} />}
   </div>;
@@ -388,19 +655,22 @@ const spriteLine = (sprite: Sprite) =>
   sprite.name + " " + sprite.source + " " + sprite.width + " " + sprite.height;
 
 function SideHead({ title, add, onAdd }: { title: string; add?: string; onAdd?: () => void }) {
-  return <div className="pp-head">
-    <span>{title}</span>
-    {onAdd && <button className="pp-add" title={add} aria-label={add} onClick={onAdd}>＋</button>}
+  return <div className="assetHeader">{title}
+    {onAdd && <span className="add" title={add} onClick={onAdd}><Icon name="plus" /></span>}
   </div>;
 }
 
-function SideItem({ name, active, onOpen, onRename, onDelete }: {
-  name: string; active: boolean; onOpen: () => void; onRename?: () => void; onDelete?: () => void;
+function SideItem({ name, icon, active, title, onOpen, onRename, onDelete }: {
+  name: string; icon: string; active: boolean; title?: string;
+  onOpen: () => void; onRename?: () => void; onDelete?: () => void;
 }) {
-  return <li className={active ? "pp-item active" : "pp-item"}>
-    <button className="pp-open" onClick={onOpen} onDoubleClick={onRename}
-            title={onRename ? name + " - double-click to rename" : name}>{name}</button>
-    {onDelete && <button className="pp-kill" title={"Delete " + name} aria-label={"Delete " + name} onClick={onDelete}>✕</button>}
+  return <li className={active ? "pp-script-active" : "pp-script-inactive"}
+             title={title ?? (onRename ? name + " - double-click to rename" : name)}
+             onClick={onOpen} onDoubleClick={onRename}>
+    <Icon name={icon} />
+    <span className="name">{name}</span>
+    {onDelete && <span className="pp-asset-delete" title={"Delete " + name}
+                       onClick={(event) => { event.stopPropagation(); onDelete(); }}><Icon name="trash" /></span>}
   </li>;
 }
 
@@ -419,17 +689,17 @@ function AskBox({ state, onClose }: { state: AskState; onClose: () => void }) {
     if (complaint) { setProblem(complaint); return; }
     onClose();
   }
-  return <div className="pp-modal" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="pp-box">
-      <h3>{state.title}</h3>
-      <label>{state.label}
-        <input ref={input} value={value} onChange={(event) => { setValue(event.target.value); setProblem(""); }}
-               onKeyDown={(event) => { if (event.key === "Enter") submit(); if (event.key === "Escape") onClose(); }} />
-      </label>
+  return <div id="modal" className="on" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="box">
+      <h5>{state.title}</h5>
+      <p className="pp-modal-note">{state.label}</p>
+      <input ref={input} autoComplete="off" value={value}
+             onChange={(event) => { setValue(event.target.value); setProblem(""); }}
+             onKeyDown={(event) => { if (event.key === "Enter") submit(); if (event.key === "Escape") onClose(); }} />
       {problem && <p className="pp-problem">{problem}</p>}
-      <div className="pp-box-row">
-        <button className="text-button" onClick={onClose}>Cancel</button>
-        <button className="primary" onClick={submit}>OK</button>
+      <div className="row">
+        <span className="btn btn-sec" onClick={onClose}>Cancel</span>
+        <span className="btn btn-success" onClick={submit}>OK</span>
       </div>
     </div>
   </div>;
@@ -437,11 +707,13 @@ function AskBox({ state, onClose }: { state: AskState; onClose: () => void }) {
 
 /* A picture, as game.txt describes it: a name, something to draw, and how big
    it is. "Something to draw" is a colour while a game is being built - a plain
-   square is enough to watch a thing move - or a picture the child drew. The
-   offline IDE keeps that picture in this browser; here it goes to the
-   student's own media on the server, which is what makes it survive the next
-   laptop they sit down at. */
-function SpriteBox({ sprite, taken, token, readOnly, onSave, onCancel }: {
+   square is enough to watch a thing move - or a picture the child drew.
+
+   The offline IDE only ever shows a picture here, because there it is a file
+   on a disk. Here it is a line in game.txt, so the same pane is where that
+   line gets written: the preview above is the offline one, checkerboard and
+   all, and the form below it is the part that has nowhere else to live. */
+function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   sprite: Sprite | null; taken: string[]; token?: string; readOnly?: boolean;
   onSave: (sprite: Sprite) => void; onCancel: () => void;
 }) {
@@ -451,13 +723,60 @@ function SpriteBox({ sprite, taken, token, readOnly, onSave, onCancel }: {
   const [height, setHeight] = useState(String(sprite?.height ?? 48));
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState("");
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
     setName(sprite?.name ?? ""); setSource(sprite?.source ?? "green");
     setWidth(String(sprite?.width ?? 48)); setHeight(String(sprite?.height ?? 48));
     setProblem("");
   }, [sprite]);
 
-  const isLink = /^(https?:|data:)/i.test(source);
+  const picture = isLink(source);
+
+  /* The offline IDE's own preview: the picture at whatever zoom fits, on a
+     checkerboard so a transparent edge is obvious, with its real size and the
+     line of code that asks for it underneath. */
+  useEffect(() => {
+    let dropped = false;
+    let image: HTMLImageElement | null = null;
+    function draw() {
+      const canvas = canvasRef.current, host = bodyRef.current;
+      if (dropped || !canvas || !host) return;
+      const wide = image ? image.naturalWidth : Math.max(1, Number(width) || 48);
+      const high = image ? image.naturalHeight : Math.max(1, Number(height) || 48);
+      const room = Math.max(40, host.clientWidth - 24), tall = Math.max(40, host.clientHeight - 24);
+      const zoom = Math.max(0.05, Math.min(room / wide, tall / high, 4));
+      canvas.width = Math.max(1, Math.round(wide * zoom));
+      canvas.height = Math.max(1, Math.round(high * zoom));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const square = 8;
+      for (let y = 0; y < canvas.height; y += square) for (let x = 0; x < canvas.width; x += square) {
+        ctx.fillStyle = ((x / square + y / square) | 0) % 2 ? "#D8DCE0" : "#F0F2F4";
+        ctx.fillRect(x, y, square, square);
+      }
+      ctx.imageSmoothingEnabled = zoom < 3;
+      if (image) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      else {
+        const rgb = RGB[source] ?? RGB.green;
+        ctx.fillStyle = "rgb(" + rgb.join(",") + ")";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      setInfo((name || "your picture") + "\n" + wide + " x " + high + " px  ·  zoom " + Math.round(zoom * 100) + "%" +
+              '\n\nsprite("' + (name || "monster.png") + '")');
+    }
+    if (picture) {
+      const probe = new Image();
+      probe.onload = () => { image = probe; draw(); };
+      probe.onerror = () => { setInfo((name || "your picture") + "\nthat picture would not load"); };
+      probe.src = source;
+    }
+    draw();
+    window.addEventListener("resize", draw);
+    return () => { dropped = true; window.removeEventListener("resize", draw); };
+  }, [source, width, height, name, picture]);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -486,40 +805,43 @@ function SpriteBox({ sprite, taken, token, readOnly, onSave, onCancel }: {
     if (clean !== sprite?.name && taken.includes(clean)) { setProblem("There is already a picture called " + clean + "."); return; }
     const w = Number(width), h = Number(height);
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) { setProblem("The width and the height have to be numbers bigger than zero."); return; }
-    if (!isLink && !(source in RGB)) { setProblem("Pick a colour, or upload a picture."); return; }
+    if (!picture && !(source in RGB)) { setProblem("Pick a colour, or upload a picture."); return; }
     onSave({ name: clean, source, width: Math.round(w), height: Math.round(h) });
   }
 
-  return <div className="pp-sprite">
-    <div className="pp-tabs"><span className="pp-tab active">{sprite ? sprite.name : "New picture"}</span></div>
-    <div className="pp-sprite-body">
-      {isLink
-        ? <img src={source} alt={name || "picture"} />
-        : <span className="pp-swatch" style={{
-            background: "rgb(" + (RGB[source] || RGB.green).join(",") + ")",
-            width: Math.min(220, Math.max(16, Number(width) || 48)) + "px",
-            height: Math.min(220, Math.max(16, Number(height) || 48)) + "px",
-          }} />}
-    </div>
+  return <>
+    <div id="assetPreviewTab"><Icon name="image" /><span>{sprite ? sprite.name : "New picture"}</span></div>
+    <div id="assetPreviewBody" ref={bodyRef}><canvas id="spritePreview" ref={canvasRef} style={{ display: "block" }} /></div>
+    <div id="assetPreviewInfo">{info}</div>
     <div className="pp-sprite-form">
       <label>Name<input value={name} disabled={readOnly} placeholder="monster.png" onChange={(event) => setName(event.target.value)} /></label>
       <label>Colour
-        <select value={isLink ? "" : source} disabled={readOnly} onChange={(event) => setSource(event.target.value)}>
-          {isLink && <option value="">your own picture</option>}
+        <select value={picture ? "" : source} disabled={readOnly} onChange={(event) => setSource(event.target.value)}>
+          {picture && <option value="">your own picture</option>}
           {Object.keys(RGB).map((colour) => <option key={colour} value={colour}>{colour}</option>)}
         </select>
       </label>
       <label>Wide<input value={width} disabled={readOnly} onChange={(event) => setWidth(event.target.value)} /></label>
       <label>High<input value={height} disabled={readOnly} onChange={(event) => setHeight(event.target.value)} /></label>
-      {token && !readOnly && <label className="file-button">{busy ? "Uploading…" : "Upload a picture"}
-        <input type="file" accept="image/*" onChange={upload} disabled={busy} /></label>}
-      {!token && <span className="muted">Drawn your own? Upload it under My media, then paste its link here.</span>}
+      {token && !readOnly && <label className="pp-file-button">{busy ? "Uploading…" : "Upload a picture"}
+        <input type="file" accept="image/*" onChange={(event) => { void upload(event); }} disabled={busy} /></label>}
+      {!token && <span className="pp-note">Drawn your own? Upload it under My media, then paste its link here.</span>}
       {problem && <p className="pp-problem">{problem}</p>}
-      {!readOnly && <div className="pp-box-row">
-        <button className="text-button" onClick={onCancel}>Cancel</button>
-        <button className="primary" onClick={save}>{sprite ? "Save" : "Add picture"}</button>
+      {!readOnly && <div className="pp-form-row">
+        <span className="btn btn-sec" onClick={onCancel}>Cancel</span>
+        <span className="btn btn-success" onClick={save}>{sprite ? "Save" : "Add picture"}</span>
       </div>}
-      <p className="muted">Your code asks for it by name: <code>self.image = sprite('{name || "monster.png"}')</code></p>
     </div>
-  </div>;
+  </>;
+}
+
+/* The engine makes its two sounds itself, out of nothing, inside the frame -
+   so there is no file here to play, and this says so rather than showing a
+   player that would never make a noise. */
+function SoundPane({ name }: { name: string }) {
+  return <>
+    <div id="assetPreviewTab"><Icon name="volume" /><span>{name}</span></div>
+    <div id="assetPreviewBody"><span className="pp-note">The game makes this sound itself. Press PLAY to hear it.</span></div>
+    <div id="assetPreviewInfo">{name + "\nbuilt in\n\nplay_sound(\"" + name + "\")"}</div>
+  </>;
 }

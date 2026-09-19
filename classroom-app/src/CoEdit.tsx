@@ -20,7 +20,11 @@ import type { ProjectKind } from "./lib/types";
    the whole screen for somebody typing through the holder - which is why it
    never saves - and the way to take the room over when the holder goes away. */
 
-type Editor = (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind }) => ReactNode;
+/* The editor screen, handed everything it needs to be one: the shared
+   document, who else is in it, and - for the game editor's SAVED button -
+   whether this browser is the one writing the project down, and how to make it
+   do so now. */
+export type Editor = (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; saved: boolean; save: () => void }) => ReactNode;
 
 /** Same files, same text: nothing was typed in the gap that did not come back. */
 function sameFiles(a: Record<string, string>, b: Record<string, string>): boolean {
@@ -292,7 +296,10 @@ export function CoEditGuest({ token, name, room, owned, onLeave, onCopied, onTak
         <button className="text-button" onClick={() => setOrphan(null)}>Hide</button>
       </div>}
       {shared && ready
-        ? children({ doc: shared.doc, awareness: shared.awareness, files, kind: room.kind })
+        /* Saving is the host's job, not this browser's: what is typed here is
+           on the other person's screen the moment it is typed, and their
+           browser is the one writing it down. */
+        ? children({ doc: shared.doc, awareness: shared.awareness, files, kind: room.kind, saved: true, save: () => {} })
         : <p className="empty">Waiting for {room.host} to send the project&hellip;</p>}
     </section>
   </main>;

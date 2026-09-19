@@ -4,7 +4,7 @@ import { Awareness } from "y-protocols/awareness";
 import { seedDoc, docToFiles, userColor } from "./lib/collab";
 import { apiGetProjectById, apiSaveProjectById, apiSaveProjectBeacon, type ApiCoeditRoom } from "./lib/api";
 import { ProjectPicker } from "./ProjectPicker";
-import { CoEditBox, CoEditGuest } from "./CoEdit";
+import { CoEditBox, CoEditGuest, type Editor } from "./CoEdit";
 import type { ProjectKind } from "./lib/types";
 
 /* The teacher's own projects.
@@ -24,7 +24,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
      being told they are is the kind of small lie that makes an app feel like
      it was written for somebody else. */
   exitLabel?: string;
-  children: (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind }) => React.ReactNode;
+  children: Editor;
 }) {
   const [step, setStep] = useState<"picker" | "room" | "coedit">("picker");
   // A project somebody else owns, opened with their code. Teachers get this for
@@ -35,6 +35,9 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
   const [kind, setKind] = useState<ProjectKind>("web");
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState("Choose a project, or start a new one.");
+  /* Whether everything typed has reached the server - what the game editor's
+     SAVED button reports, and what pressing it fixes. */
+  const [saved, setSaved] = useState(true);
   const docRef = useRef<Y.Doc | null>(null);
   const awarenessRef = useRef<Awareness | null>(null);
   const idRef = useRef("");
@@ -52,10 +55,12 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
     if (!doc || !idRef.current) return;
     try {
       await apiSaveProjectById(token, idRef.current, { title: titleRef.current, files: docToFiles(doc) });
+      setSaved(true);
       setStatus("Saved.");
     } catch { /* keep working; the next change retries */ }
   }
   function scheduleSave() {
+    setSaved(false);
     if (saveTimer.current !== null) return;
     saveTimer.current = window.setTimeout(() => { saveTimer.current = null; void saveNow(); }, 8000);
   }
@@ -147,7 +152,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
     <section className="student-project">
       <CoEditBox key={idRef.current} token={token} projectId={idRef.current}
                  doc={docRef.current} awareness={awarenessRef.current} name={who} />
-      {children({ doc: docRef.current, awareness: awarenessRef.current, files, kind })}
+      {children({ doc: docRef.current, awareness: awarenessRef.current, files, kind, saved, save: () => { void flush(); } })}
     </section>
   </main>;
 }

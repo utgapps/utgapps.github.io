@@ -1,0 +1,300 @@
+/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.
+ *
+ * The offline IDE's stylesheet, from vendor/pixelpad-offline.html, scoped
+ * under .pp3d-ide and with its rem values resolved against the 14px root
+ * that file sets. Nothing else is changed, because the classroom's game
+ * editor is meant to BE that IDE rather than resemble it.
+ */
+/* ============================================================
+   PixelPAD offline clone — styles mirror the live IDE's
+   computed values (colours, metrics, borders) 1:1.
+   ============================================================ */
+.pp3d-ide{
+  --ide-bg:#F8F8FF;      /* #pp3d-ide background          */
+  --ui-bg:#E7E9EB;       /* .ide-ui background            */
+  --ui-fg:#343A40;       /* .ide-ui colour                */
+  --ui-border:#D5DBE1;   /* column-adjust / tab borders   */
+  --tab-active:#F3F5F7;  /* active tab + editor border    */
+  --tab-hover:#EAECEE;
+  --accent:#17A2B8;      /* .pp-script-active             */
+  --success:#10B981;     /* .btn-success                  */
+  --dark:#1F2937;        /* .bg-dark                      */
+  --stage:#343A40;       /* #pp-block2 rendered background */
+  --purple:#45156C;      /* .bg-pixelpad                  */
+  --purple-lt:#6D399F;   /* .debugButton                  */
+  --purple-dk:#2F1C40;   /* #debugPanel                   */
+  --ed-bg:#FFFFFF;
+  --ed-fg:#000000;
+  --ed-gutter:#237893;
+  --ed-gutter-active:#0B216F;
+  --ed-line:#EEEEEE;
+  --ed-sel:#ADD6FF;
+  --tk-com:#008000;
+  --tk-str:#A31515;
+  --tk-num:#098658;
+  --tk-key:#0000FF;
+  --sug-bg:#F3F3F3;
+  --sug-border:#C8C8C8;
+  --sug-sel:#0060C0;
+}
+.pp3d-ide.pp-dark{
+  --ide-bg:#1E1E1E;
+  --ui-bg:#252526;
+  --ui-fg:#CCCCCC;
+  --ui-border:#3E3E42;
+  --tab-active:#2D2D30;
+  --tab-hover:#333337;
+  --ed-bg:#1E1E1E;
+  --ed-fg:#D4D4D4;
+  --ed-gutter:#858585;
+  --ed-gutter-active:#C6C6C6;
+  --ed-line:#2A2A2A;
+  --ed-sel:#264F78;
+  --tk-com:#6A9955;
+  --tk-str:#CE9178;
+  --tk-num:#B5CEA8;
+  --tk-key:#569CD6;
+  --sug-bg:#252526;
+  --sug-border:#454545;
+  --sug-sel:#04395E;
+}
+
+.pp3d-ide *{box-sizing:border-box}
+.pp3d-ide{
+  margin:0;
+  font-family:Rubik,"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  color:var(--dark);
+  background:var(--ide-bg);
+  overflow:hidden;
+}
+.pp3d-ide .usel{-webkit-user-select:none;user-select:none}
+.pp3d-ide svg.i{width:1em;height:1em;fill:currentColor;vertical-align:-.125em;flex:none}
+.pp3d-ide svg.i2x{width:1.4em;height:1.4em}
+
+/* ---------- root ---------- */
+.pp3d-ide{height:100vh;background:var(--ide-bg);overflow:hidden}
+
+/* ---------- left column : assets ---------- */
+.pp3d-ide #pp-block0{
+  float:left;height:100%;width:12%;
+  padding:7px;
+  background:var(--ui-bg);color:var(--ui-fg);
+  overflow-x:hidden;overflow-y:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #pp-block0:hover{overflow-y:auto}
+.pp3d-ide #pp-block0::-webkit-scrollbar{width:10px}
+.pp3d-ide #pp-block0::-webkit-scrollbar-thumb{background:rgba(0,0,0,.25)}
+.pp3d-ide .toggle-row{display:flex;flex-wrap:wrap;margin-bottom:3.5px}
+.pp3d-ide .form-check-inline{display:inline-flex;align-items:center;margin-right:3.5px;cursor:pointer}
+.pp3d-ide .form-check-inline label{padding-right:3.5px;cursor:pointer;display:inline-flex}
+.pp3d-ide .form-check-inline input{margin:0;cursor:pointer}
+.pp3d-ide .assetHeader{font-weight:700;line-height:21px;display:flex;align-items:center}
+.pp3d-ide .assetHeader:hover{background:rgba(255,255,255,.25)}
+.pp3d-ide.pp-dark .assetHeader:hover{background:rgba(255,255,255,.08)}
+.pp3d-ide .assetHeader .add{margin-left:auto;cursor:pointer;display:inline-flex;transition:transform .1s}
+.pp3d-ide .assetHeader .add:hover{transform:scale(1.2)}
+.pp3d-ide .pp-asset-list{list-style:none;margin:0;padding:7px 0;}
+.pp3d-ide .pp-asset-list li{
+  padding:0 7px;line-height:21px;height:21px;list-style:none;
+  display:flex;align-items:center;white-space:nowrap;overflow:hidden;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide .pp-asset-list li .name{overflow:hidden;text-overflow:ellipsis}
+.pp3d-ide .pp-asset-list li>svg:first-child{margin-right:3.5px}
+.pp3d-ide .pp-asset-list li:hover{background:rgba(255,255,255,.25);cursor:pointer}
+.pp3d-ide.pp-dark .pp-asset-list li:hover{background:rgba(255,255,255,.08)}
+.pp3d-ide .pp-script-inactive{background:none}
+.pp3d-ide .pp-script-active,.pp3d-ide .pp-asset-list .pp-script-active:hover{background:var(--accent);color:#fff}
+.pp3d-ide .pp-asset-delete{display:none;margin-left:auto;padding-left:3.5px}
+.pp3d-ide .pp-asset-list li:hover .pp-asset-delete{display:inline-flex}
+.pp3d-ide .pp-asset-delete:hover{transform:scale(1.15)}
+
+/* ---------- draggable column dividers ---------- */
+.pp3d-ide #pp-col-adjust-code,.pp3d-ide #pp-col-adjust-canvas{
+  float:left;height:100%;width:10.5px;
+  background:var(--ui-bg);
+  border-left:1px solid var(--ui-border);
+  border-right:1px solid var(--ui-border);
+  font-weight:900;text-align:center;position:relative;z-index:50;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #pp-col-adjust-code:hover,.pp3d-ide #pp-col-adjust-canvas:hover{cursor:col-resize;filter:brightness(150%)}
+.pp3d-ide .text-vert{transform:rotate(90deg);display:block;white-space:nowrap;top:30%;position:relative;font-size:10px;opacity:.45}
+
+/* ---------- middle column : code ---------- */
+.pp3d-ide #pp-block1{float:left;height:100%;width:45%}
+.pp3d-ide #pp-block1-child{height:100%}
+.pp3d-ide #vLayout{display:flex;height:100%;flex-direction:column}
+.pp3d-ide #vLayout.hidden,.pp3d-ide #hLayout.hidden{display:none}
+.pp3d-ide #vLayoutStartTab,.pp3d-ide #vLayoutLoopTab{
+  color:var(--ui-fg);background:var(--ui-bg);
+  border-top:1px solid var(--ui-border);
+  border-bottom:1px solid var(--ui-border);
+  text-align:center;font-weight:700;width:100%;flex:none;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:3.5px;height:30px;cursor:pointer;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #vLayoutLoopTab{padding:0}
+.pp3d-ide #vLayoutLoopTab>div{padding:3.5px;display:flex;align-items:center;gap:7px;width:100%;justify-content:center}
+.pp3d-ide #vLayoutStartTab:hover,.pp3d-ide #vLayoutLoopTab:hover{background:var(--tab-hover)}
+.pp3d-ide #vLayoutStartTab.active,.pp3d-ide #vLayoutLoopTab.active{background:var(--tab-active)}
+.pp3d-ide .pp-code-host{width:100%;height:50%;border:2px solid var(--tab-active);overflow:hidden}
+.pp3d-ide .pp-code-host.active{border:2px solid var(--ui-bg)}
+
+/* ---------- asset preview ---------- */
+.pp3d-ide #pp-block1-asset{height:100%;display:flex;flex-direction:column}
+.pp3d-ide #pp-block1-asset.hidden{display:none}
+.pp3d-ide #assetPreviewTab{
+  color:var(--ui-fg);background:var(--tab-active);
+  border-top:1px solid var(--ui-border);border-bottom:1px solid var(--ui-border);
+  text-align:center;font-weight:700;width:100%;flex:none;height:30px;
+  display:flex;align-items:center;justify-content:center;gap:7px;padding:3.5px;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #assetPreviewBody{
+  flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
+  background:var(--tab-active);overflow:hidden;position:relative;
+}
+.pp3d-ide #spritePreview{display:none;max-width:100%;max-height:100%;image-rendering:auto;cursor:zoom-in}
+.pp3d-ide #pp-audio{display:none;margin:auto;width:80%;max-width:320px}
+.pp3d-ide #assetPreviewInfo{
+  flex:none;background:var(--ui-bg);color:var(--ui-fg);
+  border-top:1px solid var(--ui-border);padding:7px 10.5px;
+  font-family:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size:11.375px;line-height:1.5;white-space:pre-wrap;
+  -webkit-user-select:text;user-select:text;
+}
+/* horizontal (tabbed) layout */
+.pp3d-ide #hLayout{height:100%;flex-direction:column}
+.pp3d-ide #hLayout.on{display:flex}
+.pp3d-ide .startloop-row{display:flex}
+.pp3d-ide .startloop{
+  border-radius:7px 7px 0 0;background:var(--ui-bg);color:var(--ui-fg);
+  text-align:center;font-weight:700;padding:7px;width:50%;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  -webkit-user-select:none;user-select:none;cursor:pointer;
+}
+.pp3d-ide .startloop.active{background:var(--tab-active)}
+.pp3d-ide #startloop-container{flex:1 1 auto;min-height:0;border:2px solid var(--tab-active)}
+
+/* ---------- right column : stage ---------- */
+.pp3d-ide #pp-block2{
+  height:100%;position:relative;overflow:hidden;
+  background:var(--stage);color:#fff;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #pp-block2-child{height:100%;display:flex;flex-direction:column}
+.pp3d-ide #toolbar{width:100%;text-align:center;flex:none}
+.pp3d-ide .btn{
+  display:inline-block;font-weight:700;text-align:center;vertical-align:middle;
+  padding:5.25px 10.5px;font-size:14px;line-height:1.5;border-radius:3.5px;
+  margin:3.5px;cursor:pointer;border:1px solid transparent;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide .btn-success{color:#fff;background:var(--success);border-color:var(--success)}
+.pp3d-ide .btn-success:hover{filter:brightness(93%)}
+.pp3d-ide .btn-danger{color:#fff;background:#E21313;border-color:#E21313}
+.pp3d-ide #canvasContainer{flex-grow:1;background:var(--stage);display:flex;min-height:0}
+.pp3d-ide #debugContainer{margin:auto;position:relative;max-width:100%;max-height:100%}
+.pp3d-ide #debugPanel{
+  width:100%;height:30px;background:var(--purple-dk);
+  display:none;align-items:center;padding:0 2px;
+}
+.pp3d-ide #debugPanel.on{display:flex}
+.pp3d-ide .debugButton{
+  width:25px;height:25px;background:var(--purple-lt);color:#fff;
+  margin-left:2px;margin-right:2px;display:flex;align-items:center;
+  justify-content:center;border-radius:2.8px;cursor:pointer;font-size:12px;
+}
+.pp3d-ide .debugButton.on{background:var(--accent)}
+.pp3d-ide #debugReadout{margin-left:auto;padding-right:7px;font-size:11px;opacity:.8;white-space:nowrap}
+.pp3d-ide #stage{display:block;margin:auto;outline:none;touch-action:none;image-rendering:auto;background:#000}
+.pp3d-ide #pp-console{
+  height:20vh;flex:none;padding:14px 0 14px 14px;overflow:hidden;
+  background:var(--ui-bg);color:var(--ui-fg);
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide #pp-console:hover{overflow:auto}
+.pp3d-ide #output{
+  padding:0;margin:0;height:100%;overflow:auto;
+  font-family:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size:12.25px;line-height:1.5;white-space:pre-wrap;word-break:break-word;
+  background:var(--ui-bg);color:var(--ui-fg);
+  -webkit-user-select:text;user-select:text;
+}
+.pp3d-ide #output .err{color:#D8000C;font-weight:700}
+.pp3d-ide.pp-dark #output .err{color:#F48771}
+.pp3d-ide #output .sys{opacity:.6}
+
+/* ---------- code editor widget ---------- */
+.pp3d-ide .ppe{
+  position:relative;height:100%;width:100%;overflow:auto;
+  background:var(--ed-bg);color:var(--ed-fg);
+  font-family:Consolas,"Courier New",monospace;
+  font-size:14px;line-height:19px;
+  font-feature-settings:"liga" 0,"calt" 0;
+  cursor:text;
+}
+.pp3d-ide .ppe-inner{position:relative;display:flex;min-width:100%;min-height:100%}
+.pp3d-ide .ppe-gutter{
+  position:sticky;left:0;z-index:2;flex:none;width:64px;
+  background:var(--ed-bg);color:var(--ed-gutter);
+  text-align:right;padding-right:26px;
+  -webkit-user-select:none;user-select:none;
+}
+.pp3d-ide .ppe-gutter div{height:19px}
+.pp3d-ide .ppe-gutter div.cur{color:var(--ed-gutter-active)}
+.pp3d-ide .ppe-code{position:relative;flex:1 0 auto}
+.pp3d-ide .ppe-hl,.pp3d-ide .ppe-ta{
+  margin:0;padding:0;border:0;outline:none;
+  font:inherit;line-height:19px;letter-spacing:0;
+  white-space:pre;overflow:hidden;
+  width:100%;height:100%;
+}
+.pp3d-ide .ppe-hl{position:absolute;top:0;left:0;pointer-events:none;z-index:1}
+.pp3d-ide .ppe-ta{
+  position:absolute;top:0;left:0;z-index:2;resize:none;
+  background:transparent;color:transparent;caret-color:var(--ed-fg);
+  -webkit-text-fill-color:transparent;
+}
+.pp3d-ide .ppe-ta::selection{background:var(--ed-sel);color:transparent}
+.pp3d-ide .ppe-curline{position:absolute;left:0;right:0;height:19px;background:var(--ed-line);z-index:0}
+.pp3d-ide .tk-c{color:var(--tk-com)}
+.pp3d-ide .tk-s{color:var(--tk-str)}
+.pp3d-ide .tk-n{color:var(--tk-num)}
+.pp3d-ide .tk-k{color:var(--tk-key)}
+
+/* ---------- suggest widget ---------- */
+.pp3d-ide #suggest{
+  position:fixed;z-index:400;display:none;min-width:200px;max-height:172px;
+  overflow:auto;background:var(--sug-bg);border:1px solid var(--sug-border);
+  font-family:Consolas,"Courier New",monospace;font-size:13px;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);color:var(--ed-fg);
+}
+.pp3d-ide #suggest div{padding:1px 8px;white-space:nowrap;cursor:pointer;display:flex;gap:8px}
+.pp3d-ide #suggest div .kind{opacity:.55;margin-left:auto;font-size:11px}
+.pp3d-ide #suggest div.sel{background:var(--sug-sel);color:#fff}
+.pp3d-ide #suggest div.sel .kind{color:#fff}
+
+/* ---------- modal (rename / new asset) ---------- */
+.pp3d-ide #modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;
+  display:none;align-items:center;justify-content:center;
+}
+.pp3d-ide #modal.on{display:flex}
+.pp3d-ide #modal .box{
+  background:#fff;color:var(--dark);border-radius:5.6px;padding:17.5px;
+  min-width:300px;box-shadow:0 7px 21px rgba(0,0,0,.4);
+}
+.pp3d-ide.pp-dark #modal .box{background:#2D2D30;color:#CCC}
+.pp3d-ide #modal h5{margin:0 0 10.5px;font-weight:700}
+.pp3d-ide #modal input{
+  width:100%;padding:5.25px 7px;font:inherit;border:1px solid #CED4DA;
+  border-radius:3.5px;background:transparent;color:inherit;
+}
+.pp3d-ide #modal .row{margin-top:14px;text-align:right}
+.pp3d-ide #modal .btn-sec{background:#6C757D;border-color:#6C757D;color:#fff}

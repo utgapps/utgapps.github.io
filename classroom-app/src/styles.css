@@ -399,64 +399,92 @@ body.running-full { overflow: hidden; }
 .media-actions .danger { color: #d33; }
 
 /* ---- the PixelPad game editor ----
-   Laid out like the offline IDE in vendor/pixelpad-offline.html: what is in
-   the game down the left, its code in the middle, the stage on the right. The
-   teal is that IDE's accent (#17A2B8) rather than the classroom blue, so a
-   child moving between the two is looking at the same tool. */
-.pp-ide { height: min(78vh, 1040px); min-height: 500px; display: grid; grid-template-columns: 186px minmax(0, 1fr) minmax(300px, .95fr); overflow: hidden; border: 1px solid #cbd9dd; border-radius: 7px; background: #fff; }
-.pp-side { overflow-y: auto; min-height: 0; padding-bottom: 16px; background: #f7fafb; border-right: 1px solid #d4e0e3; }
-.pp-layout-row { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid #d4e0e3; }
-.pp-layout { flex: 1; border: 1px solid #cbd9dd; border-radius: 5px; background: #fff; color: #4d6871; padding: 4px 0; font: 700 11px Rubik, sans-serif; }
-.pp-layout.on { border-color: #17a2b8; background: #17a2b8; color: #fff; }
-.pp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 12px 10px 4px; color: #779098; font: 800 11px Rubik, sans-serif; text-transform: uppercase; letter-spacing: .07em; }
-.pp-add { border: 1px solid #cbd9dd; border-radius: 5px; background: #fff; color: #0c7d8f; padding: 1px 7px 3px; font-size: 12px; line-height: 1; }
-.pp-add:hover { border-color: #17a2b8; background: #e8f7fa; }
-.pp-list { list-style: none; margin: 0; padding: 0; }
-.pp-item { display: flex; align-items: center; color: #33525d; font-size: 12.5px; }
-.pp-item:hover { background: #e7f5f8; }
-.pp-item.active { background: #dcf0f7; }
-.pp-item.active .pp-open { color: #0a6299; font-weight: 700; }
-.pp-open { flex: 1; min-width: 0; border: 0; background: transparent; padding: 6px 4px 6px 10px; text-align: left; color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The delete cross stays out of the way until the row is wanted: a list of
-   crosses invites a child to press one. */
-.pp-kill { visibility: hidden; border: 0; background: transparent; color: #b23b2a; padding: 4px 8px; font-size: 11px; }
-.pp-item:hover .pp-kill, .pp-item.active .pp-kill { visibility: visible; }
-.pp-empty { padding: 3px 10px 6px; color: #8aa8b2; font-size: 11.5px; }
-.pp-code { display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; border-right: 1px solid #d4e0e3; }
-.pp-panes { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
-.pp-panes.split { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
-.pp-half { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
-.pp-half + .pp-half { border-top: 1px solid #d4e0e3; }
-.pp-tabs { display: flex; overflow-x: auto; background: #f7fafb; border-bottom: 1px solid #d4e0e3; }
-.pp-tab { border: 0; border-right: 1px solid #dce7e9; padding: 10px 13px; background: transparent; color: #52707a; font: 700 12px Rubik, sans-serif; white-space: nowrap; }
-.pp-tab.active { background: #fff; color: #0c7d8f; box-shadow: inset 0 -2px #17a2b8; }
-.pp-half > .pp-tab { display: block; width: 100%; text-align: left; background: #f7fafb; border-right: 0; border-bottom: 1px solid #d4e0e3; }
-.pp-half > .pp-tab.active { background: #fff; }
-.pp-host { min-height: 0; overflow: hidden; }
-.pp-blank { align-self: center; padding: 30px 26px; text-align: center; color: #587078; }
-.pp-blank h3 { color: #274954; font-size: 17px; margin-bottom: 8px; }
-.pp-blank p { margin: 0 auto 16px; max-width: 330px; font-size: 13.5px; line-height: 1.55; }
-.pp-modal { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px; background: rgba(16,33,39,.45); }
-.pp-box { width: min(400px, 100%); padding: 22px; border-radius: 9px; background: #fff; box-shadow: 0 18px 45px rgba(32,65,75,.3); }
-.pp-box h3 { font-size: 18px; margin-bottom: 2px; }
-.pp-box-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.pp-problem { margin: 0; color: #b23b2a; font-size: 12.5px; line-height: 1.5; }
-.pp-sprite { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; overflow-y: auto; }
-.pp-sprite-body { display: grid; place-items: center; min-height: 170px; padding: 20px; background: #343a40; }
-.pp-sprite-body img { max-width: 260px; max-height: 260px; image-rendering: pixelated; }
-.pp-swatch { display: block; border-radius: 2px; }
-.pp-sprite-form { padding: 4px 18px 22px; }
-.pp-sprite-form label, .pp-sprite-form .muted, .pp-sprite-form .pp-problem { max-width: 340px; }
-.pp-sprite-form select { width: 100%; padding: 9px; border: 1px solid #b7cbd1; border-radius: 5px; background: #fff; }
-.pp-sprite-form .file-button { margin-top: 4px; }
-.pp-sprite-form p { margin: 14px 0 0; font-size: 12.5px; }
-.pp-sprite-form code { padding: 2px 5px; border-radius: 4px; background: #f2f7f8; font: 12px ui-monospace, monospace; }
+   The editor is src/pixelpad-ide.css, which IS the offline IDE's stylesheet:
+   cut out of vendor/pixelpad-offline.html by tools/build-engine.mjs, scoped
+   under .pp3d-ide and otherwise untouched. Nothing about the look of that
+   editor belongs in this file.
+
+   What is here is the two places the online one cannot be the same thing
+   underneath, dressed so that it looks like it is:
+
+     - the offline IDE draws its own code editor, a textarea with a
+       highlighted layer behind it, and styles it as .ppe. Ours is CodeMirror,
+       because that is what carries another person's cursor into the same
+       file. These rules give CodeMirror .ppe's metrics and .ppe's colours -
+       the variables are the cut's, so the dark theme comes for free.
+     - the offline IDE's game runs in the page, on a canvas. Ours runs in a
+       sandboxed frame, so a runaway loop takes the frame and not the editor.
+     - the picture pane writes a line of game.txt, which the offline one has no
+       need to do, so it has a small form the original has no equivalent of. */
+
+/* Framed, because unlike the offline IDE this is not the whole window. */
+.pp3d-ide { border: 1px solid var(--ui-border); border-radius: 7px; }
+
+/* The offline IDE is a page to itself: the only rules its elements meet are
+   its own. Here the classroom's form styling - a label is a grid with a gap
+   and a margin, an input is full width with a border - reaches inside and
+   moves the toolbar's checkboxes by a few pixels each, which is enough to wrap
+   the four toggles down the side of the screen. So elements start from nothing
+   inside the editor, and the cut is the only thing that dresses them; every
+   rule in it is at least as specific as this one, so nothing here overrides
+   the copy. */
+.pp3d-ide label, .pp3d-ide input, .pp3d-ide select, .pp3d-ide button, .pp3d-ide textarea {
+  display: inline; margin: 0; padding: 0; width: auto; gap: 0;
+  font: inherit; color: inherit; border: 0; border-radius: 0; background: none;
+}
+.pp3d-ide input[type="checkbox"] { display: inline-block; }
+/* The offline markup puts a second <label for> inside each toggle; nesting one
+   label in another makes a browser toggle twice, so the icon sits in a span. */
+.pp3d-ide .form-check-inline span { padding-right: 3.5px; cursor: pointer; display: inline-flex; }
+
+/* The cut asks for 20vh of console. In the offline IDE the window IS the
+   editor, so that is a fifth of it; here the editor is a box on a page and a
+   fifth of the window is the wrong fifth. Same rule, measured against the same
+   thing it was measured against. */
+.pp3d-ide #pp-console { height: 20%; }
+
+.pp3d-ide #canvasContainer iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; display: block; }
+.pp3d-ide .pp-stage-idle { margin: auto; padding: 0 14px; text-align: center; font-size: 12px; opacity: .55; }
+
+/* CodeMirror, wearing .ppe */
+.pp3d-ide .cm-host, .pp3d-ide .cm-host .cm-editor { height: 100%; }
+.pp3d-ide .cm-host, .pp3d-ide .cm-host .cm-editor { background: var(--ed-bg); color: var(--ed-fg); font-family: Consolas, "Courier New", monospace; font-size: 14px; }
+.pp3d-ide .cm-host .cm-editor.cm-focused { outline: none; }
+.pp3d-ide .cm-host .cm-scroller { font: 14px/19px Consolas, "Courier New", monospace; font-feature-settings: "liga" 0, "calt" 0; }
+.pp3d-ide .cm-host .cm-content { padding: 0; caret-color: var(--ed-fg); }
+.pp3d-ide .cm-host .cm-line { padding: 0; }
+.pp3d-ide .cm-host .cm-gutters { min-width: 64px; border: 0; background: var(--ed-bg); color: var(--ed-gutter); }
+.pp3d-ide .cm-host .cm-lineNumbers .cm-gutterElement { min-width: 0; padding: 0 26px 0 8px; }
+.pp3d-ide .cm-host .cm-activeLineGutter { background: transparent; color: var(--ed-gutter-active); }
+.pp3d-ide .cm-host .cm-activeLine { background: var(--ed-line); }
+.pp3d-ide .cm-selectionBackground, .pp3d-ide .cm-content ::selection { background: var(--ed-sel); }
+.pp3d-ide .cm-cursor { border-left-color: var(--ed-fg); }
+.pp3d-ide .cm-panels { background: var(--ui-bg); color: var(--ui-fg); border-color: var(--ui-border); }
+/* the suggestion list, as #suggest */
+.pp3d-ide .cm-tooltip { border-color: var(--sug-border); background: var(--sug-bg); color: var(--ed-fg); }
+.pp3d-ide .cm-tooltip.cm-tooltip-autocomplete { box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.pp3d-ide .cm-tooltip-autocomplete > ul { min-width: 200px; max-height: 172px; font: 13px Consolas, "Courier New", monospace; }
+.pp3d-ide .cm-tooltip-autocomplete > ul > li { padding: 1px 8px; color: var(--ed-fg); }
+.pp3d-ide .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sug-sel); color: #fff; }
+.pp3d-ide .cm-completionIcon { display: none; }
+
+/* a panel nobody has written yet, in place of the editor */
+.pp3d-ide .pp-blank { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--ed-bg); color: var(--ui-fg); }
+.pp3d-ide .pp-blank p { margin: 0; max-width: 330px; font-size: 13px; line-height: 1.55; }
+
+/* the line of game.txt a picture is */
+.pp3d-ide .pp-sprite-form { flex: none; max-height: 48%; overflow: auto; padding: 10px 14px 14px; background: var(--ui-bg); color: var(--ui-fg); border-top: 1px solid var(--ui-border); }
+.pp3d-ide .pp-sprite-form label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
+.pp3d-ide .pp-sprite-form input, .pp3d-ide .pp-sprite-form select { display: block; width: 100%; margin-top: 3px; padding: 5px 7px; font: inherit; font-size: 13px; font-weight: 400; border: 1px solid var(--ui-border); border-radius: 3.5px; background: var(--ed-bg); color: var(--ed-fg); }
+.pp3d-ide .pp-file-button { display: inline-block; margin-top: 4px; padding: 5.25px 10.5px; border-radius: 3.5px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pp3d-ide .pp-file-button input { display: none; }
+.pp3d-ide .pp-form-row { margin-top: 10px; text-align: right; }
+.pp3d-ide .pp-note { display: block; font-size: 12px; line-height: 1.5; opacity: .75; }
+.pp3d-ide #assetPreviewBody .pp-note { margin: auto; padding: 0 20px; text-align: center; }
+.pp3d-ide .pp-problem { margin: 6px 0 0; color: #D8000C; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.pp3d-ide.pp-dark .pp-problem { color: #F48771; }
+.pp3d-ide #modal .pp-modal-note { margin: 0 0 8px; font-size: 12px; opacity: .75; }
+
 /* Pressed, because the engine's debug bar is either on or off and the button
    has to say which. */
 .text-button.pressed { border-radius: 5px; background: #17a2b8; color: #fff; padding: 7px 9px; }
-@media (max-width: 1050px) {
-  .pp-ide { grid-template-columns: 150px minmax(0, 1fr); height: auto; }
-  .pp-side { grid-row: span 2; }
-  .pp-code { height: 420px; border-right: 0; border-bottom: 1px solid #d4e0e3; }
-  .pp-ide .preview-panel { height: 340px; }
-}

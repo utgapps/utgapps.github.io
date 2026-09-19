@@ -23,9 +23,10 @@
    vendored file is ever updated and its shape has moved, this fails loudly
    rather than emitting a half-engine that dies at the first student's Run.
 
-   One more thing comes out of it: the word lists section 6 suggests as you
-   type. The classroom editor offers the same words, and copying them by hand
-   would put a second list in the repo that nobody remembers to update.
+   Three more things come out of it, for the classroom's game editor, which is
+   a copy of this IDE: the word lists section 6 suggests as you type, section
+   1's glyphs, and the IDE's stylesheet. Copying any of them by hand would put
+   a second version in the repo that nobody remembers to update.
 
        node tools/build-engine.mjs
 */
@@ -36,6 +37,9 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 export const SOURCE = "vendor/pixelpad-offline.html";
 export const OUT = "src/lib/pixelpad-engine.js";
 export const API_OUT = "src/lib/pixelpad-api.ts";
+export const CSS_OUT = "src/pixelpad-ide.css";
+export const ICONS_OUT = "src/lib/pixelpad-icons.ts";
+
 
 /* Normalised to \n: the vendored file is CRLF on Windows, and every marker
    below is anchored to a line start. */
@@ -65,6 +69,117 @@ export function cutApi() {
     " */\n" +
     decls.map((decl) => "export " + decl.replace(" = [", ": string[] = [")).join("\n\n") + "\n";
   return { text, count: decls.length };
+}
+
+/* The IDE's own stylesheet. The classroom's game editor is meant to be the
+   offline IDE to look at, and the only way to be sure of that is to use its
+   stylesheet rather than a careful imitation of it.
+
+   Two things have to change on the way through, both mechanical:
+
+     - every selector is scoped under .pp3d-ide, because this CSS is loaded
+       into an app that has a page around the editor. `body` and `:root` become
+       that element: they are where the offline file keeps the IDE's font and
+       its colour variables. The rules for `html` are dropped - the app owns
+       the page.
+     - rem becomes px. The offline file sets html{font-size:14px} and every rem
+       in it counts on that; the classroom's root is 16px and changing it would
+       resize the whole app.
+
+   Anything else - a colour, a border, a width - comes through untouched, and
+   the check below refuses a cut that quietly kept a rem or lost the scope. */
+const CSS_ROOT = ".pp3d-ide";
+
+function scopeSelector(list) {
+  return list.split(",").map((one) => {
+    const sel = one.trim();
+    if (sel === ":root" || sel === "body" || sel === "#pp3d-ide") return CSS_ROOT;
+    if (sel === "body.pp-dark") return CSS_ROOT + ".pp-dark";
+    if (sel.startsWith("body.pp-dark ")) return CSS_ROOT + ".pp-dark " + sel.slice(13);
+    if (sel.startsWith("#pp3d-ide")) return CSS_ROOT + sel.slice(9);
+    return CSS_ROOT + " " + sel;
+  }).join(",");
+}
+
+/* The page itself, which the app owns and this stylesheet must not touch. */
+const DROPPED = ["html", "html,body"];
+
+function scopeCss(css) {
+  let out = "", at = 0;
+  for (;;) {
+    const open = css.indexOf("{", at);
+    if (open < 0) { out += css.slice(at); break; }
+    const close = css.indexOf("}", open);
+    if (close < 0) { fail("unbalanced braces in the stylesheet"); break; }
+    const head = css.slice(at, open);
+    const body = css.slice(open + 1, close);
+    /* A comment above a rule belongs to it, so it travels with it - and goes
+       with it when the rule is dropped. */
+    const ends = head.lastIndexOf("*/");
+    const lead = ends >= 0 ? head.slice(0, ends + 2) : "";
+    const tail = ends >= 0 ? head.slice(ends + 2) : head;
+    const selector = tail.trim();
+    if (DROPPED.includes(selector)) { at = close + 1; continue; }
+    out += lead + tail.replace(selector, scopeSelector(selector)) + "{" + body + "}";
+    at = close + 1;
+  }
+  return out;
+}
+
+export function cutIdeCss() {
+  const html = source();
+  const blocks = [...html.matchAll(/<style>\n([\s\S]*?)\n<\/style>/g)];
+  if (blocks.length !== 1) fail("expected one <style> block in " + SOURCE + ", found " + blocks.length);
+  const scoped = scopeCss(blocks[0][1])
+    .replace(/(-?[\d.]+)rem/g, (whole, size) => String(Math.round(Number(size) * 14000) / 1000) + "px");
+
+  if (/[^-\w]rem[^-\w]/.test(scoped)) fail("a rem survived the cut: " + (scoped.match(/[^;{]*rem[^;}]*/) || [])[0]);
+  for (const selector of scoped.matchAll(/(^|\})([^{}@]+)\{/g)) {
+    const sel = selector[2].replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    if (sel && !sel.split(",").every((one) => one.trim().startsWith(CSS_ROOT))) {
+      fail("this selector escaped the scope: " + sel);
+    }
+  }
+  /* The three columns the editor is made of. If the vendored file renames one,
+     the markup in src/PixelPadIde.tsx is wrong too, and silently: it would
+     render as an unstyled list of divs. */
+  for (const id of ["#pp-block0", "#pp-block1", "#pp-block2", "#debugPanel", "#pp-console"]) {
+    if (!scoped.includes(id)) fail("the stylesheet no longer styles " + id);
+  }
+
+  const text =
+    "/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.\n" +
+    " *\n" +
+    " * The offline IDE's stylesheet, from " + SOURCE + ", scoped\n" +
+    " * under .pp3d-ide and with its rem values resolved against the 14px root\n" +
+    " * that file sets. Nothing else is changed, because the classroom's game\n" +
+    " * editor is meant to BE that IDE rather than resemble it.\n" +
+    " */\n" + scoped.trim() + "\n";
+  return { text, bytes: Buffer.byteLength(text) };
+}
+
+/* The IDE's glyphs. Font Awesome by way of hand-drawn paths in the vendored
+   file, so the classroom does not load a webfont either. */
+export function cutIcons() {
+  const html = source();
+  const found = [...html.matchAll(/^const ICONS = \{[\s\S]*?^\};$/gm)];
+  if (found.length !== 1) fail("ICONS appears " + found.length + " times in " + SOURCE + ", expected 1");
+  const decl = found[0][0];
+  let icons;
+  try { icons = new Function(decl + " return ICONS;")(); }
+  catch (e) { fail("the icon table does not parse: " + e.message); }
+  for (const name of ["plus", "trash", "university", "cube", "image", "volume", "flag", "redo"]) {
+    if (!icons[name]) fail("the icon table has lost " + name);
+  }
+  const text =
+    "/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.\n" +
+    " *\n" +
+    " * The offline IDE's own glyphs, from " + SOURCE + ". Every one\n" +
+    " * is a path inside a 0 0 16 16 box that inherits the current colour.\n" +
+    " */\n" +
+    "export const ICONS: Record<string, string> = " +
+    JSON.stringify(icons, null, 2) + ";\n";
+  return { text, count: Object.keys(icons).length };
 }
 
 export function cutEngine() {
@@ -151,4 +266,10 @@ if (process.argv[1] && process.argv[1].endsWith("build-engine.mjs")) {
   const api = cutApi();
   writeFileSync(here + "../" + API_OUT, api.text, "utf8");
   console.log("wrote " + API_OUT + "  " + api.count + " word lists");
+  const css = cutIdeCss();
+  writeFileSync(here + "../" + CSS_OUT, css.text, "utf8");
+  console.log("wrote " + CSS_OUT + "  " + Math.round(css.bytes / 1024) + " KB of IDE styles");
+  const icons = cutIcons();
+  writeFileSync(here + "../" + ICONS_OUT, icons.text, "utf8");
+  console.log("wrote " + ICONS_OUT + "  " + icons.count + " glyphs");
 }
