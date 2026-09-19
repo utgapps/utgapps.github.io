@@ -15,10 +15,15 @@ import type { ProjectKind } from "./lib/types";
    one - keeping that interface identical is what makes this ~100 lines instead
    of a second editor. */
 
-export function SoloWorkspace({ token, who, onExit, children }: {
+export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the class", children }: {
   token: string;
   who: string;
   onExit: () => void;
+  /* Where leaving goes back TO. A teacher who came from a live classroom is
+     going back to the class; one who came from the entry screen is not, and
+     being told they are is the kind of small lie that makes an app feel like
+     it was written for somebody else. */
+  exitLabel?: string;
   children: (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind }) => React.ReactNode;
 }) {
   const [step, setStep] = useState<"picker" | "room" | "coedit">("picker");
@@ -124,7 +129,7 @@ export function SoloWorkspace({ token, who, onExit, children }: {
     return <ProjectPicker token={token} className={`${who} · my projects`} status={status}
                           live={false} onOpen={open} onSignOut={onExit}
                           onJoinCoedit={(room) => { setCoeditRoom(room); setStep("coedit"); }}
-                          exitLabel="Back to the class" />;
+                          exitLabel={exitLabel} />;
   }
   if (!docRef.current || !awarenessRef.current) return null;
 
@@ -136,7 +141,7 @@ export function SoloWorkspace({ token, who, onExit, children }: {
       </div>
       <div className="connection">
         <span className="save-label">{status}</span>
-        <button className="text-button" onClick={() => { void flush().then(onExit); }}>Back to the class</button>
+        <button className="text-button" onClick={() => { void flush().then(onExit); }}>{exitLabel}</button>
       </div>
     </header>
     <section className="student-project">

@@ -32,7 +32,7 @@ h1, h2, h3, p { margin-top: 0; }
 .full { width: 100%; }
 .compact { padding: 7px 10px; font-size: 12px; }
 .small, small { color: #57717a; font-size: 13px; line-height: 1.5; }
-.teacher-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.teacher-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .teacher-options > div { border: 1px solid #dbe5e7; border-radius: 7px; padding: 20px; }
 .teacher-options h3 { font-size: 17px; margin-bottom: 18px; }
 label { display: grid; gap: 7px; color: #41606c; font-size: 13px; font-weight: 700; margin: 12px 0; }

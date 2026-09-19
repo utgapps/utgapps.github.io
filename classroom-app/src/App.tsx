@@ -20,7 +20,7 @@ import { CoursePanel } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
 import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
 
-type Mode = "home" | "instructor" | "student";
+type Mode = "home" | "instructor" | "student" | "projects";
 type WireMessage =
   | { type: "join"; name: string; deviceId: string; deviceLabel: string; fingerprint: string }
   | { type: "approved"; studentId: string; projectId: string; title: string; className: string }
@@ -87,6 +87,11 @@ function App() {
   const [classes, setClasses] = useState<ClassRecord[]>([]);
   const [activeClass, setActiveClass] = useState<ClassRecord | null>(null);
   const [message, setMessage] = useState("");
+  /* savedAccount() is read from localStorage during render, so signing in from
+     a screen that is ALREADY the one being asked for changes nothing React can
+     see, and the screen sits there. This is the nudge that makes it look. */
+  const [signedIn, setSignedIn] = useState(0);
+  const toOwnProjects = () => { setSignedIn((n) => n + 1); setMode("projects"); };
   const classSaveTimers = useRef(new Map<string, number>());
 
   useEffect(() => { getClasses().then(setClasses).catch(() => setMessage("Your browser could not open local class storage.")); }, []);
@@ -129,9 +134,27 @@ function App() {
     window.location.replace("../");
     return null;
   }
+  /* A teacher's own code, reached without opening a class. The workspace is
+     the one the classroom header already offered; what was missing was a door
+     to it for a teacher who has not started a lesson and does not want to. */
+  if (mode === "projects") {
+    const account = savedAccount();
+    if (!account) {
+      return <Home classes={classes} message="Sign in first to open your own projects." onOpen={useClass} onImport={useClass}
+                   onOwnProjects={toOwnProjects}
+                   initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
+    }
+    /* Keyed on the sign-in: a different account must not inherit the last
+       one's open project, unsaved edits and share code. */
+    return <SoloWorkspace key={signedIn} token={account.token} who={account.account.name || "Teacher"}
+                          exitLabel="Back to the start" onExit={() => setMode("home")}>
+      {({ doc, awareness, files, kind }) =>
+        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} />}
+    </SoloWorkspace>;
+  }
   if (mode === "instructor" && activeClass) {
     const account = savedAccount();
-    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onOpen={useClass} onImport={useClass} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
+    if (!account) return <Home classes={classes} message="Sign in with an instructor code first." onOpen={useClass} onImport={useClass} onOwnProjects={toOwnProjects} initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
     return <InstructorRoom record={activeClass} token={account.token} onChange={persistClass} onExit={() => setMode("home")} />;
   }
   if (mode === "student") return <StudentJoin initialCode={rootStudentCode} initialGrant={rootStudentGrant} onExit={() => window.location.replace("../")} />;
@@ -141,6 +164,7 @@ function App() {
     message={message}
     onOpen={useClass}
     onImport={useClass}
+    onOwnProjects={toOwnProjects}
     initialInstructorCode={rootInstructorCode}
     initialInstructorGrant={rootInstructorGrant}
   />;
@@ -175,14 +199,24 @@ function SavedClassrooms({ token, role, actionLabel, onPick }: {
   </div>;
 }
 
-function Home({ classes, message, onOpen, onImport, initialInstructorCode, initialInstructorGrant }: {
+function Home({ classes, message, onOpen, onImport, onOwnProjects, initialInstructorCode, initialInstructorGrant }: {
   classes: ClassRecord[]; message: string;
   onOpen: (record: ClassRecord, account: StoredAccount) => void; onImport: (record: ClassRecord, account: StoredAccount) => void;
+  onOwnProjects: () => void;
   initialInstructorCode: string; initialInstructorGrant: string;
 }) {
   const [code, setCode] = useState(initialInstructorCode);
+  const [ownCode, setOwnCode] = useState(initialInstructorCode);
+  /* Two kinds of instructor account exist. One is made from a class code and
+     has no password at all; one is made in /admin and signs in like a student
+     does. Both are teachers, and both deserve their own projects, so the card
+     takes either. */
+  const [useAccount, setUseAccount] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [notice, setNotice] = useState(message);
   const account = savedAccount();
+  const signedInTeacher = account && account.account.role !== "student";
 
   function openSaved(link: ApiClassroomLink) {
     const course = classroomForId(link.classId);
@@ -200,6 +234,24 @@ function Home({ classes, message, onOpen, onImport, initialInstructorCode, initi
       const local = classes.find((item) => (item.classId || item.courseId.toLowerCase()) === course.id);
       await onOpen(local || makeClass(course.className, course.courseId, course.id), session);
     } catch (error) { setNotice((error as Error).message || "Could not open the classroom."); }
+  }
+  async function ownWithCode() {
+    try {
+      const session = await apiLoginInstructor(ownCode, initialInstructorGrant);
+      saveAccount(session);
+      onOwnProjects();
+    } catch (error) { setNotice((error as Error).message || "Could not sign in with that instructor code."); }
+  }
+  async function ownWithAccount() {
+    if (!username.trim() || !password) { setNotice("Enter your username and password."); return; }
+    try {
+      const session = await apiLoginAccount(username.trim().toLowerCase(), password);
+      // A pupil signing in here would land in a teacher-shaped screen with a
+      // way out that says "back to the start". They have their own door.
+      if (session.account.role === "student") throw new Error("That is a student account. Students open their projects from the student screen.");
+      saveAccount(session);
+      onOwnProjects();
+    } catch (error) { setNotice((error as Error).message || "Could not sign in. Check the username and password."); }
   }
   function importPack(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -225,6 +277,18 @@ function Home({ classes, message, onOpen, onImport, initialInstructorCode, initi
       {account && <SavedClassrooms token={account.token} role="instructor" actionLabel="Open" onPick={openSaved} />}
       <div className="teacher-options">
         <div><h3>Curriculum classroom</h3>{initialInstructorGrant ? <p className="small">Instructor access was verified at the class gate.</p> : <label>Instructor code<input value={code} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>}<button className="primary" onClick={openInstructor}>Open classroom</button><p className="small">Instructor codes are created by a Classroom admin and are not the live room address.</p></div>
+        <div><h3>My own projects</h3><p className="small">Code you write yourself - a demo, a starter file, a worked example - kept in your account rather than in any one class.</p>
+          {signedInTeacher
+            ? <><p className="small">Signed in as {account.account.name}.</p><button className="primary" onClick={onOwnProjects}>Open my projects</button></>
+            : useAccount
+              ? <><label>Username<input value={username} autoComplete="username" onChange={(e) => setUsername(e.target.value)} /></label>
+                  <label>Password<input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} /></label>
+                  <button className="primary" onClick={ownWithAccount}>Open my projects</button>
+                  <button className="text-button" onClick={() => setUseAccount(false)}>Use an instructor code instead</button></>
+              : <><label>Instructor code<input value={ownCode} maxLength={32} placeholder="Your four-character instructor code" onChange={(e) => setOwnCode(e.target.value.toUpperCase())} /></label>
+                  <button className="primary" onClick={ownWithCode}>Open my projects</button>
+                  <button className="text-button" onClick={() => setUseAccount(true)}>I have a username and password</button></>}
+        </div>
         <div><h3>Classroom backup</h3><p className="small">Import a .classpack only when recovering an existing class. Opening it saves the recovered record to the shared classroom.</p><label className="file-button">Choose .classpack<input type="file" accept=".classpack,.json" onChange={importPack} /></label><p className="small">Local backups: {classes.length ? classes.map((item) => item.courseId).join(", ") : "none yet"}</p></div>
       </div>
       {notice && <p className="notice warning">{notice}</p>}
