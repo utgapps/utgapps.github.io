@@ -77,6 +77,48 @@ CREATE TABLE IF NOT EXISTS live_rooms (
 );
 CREATE INDEX IF NOT EXISTS idx_live_rooms_expiry ON live_rooms(expires_at);
 
+-- Who a project is shared WITH. Redeeming a share code writes a row here and
+-- the project is on that student's projects screen from then on, to open and
+-- edit any day - not only while its owner has it in front of them.
+--
+-- The owner is still projects.account_id and is not listed here: they own it,
+-- they alone can delete it or publish it. A member opens it, types in it and
+-- renames it, and leaves by deleting their own row.
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  joined_at  INTEGER NOT NULL,
+  PRIMARY KEY (project_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_members_account ON project_members(account_id);
+
+-- A share code lets one student's project be opened by friends. The code is
+-- what a child reads out loud across a table, so it is short (8 characters) and
+-- drawn from Crockford base32 - no I, L, O or U, and O/I/L fold onto 0/1 when a
+-- code is typed in. Short means guessable, so /coedit/<code> counts its MISSES
+-- against the address throttle and every code dies after a few hours.
+--
+-- project_id is UNIQUE: pressing Share twice on the same project gives back the
+-- same code rather than littering the table with rooms nobody is in.
+--
+-- The row is also the rendezvous for a project shared with several people. The
+-- host is whichever of them has it open and is doing the saving - the owner
+-- usually, but not always - and beat_at is that browser saying it is still
+-- there. A room nobody has touched for two beats is free, and the next member
+-- to open the project takes it over. There is exactly one writer at a time,
+-- which is what keeps two students from saving over each other.
+CREATE TABLE IF NOT EXISTS coedit_rooms (
+  code       TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  host_id    TEXT NOT NULL,
+  peer_id    TEXT NOT NULL,
+  opened_at  INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  beat_at    INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coedit_rooms_project ON coedit_rooms(project_id);
+CREATE INDEX IF NOT EXISTS idx_coedit_rooms_expiry ON coedit_rooms(expires_at);
+
 -- A small, durable login throttle. The key is a one-way hash of the visitor IP.
 CREATE TABLE IF NOT EXISTS rate_limits (
   key      TEXT PRIMARY KEY,

@@ -7,7 +7,7 @@ const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
 const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102"];
-const PROJECT_KINDS = ["web", "java"];
+const PROJECT_KINDS = ["web", "java", "pixelpad"];
 const PROJECT_LIMIT = 30;
 const PLAY_GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 
@@ -171,7 +171,29 @@ function projectTitle(value) { return String(value || "My project").trim().slice
 function projectKind(value) { return PROJECT_KINDS.includes(value) ? value : "web"; }
 /* Rows written before multi-project support have kind NULL and created_at 0. */
 function projectSummary(row) {
-  return { id: row.id, title: row.title, kind: projectKind(row.kind), size: row.size || 0, createdAt: row.created_at || row.updated_at, updatedAt: row.updated_at, shareSlug: row.share_slug || null };
+  /* owner is the NAME of somebody else - null on your own projects, which is
+     what the picker reads to tell "mine" from "shared with me". members counts
+     the people it is shared with, so an owner can see that it is shared at
+     all without opening it. */
+  return { id: row.id, title: row.title, kind: projectKind(row.kind), size: row.size || 0, createdAt: row.created_at || row.updated_at, updatedAt: row.updated_at, shareSlug: row.share_slug || null, owner: row.owner_name || null, members: row.members || 0 };
+}
+
+/* Every per-id route asks this instead of scoping on account_id, because a
+   shared project is on two students' screens and both of them may open it.
+   Still 404 rather than 403 for a stranger: a guessed id must not confirm
+   that somebody else's project exists. `mine` is what the caller checks
+   before doing an owner-only thing - deleting it, or publishing it. */
+async function projectForMe(db, projectId, accountId, columns = "p.*") {
+  const row = await db.prepare(
+    `SELECT ${columns}, p.account_id AS owner_id, a.name AS owner_name, ` +
+    "(SELECT COUNT(*) FROM project_members m WHERE m.project_id = p.id) AS members " +
+    "FROM projects p JOIN accounts a ON a.id = p.account_id WHERE p.id = ? AND p.deleted_at IS NULL")
+    .bind(String(projectId || "")).first();
+  if (!row) return null;
+  if (row.owner_id === accountId) return { ...row, owner_name: null, mine: true };
+  const member = await db.prepare("SELECT 1 AS ok FROM project_members WHERE project_id = ? AND account_id = ?")
+    .bind(row.id, accountId).first();
+  return member ? { ...row, mine: false } : null;
 }
 function projectFull(row) {
   return { ...projectSummary({ ...row, size: row.files.length }), files: JSON.parse(row.files) };
@@ -193,6 +215,70 @@ function projectFilesJson(files) {
   const json = JSON.stringify(files);
   if (enc.encode(json).byteLength > JSON_LIMIT) throw new HttpError("Project is too large.", 413);
   return json;
+}
+
+/* Co-edit codes. Eight characters of Crockford base32 - the alphabet leaves out
+   I, L, O and U, and typing O, I or L folds onto 0 and 1, because the code's
+   real job is to survive being read out loud across a table and copied by a
+   nine-year-old. Shown as XXXX - XXXX; the dash is presentation, never stored.
+
+   256 is a whole number of 32s, so masking a random byte with 31 is uniform -
+   no modulo bias, no retry loop. 32^8 is about 1.1 trillion, but eight
+   characters is still short enough to be worth guessing at, which is why the
+   lookup route charges its misses to the address throttle. */
+const COEDIT_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const COEDIT_HOURS = 4 * 60 * 60 * 1000;
+/* Two missed heartbeats. Long enough that a slow save or a tab switch does not
+   hand the project to somebody else mid-sentence, short enough that a child
+   whose partner shut the lid is not locked out for the rest of the lesson. */
+const COEDIT_STALE = 75 * 1000;
+function coeditCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  let out = "";
+  for (const b of bytes) out += COEDIT_ALPHABET[b & 31];
+  return out;
+}
+function normalizeCoeditCode(raw) {
+  const text = String(raw || "").toUpperCase().replace(/[^0-9A-Z]/g, "")
+    .replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (text.length !== 8) return null;
+  for (const ch of text) if (!COEDIT_ALPHABET.includes(ch)) return null;
+  return text;
+}
+/* A collision would hand two projects one code, so check before using it. Five
+   tries against a table holding a few dozen live rooms is far more than enough;
+   failing loudly beats looping for ever. */
+/* A mistyped code costs the child who typed it, not the room they sit in. */
+const COEDIT_MISSES_PER_ACCOUNT = 20;
+const COEDIT_MISSES_PER_ADDRESS = 300;
+async function coeditMissed(db, request, accountId) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const keys = [
+    { key: "coedit-miss:" + await sha256(String(accountId)), limit: COEDIT_MISSES_PER_ACCOUNT,
+      message: "Too many codes that did not work. Check the code with your friend, then try again in a few minutes." },
+    { key: "coedit-miss-ip:" + await sha256(ip), limit: COEDIT_MISSES_PER_ADDRESS,
+      message: "Too many codes that did not work from this network. Try again in a few minutes." },
+  ];
+  const now = Date.now(), reset = now + 10 * 60 * 1000;
+  for (const { key, limit, message } of keys) {
+    const row = await db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?").bind(key).first();
+    if (row && row.reset_at >= now && row.count >= limit) throw new HttpError(message, 429);
+    await db.prepare(
+      "INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?) "
+      + "ON CONFLICT(key) DO UPDATE SET "
+      + "count = CASE WHEN rate_limits.reset_at < ? THEN 1 ELSE rate_limits.count + 1 END, "
+      + "reset_at = CASE WHEN rate_limits.reset_at < ? THEN ? ELSE rate_limits.reset_at END")
+      .bind(key, reset, now, now, reset).run();
+  }
+}
+
+async function freshCoeditCode(db) {
+  for (let i = 0; i < 5; i++) {
+    const code = coeditCode();
+    const taken = await db.prepare("SELECT code FROM coedit_rooms WHERE code = ?").bind(code).first();
+    if (!taken) return code;
+  }
+  throw new HttpError("Could not start a co-edit session. Try again.", 503);
 }
 
 async function newSession(db, accountId, days) {
@@ -656,12 +742,23 @@ export default {
       /* The list never carries files: at 750 KB a project, a class set would be
          megabytes on every visit to the picker. length() is computed in SQLite. */
       if (path === "/projects" && request.method === "GET") {
-        const rows = (await db.prepare("SELECT id, title, kind, created_at, updated_at, share_slug, length(files) AS size FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC").bind(me.id).all()).results;
+        const mine = (await db.prepare("SELECT id, title, kind, created_at, updated_at, share_slug, length(files) AS size, (SELECT COUNT(*) FROM project_members m WHERE m.project_id = projects.id) AS members FROM projects WHERE account_id = ? AND deleted_at IS NULL").bind(me.id).all()).results;
+        /* Projects somebody shared with this student. They are listed exactly
+           like their own - one screen holds everything they can open - and the
+           owner's name rides along so the card can say whose it is. */
+        const shared = (await db.prepare(
+          "SELECT p.id, p.title, p.kind, p.created_at, p.updated_at, p.share_slug, length(p.files) AS size, a.name AS owner_name, " +
+          "(SELECT COUNT(*) FROM project_members m2 WHERE m2.project_id = p.id) AS members " +
+          "FROM project_members m JOIN projects p ON p.id = m.project_id JOIN accounts a ON a.id = p.account_id " +
+          "WHERE m.account_id = ? AND p.deleted_at IS NULL").bind(me.id).all()).results;
+        const rows = [...mine, ...shared].sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
         return response(request, env, { projects: rows.map(projectSummary) });
       }
       if (path === "/projects" && request.method === "POST") {
         const { title, kind, files } = await readJson(request, JSON_LIMIT);
         const filesJson = projectFilesJson(files);
+        // Owned projects only: being let into a friend's work costs a student
+        // nothing, or a popular project would fill up everybody's account.
         const open = await db.prepare("SELECT COUNT(*) AS total FROM projects WHERE account_id = ? AND deleted_at IS NULL").bind(me.id).first();
         if ((open?.total || 0) >= PROJECT_LIMIT) throw new HttpError(`That is ${PROJECT_LIMIT} projects already. Delete one to make room for a new one.`);
         const id = crypto.randomUUID(), now = Date.now();
@@ -858,17 +955,61 @@ export default {
         }
       }
 
+      /* Opening a shared project. Two members who both have it open must not
+         both be saving it: whole files go to D1 on a debounce, so the second
+         save would quietly throw away the first student's afternoon.
+
+         So one browser holds the room and does the saving, and everybody else
+         connects to it and types through the live document. The holder touches
+         beat_at every half minute; a room nobody has touched for two beats is
+         nobody's, and the next member to open the project takes it over. The
+         code stays with the room the whole time - it is what the owner reads
+         out to invite somebody new, and it must not change under them. */
+      const sessionMatch = path.match(/^\/projects\/([^/]+)\/session$/);
+      if (sessionMatch && request.method === "POST") {
+        const projectId = sessionMatch[1];
+        const { renew, claim } = await readJson(request).catch(() => ({}));
+        const row = await projectForMe(db, projectId, me.id, "p.id, p.title, p.kind");
+        if (!row) throw new HttpError("No such project.", 404);
+        const now = Date.now(), until = now + COEDIT_HOURS;
+        const current = await db.prepare("SELECT code, peer_id, host_id, beat_at, expires_at FROM coedit_rooms WHERE project_id = ?").bind(row.id).first();
+        const held = !!current && current.expires_at > now && current.beat_at > now - COEDIT_STALE;
+        /* claim is a member saying the holder has stopped answering. Only the
+           browser at the other end of that connection can know it, so it is
+           taken at its word; a holder that was in fact alive finds out on its
+           next beat, stops saving and rejoins as a guest. One writer again
+           within half a minute, which is shorter than the debounce it would
+           have taken to do any harm. */
+        if (held && current.host_id !== me.id && !claim) {
+          const host = await db.prepare("SELECT name FROM accounts WHERE id = ?").bind(current.host_id).first();
+          return response(request, env, { role: "guest", room: { code: current.code, peerId: current.peer_id, projectId: row.id, title: row.title, kind: projectKind(row.kind), host: (host && host.name) || "Your partner", hostId: current.host_id, expiresAt: current.expires_at } });
+        }
+        // Free, or already mine: this browser is the one that saves.
+        const code = current ? current.code : await freshCoeditCode(db);
+        /* Keep the id this browser is ALREADY hosting on - the beat comes
+           through here too, and handing back a new id every thirty seconds
+           would point every guest at a peer nobody is listening on. A room
+           taken over from somebody else always gets a fresh one. */
+        const peerId = current && current.host_id === me.id && !renew ? current.peer_id : `utg-coedit-${rndHex(24)}`;
+        await db.prepare("INSERT INTO coedit_rooms (code, project_id, host_id, peer_id, opened_at, expires_at, beat_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(code) DO UPDATE SET host_id=excluded.host_id, peer_id=excluded.peer_id, expires_at=excluded.expires_at, beat_at=excluded.beat_at")
+          .bind(code, row.id, me.id, peerId, current ? current.beat_at || now : now, until, now).run();
+        return response(request, env, { role: "host", room: { code, peerId, projectId: row.id, title: row.title, kind: projectKind(row.kind), host: me.name, hostId: me.id, expiresAt: until } });
+      }
+
       const projectMatch = path.match(/^\/projects\/([^/]+)$/);
       if (projectMatch) {
         const projectId = projectMatch[1];
         if (request.method === "GET") {
-          const row = await db.prepare("SELECT * FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          const row = await projectForMe(db, projectId, me.id);
           if (!row) throw new HttpError("No such project.", 404);
           return response(request, env, { project: projectFull(row) });
         }
         if (request.method === "PUT") {
           const body = await readJson(request, JSON_LIMIT);
-          const row = await db.prepare("SELECT id FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          /* A member writes too. Two people editing the same project are kept
+             to ONE writer by the room below - whoever holds it sends both
+             their work here - so this route does not have to arbitrate. */
+          const row = await projectForMe(db, projectId, me.id, "p.id");
           if (!row) throw new HttpError("No such project.", 404);
           const now = Date.now();
           // kind is fixed at creation: a Java project must not quietly become a web one.
@@ -878,10 +1019,23 @@ export default {
           return response(request, env, { ok: true, updatedAt: now });
         }
         if (request.method === "DELETE") {
-          const row = await db.prepare("SELECT id FROM projects WHERE id = ? AND account_id = ? AND deleted_at IS NULL").bind(projectId, me.id).first();
+          const row = await projectForMe(db, projectId, me.id, "p.id");
           if (!row) throw new HttpError("No such project.", 404);
+          /* A member leaves; only the owner deletes. Letting somebody delete a
+             project they were merely invited into would mean one afternoon's
+             falling-out could take away a term's work. */
+          if (!row.mine) {
+            await db.prepare("DELETE FROM project_members WHERE project_id = ? AND account_id = ?").bind(projectId, me.id).run();
+            return response(request, env, { ok: true, left: true });
+          }
           // Soft delete. A 12-year-old deleting the wrong card has 30 days of grace.
           await db.prepare("UPDATE projects SET deleted_at = ? WHERE id = ?").bind(Date.now(), projectId).run();
+          // Nobody keeps a card pointing at a project that is gone, and a live
+          // code must not outlive the project it points at.
+          await db.batch([
+            db.prepare("DELETE FROM coedit_rooms WHERE project_id = ?").bind(projectId),
+            db.prepare("DELETE FROM project_members WHERE project_id = ?").bind(projectId),
+          ]);
           return response(request, env, { ok: true });
         }
       }
@@ -958,6 +1112,74 @@ export default {
         if (request.method === "DELETE") {
           if (!canHostClass(me, classId)) throw new HttpError("Instructors only.", 403);
           await db.prepare("DELETE FROM live_rooms WHERE class_id = ? AND (opened_by = ? OR ? = 'admin')").bind(classId, me.id, me.role).run();
+          return response(request, env, { ok: true });
+        }
+      }
+
+      /* Co-editing. The owner opens a room on one of their own projects and
+         reads the code to a friend; the friend redeems it for the host's PeerJS
+         id and connects. The server only brokers that introduction - the
+         document itself never passes through here.
+
+         Anyone signed in may redeem a code. There is deliberately no same-class
+         rule: two friends in different periods should be able to build a game
+         together, and the code IS the permission. What guards it is that the
+         code is random, short-lived, and revocable by its owner at any moment. */
+      if (path === "/coedit/open" && request.method === "POST") {
+        const { projectId, renew } = await readJson(request);
+        // Members invite too: a project shared with three people belongs on
+        // all three screens, and any of them may read the code to a fourth.
+        const row = await projectForMe(db, String(projectId || ""), me.id, "p.id, p.title, p.kind");
+        if (!row) throw new HttpError("No such project.", 404);
+        const now = Date.now(), until = now + COEDIT_HOURS;
+        const holder = await db.prepare("SELECT host_id, beat_at, expires_at FROM coedit_rooms WHERE project_id = ?").bind(row.id).first();
+        if (holder && holder.host_id !== me.id && holder.expires_at > now && holder.beat_at > now - COEDIT_STALE) {
+          throw new HttpError("Somebody else has this project open. Open it from your projects screen to join them.", 409);
+        }
+        // An expired room for this project still holds the UNIQUE project_id,
+        // and its code no longer works. Clear it before claiming a new one.
+        await db.prepare("DELETE FROM coedit_rooms WHERE project_id = ? AND expires_at <= ?").bind(row.id, now).run();
+        const current = await db.prepare("SELECT code, peer_id FROM coedit_rooms WHERE project_id = ?").bind(row.id).first();
+        const code = current ? current.code : await freshCoeditCode(db);
+        /* renew keeps the CODE and changes only the peer id. The signalling
+           broker holds a disconnected peer id for about a minute, so a child
+           who steps back to their projects list and returns cannot reclaim the
+           one they just had. The code is what they read out loud and what their
+           friend is still holding; the peer id behind it is ours to replace. */
+        const peerId = current && !renew ? current.peer_id : `utg-coedit-${rndHex(24)}`;
+        await db.prepare("INSERT INTO coedit_rooms (code, project_id, host_id, peer_id, opened_at, expires_at, beat_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(code) DO UPDATE SET host_id=excluded.host_id, peer_id=excluded.peer_id, expires_at=excluded.expires_at, beat_at=excluded.beat_at")
+          .bind(code, row.id, me.id, peerId, now, until, now).run();
+        return response(request, env, { room: { code, peerId, projectId: row.id, title: row.title, kind: projectKind(row.kind), host: me.name, expiresAt: until } });
+      }
+      const coeditMatch = path.match(/^\/coedit\/([^/]+)$/);
+      if (coeditMatch) {
+        const code = normalizeCoeditCode(coeditMatch[1]);
+        if (request.method === "GET") {
+          const row = code && await db.prepare(
+            "SELECT c.code, c.project_id, c.peer_id, c.host_id, c.expires_at, p.title, p.kind, p.account_id AS owner_id, a.name AS host_name " +
+            "FROM coedit_rooms c JOIN projects p ON p.id = c.project_id JOIN accounts a ON a.id = c.host_id " +
+            "WHERE c.code = ? AND p.deleted_at IS NULL").bind(code).first();
+          if (!row || row.expires_at < Date.now()) {
+            // Charge only the MISSES, and charge them to the ACCOUNT. Thirty
+            // students share one school address: a per-address cap on mistyped
+            // codes is a cap on the lesson. A child who keeps getting it wrong
+            // is throttled alone; a machine working through the code space
+            // still meets the much looser address cap.
+            await coeditMissed(db, request, me.id);
+            throw new HttpError("That code is not open. Ask your partner to open the project and press Share for a fresh one.", 404);
+          }
+          /* This is the moment a project becomes shared. Before it, a code let
+             you into somebody's editor for the afternoon and you left with
+             nothing; now the project joins your own projects screen and it is
+             still there next week, whoever happens to be online. */
+          if (row.owner_id !== me.id) {
+            await db.prepare("INSERT OR IGNORE INTO project_members (project_id, account_id, joined_at) VALUES (?,?,?)")
+              .bind(row.project_id, me.id, Date.now()).run();
+          }
+          return response(request, env, { room: { code: row.code, peerId: row.peer_id, projectId: row.project_id, title: row.title, kind: projectKind(row.kind), host: row.host_name, hostId: row.host_id, expiresAt: row.expires_at } });
+        }
+        if (request.method === "DELETE") {
+          await db.prepare("DELETE FROM coedit_rooms WHERE code = ? AND host_id = ?").bind(code || "", me.id).run();
           return response(request, env, { ok: true });
         }
       }
@@ -1088,7 +1310,7 @@ export default {
           if (!account) throw new HttpError("No such account.", 404);
           if (request.method === "DELETE") {
             if (env.MEDIA) for (const { r2_key } of (await db.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-            await db.batch([db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+            await db.batch([db.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
             return response(request, env, { ok: true });
           }
           if (request.method === "PATCH") {
@@ -1122,9 +1344,11 @@ export default {
       const stale = (await env.DB.prepare("SELECT id FROM accounts WHERE is_permanent = 0 AND last_seen < ?").bind(cutoff).all()).results;
       for (const { id } of stale) {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-        await env.DB.batch([env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+        await env.DB.batch([env.DB.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
-      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now), env.DB.prepare("DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?").bind(now - 30 * DAY)]);
+      await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM coedit_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now), env.DB.prepare("DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?").bind(now - 30 * DAY)]);
+      // Projects hard-deleted above leave their membership rows behind.
+      await env.DB.prepare("DELETE FROM project_members WHERE project_id NOT IN (SELECT id FROM projects)").run();
     })());
   },
 };
