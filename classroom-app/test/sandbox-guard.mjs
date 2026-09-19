@@ -9,12 +9,12 @@
 
    This is a cheap source check so it cannot come back unnoticed. It also holds
    the two copies together: the React preview (PREVIEW_SANDBOX in preview.ts,
-   used by both editor frames) and the standalone shared-page renderer in
+   used by every frame in src/) and the standalone shared-page renderer in
    404.html, which cannot import from the app.
 
        node test/sandbox-guard.mjs
 */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -37,14 +37,37 @@ if (m) {
         "allow-same-origin would let one student read another's token");
 }
 
-// 2. both editor frames use the constant, not a hand-written string
-const app = read("../src/App.tsx");
-const literalFrames = (app.match(/<iframe[^>]*sandbox="[^"]*"/g) || []);
-check("no App.tsx preview frame hardcodes its sandbox", literalFrames.length === 0,
-      literalFrames.join(" ; "));
-check("both App.tsx preview frames use PREVIEW_SANDBOX",
-      (app.match(/sandbox=\{PREVIEW_SANDBOX\}/g) || []).length === 2,
-      (app.match(/sandbox=\{PREVIEW_SANDBOX\}/g) || []).length + " uses");
+/* 2. EVERY frame in the app uses the constant, not a hand-written string.
+      Counting the frames in one file was the earlier version of this, and it
+      went red for the wrong reason the day the run panel moved into its own
+      module - a guard that fails when code moves teaches people to edit the
+      guard. So walk the source and hold each <iframe> to the rule instead. */
+const sources = [];
+(function walk(dir) {
+  for (const entry of readdirSync(here + dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) walk(dir + entry.name + "/");
+    else if (/\.tsx?$/.test(entry.name)) sources.push([dir + entry.name, read(dir + entry.name)]);
+  }
+})("../src/");
+
+const frames = [];
+for (const [path, text] of sources) {
+  for (const tag of text.match(/<iframe\b[\s\S]*?\/>/g) || []) {
+    // A frame showing a document the app built out of somebody's files.
+    // The course viewer's frame is not one: it shows our own slides from
+    // our own origin, and sandboxing those would break the deck.
+    if (/srcDoc=/.test(tag)) frames.push([path, tag]);
+  }
+}
+const wrong = frames.filter(([, tag]) => !/sandbox=\{PREVIEW_SANDBOX\}/.test(tag));
+check("every srcDoc frame in src/ uses PREVIEW_SANDBOX",
+      frames.length > 0 && wrong.length === 0,
+      wrong.map(([path, tag]) => path + ": " + tag.replace(/\s+/g, " ").slice(0, 90)).join(" ; "));
+// A frame that stopped existing is not a frame that is safe: the app runs a
+// project in one and shows the last saved version in another, and losing one
+// silently would leave this check passing over nothing. (Full screen is the
+// same frame made bigger, deliberately - reloading it would restart the game.)
+check("the app still has both of its preview frames", frames.length >= 2, frames.length + " found");
 
 // 3. the standalone share renderer matches, since it cannot import the constant
 const share = read("../../404.html");

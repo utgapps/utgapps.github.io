@@ -16,7 +16,7 @@
 */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cutEngine, OUT } from "../tools/build-engine.mjs";
+import { cutEngine, cutApi, OUT, API_OUT } from "../tools/build-engine.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const read = (p) => readFileSync(here + p, "utf8");
@@ -33,6 +33,13 @@ check(OUT + " is what tools/build-engine.mjs produces",
       committed === cut.text,
       "re-run `node tools/build-engine.mjs`; if you meant to change the engine, " +
       "change vendor/pixelpad-offline.html and regenerate");
+
+// 1b. and so is the word list the editor suggests from
+const api = cutApi();
+check(API_OUT + " is what tools/build-engine.mjs produces",
+      read("../" + API_OUT) === api.text,
+      "re-run `node tools/build-engine.mjs`; the suggestions in the classroom " +
+      "editor are the offline IDE's own list and are not maintained by hand");
 
 // 2. it reaches nothing outside the frame
 check("the engine has no http(s) URL in it", !/https?:\/\//.test(committed),
@@ -54,6 +61,14 @@ for (const id of cut.needs) {
   check('the preview page provides #' + id, lib.includes('id="' + id + '"'),
         "the engine calls getElementById('" + id + "') but the page has no such element");
 }
+
+// 5. a game is more than its panels now: shared functions run before any
+//    start() does, and the debug bar is wired inside the frame because every
+//    switch on it is a field on the Engine running there.
+check("shared .fn.py files reach the engine", /functions: CONFIG\.functions/.test(lib),
+      "the runner hands the engine an empty functions list, so a Functions panel does nothing");
+check("the debug bar is part of the stage", lib.includes('id="debugPanel"') && lib.includes('id="debugReadout"'),
+      "the engine writes its readout into #debugPanel and #debugReadout");
 
 console.log(bad ? `\n${bad} problem(s)` : "\nthe game preview runs with no network at all");
 process.exit(bad ? 1 : 0);

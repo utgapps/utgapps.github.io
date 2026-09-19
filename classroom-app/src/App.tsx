@@ -12,8 +12,10 @@ import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
-import { buildPreview, isPreviewMessage, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
+import { buildPreview, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
 import { buildGamePreview, GAME_ENTRY } from "./lib/pixelpad";
+import { RunPanel } from "./RunPanel";
+import { PixelPadIde } from "./PixelPadIde";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel } from "./CoursePanel";
@@ -52,11 +54,6 @@ function localDevice() {
   const device = { id: crypto.randomUUID(), fingerprint: crypto.randomUUID().replaceAll("-", "").slice(0, 16) };
   localStorage.setItem(deviceKey, JSON.stringify(device));
   return device;
-}
-
-function sameFiles(a: Record<string, string>, b: Record<string, string>) {
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }
 
 function App() {
@@ -149,7 +146,7 @@ function App() {
     return <SoloWorkspace key={signedIn} token={account.token} who={account.account.name || "Teacher"}
                           exitLabel="Back to the start" onExit={() => setMode("home")}>
       {({ doc, awareness, files, kind }) =>
-        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} />}
+        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} token={account.token} />}
     </SoloWorkspace>;
   }
   if (mode === "instructor" && activeClass) {
@@ -479,7 +476,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
     return <SoloWorkspace token={token} who={courseInfo ? courseInfo.courseId : "Teacher"}
                           onExit={() => setOwnProjects(false)}>
       {({ doc, awareness, files, kind }) =>
-        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} />}
+        <CollabWorkspace doc={doc} awareness={awareness} files={files} kind={kind} token={token} />}
     </SoloWorkspace>;
   }
 
@@ -661,7 +658,7 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
           </div>
         </div>
         <p className="muted small">Compares against the expected code {compareNote}.</p>
-        <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={current.kind} />
+        <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={current.kind} token={token} />
       </section>
       {problem && <aside className="identify-panel">
         <h2>Identify problem</h2>
@@ -1057,7 +1054,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     onLeave={() => { setCoeditRoom(null); setStep("picker"); setStatus("Choose a project, or start a new one."); }}
     onCopied={(id) => { setCoeditRoom(null); void openProject(id); }}
     onTakeOver={(files) => { void takeOver(files); }}>
-    {(props) => <CollabWorkspace {...props} />}
+    {(props) => <CollabWorkspace {...props} token={sessionRef.current?.token} />}
   </CoEditGuest>;
   if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={(id) => { void openProject(id); }} onJoinCoedit={(room) => { void openProject(room.projectId); }} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card">
@@ -1114,7 +1111,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
                                   doc={docRef.current} awareness={awarenessRef.current} name={sessionRef.current?.name || "Me"}
                                   onOpenChange={setCoediting} initialRoom={hostRoom} members={memberCount} ownerName={projectOwner}
                                   onUsurped={(room) => { apiTokenRef.current = null; setHostRoom(null); setCoeditRoom(room); setCoeditOwned(true); setStep("coedit"); }} />}
-      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} />
+      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} token={accountToken ?? undefined} />
       {accountToken && <MediaPanel token={accountToken} />}
     </section>
   </main>;
@@ -1161,7 +1158,20 @@ function MediaPanel({ token }: { token: string }) {
   </div>;
 }
 
-export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean }) {
+export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly, token }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean; token?: string }) {
+  /* A game is not a folder of files with a page beside it, so it does not get
+     the file tree: PixelPadIde shows the same shared document as classes,
+     rooms and pictures, the way the offline PixelPad does.
+
+     Two components rather than one with a branch in it. Opening a different
+     project keeps this element mounted, so a student going from a web page to
+     a game would change which hooks run - React counts them, and mismatched
+     counts is the crash where the editor goes blank mid-lesson. */
+  if (kind === "pixelpad") return <PixelPadIde doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} />;
+  return <FileWorkspace doc={doc} awareness={awareness} files={files} kind={kind} readOnly={readOnly} />;
+}
+
+function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
   // Where a run starts: the page for a web project, the first panel for a game.
   const entry = kind === "pixelpad" ? GAME_ENTRY : ENTRY_FILE;
@@ -1212,117 +1222,6 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly 
         </div></section>
       : <RunPanel files={files} kind={kind} />}
   </div>;
-}
-
-/* Execution is manual and runs a SNAPSHOT of the files, not the live `files`
-   object. The old preview re-read `files` - refreshed on a 300ms debounce by
-   scheduleDerive - so script.js re-executed on essentially every keystroke.
-   For a course whose whole point is calling a rate-limited API, that spends a
-   student's 40-requests-per-minute budget while they are still typing the call. */
-function RunPanel({ files, kind = "web" }: { files: Record<string, string>; kind?: ProjectKind }) {
-  const game = kind === "pixelpad";
-  const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
-  const [runId, setRunId] = useState(0);       // key bump: forces a real unmount
-  const [nonce, setNonce] = useState("");      // identifies this run's messages
-  const [log, setLog] = useState<PreviewMessage[]>([]);
-  const [onlyErrors, setOnlyErrors] = useState(false);
-  /* A web project runs full screen: the page a student wrote is the thing they
-     came to see, and a third of a column is not a web page. A game already
-     fills its own canvas at the size it was designed for, so it stays put. */
-  const [full, setFull] = useState(false);
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const tailRef = useRef<HTMLDivElement | null>(null);
-  const stale = runFiles !== null && !sameFiles(runFiles, files);
-  const errorCount = log.filter((entry) => entry.kind === "error").length;
-
-  function run() {
-    const next = crypto.randomUUID();
-    setLog([]); setNonce(next); setRunFiles({ ...files }); setRunId((id) => id + 1);
-    if (!game) setFull(true);
-  }
-  function stop() {
-    // Unmounting is the only reliable way to stop a page's timers, listeners
-    // and in-flight requests. Clearing srcDoc would leave them running.
-    setRunFiles(null); setNonce(""); setFull(false);
-    setLog((prev) => [...prev, { __utg: "", kind: "system", text: "Stopped.", at: Date.now() }]);
-  }
-
-  useEffect(() => {
-    function onMessage(event: MessageEvent) {
-      const msg = isPreviewMessage(event, frameRef.current, nonce);
-      if (!msg) return; // includes stale output from a previous run, dropped by nonce
-      setLog((prev) => (prev.length >= 300 ? [...prev.slice(-299), msg] : [...prev, msg]));
-    }
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [nonce]);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); run(); }
-      if (event.key === "Escape" && full) { event.preventDefault(); setFull(false); }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
-  useEffect(() => { tailRef.current?.scrollIntoView({ block: "end" }); }, [log.length]);
-  /* Nothing behind the running page should scroll, and without this the page
-     is a scrollbar's width short of the screen - a strip of the app showing
-     down one side of what is supposed to be full screen. */
-  useEffect(() => {
-    if (!full) return;
-    document.body.classList.add("running-full");
-    return () => document.body.classList.remove("running-full");
-  }, [full]);
-
-  const shown = onlyErrors ? log.filter((entry) => entry.kind === "error") : log;
-  /* Full screen is a class on the panel that is already here, not a second
-     copy of it somewhere else in the tree. Moving the iframe to a new parent
-     would unmount it, and unmounting is how this panel STOPS a run - a child
-     pressing Exit would silently restart their page from the top. */
-  return <section className={`preview-panel${full ? " preview-full" : ""}`}>
-    <div className="preview-top">
-      <strong>{game ? "Game" : "Preview"}</strong>
-      {stale && <span className="stale-hint">Your code changed since you last ran it</span>}
-      <button className={stale || !runFiles ? "primary compact" : "text-button"} onClick={run}>{runFiles ? "Run again" : "▶ Run"}</button>
-      {runFiles && !game && <button className="text-button" onClick={() => setFull(true)}>Full screen</button>}
-      {runFiles && <button className="text-button" onClick={stop}>Stop</button>}
-    </div>
-    {/* The way out sits over the page, in the middle of the top edge, and never
-        hides: a student whose own code covers the screen must not have to guess
-        where the exit went. The console is hidden while full screen, so an
-        error says so here rather than waiting silently underneath. */}
-    {full && <div className="preview-exit">
-      <button className="secondary" onClick={() => setFull(false)}>✕ Exit full screen</button>
-      {errorCount > 0 && <button className="exit-errors" onClick={() => setFull(false)}>
-        {errorCount === 1 ? "1 error — exit to read it" : `${errorCount} errors — exit to read them`}
-      </button>}
-    </div>}
-    {runFiles
-      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={(game ? buildGamePreview : buildPreview)(runFiles, nonce)} />
-      : <div className="preview-idle">
-          <p>Press <strong>▶ Run</strong> to {game ? "play your game" : "see your project"}.</p>
-          <p className="muted">{game
-            ? "Your game starts fresh every time you run it, so you always see exactly what your code does now."
-            : "Nothing runs until you ask it to, so your project never sends a request you did not mean to send."}</p>
-        </div>}
-    <div className="console-panel">
-      <div className="console-head">
-        <strong>Console</strong>
-        {errorCount > 0 && <span className="console-badge">{errorCount}</span>}
-        <label className="console-filter"><input type="checkbox" checked={onlyErrors} onChange={(event) => setOnlyErrors(event.target.checked)} />Errors only</label>
-        <button className="text-button" onClick={() => setLog([])}>Clear</button>
-      </div>
-      <div className="console-body">
-        {shown.length === 0
-          ? (game
-              ? <span className="muted">Anything you <code>print()</code> shows up here, and so does every mistake the game finds - it tells you which panel and which line.</span>
-              : <span className="muted">Anything you <code>console.log()</code> shows up here, along with errors and network requests.</span>)
-          : shown.map((entry, index) => <div className={`console-row ${entry.kind}`} key={index}>{entry.text}</div>)}
-        <div ref={tailRef} />
-      </div>
-    </div>
-  </section>;
 }
 
 export default App;

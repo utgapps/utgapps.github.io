@@ -23,6 +23,10 @@
    vendored file is ever updated and its shape has moved, this fails loudly
    rather than emitting a half-engine that dies at the first student's Run.
 
+   One more thing comes out of it: the word lists section 6 suggests as you
+   type. The classroom editor offers the same words, and copying them by hand
+   would put a second list in the repo that nobody remembers to update.
+
        node tools/build-engine.mjs
 */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -31,13 +35,40 @@ import { fileURLToPath } from "node:url";
 const here = fileURLToPath(new URL(".", import.meta.url));
 export const SOURCE = "vendor/pixelpad-offline.html";
 export const OUT = "src/lib/pixelpad-engine.js";
+export const API_OUT = "src/lib/pixelpad-api.ts";
 
-export function cutEngine() {
 /* Normalised to \n: the vendored file is CRLF on Windows, and every marker
    below is anchored to a line start. */
-const html = readFileSync(here + "../" + SOURCE, "utf8").replace(/\r\n/g, "\n");
-
+const source = () => readFileSync(here + "../" + SOURCE, "utf8").replace(/\r\n/g, "\n");
 const fail = (why) => { console.error("build-engine: " + why); process.exit(1); };
+
+/* The three lists the IDE's suggestion box is built from: what the engine can
+   be asked to do, what a thing in the world has on it, and Python itself. */
+export function cutApi() {
+  const html = source();
+  const names = ["API_NAMES", "ATTR_NAMES", "PY_KEYWORDS"];
+  const decls = names.map((name) => {
+    const found = [...html.matchAll(new RegExp("^const " + name + " = \\[[^\\]]*\\];$", "gm"))];
+    if (found.length !== 1) fail(name + " appears " + found.length + " times in " + SOURCE + ", expected 1");
+    return found[0][0];
+  });
+  /* Real JavaScript before it becomes TypeScript, so a half-copied list fails
+     here rather than at the next `npm run check`. */
+  try { new Function(decls.join("\n")); } catch (e) { fail("the word lists do not parse: " + e.message); }
+  const text =
+    "/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.\n" +
+    " *\n" +
+    " * The words " + SOURCE + " suggests while you type, so the\n" +
+    " * classroom editor suggests exactly the same ones. A name added to the\n" +
+    " * engine reaches both editors by regenerating this file, and neither by\n" +
+    " * editing it.\n" +
+    " */\n" +
+    decls.map((decl) => "export " + decl.replace(" = [", ": string[] = [")).join("\n\n") + "\n";
+  return { text, count: decls.length };
+}
+
+export function cutEngine() {
+const html = source();
 
 /* Each <script> block, in document order. */
 const blocks = [...html.matchAll(/<script>\n([\s\S]*?)\n<\/script>/g)].map((m) => m[1]);
@@ -117,4 +148,7 @@ if (process.argv[1] && process.argv[1].endsWith("build-engine.mjs")) {
   writeFileSync(here + "../" + OUT, cut.text, "utf8");
   console.log("wrote " + OUT + "  " + cut.lines + " lines, " + Math.round(cut.bytes / 1024) + " KB");
   console.log("page must provide: " + cut.needs.join(", "));
+  const api = cutApi();
+  writeFileSync(here + "../" + API_OUT, api.text, "utf8");
+  console.log("wrote " + API_OUT + "  " + api.count + " word lists");
 }

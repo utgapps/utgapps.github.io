@@ -31,6 +31,17 @@ export function panelOf(path: string): { asset: string; tab: "start" | "loop" } 
   return match ? { asset: match[1], tab: match[2] as "start" | "loop" } : null;
 }
 
+/** "Helpers.fn.py" -> "Helpers". Shared code rather than a thing in the world:
+ *  a function file runs once, before any start() does, so a `def` written in
+ *  one is callable from every panel. The IDE lists these under Functions. */
+const FUNCTION = /^([A-Za-z][A-Za-z0-9_]*)\.fn\.py$/;
+
+export function functionOf(path: string): string | null {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const match = FUNCTION.exec(base);
+  return match ? match[1] : null;
+}
+
 /** Colour names shared with the PXP101 textbook, so "green, 48 by 48" in the
  *  book and `sprite monster.png green 48 48` here mean the same square. */
 export const RGB: Record<string, [number, number, number]> = {
@@ -107,11 +118,13 @@ function solidPng(rgb: [number, number, number], width: number, height: number):
 }
 
 export type Panels = { start: string; loop: string };
+export type SharedFunction = { name: string; body: string };
 export type GameConfig = {
   textures: Record<string, string>;
   start: string; loop: string;
   classes: Record<string, Panels>;
   rooms: Record<string, Panels>;
+  functions: SharedFunction[];
 };
 
 /** Panel files + game.txt -> the project the engine runs.
@@ -130,9 +143,12 @@ export function assembleGame(files: Record<string, string>): { config: GameConfi
 
   const classes: Record<string, Panels> = {};
   const rooms: Record<string, Panels> = {};
+  const functions: SharedFunction[] = [];
   let start = "", loop = "", panels = 0;
 
   for (const path of Object.keys(files)) {
+    const shared = functionOf(path);
+    if (shared) { functions.push({ name: shared, body: files[path] ?? "" }); continue; }
     const panel = panelOf(path);
     if (!panel) continue;
     panels++;
@@ -164,7 +180,11 @@ export function assembleGame(files: Record<string, string>): { config: GameConfi
       : solidPng(RGB[sprite.source], sprite.width, sprite.height);
   }
 
-  return { config: { textures, start, loop, classes, rooms }, problems };
+  /* By name, so a game runs the same way twice. Object key order would hand
+     the engine whichever function happened to be created first. */
+  functions.sort((a, b) => a.name.localeCompare(b.name));
+
+  return { config: { textures, start, loop, classes, rooms, functions }, problems };
 }
 
 /* Console plumbing, injected before the engine loads.
@@ -214,22 +234,45 @@ function bridge(nonce: string): string {
 
 /* Just the stage. The engine measures itself against #canvasContainer, writes
    its debug readout into #debugPanel and empties #output when a game calls
-   clear_console() - all three have to exist, and only the first is worth
-   seeing. The canvas keeps its 16:9 shape, so there is space left over above
-   and below it; that gets painted the page colour rather than left white. */
+   clear_console() - all three have to exist. The canvas keeps its 16:9 shape,
+   so there is space left over above and below it; that gets painted the page
+   colour rather than left white.
+
+   The debug bar is the offline IDE's, colours and metrics included, and stays
+   hidden until the app asks for it. It has to live in here: every switch on it
+   is a field on the Engine running in this frame. */
 const STAGE_CSS =
   "html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}" +
   "#canvasContainer{display:flex;align-items:center;justify-content:center;width:100%;height:100%}" +
+  "#debugContainer{margin:auto;position:relative;max-width:100%;max-height:100%}" +
   "#stage{display:block;outline:none}" +
-  "#debugPanel,#output{display:none}";
+  "#debugPanel{width:100%;height:30px;background:#2f1c40;display:none;align-items:center;padding:0 2px}" +
+  "#debugPanel.on{display:flex}" +
+  ".debugButton{width:25px;height:25px;margin:0 2px;border:0;border-radius:.2rem;background:#6d399f;color:#fff;" +
+  "display:flex;align-items:center;justify-content:center;cursor:pointer;font:700 12px system-ui,sans-serif}" +
+  ".debugButton.on{background:#17a2b8}" +
+  "#debugReadout{margin-left:auto;padding-right:.5rem;color:#fff;opacity:.8;white-space:nowrap;font:11px system-ui,sans-serif}" +
+  "#output{display:none}";
+
+/* The bar itself. Four switches, each one a single Engine field, in the order
+   the offline IDE puts them: what the game thinks is happening, what one thing
+   is holding, hold still, and where the middle of the screen is. */
+const DEBUG_BAR =
+  '<div id="debugPanel">' +
+  '<button class="debugButton" id="generalDebug" title="Show what the game is doing">i</button>' +
+  '<button class="debugButton" id="objectDebug" title="Click a thing to look inside it">\u25ce</button>' +
+  '<button class="debugButton" id="pauseDebug" title="Freeze the game">\u275a\u275a</button>' +
+  '<button class="debugButton" id="rulerDebug" title="Show the grid">#</button>' +
+  '<span id="debugReadout"></span></div>';
 
 /** The script that turns one config into a running game.
  *
  *  It runs after the engine, as a second classic script in the same document,
  *  so the engine's top-level `Engine` and `normKey` are already in scope. */
-function runner(config: GameConfig): string {
+function runner(config: GameConfig, nonce: string): string {
   return "<script>(function () {\n" +
 "  var CONFIG = " + JSON.stringify(config).replaceAll("</script", "<\\/script") + ";\n" +
+"  var NONCE = " + JSON.stringify(nonce) + ";\n" +
 "  var post = window.__utgPost;\n" +
 "  /* A mistake inside a loop() panel is reported again every frame, sixty times\n" +
 "     a second, because this engine keeps running exactly as the real one does.\n" +
@@ -266,7 +309,7 @@ function runner(config: GameConfig): string {
 "    Engine.loadSprite(name, img);\n" +
 "  });\n" +
 "\n" +
-"  var project = { classes: [], rooms: [], functions: [], sprites: [], sounds: [] };\n" +
+"  var project = { classes: [], rooms: [], functions: CONFIG.functions || [], sprites: [], sounds: [] };\n" +
 "  project.classes.push({ name: \"Game\", isGame: true, start: CONFIG.start, loop: CONFIG.loop });\n" +
 "  Object.keys(CONFIG.classes).forEach(function (name) {\n" +
 "    project.classes.push({ name: name, start: CONFIG.classes[name].start, loop: CONFIG.classes[name].loop });\n" +
@@ -312,8 +355,45 @@ function runner(config: GameConfig): string {
 "    Engine.mouse.over = true;\n" +
 "  });\n" +
 "  stage.addEventListener(\"mouseleave\", function () { Engine.mouse.over = false; });\n" +
-"  stage.addEventListener(\"mousedown\", function () { Engine.mouse.down = true; Engine.mouse.pressed = true; });\n" +
+"  stage.addEventListener(\"mousedown\", function (e) {\n" +
+"    Engine.mouse.down = true; Engine.mouse.pressed = true;\n" +
+"    /* With the inspector on, a click picks the topmost thing under it and the\n" +
+"       engine draws what that thing is holding. */\n" +
+"    if (Engine.debug.inspect) {\n" +
+"      var w = Engine.s2w(e.clientX, e.clientY);\n" +
+"      Engine.selected = Engine.objects.slice().reverse().find(function (o) {\n" +
+"        var b = Engine.bbox(o);\n" +
+"        return w[0] >= b.l && w[0] <= b.r && w[1] >= b.b && w[1] <= b.t;\n" +
+"      }) || null;\n" +
+"      Engine.render();\n" +
+"    }\n" +
+"  });\n" +
 "  window.addEventListener(\"mouseup\", function () { Engine.mouse.down = false; Engine.mouse.released = true; });\n" +
+"\n" +
+"  /* The debug bar, wired as the offline IDE wires it. The switch that shows\n" +
+"     the bar at all is in the app rather than in here, so a child sees one\n" +
+"     Debug button instead of a row of purple squares over every game. */\n" +
+"  function el(id) { return document.getElementById(id); }\n" +
+"  function syncDebug() {\n" +
+"    el(\"generalDebug\").classList.toggle(\"on\", Engine.debug.info);\n" +
+"    el(\"objectDebug\").classList.toggle(\"on\", Engine.debug.inspect);\n" +
+"    el(\"pauseDebug\").classList.toggle(\"on\", Engine.paused);\n" +
+"    el(\"rulerDebug\").classList.toggle(\"on\", Engine.debug.grid);\n" +
+"    el(\"debugReadout\").textContent = Engine.running ? Engine.fps + \" fps - \" + Engine.objects.length + \" things\" : \"\";\n" +
+"  }\n" +
+"  el(\"generalDebug\").onclick = function () { Engine.debug.info = !Engine.debug.info; syncDebug(); Engine.render(); };\n" +
+"  el(\"objectDebug\").onclick = function () { Engine.debug.inspect = !Engine.debug.inspect; syncDebug(); Engine.render(); };\n" +
+"  el(\"pauseDebug\").onclick = function () { Engine.paused = !Engine.paused; syncDebug(); };\n" +
+"  el(\"rulerDebug\").onclick = function () { Engine.debug.grid = !Engine.debug.grid; syncDebug(); Engine.render(); };\n" +
+"  setInterval(syncDebug, 500);\n" +
+"  window.addEventListener(\"message\", function (event) {\n" +
+"    var data = event.data;\n" +
+"    if (!data || data.__utg !== NONCE || typeof data.debug !== \"boolean\") return;\n" +
+"    Engine.debug.on = data.debug;\n" +
+"    if (!data.debug) { Engine.debug.info = Engine.debug.inspect = Engine.debug.grid = false; Engine.paused = false; }\n" +
+"    el(\"debugPanel\").classList.toggle(\"on\", data.debug);\n" +
+"    syncDebug(); Engine.fit(); Engine.render();\n" +
+"  });\n" +
 "})();<\/script>";
 }
 
@@ -325,9 +405,9 @@ export function buildGamePreview(files: Record<string, string>, nonce: string): 
     : "";
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Game preview</title>' +
     "<style>" + STAGE_CSS + "</style>" + bridge(nonce) + complain + "</head>" +
-    '<body><div id="canvasContainer"><canvas id="stage" tabindex="0"></canvas>' +
-    '<div id="debugPanel"></div></div><pre id="output"></pre>' +
+    '<body><div id="canvasContainer"><div id="debugContainer">' + DEBUG_BAR +
+    '<canvas id="stage" tabindex="0"></canvas></div></div><pre id="output"></pre>' +
     "<script>\n" + ENGINE.replaceAll("</script", "<\\/script") + "\n<\/script>" +
-    runner(config) +
+    runner(config, nonce) +
     "</body></html>";
 }
