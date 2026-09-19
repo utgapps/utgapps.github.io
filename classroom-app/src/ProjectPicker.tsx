@@ -110,7 +110,7 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
               </div>
             </div>)}
             <button className="project-card new" onClick={() => setCreating(true)}><span className="plus">＋</span><strong>Project</strong><small>Start your own</small></button>
-            {onJoinCoedit && <button className="project-card coedit" onClick={() => setJoining(true)}><span className="plus">＋</span><strong>Shared project</strong><small>Type a classmate&rsquo;s code</small></button>}
+            {onJoinCoedit && <button className="project-card coedit" onClick={() => setJoining(true)}><span className="plus">＋</span><strong>Shared project</strong><small>Type a code you were given</small></button>}
           </div>}
       <p className="notice">{status}</p>
     </section>

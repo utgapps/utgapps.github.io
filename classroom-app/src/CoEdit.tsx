@@ -157,7 +157,7 @@ export const CoEditBox = forwardRef<CoEditHandle, {
       ? <>{ownerName}&rsquo;s project, shared with you. This computer is the one saving it at the moment.</>
       : members > 0
         ? <>Shared with {members} {members === 1 ? "person" : "people"}. It is on their projects screen too, and this computer is the one saving it.</>
-        : <>Read the code to a classmate. They press <strong>＋ Shared project</strong> on their projects screen, and it stays on that screen for good.</>}</small>
+        : <>Read the code to the person you are sharing with. They press <strong>＋ Shared project</strong> on their projects screen, and it stays on that screen for good.</>}</small>
   </div>;
 });
 
@@ -319,7 +319,7 @@ export function CoEditJoinDialog({ token, onJoined, onCancel }: {
   return <div className="dialog-backdrop">
     <div className="dialog" role="dialog" aria-modal="true" aria-label="Join a shared project">
       <h2>Join a shared project</h2>
-      <p>Ask your classmate to press <strong>Share this project</strong> in their project. They will read you a code like <code>7KX2 - M4P9</code>. Once you have typed it in, the project stays on your projects screen.</p>
+      <p>Ask the person sharing it to press <strong>Share this project</strong> in their project. They will read you a code like <code>7KX2 - M4P9</code>. Once you have typed it in, the project stays on your projects screen.</p>
       <label>Their code<input className="code-input coedit-input" value={typed} maxLength={16} autoFocus
                                 placeholder="XXXX - XXXX"
                                 onChange={(event) => setTyped(event.target.value.toUpperCase())}
