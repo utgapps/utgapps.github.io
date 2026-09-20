@@ -3,7 +3,7 @@ import Peer, { DataConnection } from "peerjs";
 import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
-import { seedDoc, docToFiles, fileNames, filesMap, b64encode, b64decode, userColor } from "./lib/collab";
+import { seedDoc, docToFiles, deriveLater, fileNames, filesMap, b64encode, b64decode, userColor } from "./lib/collab";
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
@@ -554,14 +554,7 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
       seedDoc(doc, proj.files);
       const awareness = new Awareness(doc);
       awareness.setLocalStateField("user", { name: "Teacher", color: userColor("Teacher") });
-      doc.on("update", () => {
-        if (deriveTimer.current === null) {
-          deriveTimer.current = window.setTimeout(() => {
-            deriveTimer.current = null;
-            if (docRef.current) setFiles(docToFiles(docRef.current));
-          }, 300);
-        }
-      });
+      doc.on("update", () => deriveLater(deriveTimer, () => docRef.current, setFiles));
       docRef.current = doc; awarenessRef.current = awareness;
       setCurrent(proj); setFiles(proj.files); setStatus("");
       setSaveLabel(`Editing ${student.name}'s project.`);
@@ -820,10 +813,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
   function sendConn(msg: WireMessage) { const c = connectionRef.current; if (c && c.open) c.send(msg); }
-  function scheduleDerive() {
-    if (deriveTimer.current !== null) return;
-    deriveTimer.current = window.setTimeout(() => { deriveTimer.current = null; if (docRef.current) setFiles(docToFiles(docRef.current)); }, 300);
-  }
+  function scheduleDerive() { deriveLater(deriveTimer, () => docRef.current, setFiles); }
   async function saveNow() {
     const token = apiTokenRef.current, doc = docRef.current, id = localProjectIdRef.current;
     if (!token || !doc || !id) return;

@@ -21,7 +21,6 @@ export type ProjectKind = "web" | "java" | "pixelpad";
    own projects have it null. members is how many people it is shared with. */
 export type ApiProjectSummary = { id: string; title: string; kind: ProjectKind; size: number; createdAt: number; updatedAt: number; shareSlug: string | null; owner: string | null; members: number };
 export type ApiProject = ApiProjectSummary & { files: Record<string, string> };
-export type ApiSharedProject = { title: string; html: string; updatedAt: number };
 export type ApiClassStudent = { id: string; name: string; lastSeen: number; projects: number;
                                 username: string | null; hasAccount: boolean };
 
@@ -148,17 +147,10 @@ export async function apiLoginAccount(username: string, password: string): Promi
 export async function apiBootstrapAdmin(body: { setupSecret: string; classId: string; name: string; username: string; password: string }): Promise<{ token: string; account: ApiAccount }> {
   return req("/admin/bootstrap", { method: "POST", body: JSON.stringify(body) });
 }
-/** @deprecated Single-project routes. Kept so a browser holding a cached
- *  pre-picker bundle keeps saving; nothing in this app calls them any more.
- *  Remove once that cache cannot plausibly still exist. */
-export async function apiGetProject(token: string): Promise<ApiProject | null> {
-  const d = await req("/project", {}, token);
-  return d.project || null;
-}
-/** @deprecated See apiGetProject. */
-export async function apiSaveProject(token: string, title: string, files: Record<string, string>): Promise<void> {
-  await req("/project", { method: "PUT", body: JSON.stringify({ title, files }) }, token);
-}
+/* The single-project routes (GET and PUT /project) are gone from here. They
+   were kept for a browser still running a cached pre-picker bundle, but such a
+   browser carries its own copy of this file - keeping ours helped nobody. The
+   worker still answers them, which is the half that matters. */
 
 export async function apiListProjects(token: string): Promise<ApiProjectSummary[]> {
   return (await req("/projects", {}, token)).projects || [];

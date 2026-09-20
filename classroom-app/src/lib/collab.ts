@@ -30,6 +30,20 @@ export function docToFiles(doc: Y.Doc): Files {
   return out;
 }
 
+/* A document changes on every keystroke, and React does not need to see each
+   one: the files are derived once per burst, 300 ms behind. Three editors -
+   the teacher looking at a student's project, a student's own workspace, and
+   the shared room - each wrote this timer out for themselves. */
+export function deriveLater(timer: { current: number | null },
+                            doc: () => Y.Doc | null, setFiles: (files: Files) => void): void {
+  if (timer.current !== null) return;
+  timer.current = window.setTimeout(() => {
+    timer.current = null;
+    const now = doc();
+    if (now) setFiles(docToFiles(now));
+  }, 300);
+}
+
 export function fileText(doc: Y.Doc, name: string): Y.Text {
   const map = filesMap(doc);
   let t = map.get(name);

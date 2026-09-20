@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
-import { seedDoc, docToFiles, userColor } from "./lib/collab";
+import { seedDoc, docToFiles, deriveLater, userColor } from "./lib/collab";
 import { apiGetProjectById, apiSaveProjectById, apiSaveProjectBeacon, type ApiCoeditRoom } from "./lib/api";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type Editor } from "./CoEdit";
@@ -102,12 +102,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
     const awareness = new Awareness(doc);
     awareness.setLocalStateField("user", { name: who, color: userColor(who) });
     doc.on("update", () => {
-      if (deriveTimer.current === null) {
-        deriveTimer.current = window.setTimeout(() => {
-          deriveTimer.current = null;
-          if (docRef.current) setFiles(docToFiles(docRef.current));
-        }, 300);
-      }
+      deriveLater(deriveTimer, () => docRef.current, setFiles);
       scheduleSave();
     });
     docRef.current = doc;

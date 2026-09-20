@@ -38,14 +38,6 @@ export function makeStudent(name: string, kind: ProjectKind = "web"): { student:
   };
 }
 
-// Only the files whose contents differ from the last-synced baseline. Used to
-// send deltas over the wire instead of the whole project on every keystroke.
-export function changedFiles(files: Record<string, string>, baseline: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const name in files) if (files[name] !== baseline[name]) out[name] = files[name];
-  return out;
-}
-
 export function downloadFile(name: string, contents: string, type = "application/json") {
   const blob = new Blob([contents], { type });
   const url = URL.createObjectURL(blob);
