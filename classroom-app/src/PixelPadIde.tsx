@@ -6,7 +6,6 @@ import { docToFiles, fileText, filesMap } from "./lib/collab";
 import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, useGameAudio, type Sprite } from "./lib/pixelpad";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/pixelpad-icons";
-import { starterFiles } from "./lib/types";
 import { downloadFile } from "./lib/classroom";
 import { apiUploadMedia } from "./lib/api";
 import { compressAudio, compressImage } from "./lib/media";
@@ -509,25 +508,12 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
   // ---- the Project list ----------------------------------------------------
 
-  /* Erase and start again, as the offline IDE's New does. It says what it is
-     about to throw away, because here that is work saved to an account rather
-     than to this browser. */
-  function newProject() {
-    if (!window.confirm("Start a new game? Everything in this project is thrown away and you begin with an empty one, and that cannot be undone.")) return;
-    const starter = starterFiles("pixelpad");   // empty: no code, no pictures
-    doc.transact(() => {
-      const map = filesMap(doc);
-      for (const path of [...map.keys()]) map.delete(path);
-      for (const [path, text] of Object.entries(starter)) {
-        const body = new Y.Text();
-        map.set(path, body);
-        body.insert(0, text);
-      }
-    });
-    touched();
-    setSelected({ kind: "panels", name: GAME });
-    say("system", "Started a new game.");
-  }
+  /* There is no New here, though the offline IDE has one. That editor holds
+     one project in this browser, so New is the only way to start another. A
+     game here is one of the student's projects on their account, made and
+     thrown away on the screen that lists them - where it is named, where it
+     can be deleted on purpose, and where it is not one press away from a
+     partner's work while they are both typing in it. */
 
   function exportProject() {
     downloadFile("game.pp2d", toPp2d(snapshot), "application/json");
@@ -744,7 +730,6 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onOpen={() => setSelected({ kind: "file", name: path })}
           onDelete={readOnly ? undefined : () => deleteFile(path)} />)}
         {!readOnly && <>
-          <SideItem name="New" icon="file" active={false} title="Throw this game away and start again" onOpen={newProject} />
           <SideItem name="Export" icon="download" active={false} title="Save a .pp2d file - it opens on pixelpad.io" onOpen={exportProject} />
           <SideItem name="Import" icon="upload" active={false} title="Open a .pp2d file"
                     onOpen={() => importRef.current?.click()} />
