@@ -6,7 +6,6 @@ import { docToFiles, fileText, filesMap } from "./lib/collab";
 import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, useGameAudio, type Sprite } from "./lib/pixelpad";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/pixelpad-icons";
-import { BUILT_IN_SOUNDS, synthWav } from "./lib/pixelpad-synth";
 import { starterFiles } from "./lib/types";
 import { downloadFile } from "./lib/classroom";
 import { apiUploadMedia } from "./lib/api";
@@ -46,16 +45,20 @@ import "./pixelpad-ide.css";
  *       Sprites     a "sprite" line in game.txt
  *       Sounds      a "sound" line in game.txt
  *
- * game.txt stays a file a child can open and read, because the PXP101 textbook
- * teaches it as one. The sidebar writes the same lines they would type.
+ * game.txt is bookkeeping and the sidebar does not show it. A project is a bag
+ * of named strings, so the one thing panel files cannot say - which of them is
+ * a room, and where a picture lives - has to be written down somewhere, and it
+ * is written there. Every line in it is machine-written by a + in this sidebar
+ * and read back into Rooms, Sprites and Sounds, so the file was a second,
+ * worse copy of the sidebar with nothing in it to learn. No course teaches it.
  */
 
 type Selection =
   | { kind: "panels"; name: string }      // a class or a room: start and loop
   | { kind: "function"; name: string }    // shared code: one body
   | { kind: "sprite"; name: string }      // always one that exists: uploaded or drawn
-  | { kind: "sound"; name: string }       // one the engine makes, or one uploaded
-  | { kind: "file"; name: string };       // game.txt, or anything else in there
+  | { kind: "sound"; name: string }       // always one the student uploaded
+  | { kind: "file"; name: string };       // anything else in the project, but never game.txt
 
 const GAME = "Game";
 
@@ -97,11 +100,12 @@ const starterFunction = (name: string) =>
   "# def " + name.toLowerCase() + "(a, b):\n" +
   "#     return a + b\n";
 /* The note at the top of game.txt. A new game has no game.txt at all, so this
-   is what the first picture or the first room writes above itself. */
+   is what the first picture or the first room writes above itself. Nobody
+   using the editor is shown this file, but it travels: it is in an export, in
+   a checkpoint, and in what a teacher reads, so it says what it is. */
 const MANIFEST_HEADER =
-  "# This file tells the game about your screens and your pictures.\n" +
-  "# Anything after a # is a note to yourself - the game ignores it.\n";
-const STARTER_MANIFEST = MANIFEST_HEADER + "\n" + "room Play\n";
+  "# The editor writes this file. It lists your rooms and your pictures so the\n" +
+  "# game knows about them - the Rooms and Sprites lists in the editor are it.\n";
 
 /** One of the offline IDE's glyphs. They are paths in a 16x16 box that take
  *  the colour of whatever they sit in, cut out of the vendored file. */
@@ -213,9 +217,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
       (selected.kind === "panels" && selected.name !== GAME && !classes.includes(selected.name) && !rooms.includes(selected.name)) ||
       (selected.kind === "function" && !functions.includes(selected.name)) ||
       (selected.kind === "sprite" && selected.name !== "" && !manifest.sprites.some((s) => s.name === selected.name)) ||
-      (selected.kind === "sound" && !BUILT_IN_SOUNDS.includes(selected.name) &&
-        !manifest.sounds.some((s) => s.name === selected.name)) ||
-      (selected.kind === "file" && selected.name !== MANIFEST_FILE && !others.includes(selected.name));
+      (selected.kind === "sound" && !manifest.sounds.some((s) => s.name === selected.name)) ||
+      (selected.kind === "file" && !others.includes(selected.name));
     if (gone) setSelected({ kind: "panels", name: GAME });
   }, [classes, rooms, functions, others, manifest, selected]);
 
@@ -484,7 +487,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     say("system", "Adding " + file.name + "...");
     try {
       const small = await compressAudio(file);
-      const taken = new Set([...BUILT_IN_SOUNDS, ...manifest.sounds.map((sound) => sound.name)]);
+      const taken = new Set(manifest.sounds.map((sound) => sound.name));
       let name = small.name;
       for (let n = 2; taken.has(name); n++) name = small.name.replace(/\.mp3$/, "") + "-" + n + ".mp3";
       const media = await apiUploadMedia(token, "audio", small.mime, name, small.blob);
@@ -601,13 +604,11 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   function pane(path: string) {
     if (path in snapshot) return <CollabEditor doc={doc} file={path} awareness={awareness} readOnly={readOnly} ppe suggest={suggest} />;
     const name = path.slice(0, path.indexOf("."));
-    const starter = path === MANIFEST_FILE ? STARTER_MANIFEST
-      : path.endsWith(".fn.py") ? starterFunction(name)
+    const starter = path.endsWith(".fn.py") ? starterFunction(name)
       : path.endsWith(".loop.py") ? starterLoop(name)
       : rooms.includes(name) ? starterRoomStart(name) : starterStart(name);
     return <div className="pp-blank">
-      <p>{path === MANIFEST_FILE ? "This game has no " + MANIFEST_FILE + " yet."
-        : path.endsWith(".loop.py") ? name + " does nothing over and over yet."
+      <p>{path.endsWith(".loop.py") ? name + " does nothing over and over yet."
         : "Nothing happens when " + name + " is made yet."}</p>
       {!readOnly && <span className="btn btn-success" onClick={() => { makeFile(path, starter); touched(); }}>Write {path}</span>}
     </div>;
@@ -707,16 +708,14 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
       <input ref={pictureRef} type="file" accept="image/*" style={{ display: "none" }}
              onChange={(event) => { void uploadPicture(event); }} />
 
-      {/* The two the engine makes itself come first and have no delete: they
-          need no file, and a child who cannot see them cannot know they are
-          there to be played. Everything under them is a real file in the
-          student's media, named by the line it wrote in game.txt. */}
+      {/* Only sounds the student put there. The engine can still make a noise
+          for a name it has never heard, which is what a game does before
+          anybody has recorded anything - but two of them sitting at the top of
+          this list read as part of the project, and they are not: they are not
+          files, they cannot be deleted, and nobody chose them. */}
       <SideHead title="Sounds" add="Upload sound"
                 onAdd={readOnly || !token ? undefined : () => soundRef.current?.click()} />
       <ul className="pp-asset-list">
-        {BUILT_IN_SOUNDS.map((name) => <SideItem key={name} name={name} icon="volume"
-          active={selected.kind === "sound" && selected.name === name}
-          onOpen={() => setSelected({ kind: "sound", name })} />)}
         {manifest.sounds.map((sound) => <SideItem key={sound.name} name={sound.name} icon="volume"
           active={selected.kind === "sound" && selected.name === sound.name}
           onOpen={() => setSelected({ kind: "sound", name: sound.name })}
@@ -734,11 +733,12 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onDelete={readOnly ? undefined : () => deleteThing(name, "function")} />)}
       </ul>
 
+      {/* game.txt is not on this list. It is the sidebar written down - every
+          line in it comes from a + up there - so showing it offered a child a
+          second, harder way to do what the lists above already do, and a way
+          to break a working game with a typo in a file nobody taught them. */}
       <SideHead title="Project" />
       <ul className="pp-asset-list" style={{ paddingBottom: "42px" }}>
-        <SideItem name={MANIFEST_FILE} icon="text" active={selected.kind === "file" && selected.name === MANIFEST_FILE}
-                  title="The file that lists your rooms and your pictures"
-                  onOpen={() => setSelected({ kind: "file", name: MANIFEST_FILE })} />
         {others.map((path) => <SideItem key={path} name={path} icon="file"
           active={selected.kind === "file" && selected.name === path}
           onOpen={() => setSelected({ kind: "file", name: path })}
@@ -1071,12 +1071,11 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
 }
 
 /* A sound, as the offline IDE shows one: a player, how big it is, and the
-   line of code that plays it. A built-in is rendered to a file here so that it
-   can be played too - the engine only ever makes that noise live, through
-   WebAudio, and there is nothing to hand an <audio> element without the two
-   helpers cut out of the offline file alongside it. */
+   line of code that plays it. Every sound here is a file in the student's own
+   media, so there is always something to hand the <audio> element - unless it
+   has not finished arriving, which the info line says. */
 function SoundPane({ name, data }: { name: string; data?: string }) {
-  const src = useMemo(() => data || synthWav(name), [name, data]);
+  const src = data ?? "";
   const size = Math.round(src.length * 0.75 / 1024);
   return <>
     <div id="assetPreviewTab"><Icon name="volume" /><span>{name}</span></div>

@@ -66,8 +66,14 @@ export type Manifest = { rooms: string[]; sprites: Sprite[]; sounds: Sound[]; pr
  *      sprite monster.png green 48 48
  *      sound jump.mp3 https://...
  *
- *  Deliberately not JSON. An eight-year-old can add a line here; a misplaced
- *  brace or a trailing comma in JSON is a dead game with a cryptic message. */
+ *  Deliberately not JSON. Nobody types this now - the editor writes every line
+ *  and does not show the file - but it is still read back by a person: it is
+ *  what a teacher sees in an export and what a bad import has to be diagnosed
+ *  from, and a trailing comma is a dead game with a cryptic message.
+ *
+ *  Which is what the problems below are for. Reaching one means the file came
+ *  from somewhere other than this editor, so each says what to press to put it
+ *  right rather than what to type. */
 export function parseManifest(text: string): Manifest {
   const rooms: string[] = [];
   const sprites: Sprite[] = [];
@@ -81,11 +87,16 @@ export function parseManifest(text: string): Manifest {
     const word = parts[0];
     const rest = parts.slice(1);
     if (word === "room") {
-      if (rest.length !== 1) { problems.push(where + ': write "room" and one name, like "room Play".'); return; }
+      if (rest.length !== 1) {
+        problems.push(where + ': a room is the word "room" and one name, like "room Play". ' +
+          "Make the room again with + next to Rooms.");
+        return;
+      }
       rooms.push(rest[0]);
     } else if (word === "sprite") {
       if (rest.length !== 4) {
-        problems.push(where + ': write "sprite", a name, a colour, a width and a height, like "sprite monster.png green 48 48".');
+        problems.push(where + ": this picture is missing its name, its link or its size. " +
+          "Add it again with + next to Sprites.");
         return;
       }
       const [name, source, width, height] = rest;
@@ -94,21 +105,22 @@ export function parseManifest(text: string): Manifest {
         problems.push(where + ": the width and the height have to be numbers bigger than zero.");
         return;
       }
-      // A colour makes a plain coloured rectangle to build against; a link uses
-      // the picture the student actually drew, uploaded from the media panel.
+      /* A link is the picture the student drew or uploaded, which is the only
+         kind this editor writes. A colour still parses: it is a plain block
+         standing in for a drawing, which is what the course's demo games are
+         built from and what older projects have in them. */
       if (!isLink(source) && !(source in RGB)) {
-        problems.push(where + ': "' + source + '" is not a colour I know. Try one of: ' +
-          Object.keys(RGB).join(", ") + " - or paste a link to your own picture.");
+        problems.push(where + ': "' + source + '" is not a picture and not a colour. ' +
+          "Delete " + name + " in Sprites and add it again with +.");
         return;
       }
       sprites.push({ name, source, width: w, height: h });
     } else if (word === "sound") {
-      // The + next to Sounds writes this line. A link to a sound is a long
-      // signed address that nobody should be copying by hand, but it is
-      // still a line in a file a child can read, delete and ask about.
+      // The + next to Sounds writes this line, and the link in it is a long
+      // signed address nobody should ever be typing or copying by hand.
       if (rest.length !== 2) {
-        problems.push(where + ': write "sound", a name and a link, like "sound jump.mp3 https://...". ' +
-          "Press + next to Sounds and this line writes itself.");
+        problems.push(where + ": this sound is missing its name or its link. " +
+          "Add it again with + next to Sounds.");
         return;
       }
       const [name, source] = rest;
@@ -119,7 +131,8 @@ export function parseManifest(text: string): Manifest {
       }
       sounds.push({ name, source });
     } else {
-      problems.push(where + ': I do not understand "' + word + '". A line starts with "room", "sprite" or "sound".');
+      problems.push(where + ': I do not understand "' + word + '". ' +
+        "This game came from somewhere that writes something I cannot read.");
     }
   });
   return { rooms, sprites, sounds, problems };
@@ -169,8 +182,11 @@ export function assembleGame(files: Record<string, string>, audio: Record<string
   const manifest = parseManifest(files[MANIFEST_FILE] ?? "");
   const problems = manifest.problems.slice();
   if (!(MANIFEST_FILE in files)) {
-    problems.push("This game has no " + MANIFEST_FILE + ", so it does not know which of your screens is a room. " +
-      'Make a file called ' + MANIFEST_FILE + ' with a line like "room Play" in it.');
+    /* Says what to press, not what to write. The file this is about is the
+       editor's own bookkeeping and is not on the sidebar, so a child told to
+       go and make it would be hunting for something that is not there. */
+    problems.push("This game has no rooms yet, so it does not know which screen to show. " +
+      "Press + next to Rooms and call one Play.");
   }
 
   const classes: Record<string, Panels> = {};
@@ -200,8 +216,8 @@ export function assembleGame(files: Record<string, string>, audio: Record<string
   }
   for (const name of manifest.rooms) {
     if (!(name in rooms)) {
-      problems.push(MANIFEST_FILE + " says there is a room called " + name +
-        ", but there is no " + name + ".start.py to say what is in it.");
+      problems.push("There is a room called " + name + " on your list, but nothing says what is in it. " +
+        "Open " + name + " and press Write " + name + ".start.py.");
     }
   }
 

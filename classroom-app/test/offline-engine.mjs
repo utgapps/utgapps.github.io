@@ -19,8 +19,8 @@
 */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cutEngine, cutApi, cutIdeCss, cutIcons, cutSynth,
-         OUT, API_OUT, CSS_OUT, ICONS_OUT, SYNTH_OUT } from "../tools/build-engine.mjs";
+import { cutEngine, cutApi, cutIdeCss, cutIcons,
+         OUT, API_OUT, CSS_OUT, ICONS_OUT } from "../tools/build-engine.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const read = (p) => readFileSync(here + p, "utf8");
@@ -57,20 +57,14 @@ check(ICONS_OUT + " is what tools/build-engine.mjs produces",
       read("../" + ICONS_OUT) === cutIcons().text,
       "re-run `node tools/build-engine.mjs`");
 
-// 1f. and so are the helpers that turn a synthesised sound into a file. The
-//     Sounds pane plays blip and crunch with these; the engine itself never
-//     makes a file of either.
-const synth = cutSynth();
-check(SYNTH_OUT + " is what tools/build-engine.mjs produces",
-      read("../" + SYNTH_OUT) === synth.text,
-      "re-run `node tools/build-engine.mjs`");
-/* The sidebar used to name blip and crunch itself. A third synthesised
-   sound would have reached the engine and not the sidebar, so a child
-   could play a sound they could not see. */
-check("the Sounds list is the engine's own, not a copy of it",
-      read("../src/PixelPadIde.tsx").includes("BUILT_IN_SOUNDS") &&
-        synth.text.includes("export const BUILT_IN_SOUNDS"),
-      "the editor names the built-in sounds itself instead of reading them off the engine");
+/* 1f. The Sounds list is what the student uploaded and nothing else. The
+       engine still makes a noise for a name it has never been given a file
+       for, which is its own business - but nothing in the editor may offer a
+       sound as if it were part of the project, the way two synthesised ones
+       used to sit at the top of that list. */
+check("the Sounds list offers nothing nobody put there",
+      !read("../src/PixelPadIde.tsx").includes("BUILT_IN_SOUNDS"),
+      "the editor lists sounds the engine makes up, which are not files and cannot be deleted");
 
 // 1e. every rule in it stays inside the editor. Unscoped, one of these would
 //     repaint the rest of the classroom - and only on the pages a game is on.

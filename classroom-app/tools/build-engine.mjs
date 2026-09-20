@@ -23,11 +23,10 @@
    vendored file is ever updated and its shape has moved, this fails loudly
    rather than emitting a half-engine that dies at the first student's Run.
 
-   Four more things come out of it, for the classroom's game editor, which is
+   Three more things come out of it, for the classroom's game editor, which is
    a copy of this IDE: the word lists section 6 suggests as you type, section
-   1's glyphs, the IDE's stylesheet, and the two helpers section 7 uses to turn
-   a synthesised sound into a file you can play. Copying any of them by hand
-   would put a second version in the repo that nobody remembers to update.
+   1's glyphs, and the IDE's stylesheet. Copying any of them by hand would put
+   a second version in the repo that nobody remembers to update.
 
        node tools/build-engine.mjs
 */
@@ -40,7 +39,6 @@ export const OUT = "src/lib/pixelpad-engine.js";
 export const API_OUT = "src/lib/pixelpad-api.ts";
 export const CSS_OUT = "src/pixelpad-ide.css";
 export const ICONS_OUT = "src/lib/pixelpad-icons.ts";
-export const SYNTH_OUT = "src/lib/pixelpad-synth.ts";
 
 
 /* Normalised to \n: the vendored file is CRLF on Windows, and every marker
@@ -184,70 +182,6 @@ export function cutIcons() {
   return { text, count: Object.keys(icons).length };
 }
 
-/* The sound the engine makes out of nothing, as a file.
-
-   The engine synthesises blip and crunch live, through WebAudio nodes, and
-   never makes a file of either - so the Sounds pane cannot hand one to an
-   <audio> element without the two helpers section 7 keeps for its exporter.
-   The classroom's pane IS that pane, so it needs them too.
-
-   The copy is verbatim, which is why this one artefact opts out of type
-   checking: every complaint TypeScript has about it is a complaint about how
-   the vendored file is written, and the only way to answer one would be to
-   edit the copy. What the rest of the app sees is synthWav below, which is
-   written here and typed. */
-export function cutSynth() {
-  const html = source();
-  const parts = ["renderSynth", "wavDataUri"].map((name) => {
-    const found = [...html.matchAll(new RegExp("^function " + name + "[(][\\s\\S]*?^[}]$", "gm"))];
-    if (found.length !== 1) fail(name + " appears " + found.length + " times in " + SOURCE + ", expected 1");
-    return found[0][0];
-  });
-  try { new Function(parts.join("\n")); } catch (e) { fail("the sound helpers do not parse: " + e.message); }
-  if (!parts[1].includes("data:audio/wav;base64,")) fail("wavDataUri no longer returns a playable data URI");
-
-  /* The names come from the engine's own table rather than from a list here,
-     so a third synthesised sound appears in the classroom sidebar by being
-     added to the vendored file. */
-  const table = [...html.matchAll(/^const SYNTH = [{][\s\S]*?^[}];$/gm)];
-  if (table.length !== 1) fail("SYNTH appears " + table.length + " times in " + SOURCE + ", expected 1");
-  let names;
-  try { names = new Function(table[0][0] + " return Object.keys(SYNTH);")(); }
-  catch (e) { fail("the synthesised sound table does not parse: " + e.message); }
-  if (!names.length) fail("the engine synthesises nothing at all now");
-  /* Run them. A renderer that has quietly stopped being able to make one of
-     these would otherwise reach the Sounds pane as a player with nothing in
-     it, which is exactly the kind of thing nobody notices until a lesson. */
-  const made = new Function(parts.join("\n") + "\nreturn { renderSynth, wavDataUri };")();
-  for (const name of names) {
-    const uri = made.wavDataUri(made.renderSynth(name));
-    if (!uri.startsWith("data:audio/wav;base64,") || uri.length < 1000) {
-      fail("the helpers make no playable file for " + name);
-    }
-  }
-
-  const text =
-    "// @ts-nocheck - see tools/build-engine.mjs. The two functions below are a\n" +
-    "// verbatim copy; answering a type complaint about one would mean editing it.\n" +
-    "/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.\n" +
-    " *\n" +
-    " * From " + SOURCE + ": a PCM WAV writer and the renderer that\n" +
-    " * turns one of the engine's synthesised sounds into samples. The engine\n" +
-    " * plays blip and crunch as WebAudio nodes and never makes a file of\n" +
-    " * either, so this is what lets the Sounds pane play one.\n" +
-    " */\n" +
-    parts.join("\n") + "\n\n" +
-    "/** The sounds the engine makes itself, in the order it declares them.\n" +
-    " *  They need no file and cannot be deleted. */\n" +
-    "export const BUILT_IN_SOUNDS: string[] = " + JSON.stringify(names) + ";\n\n" +
-    "/** One of those as something an <audio> element can play, exactly as the\n" +
-    " *  offline IDE's own soundPreviewSrc makes it. Empty for anything else. */\n" +
-    "export function synthWav(name: string): string {\n" +
-    "  return BUILT_IN_SOUNDS.includes(name) ? wavDataUri(renderSynth(name)) : \"\";\n" +
-    "}\n";
-  return { text, names };
-}
-
 export function cutEngine() {
 const html = source();
 
@@ -338,7 +272,4 @@ if (process.argv[1] && process.argv[1].endsWith("build-engine.mjs")) {
   const icons = cutIcons();
   writeFileSync(here + "../" + ICONS_OUT, icons.text, "utf8");
   console.log("wrote " + ICONS_OUT + "  " + icons.count + " glyphs");
-  const synth = cutSynth();
-  writeFileSync(here + "../" + SYNTH_OUT, synth.text, "utf8");
-  console.log("wrote " + SYNTH_OUT + "  plays " + synth.names.join(", "));
 }
