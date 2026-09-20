@@ -3,7 +3,9 @@ import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { CollabEditor } from "./CollabEditor";
 import { docToFiles, fileText, filesMap } from "./lib/collab";
-import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, useGameAudio, type Sprite } from "./lib/pixelpad";
+import { MANIFEST_FILE, RGB, artPath, buildGamePreview, fromPp2d, functionOf, isBookkeeping, panelOf,
+         parseManifest, splitName, toPp2d, useGameAudio, type Sound, type Sprite } from "./lib/pixelpad";
+import { zipStore, type ZipEntry } from "./lib/zip";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/pixelpad-icons";
 import { downloadFile } from "./lib/classroom";
@@ -50,6 +52,10 @@ import "./pixelpad-ide.css";
  * is written there. Every line in it is machine-written by a + in this sidebar
  * and read back into Rooms, Sprites and Sounds, so the file was a second,
  * worse copy of the sidebar with nothing in it to learn. No course teaches it.
+ *
+ * art/ is the same kind of thing: one file per drawn picture, holding the
+ * drawing rather than the PNG of it, so Edit the drawing opens the same
+ * squares the child left. Also not on the sidebar, for the same reason.
  */
 
 type Selection =
@@ -154,11 +160,15 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   /* Where a new picture comes from. `adding` is the little box the + opens,
      `drawing` is the Pixel Art Maker over the whole editor, and `artProblem`
      is why a drawing did not save - which has to be said on that window,
-     because the console it would otherwise go to is behind it. */
+     because the console it would otherwise go to is behind it.
+
+     `drawing.editing` is the picture being changed, or "" for a new one, and
+     `drawing.art` is the drawing to open it with. Both are held together so
+     the window cannot be up for a picture it has forgotten the name of. */
   const pictureRef = useRef<HTMLInputElement>(null);
   const artRef = useRef<HTMLIFrameElement>(null);
   const [adding, setAdding] = useState(false);
-  const [drawing, setDrawing] = useState(false);
+  const [drawing, setDrawing] = useState<{ editing: string; art: string } | null>(null);
   const [artProblem, setArtProblem] = useState("");
   const [savingArt, setSavingArt] = useState(false);
   const ideRef = useRef<HTMLDivElement>(null);
@@ -199,7 +209,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
       if (panel) { panelNames.add(panel.asset); continue; }
       const shared = functionOf(path);
       if (shared) { fnNames.push(shared); continue; }
-      if (path !== MANIFEST_FILE) loose.push(path);
+      if (!isBookkeeping(path)) loose.push(path);
     }
     const roomNames = [...new Set(manifest.rooms.filter((name) => name !== GAME))].sort();
     const classNames = [...panelNames].filter((name) => name !== GAME && !roomNames.includes(name)).sort();
@@ -276,9 +286,30 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     });
   }
 
-  function setManifest(text: string) {
-    const body = fileText(doc, MANIFEST_FILE);
+  /* makeFile leaves a file that already exists alone, because it is what a
+     child pressing Write does. These two are for the files the editor owns:
+     game.txt and the drawings under art/, which are rewritten and moved
+     whenever the thing they describe changes. */
+  function writeFile(path: string, text: string) {
+    const body = fileText(doc, path);
     doc.transact(() => { body.delete(0, body.length); body.insert(0, text); });
+  }
+
+  function moveFile(from: string, to: string) {
+    doc.transact(() => {
+      const map = filesMap(doc);
+      const body = map.get(from);
+      if (!body) return;
+      const text = body.toString();
+      const moved = new Y.Text();
+      map.set(to, moved);
+      moved.insert(0, text);
+      map.delete(from);
+    });
+  }
+
+  function setManifest(text: string) {
+    writeFile(MANIFEST_FILE, text);
   }
 
   const manifestLines = () => (snapshot[MANIFEST_FILE] ?? "").split(/\r?\n/);
@@ -371,34 +402,80 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
   function saveSprite(was: Sprite, sprite: Sprite) {
     editManifestLine("sprite", was.name, "sprite " + spriteLine(sprite));
+    // The drawing is named after the picture, so a rename has to take it with
+    // it or Edit the drawing would open the wrong squares - or nothing.
+    if (sprite.name !== was.name) moveFile(artPath(was.name), artPath(sprite.name));
     touched();
     setSelected({ kind: "sprite", name: sprite.name });
   }
 
-  /* A picture that has just arrived - drawn in the overlay, or chosen off the
-     disk - becoming a sprite: the file goes to the student's own media, and
-     the line a child would have typed goes into game.txt. The width and the
-     height are the picture's own, because that line has to be honest about
-     what ends up on screen. */
-  async function addPicture(wanted: string, mime: string, blob: Blob) {
-    if (!token) return;
-    const taken = new Set(manifest.sprites.map((sprite) => sprite.name));
+  /* Renaming a sound is the whole of editing one: there is nothing else about
+     a sound to change here, because the file itself is in the student's own
+     media and a different noise is a different upload. */
+  function saveSound(was: Sound, name: string) {
+    editManifestLine("sound", was.name, "sound " + name + " " + was.source);
+    touched();
+    setSelected({ kind: "sound", name });
+  }
+
+  /* A name nothing else in this list has. A second monster.png would make one
+     of the two unreachable from code, since a game asks for a picture by
+     name. */
+  function freeName(wanted: string, taken: Set<string>): string {
+    if (!taken.has(wanted)) return wanted;
+    const [stem, ext] = splitName(wanted);
     let name = wanted;
-    if (taken.has(name)) {
-      const stem = name.replace(/\.[^.]+$/, ""), ext = name.slice(stem.length);
-      for (let n = 2; taken.has(name); n++) name = stem + "-" + n + ext;
-    }
-    const media = await apiUploadMedia(token, "image", mime, name, blob);
-    const size = await new Promise<{ w: number; h: number }>((done) => {
+    for (let n = 2; taken.has(name); n++) name = stem + "-" + n + ext;
+    return name;
+  }
+
+  /* How big the picture really is. The engine measures a picture every frame,
+     so these two numbers only decide how big a plain colour is - but the line
+     in game.txt has to be honest about what ends up on screen. */
+  function pictureSize(url: string): Promise<{ w: number; h: number }> {
+    return new Promise((done) => {
       const probe = new Image();
       probe.onload = () => done({ w: probe.naturalWidth, h: probe.naturalHeight });
       probe.onerror = () => done({ w: 48, h: 48 });
-      probe.src = media.url;
+      probe.src = url;
     });
+  }
+
+  /* A picture that has just arrived - drawn in the overlay, or chosen off the
+     disk - becoming a sprite: the file goes to the student's own media, and
+     the line a child would have typed goes into game.txt.
+
+     `art` is the drawing behind it, which only a drawn picture has. It is kept
+     beside the picture so the drawing window can open it again. */
+  async function addPicture(wanted: string, mime: string, blob: Blob, art?: string) {
+    if (!token) return;
+    const name = freeName(wanted, new Set(manifest.sprites.map((sprite) => sprite.name)));
+    const media = await apiUploadMedia(token, "image", mime, name, blob);
+    const size = await pictureSize(media.url);
     addManifestLine("sprite", name + " " + media.url + " " + size.w + " " + size.h);
+    if (art) writeFile(artPath(name), art);
     touched();
     setSelected({ kind: "sprite", name });
     say("system", 'Added ' + name + '. Draw it with sprite("' + name + '").');
+  }
+
+  /* The same thing for a drawing that was already in the game and has just
+     been changed. The picture keeps its place on the Sprites list rather than
+     turning into a second one called monster-2.png, so code that already asks
+     for it goes on working - and if the child renamed it in the drawing
+     window, the line and the drawing move together. */
+  async function replacePicture(was: string, wanted: string, blob: Blob, art: string) {
+    if (!token) return;
+    const others = new Set(manifest.sprites.map((sprite) => sprite.name).filter((name) => name !== was));
+    const name = freeName(wanted, others);
+    const media = await apiUploadMedia(token, "image", "image/png", name, blob);
+    const size = await pictureSize(media.url);
+    editManifestLine("sprite", was, "sprite " + name + " " + media.url + " " + size.w + " " + size.h);
+    if (name !== was) filesMap(doc).delete(artPath(was));
+    writeFile(artPath(name), art);
+    touched();
+    setSelected({ kind: "sprite", name });
+    say("system", "Saved your changes to " + name + ".");
   }
 
   /* A picture already on the computer. It is re-encoded to WebP on the way,
@@ -422,13 +499,15 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   /* The drawing window saved. The overlay stays up until the picture is
      safely in the project - a child who has just spent ten minutes on a
      monster must not lose it to a dropped connection. */
-  async function savePixelArt(wanted: string, png: string) {
+  async function savePixelArt(wanted: string, png: string, art: string) {
     setSavingArt(true);
     setArtProblem("");
     try {
       const blob = await (await fetch(png)).blob();
-      await addPicture(wanted, "image/png", blob);
-      setDrawing(false);
+      const editing = drawing?.editing ?? "";
+      if (editing) await replacePicture(editing, wanted, blob, art);
+      else await addPicture(wanted, "image/png", blob, art);
+      setDrawing(null);
     } catch (err) {
       setArtProblem((err as Error).message || "That picture would not save. Try Save again.");
     }
@@ -437,27 +516,52 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
   /* Closing throws the drawing away, so it asks first - but only if there is
      a drawing. The window sets UTG_DRAWN the first time anything is painted,
-     and it is the same origin as this page, so that is a plain read. */
+     and it is the same origin as this page, so that is a plain read. Opening
+     a drawing to change it does not paint anything, so closing one straight
+     back out again does not nag. */
   function closeDrawing() {
     const drawn = (artRef.current?.contentWindow as (Window & { UTG_DRAWN?: boolean }) | null)?.UTG_DRAWN;
-    if (drawn && !window.confirm("Close without saving? The picture you drew is thrown away.")) return;
-    setDrawing(false);
+    const lost = drawing?.editing
+      ? "Close without saving? Your changes to " + drawing.editing + " are thrown away."
+      : "Close without saving? The picture you drew is thrown away.";
+    if (drawn && !window.confirm(lost)) return;
+    setDrawing(null);
   }
 
-  /* Kept on a ref rather than in the listener below, so the listener can be
+  /* Kept on refs rather than in the listener below, so the listener can be
      registered once when the window opens and still write into the project as
      it is now, not as it was then. */
   const artSaved = useRef(savePixelArt);
   artSaved.current = savePixelArt;
+  const artOpening = useRef(drawing);
+  artOpening.current = drawing;
 
   useEffect(() => {
     if (!drawing) return;
     function onArt(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       if (event.source !== artRef.current?.contentWindow) return;
-      const sent = event.data as { utgPixelArt?: string; name?: string; png?: string };
+      const sent = event.data as { utgPixelArt?: string; name?: string; png?: string; art?: unknown };
+      /* The drawing window says when it is ready, and a drawing being changed
+         goes back in that reply. Waiting for it rather than posting on the
+         frame's load event is the difference between a child seeing their
+         monster and a child seeing an empty grid: the page has to have run
+         before it can be given anything. */
+      if (sent?.utgPixelArt === "ready") {
+        const art = artOpening.current?.art;
+        if (art) {
+          try {
+            artRef.current?.contentWindow?.postMessage(
+              { utgPixelArt: "open", art: JSON.parse(art) }, window.location.origin);
+          } catch {
+            setArtProblem("This picture's drawing could not be opened, so this is a blank one. " +
+                          "Saving it will replace the picture.");
+          }
+        }
+        return;
+      }
       if (sent?.utgPixelArt !== "save" || !sent.png) return;
-      void artSaved.current(sent.name || "my-art.png", sent.png);
+      void artSaved.current(sent.name || "my-art.png", sent.png, JSON.stringify(sent.art ?? null));
     }
     window.addEventListener("message", onArt);
     return () => window.removeEventListener("message", onArt);
@@ -466,6 +570,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   function deleteSprite(name: string) {
     if (!window.confirm("Delete the picture " + name + "? Any code that asks for it will stop working.")) return;
     editManifestLine("sprite", name, null);
+    filesMap(doc).delete(artPath(name));
     touched();
   }
 
@@ -486,9 +591,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     say("system", "Adding " + file.name + "...");
     try {
       const small = await compressAudio(file);
-      const taken = new Set(manifest.sounds.map((sound) => sound.name));
-      let name = small.name;
-      for (let n = 2; taken.has(name); n++) name = small.name.replace(/\.mp3$/, "") + "-" + n + ".mp3";
+      const name = freeName(small.name, new Set(manifest.sounds.map((sound) => sound.name)));
       const media = await apiUploadMedia(token, "audio", small.mime, name, small.blob);
       addManifestLine("sound", name + " " + media.url);
       touched();
@@ -518,6 +621,57 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   function exportProject() {
     downloadFile("game.pp2d", toPp2d(snapshot), "application/json");
     say("system", "Exported game.pp2d - it opens here and on pixelpad.io.");
+  }
+
+  /* Every picture and every sound in the game, as one zip.
+     A .pp2d is for opening a game again; this is for the pictures themselves -
+     a monster on a poster, a sprite sheet handed to a partner, a term's work
+     collected by a teacher. Without it the only way out is right-clicking
+     eleven signed links one at a time, and a signed link expires.
+
+     A picture that is a plain colour rather than a file has nothing to put in
+     the zip, so it is counted and said out loud instead of quietly missing. */
+  async function exportArt() {
+    const wanted = [
+      ...manifest.sprites.map((sprite) => ({ name: sprite.name, source: sprite.source })),
+      ...manifest.sounds.map((sound) => ({ name: sound.name, source: sound.source })),
+    ];
+    const real = wanted.filter((entry) => isLink(entry.source));
+    if (!real.length) {
+      say("system", "There are no pictures or sounds in this game yet. Add one with + next to Sprites.");
+      return;
+    }
+    say("system", "Collecting " + real.length + " file" + (real.length === 1 ? "" : "s") + "...");
+    const entries: ZipEntry[] = [];
+    const missed: string[] = [];
+    const used = new Set<string>();
+    for (const entry of real) {
+      try {
+        const reply = await fetch(entry.source);
+        if (!reply.ok) throw new Error(String(reply.status));
+        const blob = await reply.blob();
+        entries.push({
+          name: freeName(zipName(entry.name, blob.type), used),
+          bytes: new Uint8Array(await blob.arrayBuffer()),
+        });
+        used.add(entries[entries.length - 1].name);
+      } catch { missed.push(entry.name); }
+    }
+    if (!entries.length) {
+      say("error", "None of those files would download. Check you are still signed in, then try again.");
+      return;
+    }
+    const url = URL.createObjectURL(zipStore(entries));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "game-art.zip";
+    link.click();
+    URL.revokeObjectURL(url);
+    say("system", "Exported game-art.zip with " + entries.length + " file" + (entries.length === 1 ? "" : "s") + ".");
+    if (missed.length) say("error", "These would not download: " + missed.join(", ") + ".");
+    const colours = wanted.length - real.length;
+    if (colours) say("system", colours + " picture" + (colours === 1 ? " is a plain colour" : "s are plain colours") +
+      " rather than a drawing, so there is no file to put in a zip.");
   }
 
   async function importProject(event: ChangeEvent<HTMLInputElement>) {
@@ -566,6 +720,9 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
   const spriteShown = selected.kind === "sprite" && selected.name
     ? manifest.sprites.find((s) => s.name === selected.name) ?? null
+    : null;
+  const soundShown = selected.kind === "sound"
+    ? manifest.sounds.find((s) => s.name === selected.name) ?? null
     : null;
   const showingAsset = selected.kind === "sprite" || selected.kind === "sound";
 
@@ -731,6 +888,9 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onDelete={readOnly ? undefined : () => deleteFile(path)} />)}
         {!readOnly && <>
           <SideItem name="Export" icon="download" active={false} title="Save a .pp2d file - it opens on pixelpad.io" onOpen={exportProject} />
+          <SideItem name="Export art" icon="image" active={false}
+                    title="Save a zip of every picture and sound in this game"
+                    onOpen={() => { void exportArt(); }} />
           <SideItem name="Import" icon="upload" active={false} title="Open a .pp2d file"
                     onOpen={() => importRef.current?.click()} />
         </>}
@@ -778,9 +938,19 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
       <div id="pp-block1-asset" className={showingAsset ? undefined : "hidden"}>
         {selected.kind === "sprite" && spriteShown
           ? <SpritePane sprite={spriteShown} taken={manifest.sprites.map((s) => s.name)} token={token} readOnly={readOnly}
+                        drawn={!!snapshot[artPath(spriteShown.name)]}
+                        onEdit={() => {
+                          setArtProblem("");
+                          setDrawing({ editing: spriteShown.name, art: snapshot[artPath(spriteShown.name)] ?? "" });
+                        }}
                         onSave={(sprite) => saveSprite(spriteShown, sprite)}
                         onCancel={() => setSelected({ kind: "panels", name: GAME })} />
-          : selected.kind === "sound" ? <SoundPane name={selected.name} data={audio[selected.name]} /> : null}
+          : selected.kind === "sound" && soundShown
+          ? <SoundPane sound={soundShown} data={audio[soundShown.name]}
+                       taken={manifest.sounds.map((s) => s.name)} readOnly={readOnly}
+                       onSave={(name) => saveSound(soundShown, name)}
+                       onCancel={() => setSelected({ kind: "panels", name: GAME })} />
+          : null}
       </div>
     </div>
 
@@ -819,7 +989,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
          than that - from an effect, once React has re-rendered - a browser
          treats it as a page opening a file box by itself, and refuses. */
       onUpload={() => { setAdding(false); pictureRef.current?.click(); }}
-      onDraw={() => { setAdding(false); setArtProblem(""); setDrawing(true); }} />}
+      onDraw={() => { setAdding(false); setArtProblem(""); setDrawing({ editing: "", art: "" }); }} />}
 
     {/* The drawing window. It is the Pixel Art Maker itself in a frame, not a
         second drawing tool written to look like it, so a child who has drawn
@@ -827,7 +997,9 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     {drawing && <div className="pp-art">
       <div className="pp-art-bar">
         <Icon name="image" />
-        <span>Draw a picture for your game, then press Save to my game.</span>
+        <span>{drawing.editing
+          ? "Change " + drawing.editing + ", then press Save to my game."
+          : "Draw a picture for your game, then press Save to my game."}</span>
         {artProblem && <span className="pp-problem">{artProblem}</span>}
         <span className="spacer" />
         {savingArt && <span className="pp-art-busy">Saving…</span>}
@@ -874,6 +1046,24 @@ function PictureChoice({ token, onUpload, onDraw, onClose }: {
 
 const spriteLine = (sprite: Sprite) =>
   sprite.name + " " + sprite.source + " " + sprite.width + " " + sprite.height;
+
+/* Inside a game a picture's name is only a key - a child may call a WebP
+   monster.png and the game draws it either way, because an <img> reads the
+   bytes and not the name. Outside a game the name is the file, and a WebP
+   called .png is one a paint program refuses to open and a parent cannot
+   print. So a file on its way into the zip is named after what it actually
+   is, whatever the game calls it. */
+const ZIP_EXT: Record<string, string> = {
+  "image/png": ".png", "image/webp": ".webp", "image/jpeg": ".jpg",
+  "image/gif": ".gif", "image/svg+xml": ".svg",
+  "audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/ogg": ".ogg",
+};
+
+function zipName(name: string, type: string): string {
+  const real = ZIP_EXT[(type || "").split(";")[0].trim().toLowerCase()];
+  const [stem, had] = splitName(name);
+  return real && real !== had.toLowerCase() ? stem + real : name;
+}
 
 function SideHead({ title, add, onAdd }: { title: string; add?: string; onAdd?: () => void }) {
   return <div className="assetHeader">{title}
@@ -936,11 +1126,21 @@ function AskBox({ state, onClose }: { state: AskState; onClose: () => void }) {
    on a disk. Here it is a line in game.txt, so the same pane is where that
    line gets rewritten: the preview above is the offline one, checkerboard and
    all, and the form below it is the part that has nowhere else to live. */
-function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
+function SpritePane({ sprite, taken, token, readOnly, drawn, onEdit, onSave, onCancel }: {
   sprite: Sprite; taken: string[]; token?: string; readOnly?: boolean;
+  /** Whether this picture was drawn here and the drawing was kept, which is
+   *  the only way Edit the drawing can open anything. */
+  drawn: boolean;
+  onEdit: () => void;
   onSave: (sprite: Sprite) => void; onCancel: () => void;
 }) {
-  const [name, setName] = useState(sprite.name);
+  /* The name a child types and the ending it is saved as are two different
+     things, so they are two different pieces of state. The box holds the
+     name; the ending is printed beside it and changes only when the picture
+     itself does - a .png swapped for a photograph becomes a .webp, because
+     that is what the file now is. */
+  const [stem, setStem] = useState(splitName(sprite.name)[0]);
+  const [ext, setExt] = useState(splitName(sprite.name)[1]);
   const [source, setSource] = useState(sprite.source);
   const [width, setWidth] = useState(String(sprite.width));
   const [height, setHeight] = useState(String(sprite.height));
@@ -949,9 +1149,11 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   const [info, setInfo] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const name = dropExt(stem, ext) + ext;
 
   useEffect(() => {
-    setName(sprite.name); setSource(sprite.source);
+    setStem(splitName(sprite.name)[0]); setExt(splitName(sprite.name)[1]);
+    setSource(sprite.source);
     setWidth(String(sprite.width)); setHeight(String(sprite.height));
     setProblem("");
   }, [sprite]);
@@ -1010,7 +1212,10 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
       const small = await compressImage(file);
       const media = await apiUploadMedia(token, "image", small.mime, small.name, small.blob);
       setSource(media.url);
-      if (!name.trim()) setName(media.name);
+      // A photograph comes back re-encoded, so the ending changes with it
+      // rather than leaving a WebP called monster.png.
+      setExt(splitName(small.name)[1] || ext);
+      if (!stem.trim()) setStem(splitName(media.name)[0]);
       /* The engine reads a picture's real size every frame, so these two only
          decide how big a plain colour is. Filling them in from the picture
          keeps the line in game.txt honest about what is on screen. */
@@ -1022,14 +1227,12 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   }
 
   function save() {
-    const clean = name.trim();
-    if (!clean) { setProblem("Give the picture a name, like monster.png. That is the name your code asks for."); return; }
-    if (/\s/.test(clean)) { setProblem("A picture's name cannot have a space in it."); return; }
-    if (clean !== sprite.name && taken.includes(clean)) { setProblem("There is already a picture called " + clean + "."); return; }
+    const problem = namingProblem(dropExt(stem, ext), ext, sprite.name, taken, "picture");
+    if (problem) { setProblem(problem); return; }
     const w = Number(width), h = Number(height);
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) { setProblem("The width and the height have to be numbers bigger than zero."); return; }
     if (!picture && !(source in RGB)) { setProblem("Upload a picture, or draw one with +."); return; }
-    onSave({ name: clean, source, width: Math.round(w), height: Math.round(h) });
+    onSave({ name, source, width: Math.round(w), height: Math.round(h) });
   }
 
   return <>
@@ -1037,13 +1240,22 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
     <div id="assetPreviewBody" ref={bodyRef}><canvas id="spritePreview" ref={canvasRef} style={{ display: "block" }} /></div>
     <div id="assetPreviewInfo">{info}</div>
     <div className="pp-sprite-form">
-      <label>Name<input value={name} disabled={readOnly} placeholder="monster.png" onChange={(event) => setName(event.target.value)} /></label>
+      <NameField label="Name" value={stem} ext={ext} readOnly={readOnly} placeholder="monster"
+                 onChange={(next) => { setStem(next); setProblem(""); }} />
       {/* Wide and High only decide how big a plain colour is - the engine
           reads a real picture's own size every frame - so they are here for
           the older projects that still name a colour, and are filled in from
           the picture for every other one. */}
       <label>Wide<input value={width} disabled={readOnly} onChange={(event) => setWidth(event.target.value)} /></label>
       <label>High<input value={height} disabled={readOnly} onChange={(event) => setHeight(event.target.value)} /></label>
+      {/* A picture drawn here stays a drawing. The PNG in the game is what
+          the drawing looked like when it was saved; this opens the squares
+          themselves again, so changing one is changing one - not drawing the
+          whole monster a second time. A picture that came off a computer has
+          no drawing behind it, so it has no button either. */}
+      {drawn && !readOnly && <div className="pp-form-row pp-form-left">
+        <span className="btn btn-sec" onClick={onEdit}><Icon name="image" /> Edit the drawing</span>
+      </div>}
       {token && !readOnly && <label className="pp-file-button">{busy ? "Uploading…" : "Change the picture"}
         <input type="file" accept="image/*" onChange={(event) => { void upload(event); }} disabled={busy} /></label>}
       {problem && <p className="pp-problem">{problem}</p>}
@@ -1055,20 +1267,95 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   </>;
 }
 
+/* The name of a picture or a sound, with what it is saved as printed next to
+   the box instead of inside it.
+
+   A child renaming monster.png used to be handed "monster.png" to edit, which
+   is an invitation to delete the .png - and a picture called "monster" is a
+   picture the browser will not display and the game cannot draw. The ending
+   belongs to the file, so it is shown and not offered. */
+function NameField({ label, value, ext, readOnly, placeholder, onChange }: {
+  label: string; value: string; ext: string; readOnly?: boolean; placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  return <label>{label}
+    <span className="pp-name-row">
+      <input value={value} disabled={readOnly} placeholder={placeholder}
+             onChange={(event) => onChange(event.target.value)} />
+      {ext && <span className="pp-name-ext" title={"Saved as a " + ext.slice(1).toUpperCase() + " file"}>{ext}</span>}
+    </span>
+  </label>;
+}
+
+/* The ending is printed beside the box rather than in it, and a child who
+   reads it there does sometimes type it in as well. monster.png.png is not a
+   lesson about anything, so the second one comes off - the same thing the
+   drawing window does when its name box loses focus. */
+function dropExt(stem: string, ext: string): string {
+  const clean = stem.trim();
+  return ext && clean.length > ext.length && clean.toLowerCase().endsWith(ext.toLowerCase())
+    ? clean.slice(0, -ext.length)
+    : clean;
+}
+
+/* What is wrong with a typed name, or "". The name is the one a child's code
+   asks for - sprite("monster.png") - so the rules are the file's rules, and
+   each complaint says what to do rather than quoting them. */
+function namingProblem(stem: string, ext: string, was: string, taken: string[], what: string): string {
+  const clean = stem.trim();
+  if (!clean) return "Give the " + what + " a name. That is the name your code asks for.";
+  if (/\s/.test(clean)) return "A " + what + "'s name cannot have a space in it.";
+  if (/[\\/:*?"<>|]/.test(clean)) return 'A ' + what + '\'s name cannot have \\ / : * ? " < > or | in it.';
+  const full = clean + ext;
+  if (full !== was && taken.includes(full)) return "There is already a " + what + " called " + full + ".";
+  return "";
+}
+
 /* A sound, as the offline IDE shows one: a player, how big it is, and the
    line of code that plays it. Every sound here is a file in the student's own
    media, so there is always something to hand the <audio> element - unless it
-   has not finished arriving, which the info line says. */
-function SoundPane({ name, data }: { name: string; data?: string }) {
+   has not finished arriving, which the info line says.
+
+   The name can be changed here, the way a picture's can, and for the same
+   reason: a child who uploads Recording 12.mp3 off a phone should not have to
+   live with it in every line of code that plays it. The .mp3 is not part of
+   what they type - it is what the file is, and every sound in a game is one,
+   because they are all re-encoded on the way up. */
+function SoundPane({ sound, data, taken, readOnly, onSave, onCancel }: {
+  sound: Sound; data?: string; taken: string[]; readOnly?: boolean;
+  onSave: (name: string) => void; onCancel: () => void;
+}) {
+  const [stem, setStem] = useState(splitName(sound.name)[0]);
+  const [problem, setProblem] = useState("");
+  const ext = splitName(sound.name)[1];
   const src = data ?? "";
   const size = Math.round(src.length * 0.75 / 1024);
+
+  useEffect(() => { setStem(splitName(sound.name)[0]); setProblem(""); }, [sound]);
+
+  function save() {
+    const clean = dropExt(stem, ext);
+    const wrong = namingProblem(clean, ext, sound.name, taken, "sound");
+    if (wrong) { setProblem(wrong); return; }
+    onSave(clean + ext);
+  }
+
   return <>
-    <div id="assetPreviewTab"><Icon name="volume" /><span>{name}</span></div>
+    <div id="assetPreviewTab"><Icon name="volume" /><span>{sound.name}</span></div>
     <div id="assetPreviewBody">
       <audio id="pp-audio" controls style={{ display: "block" }} src={src || undefined} />
     </div>
-    <div id="assetPreviewInfo">{name + "\n" +
+    <div id="assetPreviewInfo">{sound.name + "\n" +
       (src ? "playable \u00b7 about " + size + " KB" : "still arriving - it will play in a moment") +
-      "\n\nplay_sound(\"" + name + "\")"}</div>
+      "\n\nplay_sound(\"" + sound.name + "\")"}</div>
+    <div className="pp-sprite-form">
+      <NameField label="Name" value={stem} ext={ext} readOnly={readOnly} placeholder="jump"
+                 onChange={(next) => { setStem(next); setProblem(""); }} />
+      {problem && <p className="pp-problem">{problem}</p>}
+      {!readOnly && <div className="pp-form-row">
+        <span className="btn btn-sec" onClick={onCancel}>Cancel</span>
+        <span className="btn btn-success" onClick={save}>Save</span>
+      </div>}
+    </div>
   </>;
 }

@@ -23,6 +23,36 @@ import { ICONS } from "./pixelpad-icons";
 export const MANIFEST_FILE = "game.txt";
 export const GAME_ENTRY = "Game.start.py";
 
+/** Where the drawing behind a drawn picture is kept.
+ *
+ *  A PNG is a picture OF a drawing, not the drawing: the grid is gone from it,
+ *  so a child who wanted one square a different colour the next morning had to
+ *  draw the whole monster again. The Pixel Art Maker hands back what it needs
+ *  to open the same drawing, and it goes here - one file per picture, named
+ *  after it, so renaming or deleting the picture moves or deletes its drawing
+ *  with it.
+ *
+ *  A project is a bag of named strings, which is why this is a file at all.
+ *  Like game.txt it is the editor's own bookkeeping and the sidebar does not
+ *  show it: there is nothing in it a child could usefully type. */
+export const ART_DIR = "art/";
+export const artPath = (name: string) => ART_DIR + name + ".json";
+
+/** Files the editor writes for itself. Everything else in a project is
+ *  something a student made and can open. */
+export function isBookkeeping(path: string): boolean {
+  return path === MANIFEST_FILE || path.startsWith(ART_DIR);
+}
+
+/** "monster.png" -> ["monster", ".png"]. What a file ends in is the editor's
+ *  business, not a child's: a picture saved as a .png that got renamed to
+ *  .jpg is a picture that will not open, and nothing is gained by letting that
+ *  happen. So the ending is shown beside the name box rather than in it. */
+export function splitName(name: string): [string, string] {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+}
+
 /** "Monster.loop.py" -> { asset: "Monster", tab: "loop" }. A folder is ignored,
  *  so the same panel means the same thing wherever a student drags it. */
 const PANEL = /^([A-Za-z][A-Za-z0-9_]*)\.(start|loop)\.py$/;

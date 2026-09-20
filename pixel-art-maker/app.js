@@ -786,8 +786,12 @@
     if (!/\.png$/i.test(n)) n += ".png";
     return n;
   }
+  // The box holds the name; the .png printed beside it is not in the box and
+  // is not typed. A child who types one anyway is not corrected mid-word - the
+  // ending comes off when they leave the box, not on the keystroke that
+  // finishes it.
   function setName(n) {
-    state.name = (n || "").replace(/[\\/:*?"<>|]/g, "");
+    state.name = (n || "").replace(/[\\/:*?"<>|]/g, "").replace(/\.png$/i, "");
     const top = $("spriteName"); if (top && top.value !== state.name) top.value = state.name;
   }
 
@@ -852,9 +856,84 @@
   // picture goes back to the game rather than to a downloads folder a school
   // laptop may well wipe overnight. The editor on the other side uploads it to
   // the child's own media and writes the sprite line in game.txt.
+  //
+  // The drawing goes with it. A PNG is a picture OF a drawing and not the
+  // drawing itself - the grid is gone from it, the tile size is gone, and the
+  // empty border was trimmed off - so a child who wanted one square a different
+  // colour tomorrow had to draw the whole monster again. The editor keeps what
+  // artSource() returns beside the picture and hands it back to openArt().
   function saveToGame() {
     const png = renderPng().toDataURL("image/png");
-    parent.postMessage({ utgPixelArt: "save", name: fileName(), png: png }, location.origin);
+    parent.postMessage({ utgPixelArt: "save", name: fileName(), png: png, art: artSource() },
+                       location.origin);
+  }
+
+  // ============================================================
+  //  The drawing itself, small enough to keep inside a game
+  // ============================================================
+  // Run-length encoded against the colours this picture actually uses. A
+  // 32x32 grid written out one square at a time is 40 KB of JSON that every
+  // partner in a shared game then syncs on every save; the same picture as
+  // runs is a couple of hundred bytes, because drawings are mostly runs.
+  function artSource() {
+    if (state.float) dropFloat();       // pixels being dragged are put down first
+    const colors = [];
+    const index = new Map();
+    const runs = [];
+    let last = -2, run = 0;
+    for (let i = 0; i < state.data.length; i++) {
+      const col = state.data[i];
+      let which = -1;                   // -1 is see-through
+      if (col) {
+        if (!index.has(col)) { index.set(col, colors.length); colors.push(col); }
+        which = index.get(col);
+      }
+      if (which === last) { run++; continue; }
+      if (run) runs.push(run + ":" + last);
+      last = which; run = 1;
+    }
+    if (run) runs.push(run + ":" + last);
+    return {
+      v: 1, w: state.w, h: state.h, tile: state.tile,
+      canvasW: state.canvasW, canvasH: state.canvasH,
+      exportW: state.exportW, exportH: state.exportH,
+      name: state.name, colors: colors, runs: runs.join(","),
+    };
+  }
+
+  // The other direction: a drawing saved earlier, opened to be changed. It
+  // goes through startEditor(), so every button, the zoom and the undo history
+  // are in the state they would be in for a new picture, and the pixels go in
+  // after that. Anything this cannot make sense of is refused rather than
+  // half-loaded, which leaves the welcome screen up and nothing lost.
+  function openArt(src) {
+    if (!src || typeof src !== "object" || src.v !== 1) return false;
+    const w = clamp(src.w | 0, 1, MAX_GRID);
+    const h = clamp(src.h | 0, 1, MAX_GRID);
+    if (!w || !h) return false;
+    const colors = Array.isArray(src.colors) ? src.colors : [];
+    const data = blankData(w, h);
+    let at = 0;
+    String(src.runs || "").split(",").forEach((piece) => {
+      if (!piece) return;
+      const half = piece.split(":");
+      const count = parseInt(half[0], 10) || 0;
+      const which = parseInt(half[1], 10);
+      const col = which >= 0 ? (colors[which] || null) : null;
+      for (let i = 0; i < count && at < data.length; i++) data[at++] = col;
+    });
+    const tile = TILES.includes(src.tile) ? src.tile : clamp((src.tile | 0) || DEFAULT_TILE, 1, 256);
+    startEditor(src.canvasW || w * tile, src.canvasH || h * tile,
+                { tile: tile, exportW: src.exportW, exportH: src.exportH, name: src.name });
+    // The grid startEditor() worked out from the picture size is normally the
+    // one this drawing had. It is overwritten anyway, because a drawing that
+    // came back one square narrower than it went in is a bug nobody would
+    // notice until a child's monster had lost an ear.
+    state.w = w; state.h = h; state.data = data;
+    recomputePixelSize();
+    resizeCanvas();
+    updateStatus();
+    return true;
   }
 
   // ============================================================
@@ -1024,6 +1103,7 @@
     colorInput.addEventListener("input", () => { selectColor(colorInput.value); if (state.tool === "eraser") selectTool("pencil"); });
 
     $("spriteName").addEventListener("input", () => { state.name = $("spriteName").value; });
+    $("spriteName").addEventListener("change", () => { setName($("spriteName").value); });
 
     // canvas size modal
     let canvasRatio = 1;
@@ -1095,6 +1175,18 @@
       $("exportBtn").textContent = "💾 Save to my game";
       $("exportBtn").title = "Put this picture in your game, under Sprites";
       $("spriteName").title = "Name your picture — this is the name your code will ask for";
+
+      /* A drawing the game already has, sent over to be changed. The editor
+         cannot know when this page has finished loading, so this page says so
+         and the drawing comes back in the reply - which is also the only
+         moment at which one can arrive, because after that a child is drawing. */
+      window.addEventListener("message", (e) => {
+        if (e.origin !== location.origin || e.source !== parent) return;
+        const sent = e.data;
+        if (!sent || sent.utgPixelArt !== "open") return;
+        openArt(sent.art);
+      });
+      try { parent.postMessage({ utgPixelArt: "ready" }, location.origin); } catch (err) { /* not framed */ }
     }
 
     const q = readQuery();

@@ -72,6 +72,7 @@ html, body {
 }
 .sprite-name:hover { background: var(--surface-2); }
 .sprite-name:focus { outline: none; background: #fff; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(1,174,253,.15); }
+.sprite-ext { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: -6px; }
 .logo {
   font-size: 30px; font-weight: 700; letter-spacing: -.01em;
   margin: 0 0 6px; color: var(--ink);
@@ -350,6 +351,7 @@ html, body {
   .tool-grid { grid-template-columns: 1fr; }
   .palette { grid-template-columns: repeat(3, 1fr); }
   .brand span { display: none; }
+  .brand .sprite-ext { display: inline; }   /* the ending still has to be readable */
   .res-title { display: none; }
   .tileBtn small { display: none; }
   .tileBtn { padding: 6px 9px; }

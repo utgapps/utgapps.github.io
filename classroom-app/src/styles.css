@@ -482,6 +482,13 @@ body.running-full { overflow: hidden; }
 .pp3d-ide .pp-file-button { display: inline-block; margin-top: 4px; padding: 5.25px 10.5px; border-radius: 3.5px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
 .pp3d-ide .pp-file-button input { display: none; }
 .pp3d-ide .pp-form-row { margin-top: 10px; text-align: right; }
+.pp3d-ide .pp-form-left { text-align: left; }
+.pp3d-ide .pp-form-left .btn { margin-left: 0; display: inline-flex; align-items: center; gap: 6px; }
+/* The file's ending sits beside the name box rather than inside it: it is
+   what the picture or the sound IS, and not something to type or delete. */
+.pp3d-ide .pp-name-row { display: flex; align-items: center; gap: 6px; }
+.pp3d-ide .pp-name-row input { flex: 1 1 auto; min-width: 0; }
+.pp3d-ide .pp-name-ext { flex: none; margin-top: 3px; font-size: 13px; font-weight: 400; opacity: .7; }
 .pp3d-ide .pp-note { display: block; font-size: 12px; line-height: 1.5; opacity: .75; }
 .pp3d-ide #assetPreviewBody .pp-note { margin: auto; padding: 0 20px; text-align: center; }
 .pp3d-ide .pp-problem { margin: 6px 0 0; color: #D8000C; font-size: 12px; font-weight: 700; line-height: 1.5; }
