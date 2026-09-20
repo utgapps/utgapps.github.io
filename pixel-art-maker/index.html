@@ -4,8 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Pixel Art Maker · UTG Academy</title>
-  <script>window.UTG_GUARD="../";window.UTG_TOOL="pixel-art";document.write('<script src="../class-codes.js?t=' + Date.now() + '"><\/script>');</script>
-  <script src="../guard.js"></script>
+  <script id="utg-guard-boot">
+    /* Embedded means this page is the drawing window inside the PixelPad
+       editor, which signed the child in before it opened us. The class-code
+       guard is skipped there: a student who signed in with a username and
+       never typed a code would otherwise be bounced to the front page, and
+       being in an iframe, they would be bounced inside the editor. */
+    window.UTG_EMBED = window.parent !== window && /[?&]embed=1(&|$)/.test(location.search);
+    if (!window.UTG_EMBED) {
+      window.UTG_GUARD = "../"; window.UTG_TOOL = "pixel-art";
+      document.write('<script src="../class-codes.js?t=' + Date.now() + '"><\/script>'
+                   + '<script src="../guard.js"><\/script>');
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" />

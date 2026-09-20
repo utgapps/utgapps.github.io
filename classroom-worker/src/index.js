@@ -1050,7 +1050,13 @@ export default {
         const kind = url.searchParams.get("kind");
         const mime = url.searchParams.get("mime") || "application/octet-stream";
         const name = (url.searchParams.get("name") || "upload").slice(0, 80);
-        if ((kind !== "image" && kind !== "audio") || (kind === "image" && mime !== "image/webp") || (kind === "audio" && mime !== "audio/mpeg")) throw new HttpError("Unsupported media type.");
+        /* A photograph arrives re-encoded as WebP, which is the whole reason
+           the browser is made to compress before it uploads. PNG is here for
+           pixel art: the drawing tool saves one hard-edged, see-through pixel
+           at a time, and re-encoding that to lossy WebP softens every edge a
+           child deliberately drew. */
+        const okImage = mime === "image/webp" || mime === "image/png";
+        if ((kind !== "image" && kind !== "audio") || (kind === "image" && !okImage) || (kind === "audio" && mime !== "audio/mpeg")) throw new HttpError("Unsupported media type.");
         const body = await readBytes(request, parseInt(env.MAX_MEDIA_BYTES || "4000000", 10));
         if (!body.byteLength) throw new HttpError("Empty file.");
         const id = crypto.randomUUID(), now = Date.now(), key = `${me.id}/${id}`;

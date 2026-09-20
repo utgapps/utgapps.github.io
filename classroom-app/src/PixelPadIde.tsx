@@ -53,7 +53,7 @@ import "./pixelpad-ide.css";
 type Selection =
   | { kind: "panels"; name: string }      // a class or a room: start and loop
   | { kind: "function"; name: string }    // shared code: one body
-  | { kind: "sprite"; name: string }      // "" while a new one is being made
+  | { kind: "sprite"; name: string }      // always one that exists: uploaded or drawn
   | { kind: "sound"; name: string }       // one the engine makes, or one uploaded
   | { kind: "file"; name: string };       // game.txt, or anything else in there
 
@@ -64,6 +64,15 @@ const loopPath = (name: string) => name + ".loop.py";
 const fnPath = (name: string) => name + ".fn.py";
 const isLink = (source: string) => /^(https?:|data:)/i.test(source);
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
+
+/* The site's own Pixel Art Maker, which sits one directory up from this build
+   and is the drawing tool these children already use in class. Resolved
+   against BASE_URL rather than against wherever the page happens to be, so it
+   is the same address from /classroom/ and from /admin/. embed=1 is what tells
+   that page it is inside an editor: it skips the class-code guard, and its
+   Save button hands the picture back here instead of downloading it. */
+const ART_URL = new URL(import.meta.env.BASE_URL + "../pixel-art-maker/index.html?embed=1",
+                        window.location.href).toString();
 
 /* A name has to work as a Python class name: somebody's code will say
    Monster(). The message says what to do rather than quoting the rule. */
@@ -87,11 +96,12 @@ const starterFunction = (name: string) =>
   "#\n" +
   "# def " + name.toLowerCase() + "(a, b):\n" +
   "#     return a + b\n";
-const STARTER_MANIFEST =
+/* The note at the top of game.txt. A new game has no game.txt at all, so this
+   is what the first picture or the first room writes above itself. */
+const MANIFEST_HEADER =
   "# This file tells the game about your screens and your pictures.\n" +
-  "# Anything after a # is a note to yourself - the game ignores it.\n" +
-  "\n" +
-  "room Play\n";
+  "# Anything after a # is a note to yourself - the game ignores it.\n";
+const STARTER_MANIFEST = MANIFEST_HEADER + "\n" + "room Play\n";
 
 /** One of the offline IDE's glyphs. They are paths in a 16x16 box that take
  *  the colour of whatever they sit in, cut out of the vendored file. */
@@ -138,6 +148,16 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   const importRef = useRef<HTMLInputElement>(null);
   const soundRef = useRef<HTMLInputElement>(null);
   const [busySound, setBusySound] = useState(false);
+  /* Where a new picture comes from. `adding` is the little box the + opens,
+     `drawing` is the Pixel Art Maker over the whole editor, and `artProblem`
+     is why a drawing did not save - which has to be said on that window,
+     because the console it would otherwise go to is behind it. */
+  const pictureRef = useRef<HTMLInputElement>(null);
+  const artRef = useRef<HTMLIFrameElement>(null);
+  const [adding, setAdding] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const [artProblem, setArtProblem] = useState("");
+  const [savingArt, setSavingArt] = useState(false);
   const ideRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
   /* The offline IDE is the whole window. Here there is a classroom page above
@@ -265,7 +285,10 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
      starter file has a note above the rooms and another above the pictures,
      and a new room landing under the picture note would make the notes lie. */
   function addManifestLine(word: "room" | "sprite" | "sound", rest: string) {
-    const lines = manifestLines();
+    /* A game with no game.txt - which is every new game - gets the file the
+       moment it has something to put in it, with the note at the top saying
+       what the file is. */
+    const lines = (snapshot[MANIFEST_FILE] ?? "").trim() ? manifestLines() : MANIFEST_HEADER.split("\n");
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     let at = -1;
     lines.forEach((line, index) => { if (line.split("#")[0].trim().split(/\s+/)[0] === word) at = index; });
@@ -344,12 +367,99 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     touched();
   }
 
-  function saveSprite(was: Sprite | null, sprite: Sprite) {
-    if (was) editManifestLine("sprite", was.name, "sprite " + spriteLine(sprite));
-    else addManifestLine("sprite", spriteLine(sprite));
+  function saveSprite(was: Sprite, sprite: Sprite) {
+    editManifestLine("sprite", was.name, "sprite " + spriteLine(sprite));
     touched();
     setSelected({ kind: "sprite", name: sprite.name });
   }
+
+  /* A picture that has just arrived - drawn in the overlay, or chosen off the
+     disk - becoming a sprite: the file goes to the student's own media, and
+     the line a child would have typed goes into game.txt. The width and the
+     height are the picture's own, because that line has to be honest about
+     what ends up on screen. */
+  async function addPicture(wanted: string, mime: string, blob: Blob) {
+    if (!token) return;
+    const taken = new Set(manifest.sprites.map((sprite) => sprite.name));
+    let name = wanted;
+    if (taken.has(name)) {
+      const stem = name.replace(/\.[^.]+$/, ""), ext = name.slice(stem.length);
+      for (let n = 2; taken.has(name); n++) name = stem + "-" + n + ext;
+    }
+    const media = await apiUploadMedia(token, "image", mime, name, blob);
+    const size = await new Promise<{ w: number; h: number }>((done) => {
+      const probe = new Image();
+      probe.onload = () => done({ w: probe.naturalWidth, h: probe.naturalHeight });
+      probe.onerror = () => done({ w: 48, h: 48 });
+      probe.src = media.url;
+    });
+    addManifestLine("sprite", name + " " + media.url + " " + size.w + " " + size.h);
+    touched();
+    setSelected({ kind: "sprite", name });
+    say("system", 'Added ' + name + '. Draw it with sprite("' + name + '").');
+  }
+
+  /* A picture already on the computer. It is re-encoded to WebP on the way,
+     exactly as an uploaded sound is re-encoded to MP3: a phone photograph is
+     thirty times the size a game needs. A drawing takes the other path below
+     and stays a PNG, because that re-encoding would soften every hard pixel
+     edge the child drew on purpose. */
+  async function uploadPicture(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !token) return;
+    say("system", "Adding " + file.name + "...");
+    try {
+      const small = await compressImage(file);
+      await addPicture(small.name, small.mime, small.blob);
+    } catch (err) {
+      say("error", (err as Error).message || "That picture would not upload.");
+    }
+  }
+
+  /* The drawing window saved. The overlay stays up until the picture is
+     safely in the project - a child who has just spent ten minutes on a
+     monster must not lose it to a dropped connection. */
+  async function savePixelArt(wanted: string, png: string) {
+    setSavingArt(true);
+    setArtProblem("");
+    try {
+      const blob = await (await fetch(png)).blob();
+      await addPicture(wanted, "image/png", blob);
+      setDrawing(false);
+    } catch (err) {
+      setArtProblem((err as Error).message || "That picture would not save. Try Save again.");
+    }
+    setSavingArt(false);
+  }
+
+  /* Closing throws the drawing away, so it asks first - but only if there is
+     a drawing. The window sets UTG_DRAWN the first time anything is painted,
+     and it is the same origin as this page, so that is a plain read. */
+  function closeDrawing() {
+    const drawn = (artRef.current?.contentWindow as (Window & { UTG_DRAWN?: boolean }) | null)?.UTG_DRAWN;
+    if (drawn && !window.confirm("Close without saving? The picture you drew is thrown away.")) return;
+    setDrawing(false);
+  }
+
+  /* Kept on a ref rather than in the listener below, so the listener can be
+     registered once when the window opens and still write into the project as
+     it is now, not as it was then. */
+  const artSaved = useRef(savePixelArt);
+  artSaved.current = savePixelArt;
+
+  useEffect(() => {
+    if (!drawing) return;
+    function onArt(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== artRef.current?.contentWindow) return;
+      const sent = event.data as { utgPixelArt?: string; name?: string; png?: string };
+      if (sent?.utgPixelArt !== "save" || !sent.png) return;
+      void artSaved.current(sent.name || "my-art.png", sent.png);
+    }
+    window.addEventListener("message", onArt);
+    return () => window.removeEventListener("message", onArt);
+  }, [drawing]);
 
   function deleteSprite(name: string) {
     if (!window.confirm("Delete the picture " + name + "? Any code that asks for it will stop working.")) return;
@@ -400,8 +510,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
      about to throw away, because here that is work saved to an account rather
      than to this browser. */
   function newProject() {
-    if (!window.confirm("Start a new game? Everything in this project is replaced by the starter game, and that cannot be undone.")) return;
-    const starter = starterFiles("pixelpad");
+    if (!window.confirm("Start a new game? Everything in this project is thrown away and you begin with an empty one, and that cannot be undone.")) return;
+    const starter = starterFiles("pixelpad");   // empty: no code, no pictures
     doc.transact(() => {
       const map = filesMap(doc);
       for (const path of [...map.keys()]) map.delete(path);
@@ -584,13 +694,18 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onDelete={readOnly ? undefined : () => deleteThing(name, "panels")} />)}
       </ul>
 
-      <SideHead title="Sprites" add="New picture" onAdd={readOnly ? undefined : () => setSelected({ kind: "sprite", name: "" })} />
+      {/* + asks where the picture is coming from: off this computer, or drawn
+          here. Those are the only two ways a picture gets into a game. */}
+      <SideHead title="Sprites" add="New picture"
+                onAdd={readOnly ? undefined : () => setAdding(true)} />
       <ul className="pp-asset-list">
         {manifest.sprites.map((sprite) => <SideItem key={sprite.name} name={sprite.name} icon="image"
           active={selected.kind === "sprite" && selected.name === sprite.name}
           onOpen={() => setSelected({ kind: "sprite", name: sprite.name })}
           onDelete={readOnly ? undefined : () => deleteSprite(sprite.name)} />)}
       </ul>
+      <input ref={pictureRef} type="file" accept="image/*" style={{ display: "none" }}
+             onChange={(event) => { void uploadPicture(event); }} />
 
       {/* The two the engine makes itself come first and have no delete: they
           need no file, and a child who cannot see them cannot know they are
@@ -676,7 +791,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
       {/* the asset preview replaces the code column, as in the original */}
       <div id="pp-block1-asset" className={showingAsset ? undefined : "hidden"}>
-        {selected.kind === "sprite"
+        {selected.kind === "sprite" && spriteShown
           ? <SpritePane sprite={spriteShown} taken={manifest.sprites.map((s) => s.name)} token={token} readOnly={readOnly}
                         onSave={(sprite) => saveSprite(spriteShown, sprite)}
                         onCancel={() => setSelected({ kind: "panels", name: GAME })} />
@@ -713,6 +828,62 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     </div>
 
     {ask && <AskBox state={ask} onClose={() => setAsk(null)} />}
+    {adding && <PictureChoice token={token}
+      onClose={() => setAdding(false)}
+      /* The file box is opened straight from this click. Asked for any later
+         than that - from an effect, once React has re-rendered - a browser
+         treats it as a page opening a file box by itself, and refuses. */
+      onUpload={() => { setAdding(false); pictureRef.current?.click(); }}
+      onDraw={() => { setAdding(false); setArtProblem(""); setDrawing(true); }} />}
+
+    {/* The drawing window. It is the Pixel Art Maker itself in a frame, not a
+        second drawing tool written to look like it, so a child who has drawn
+        in one has drawn in both - and there is one place to fix a brush. */}
+    {drawing && <div className="pp-art">
+      <div className="pp-art-bar">
+        <Icon name="image" />
+        <span>Draw a picture for your game, then press Save to my game.</span>
+        {artProblem && <span className="pp-problem">{artProblem}</span>}
+        <span className="spacer" />
+        {savingArt && <span className="pp-art-busy">Saving…</span>}
+        <span className="btn btn-sec" onClick={closeDrawing}>Close</span>
+      </div>
+      <iframe ref={artRef} className="pp-art-frame" title="Pixel Art Maker" src={ART_URL} />
+    </div>}
+  </div>;
+}
+
+/* What the + over Sprites asks, and the only two ways into a game a picture
+   has. Each says what it gives you rather than what it is called.
+
+   There is deliberately no third way. A picture used to be allowed to be a
+   plain colour instead - the starter game's monster was a green square - and
+   it meant two kinds of thing called a sprite, two halves of the form below,
+   and a child whose "picture" was a rectangle. A game still draws a colour if
+   an old project asks for one; nothing new makes one. */
+function PictureChoice({ token, onUpload, onDraw, onClose }: {
+  token?: string; onUpload: () => void; onDraw: () => void; onClose: () => void;
+}) {
+  return <div id="modal" className="on" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="box">
+      <h5>New picture</h5>
+      <p className="pp-modal-note">Where is this picture coming from?</p>
+      {token ? <div className="pp-choice-row">
+        <button className="pp-choice" onClick={onUpload}>
+          <Icon name="upload" className="i2x" />
+          <strong>Upload an image</strong>
+          <span>A picture already on this computer.</span>
+        </button>
+        <button className="pp-choice" onClick={onDraw}>
+          <Icon name="image" className="i2x" />
+          <strong>Create pixel art</strong>
+          <span>Draw one here, pixel by pixel.</span>
+        </button>
+      </div> : <span className="pp-note">A picture is kept with your account, so sign in first.</span>}
+      <div className="row">
+        <span className="btn btn-sec" onClick={onClose}>Cancel</span>
+      </div>
+    </div>
   </div>;
 }
 
@@ -770,22 +941,24 @@ function AskBox({ state, onClose }: { state: AskState; onClose: () => void }) {
   </div>;
 }
 
-/* A picture, as game.txt describes it: a name, something to draw, and how big
-   it is. "Something to draw" is a colour while a game is being built - a plain
-   square is enough to watch a thing move - or a picture the child drew.
+/* A picture, as game.txt describes it: a name, where the picture is, and how
+   big it is. A picture is always a real picture now - uploaded or drawn - so
+   this pane only ever edits one that exists. An older project may still name a
+   plain colour where the link goes, and the preview below draws it, because a
+   child's game from last term has to keep working.
 
    The offline IDE only ever shows a picture here, because there it is a file
    on a disk. Here it is a line in game.txt, so the same pane is where that
-   line gets written: the preview above is the offline one, checkerboard and
+   line gets rewritten: the preview above is the offline one, checkerboard and
    all, and the form below it is the part that has nowhere else to live. */
 function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
-  sprite: Sprite | null; taken: string[]; token?: string; readOnly?: boolean;
+  sprite: Sprite; taken: string[]; token?: string; readOnly?: boolean;
   onSave: (sprite: Sprite) => void; onCancel: () => void;
 }) {
-  const [name, setName] = useState(sprite?.name ?? "");
-  const [source, setSource] = useState(sprite?.source ?? "green");
-  const [width, setWidth] = useState(String(sprite?.width ?? 48));
-  const [height, setHeight] = useState(String(sprite?.height ?? 48));
+  const [name, setName] = useState(sprite.name);
+  const [source, setSource] = useState(sprite.source);
+  const [width, setWidth] = useState(String(sprite.width));
+  const [height, setHeight] = useState(String(sprite.height));
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState("");
@@ -793,8 +966,8 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    setName(sprite?.name ?? ""); setSource(sprite?.source ?? "green");
-    setWidth(String(sprite?.width ?? 48)); setHeight(String(sprite?.height ?? 48));
+    setName(sprite.name); setSource(sprite.source);
+    setWidth(String(sprite.width)); setHeight(String(sprite.height));
     setProblem("");
   }, [sprite]);
 
@@ -867,34 +1040,31 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
     const clean = name.trim();
     if (!clean) { setProblem("Give the picture a name, like monster.png. That is the name your code asks for."); return; }
     if (/\s/.test(clean)) { setProblem("A picture's name cannot have a space in it."); return; }
-    if (clean !== sprite?.name && taken.includes(clean)) { setProblem("There is already a picture called " + clean + "."); return; }
+    if (clean !== sprite.name && taken.includes(clean)) { setProblem("There is already a picture called " + clean + "."); return; }
     const w = Number(width), h = Number(height);
     if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) { setProblem("The width and the height have to be numbers bigger than zero."); return; }
-    if (!picture && !(source in RGB)) { setProblem("Pick a colour, or upload a picture."); return; }
+    if (!picture && !(source in RGB)) { setProblem("Upload a picture, or draw one with +."); return; }
     onSave({ name: clean, source, width: Math.round(w), height: Math.round(h) });
   }
 
   return <>
-    <div id="assetPreviewTab"><Icon name="image" /><span>{sprite ? sprite.name : "New picture"}</span></div>
+    <div id="assetPreviewTab"><Icon name="image" /><span>{sprite.name}</span></div>
     <div id="assetPreviewBody" ref={bodyRef}><canvas id="spritePreview" ref={canvasRef} style={{ display: "block" }} /></div>
     <div id="assetPreviewInfo">{info}</div>
     <div className="pp-sprite-form">
       <label>Name<input value={name} disabled={readOnly} placeholder="monster.png" onChange={(event) => setName(event.target.value)} /></label>
-      <label>Colour
-        <select value={picture ? "" : source} disabled={readOnly} onChange={(event) => setSource(event.target.value)}>
-          {picture && <option value="">your own picture</option>}
-          {Object.keys(RGB).map((colour) => <option key={colour} value={colour}>{colour}</option>)}
-        </select>
-      </label>
+      {/* Wide and High only decide how big a plain colour is - the engine
+          reads a real picture's own size every frame - so they are here for
+          the older projects that still name a colour, and are filled in from
+          the picture for every other one. */}
       <label>Wide<input value={width} disabled={readOnly} onChange={(event) => setWidth(event.target.value)} /></label>
       <label>High<input value={height} disabled={readOnly} onChange={(event) => setHeight(event.target.value)} /></label>
-      {token && !readOnly && <label className="pp-file-button">{busy ? "Uploading…" : "Upload a picture"}
+      {token && !readOnly && <label className="pp-file-button">{busy ? "Uploading…" : "Change the picture"}
         <input type="file" accept="image/*" onChange={(event) => { void upload(event); }} disabled={busy} /></label>}
-      {!token && <span className="pp-note">Drawn your own? Upload it under My media, then paste its link here.</span>}
       {problem && <p className="pp-problem">{problem}</p>}
       {!readOnly && <div className="pp-form-row">
         <span className="btn btn-sec" onClick={onCancel}>Cancel</span>
-        <span className="btn btn-success" onClick={save}>{sprite ? "Save" : "Add picture"}</span>
+        <span className="btn btn-success" onClick={save}>Save</span>
       </div>}
     </div>
   </>;

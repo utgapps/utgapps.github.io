@@ -369,6 +369,10 @@
     updateStatus();
   }
   function pushUndo() {
+    /* Something has been drawn. The PixelPad editor reads this off the window
+       when its Close button is pressed, so that closing the drawing window on
+       ten minutes of work asks first, and closing an untouched one does not. */
+    window.UTG_DRAWN = true;
     state.undo.push(snapshot());
     if (state.undo.length > 60) state.undo.shift();
     state.redo.length = 0;
@@ -803,11 +807,10 @@
     return maxX < minX ? null : { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   }
 
-  // Save = download a transparent PNG straight away (no popup). The picture is
-  // cropped to the art, so the empty border around it is not saved; a blank
-  // picture falls back to the full canvas rather than a zero-sized file. The
-  // file name is the editable sprite title (with .png added).
-  function doDownload() {
+  // The picture as a see-through PNG canvas, cropped to the art so the empty
+  // border around it is not saved; a blank picture falls back to the full
+  // canvas rather than a zero-sized file.
+  function renderPng() {
     if (state.float) dropFloat();          // never save without pixels being dragged
     const ew = clamp(state.exportW || state.canvasW, 1, 8192);
     const eh = clamp(state.exportH || state.canvasH, 1, 8192);
@@ -833,10 +836,25 @@
       octx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
     }
 
+    return off;
+  }
+
+  // Save = download a transparent PNG straight away (no popup). The file name
+  // is the editable sprite title (with .png added).
+  function doDownload() {
     const a = document.createElement("a");
     a.download = fileName();
-    a.href = off.toDataURL("image/png");
+    a.href = renderPng().toDataURL("image/png");
     a.click();
+  }
+
+  // Save, when this page is the drawing window inside the PixelPad editor: the
+  // picture goes back to the game rather than to a downloads folder a school
+  // laptop may well wipe overnight. The editor on the other side uploads it to
+  // the child's own media and writes the sprite line in game.txt.
+  function saveToGame() {
+    const png = renderPng().toDataURL("image/png");
+    parent.postMessage({ utgPixelArt: "save", name: fileName(), png: png }, location.origin);
   }
 
   // ============================================================
@@ -990,7 +1008,7 @@
     // brush size
     $("brushSize").addEventListener("input", (e) => setBrush(+e.target.value));
 
-    $("exportBtn").addEventListener("click", doDownload);
+    $("exportBtn").addEventListener("click", () => { window.UTG_EMBED ? saveToGame() : doDownload(); });
     $("canvasBtn").addEventListener("click", openCanvas);
     $("newBtn").addEventListener("click", () => { if (confirm("Start a new drawing? Your current one will be cleared.")) goToWelcome(); });
 
@@ -1068,6 +1086,16 @@
     bind();
     selectColor(state.color);
     updateWelcomeHint();
+
+    /* The drawing window inside the PixelPad editor - the same tool, except
+       that Save hands the picture to the game. index.html sets UTG_EMBED and
+       skips the class-code guard there, because the editor around this page
+       has already signed the child in. */
+    if (window.UTG_EMBED) {
+      $("exportBtn").textContent = "💾 Save to my game";
+      $("exportBtn").title = "Put this picture in your game, under Sprites";
+      $("spriteName").title = "Name your picture — this is the name your code will ask for";
+    }
 
     const q = readQuery();
     if (q.wantsEditor) {

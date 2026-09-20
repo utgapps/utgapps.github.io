@@ -100,38 +100,15 @@ const javaStarter = (): Record<string, string> => ({
     "somewhere else.\n",
 });
 
-// A game that already runs. Press Run and there is a monster on the screen -
-// which is the whole point at this age: the first thing you do is not type for
-// ten minutes, it is press a button and see your monster. What it does NEXT is
-// left undone on purpose, and Monster.loop.py says exactly which line to try.
-//
-// One file per code panel, named <Thing>.<start or loop>.py. Anything not named
-// as a room in game.txt is a thing you can make lots of.
-const gameStarter = (): Record<string, string> => ({
-  "game.txt":
-    "# This file tells the game about your screens and your pictures.\n" +
-    "# Anything after a # is a note to yourself - the game ignores it.\n" +
-    "\n" +
-    "# A room is one screen. Play is where the game happens.\n" +
-    "room Play\n" +
-    "\n" +
-    "# A picture: its name, a colour, how wide, how tall.\n" +
-    "# Drawn your own? Upload it below, then paste the link where green is.\n" +
-    "sprite monster.png green 48 48\n",
-  "Game.start.py":
-    "# The very first thing that happens. Which screen do we open?\n" +
-    "set_room('Play')\n",
-  "Play.start.py":
-    "# The Play screen is being made. Put your things in it.\n" +
-    "Game.monster = Monster()\n",
-  "Monster.start.py":
-    "# One monster is being made. What does it look like, and where is it?\n" +
-    "self.image = sprite('monster.png')\n" +
-    "self.y = -210\n",
-  "Monster.loop.py":
-    "# This runs over and over, about sixty times a second.\n" +
-    "# Nothing in here yet, so your monster just sits there.\n" +
-    "#\n" +
-    "# Try typing this line, with no # in front, and press Run:\n" +
-    "# self.x = mouse_x()\n",
-});
+/* A new game is empty - no code, no pictures, nothing in game.txt.
+ *
+ * It used to open with a monster already on the screen. That is a good demo
+ * and a bad lesson: the class types over somebody else's game, and the first
+ * picture every child sees is a green square that came with the file. The
+ * editor is built for this - every panel it lists and cannot find offers to
+ * write itself, with the same note in it a new one gets - so an empty project
+ * is a screen full of next steps rather than a blank page.
+ *
+ * One file per code panel, named <Thing>.<start or loop>.py. Anything not
+ * named as a room in game.txt is a thing you can make lots of. */
+const gameStarter = (): Record<string, string> => ({});

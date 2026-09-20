@@ -488,6 +488,21 @@ body.running-full { overflow: hidden; }
 .pp3d-ide.pp-dark .pp-problem { color: #F48771; }
 .pp3d-ide #modal .pp-modal-note { margin: 0 0 8px; font-size: 12px; opacity: .75; }
 
+/* the + over Sprites: where a new picture comes from */
+.pp3d-ide #modal .pp-choice-row { display: flex; gap: 10px; }
+.pp3d-ide .pp-choice { flex: 1 1 0; width: 168px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 12px; font: inherit; text-align: center; color: inherit; background: transparent; border: 1px solid var(--ui-border); border-radius: 5.6px; cursor: pointer; }
+.pp3d-ide .pp-choice:hover { border-color: var(--accent); background: rgba(0, 123, 255, .08); }
+.pp3d-ide .pp-choice strong { font-size: 13px; }
+.pp3d-ide .pp-choice span { font-size: 11.5px; line-height: 1.45; opacity: .75; }
+
+/* the drawing window: the site's own Pixel Art Maker, over the whole editor */
+.pp3d-ide .pp-art { position: fixed; inset: 0; z-index: 600; display: flex; flex-direction: column; background: rgba(0, 0, 0, .55); }
+.pp3d-ide .pp-art-bar { display: flex; align-items: center; gap: 9px; padding: 7px 12px; background: var(--ui-bg); color: var(--ui-fg); font-size: 12.5px; font-weight: 700; }
+.pp3d-ide .pp-art-bar .spacer { flex: 1 1 auto; }
+.pp3d-ide .pp-art-bar .pp-problem { margin: 0; }
+.pp3d-ide .pp-art-busy { font-weight: 400; opacity: .75; }
+.pp3d-ide .pp-art-frame { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
+
 /* Pressed, because the engine's debug bar is either on or off and the button
    has to say which. */
 .text-button.pressed { border-radius: 5px; background: #17a2b8; color: #fff; padding: 7px 9px; }
