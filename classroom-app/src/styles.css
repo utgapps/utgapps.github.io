@@ -444,7 +444,10 @@ body.running-full { overflow: hidden; }
 .pp3d-ide #pp-console { height: 20%; }
 
 .pp3d-ide #canvasContainer iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; display: block; }
-.pp3d-ide .pp-stage-idle { margin: auto; padding: 0 14px; text-align: center; font-size: 12px; opacity: .55; }
+/* Before the first PLAY, the offline editor shows an empty black 16:9 stage -
+   not a sentence where the game will be. The hint it replaced is now the
+   console's opening line, which is where the offline editor keeps it. */
+.pp3d-ide .pp-stage-idle { margin: auto; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; background: #000; }
 
 /* CodeMirror, wearing .ppe */
 .pp3d-ide .cm-host, .pp3d-ide .cm-host .cm-editor { height: 100%; }

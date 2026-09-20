@@ -3,13 +3,14 @@ import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { CollabEditor } from "./CollabEditor";
 import { docToFiles, fileText, filesMap } from "./lib/collab";
-import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, type Sprite } from "./lib/pixelpad";
+import { MANIFEST_FILE, RGB, buildGamePreview, fromPp2d, functionOf, panelOf, parseManifest, toPp2d, useGameAudio, type Sprite } from "./lib/pixelpad";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/pixelpad-icons";
+import { BUILT_IN_SOUNDS, synthWav } from "./lib/pixelpad-synth";
 import { starterFiles } from "./lib/types";
 import { downloadFile } from "./lib/classroom";
 import { apiUploadMedia } from "./lib/api";
-import { compressImage } from "./lib/media";
+import { compressAudio, compressImage } from "./lib/media";
 import "./pixelpad-ide.css";
 
 /* The PixelPad editor.
@@ -34,13 +35,16 @@ import "./pixelpad-ide.css";
  *     runaway loop takes the frame down and not the editor. The debug bar is
  *     inside that frame because every switch on it is a field on the Engine
  *     running there; PLAY, the console and the four toggles are out here.
- *   - a picture goes to the student's own media on the server, which is what
- *     makes it survive the next laptop they sit down at.
+ *   - a picture or a sound goes to the student's own media on the server,
+ *     which is what makes it survive the next laptop they sit down at. The
+ *     offline IDE keeps them inside the project file instead, which is why a
+ *     project that leaves this editor leaves its sounds behind.
  *
  *       Classes     Monster.start.py  +  Monster.loop.py
  *       Rooms       Play.start.py     +  Play.loop.py      + "room Play" in game.txt
  *       Functions   Helpers.fn.py
  *       Sprites     a "sprite" line in game.txt
+ *       Sounds      a "sound" line in game.txt
  *
  * game.txt stays a file a child can open and read, because the PXP101 textbook
  * teaches it as one. The sidebar writes the same lines they would type.
@@ -50,15 +54,10 @@ type Selection =
   | { kind: "panels"; name: string }      // a class or a room: start and loop
   | { kind: "function"; name: string }    // shared code: one body
   | { kind: "sprite"; name: string }      // "" while a new one is being made
-  | { kind: "sound"; name: string }       // one of the two the engine makes
+  | { kind: "sound"; name: string }       // one the engine makes, or one uploaded
   | { kind: "file"; name: string };       // game.txt, or anything else in there
 
 const GAME = "Game";
-
-/* The engine synthesises these two and nothing else, so they need no file and
-   cannot be deleted. They are on the list because a child who cannot see them
-   cannot know they are there to be played. */
-const SOUNDS = ["blip", "crunch"];
 
 const startPath = (name: string) => name + ".start.py";
 const loopPath = (name: string) => name + ".loop.py";
@@ -137,6 +136,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   sideRef.current = sideWidth;
 
   const importRef = useRef<HTMLInputElement>(null);
+  const soundRef = useRef<HTMLInputElement>(null);
+  const [busySound, setBusySound] = useState(false);
   const ideRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
   /* The offline IDE is the whole window. Here there is a classroom page above
@@ -157,6 +158,11 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   }, []);
 
   const manifest = useMemo(() => parseManifest(snapshot[MANIFEST_FILE] ?? ""), [snapshot]);
+
+  /* The bytes of every sound in the project. The preview frame cannot fetch
+     them for itself and neither can the player in the Sounds pane show a size
+     without them, so they are fetched once, here, and both use the same copy. */
+  const audio = useGameAudio(snapshot);
 
   /* Everything in the project, sorted into the sidebar's sections. A panel
      whose name game.txt calls a room is a room; anything else is a thing you
@@ -187,6 +193,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
       (selected.kind === "panels" && selected.name !== GAME && !classes.includes(selected.name) && !rooms.includes(selected.name)) ||
       (selected.kind === "function" && !functions.includes(selected.name)) ||
       (selected.kind === "sprite" && selected.name !== "" && !manifest.sprites.some((s) => s.name === selected.name)) ||
+      (selected.kind === "sound" && !BUILT_IN_SOUNDS.includes(selected.name) &&
+        !manifest.sounds.some((s) => s.name === selected.name)) ||
       (selected.kind === "file" && selected.name !== MANIFEST_FILE && !others.includes(selected.name));
     if (gone) setSelected({ kind: "panels", name: GAME });
   }, [classes, rooms, functions, others, manifest, selected]);
@@ -196,7 +204,13 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
   const [runId, setRunId] = useState(0);        // key bump: forces a real unmount
   const [nonce, setNonce] = useState("");       // identifies this run's messages
-  const [log, setLog] = useState<PreviewMessage[]>([]);
+  // The greeting is the console's first line in the offline editor too, and it
+  // is the initial state rather than an effect because StrictMode would run an
+  // effect twice and say hello twice.
+  const [log, setLog] = useState<PreviewMessage[]>([{
+    __utg: "", kind: "system", at: Date.now(),
+    text: "PixelPad - press PLAY to run your game. Everything you type saves to your account.",
+  }]);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const outRef = useRef<HTMLPreElement>(null);
 
@@ -250,7 +264,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   /* Writes the line a child would have typed, next to the lines like it. The
      starter file has a note above the rooms and another above the pictures,
      and a new room landing under the picture note would make the notes lie. */
-  function addManifestLine(word: "room" | "sprite", rest: string) {
+  function addManifestLine(word: "room" | "sprite" | "sound", rest: string) {
     const lines = manifestLines();
     while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
     let at = -1;
@@ -264,7 +278,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   /* Rewrites the one line that declares this room or picture. Matching on the
      instruction and the name rather than on the whole line leaves a child's
      own comment at the end of it alone. */
-  function editManifestLine(word: "room" | "sprite", name: string, replacement: string | null) {
+  function editManifestLine(word: "room" | "sprite" | "sound", name: string, replacement: string | null) {
     const out: string[] = [];
     for (const line of manifestLines()) {
       const parts = line.split("#")[0].trim().split(/\s+/);
@@ -340,6 +354,43 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   function deleteSprite(name: string) {
     if (!window.confirm("Delete the picture " + name + "? Any code that asks for it will stop working.")) return;
     editManifestLine("sprite", name, null);
+    touched();
+  }
+
+  /* Upload sound, which is what the offline IDE's + does too - except that
+     there the file goes into the project in the browser, and here it goes to
+     the student's own media, so it is still there on Monday and on whichever
+     laptop they end up at.
+
+     Everything is re-encoded to one small mono MP3 first, exactly as a picture
+     is re-encoded to WebP: a phone recording is thirty times the size of what
+     a game needs, thirty of them are a class, and the server takes MP3 for a
+     sound the way it takes WebP for a picture. */
+  async function uploadSound(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !token) return;
+    setBusySound(true);
+    say("system", "Adding " + file.name + "...");
+    try {
+      const small = await compressAudio(file);
+      const taken = new Set([...BUILT_IN_SOUNDS, ...manifest.sounds.map((sound) => sound.name)]);
+      let name = small.name;
+      for (let n = 2; taken.has(name); n++) name = small.name.replace(/\.mp3$/, "") + "-" + n + ".mp3";
+      const media = await apiUploadMedia(token, "audio", small.mime, name, small.blob);
+      addManifestLine("sound", name + " " + media.url);
+      touched();
+      setSelected({ kind: "sound", name });
+      say("system", 'Added ' + name + '. Play it with play_sound("' + name + '").');
+    } catch (err) {
+      say("error", (err as Error).message || "That sound would not upload.");
+    }
+    setBusySound(false);
+  }
+
+  function deleteSound(name: string) {
+    if (!window.confirm("Delete the sound " + name + "? Any code that plays it will make the built-in blip instead.")) return;
+    editManifestLine("sound", name, null);
     touched();
   }
 
@@ -484,30 +535,33 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
     {/* ============ assets sidebar ============ */}
     <div id="pp-block0" className="ide-ui usel" style={{ width: sideWidth + "%" }}>
       <div className="toggle-row">
-        <label className="form-check-inline" title="Dark theme">
-          <span><Icon name="adjust" /></span>
-          <input type="checkbox" checked={dark}
+        {/* The icon is a <label> because that is what the offline editor's own
+            stylesheet spaces away from the checkbox; a <span> here sat flush
+            against it. The outer box is a <span> so the labels are not nested. */}
+        <span className="form-check-inline" title="Dark theme">
+          <label htmlFor="pp-toggle-theme"><Icon name="adjust" /></label>
+          <input id="pp-toggle-theme" type="checkbox" checked={dark}
                  onChange={(event) => { setDark(event.target.checked); localStorage.setItem("utg_pp_theme", event.target.checked ? "dark" : "light"); }} />
-        </label>
-        <label className="form-check-inline" title="Tabbed layout">
-          <span><Icon name="columns" /></span>
-          <input type="checkbox" checked={tabbed}
+        </span>
+        <span className="form-check-inline" title="Tabbed layout">
+          <label htmlFor="pp-toggle-layout"><Icon name="columns" /></label>
+          <input id="pp-toggle-layout" type="checkbox" checked={tabbed}
                  onChange={(event) => { setTabbed(event.target.checked); localStorage.setItem("utg_pp_layout", event.target.checked ? "tabbed" : "split"); }} />
-        </label>
-        <label className="form-check-inline" title="Debug overlay">
-          <span><Icon name="bug" /></span>
-          <input type="checkbox" checked={debug}
+        </span>
+        <span className="form-check-inline" title="Debug overlay">
+          <label htmlFor="pp-toggle-debug"><Icon name="bug" /></label>
+          <input id="pp-toggle-debug" type="checkbox" checked={debug}
                  onChange={(event) => {
                    setDebug(event.target.checked);
                    localStorage.setItem("utg_pp_debug", event.target.checked ? "on" : "off");
                    tellFrameDebug(event.target.checked);
                  }} />
-        </label>
-        <label className="form-check-inline" title="Suggestions">
-          <span><Icon name="lightbulb" /></span>
-          <input type="checkbox" checked={suggest}
+        </span>
+        <span className="form-check-inline" title="Suggestions">
+          <label htmlFor="pp-toggle-suggest"><Icon name="lightbulb" /></label>
+          <input id="pp-toggle-suggest" type="checkbox" checked={suggest}
                  onChange={(event) => { setSuggest(event.target.checked); localStorage.setItem("utg_pp_suggest", event.target.checked ? "on" : "off"); }} />
-        </label>
+        </span>
       </div>
 
       <SideHead title="Classes" add="New class" onAdd={readOnly ? undefined : askNewClass} />
@@ -538,12 +592,23 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onDelete={readOnly ? undefined : () => deleteSprite(sprite.name)} />)}
       </ul>
 
-      <SideHead title="Sounds" />
+      {/* The two the engine makes itself come first and have no delete: they
+          need no file, and a child who cannot see them cannot know they are
+          there to be played. Everything under them is a real file in the
+          student's media, named by the line it wrote in game.txt. */}
+      <SideHead title="Sounds" add="Upload sound"
+                onAdd={readOnly || !token ? undefined : () => soundRef.current?.click()} />
       <ul className="pp-asset-list">
-        {SOUNDS.map((name) => <SideItem key={name} name={name} icon="volume"
+        {BUILT_IN_SOUNDS.map((name) => <SideItem key={name} name={name} icon="volume"
           active={selected.kind === "sound" && selected.name === name}
           onOpen={() => setSelected({ kind: "sound", name })} />)}
+        {manifest.sounds.map((sound) => <SideItem key={sound.name} name={sound.name} icon="volume"
+          active={selected.kind === "sound" && selected.name === sound.name}
+          onOpen={() => setSelected({ kind: "sound", name: sound.name })}
+          onDelete={readOnly ? undefined : () => deleteSound(sound.name)} />)}
       </ul>
+      <input ref={soundRef} type="file" accept="audio/*" style={{ display: "none" }}
+             disabled={busySound} onChange={(event) => { void uploadSound(event); }} />
 
       <SideHead title="Functions" add="New function" onAdd={readOnly ? undefined : askNewFunction} />
       <ul className="pp-asset-list">
@@ -615,7 +680,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           ? <SpritePane sprite={spriteShown} taken={manifest.sprites.map((s) => s.name)} token={token} readOnly={readOnly}
                         onSave={(sprite) => saveSprite(spriteShown, sprite)}
                         onCancel={() => setSelected({ kind: "panels", name: GAME })} />
-          : selected.kind === "sound" ? <SoundPane name={selected.name} /> : null}
+          : selected.kind === "sound" ? <SoundPane name={selected.name} data={audio[selected.name]} /> : null}
       </div>
     </div>
 
@@ -635,8 +700,8 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           {runFiles
             ? <iframe key={runId} ref={frameRef} title="Game" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
                       onLoad={() => { if (debug) tellFrameDebug(true); }}
-                      srcDoc={buildGamePreview(runFiles, nonce)} />
-            : <div className="pp-stage-idle">Press PLAY to start your game.</div>}
+                      srcDoc={buildGamePreview(runFiles, nonce, audio)} />
+            : <div className="pp-stage-idle" />}
         </div>
         <div id="pp-console" className="ide-ui">
           <pre id="output" ref={outRef}>
@@ -835,13 +900,21 @@ function SpritePane({ sprite, taken, token, readOnly, onSave, onCancel }: {
   </>;
 }
 
-/* The engine makes its two sounds itself, out of nothing, inside the frame -
-   so there is no file here to play, and this says so rather than showing a
-   player that would never make a noise. */
-function SoundPane({ name }: { name: string }) {
+/* A sound, as the offline IDE shows one: a player, how big it is, and the
+   line of code that plays it. A built-in is rendered to a file here so that it
+   can be played too - the engine only ever makes that noise live, through
+   WebAudio, and there is nothing to hand an <audio> element without the two
+   helpers cut out of the offline file alongside it. */
+function SoundPane({ name, data }: { name: string; data?: string }) {
+  const src = useMemo(() => data || synthWav(name), [name, data]);
+  const size = Math.round(src.length * 0.75 / 1024);
   return <>
     <div id="assetPreviewTab"><Icon name="volume" /><span>{name}</span></div>
-    <div id="assetPreviewBody"><span className="pp-note">The game makes this sound itself. Press PLAY to hear it.</span></div>
-    <div id="assetPreviewInfo">{name + "\nbuilt in\n\nplay_sound(\"" + name + "\")"}</div>
+    <div id="assetPreviewBody">
+      <audio id="pp-audio" controls style={{ display: "block" }} src={src || undefined} />
+    </div>
+    <div id="assetPreviewInfo">{name + "\n" +
+      (src ? "playable \u00b7 about " + size + " KB" : "still arriving - it will play in a moment") +
+      "\n\nplay_sound(\"" + name + "\")"}</div>
   </>;
 }

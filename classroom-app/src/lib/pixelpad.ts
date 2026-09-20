@@ -16,6 +16,7 @@
 // - its own tokenizer, parser, evaluator and renderer - written so its error
 // text matches the real IDE's word for word.
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import ENGINE from "./pixelpad-engine.js?raw";
 import { ICONS } from "./pixelpad-icons";
 
@@ -53,18 +54,24 @@ export const RGB: Record<string, [number, number, number]> = {
 };
 
 export type Sprite = { name: string; source: string; width: number; height: number };
-export type Manifest = { rooms: string[]; sprites: Sprite[]; problems: string[] };
+/** A sound is a name and a link to the file. Unlike a picture it has no
+ *  stand-in to build against - there is no "green" for a noise - so a sound
+ *  in a game is always one the student put there. */
+export type Sound = { name: string; source: string };
+export type Manifest = { rooms: string[]; sprites: Sprite[]; sounds: Sound[]; problems: string[] };
 
 /** game.txt: one instruction a line, `#` starts a comment.
  *
  *      room Play
  *      sprite monster.png green 48 48
+ *      sound jump.mp3 https://...
  *
  *  Deliberately not JSON. An eight-year-old can add a line here; a misplaced
  *  brace or a trailing comma in JSON is a dead game with a cryptic message. */
 export function parseManifest(text: string): Manifest {
   const rooms: string[] = [];
   const sprites: Sprite[] = [];
+  const sounds: Sound[] = [];
   const problems: string[] = [];
   (text || "").split(/\r?\n/).forEach((raw, index) => {
     const line = raw.split("#")[0].trim();
@@ -95,11 +102,27 @@ export function parseManifest(text: string): Manifest {
         return;
       }
       sprites.push({ name, source, width: w, height: h });
+    } else if (word === "sound") {
+      // The + next to Sounds writes this line. A link to a sound is a long
+      // signed address that nobody should be copying by hand, but it is
+      // still a line in a file a child can read, delete and ask about.
+      if (rest.length !== 2) {
+        problems.push(where + ': write "sound", a name and a link, like "sound jump.mp3 https://...". ' +
+          "Press + next to Sounds and this line writes itself.");
+        return;
+      }
+      const [name, source] = rest;
+      if (!isLink(source)) {
+        problems.push(where + ': "' + source + '" is not a link to a sound file. ' +
+          "Press + next to Sounds to add one, and it goes to your own media.");
+        return;
+      }
+      sounds.push({ name, source });
     } else {
-      problems.push(where + ': I do not understand "' + word + '". A line starts with "room" or "sprite".');
+      problems.push(where + ': I do not understand "' + word + '". A line starts with "room", "sprite" or "sound".');
     }
   });
-  return { rooms, sprites, problems };
+  return { rooms, sprites, sounds, problems };
 }
 
 function isLink(source: string): boolean {
@@ -122,6 +145,12 @@ export type Panels = { start: string; loop: string };
 export type SharedFunction = { name: string; body: string };
 export type GameConfig = {
   textures: Record<string, string>;
+  /** Every sound the game can play, as the bytes of the file in base64.
+   *  Bytes rather than links: the preview frame is sandboxed, so it has no
+   *  origin of its own, and the classroom server will not let a request
+   *  from nowhere read the reply - even though the student is signed in.
+   *  The page around the frame does the asking and hands the bytes down. */
+  sounds: Record<string, string>;
   start: string; loop: string;
   classes: Record<string, Panels>;
   rooms: Record<string, Panels>;
@@ -134,7 +163,9 @@ export type GameConfig = {
  *  so its panels are the config's top-level start/loop. Everything else is a
  *  room if game.txt named it one, and a class - a thing you can make many of -
  *  if it did not. */
-export function assembleGame(files: Record<string, string>): { config: GameConfig; problems: string[] } {
+/** @param audio each sound by name, as a data URI - see useGameAudio. */
+export function assembleGame(files: Record<string, string>, audio: Record<string, string> = {}):
+    { config: GameConfig; problems: string[] } {
   const manifest = parseManifest(files[MANIFEST_FILE] ?? "");
   const problems = manifest.problems.slice();
   if (!(MANIFEST_FILE in files)) {
@@ -181,11 +212,26 @@ export function assembleGame(files: Record<string, string>): { config: GameConfi
       : solidPng(RGB[sprite.source], sprite.width, sprite.height);
   }
 
+  /* A sound the page has not fetched yet is not a broken game, it is a game
+     that started a second too early - so this says what the engine will do
+     about it rather than refusing to run. What the engine does about a sound
+     it has never heard of is to make one of its own instead. */
+  const sounds: Record<string, string> = {};
+  for (const sound of manifest.sounds) {
+    const uri = audio[sound.name];
+    if (!uri) {
+      problems.push('The sound "' + sound.name + '" has not arrived yet, so play_sound("' + sound.name +
+        '") makes the built-in blip for now. Press PLAY again in a moment.');
+      continue;
+    }
+    sounds[sound.name] = uri.slice(uri.indexOf(",") + 1);
+  }
+
   /* By name, so a game runs the same way twice. Object key order would hand
      the engine whichever function happened to be created first. */
   functions.sort((a, b) => a.name.localeCompare(b.name));
 
-  return { config: { textures, start, loop, classes, rooms, functions }, problems };
+  return { config: { textures, sounds, start, loop, classes, rooms, functions }, problems };
 }
 
 /* Console plumbing, injected before the engine loads.
@@ -314,6 +360,25 @@ function runner(config: GameConfig, nonce: string): string {
 "    Engine.loadSprite(name, img);\n" +
 "  });\n" +
 "\n" +
+"  /* Sounds arrive as bytes and are decoded here rather than fetched: a frame\n" +
+"     with no origin of its own cannot read a reply from the classroom server,\n" +
+"     and the page outside has already done the asking. Until a decode\n" +
+"     finishes the engine does what it does for a sound it has never heard of,\n" +
+"     which is to make one of its own instead - so an early play_sound() is a\n" +
+"     different noise rather than silence. */\n" +
+"  var actx = audioCtx();\n" +
+"  Object.keys(CONFIG.sounds).forEach(function (name) {\n" +
+"    SOUNDS.set(name, { data: null, buffer: null });\n" +
+"    if (!actx) return;\n" +
+"    var raw = atob(CONFIG.sounds[name]);\n" +
+"    var bytes = new Uint8Array(raw.length);\n" +
+"    for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);\n" +
+"    actx.decodeAudioData(bytes.buffer, function (buffer) {\n" +
+"      var entry = SOUNDS.get(name);\n" +
+"      if (entry) entry.buffer = buffer;\n" +
+"    }, function () { post(\"error\", 'The sound \"' + name + '\" would not play. Is it really a sound file?'); });\n" +
+"  });\n" +
+"\n" +
 "  var project = { classes: [], rooms: [], functions: CONFIG.functions || [], sprites: [], sounds: [] };\n" +
 "  project.classes.push({ name: \"Game\", isGame: true, start: CONFIG.start, loop: CONFIG.loop });\n" +
 "  Object.keys(CONFIG.classes).forEach(function (name) {\n" +
@@ -403,8 +468,9 @@ function runner(config: GameConfig, nonce: string): string {
 }
 
 /** The document that runs one game inside the preview frame. */
-export function buildGamePreview(files: Record<string, string>, nonce: string): string {
-  const { config, problems } = assembleGame(files);
+export function buildGamePreview(files: Record<string, string>, nonce: string,
+                                 audio: Record<string, string> = {}): string {
+  const { config, problems } = assembleGame(files, audio);
   const complain = problems.length
     ? "<script>" + problems.map((text) => "console.error(" + JSON.stringify(text) + ");").join("") + "<\/script>"
     : "";
@@ -415,6 +481,66 @@ export function buildGamePreview(files: Record<string, string>, nonce: string): 
     "<script>\n" + ENGINE.replaceAll("</script", "<\\/script") + "\n<\/script>" +
     runner(config, nonce) +
     "</body></html>";
+}
+
+
+/** Every sound a project names, fetched once and kept as a data URI.
+ *
+ *  A picture reaches the preview frame as a link, because an <img> may load a
+ *  picture from anywhere. A sound may not: the engine needs the samples, which
+ *  means reading the bytes, which the classroom server allows only to a page
+ *  it recognises. The preview frame is sandboxed and so has no origin at all -
+ *  it is nobody - and a game that asks for its own sound would be refused.
+ *
+ *  So the page asks, and hands the bytes down. It also means a sound is
+ *  fetched once no matter how many times a child presses PLAY.
+ */
+export function useGameAudio(files: Record<string, string>): Record<string, string> {
+  const manifest = files[MANIFEST_FILE] ?? "";
+  const sounds = useMemo(() => parseManifest(manifest).sounds, [manifest]);
+  /* By link rather than by name: renaming a sound must not fetch it again,
+     and two names for one file are one download. */
+  const cache = useRef<Record<string, string>>({});
+  const [arrived, setArrived] = useState(0);
+
+  useEffect(() => {
+    let dropped = false;
+    const missing = sounds.filter((sound) => !(sound.source in cache.current));
+    if (!missing.length) return;
+    void (async () => {
+      for (const sound of missing) {
+        /* A sound that will not come is remembered as one that will not come.
+           Retrying every render would be a request a second, for ever. */
+        let uri = "";
+        try {
+          const reply = await fetch(sound.source);
+          if (reply.ok) uri = await asDataUri(await reply.blob());
+        } catch { uri = ""; }
+        if (dropped) return;
+        cache.current[sound.source] = uri;
+        setArrived((n) => n + 1);
+      }
+    })();
+    return () => { dropped = true; };
+  }, [sounds]);
+
+  return useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const sound of sounds) {
+      const uri = cache.current[sound.source];
+      if (uri) out[sound.name] = uri;
+    }
+    return out;
+  }, [sounds, arrived]);
+}
+
+function asDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("unreadable"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 
@@ -475,7 +601,10 @@ export function toPp2d(files: Record<string, string>): string {
       uri: isLink(sprite.source) ? sprite.source : colourUri(RGB[sprite.source], sprite.width, sprite.height),
     },
   }));
-  return JSON.stringify({ pythonAssets: { script, room, texture, sound: [], function: functions } });
+  const sound: Pp2dEntry[] = manifest.sounds.map((entry) => ({
+    [entry.name]: { type: "audio", uri: entry.source },
+  }));
+  return JSON.stringify({ pythonAssets: { script, room, texture, sound, function: functions } });
 }
 
 function walkPp2d(list: unknown, out: { name: string; def: Pp2dDef }[] = []): { name: string; def: Pp2dDef }[] {
@@ -529,12 +658,16 @@ export function fromPp2d(text: string): { files: Record<string, string>; notes: 
     if (/\s/.test(name)) { notes.push('Skipped the picture "' + name + '": a name cannot have a space in it.'); continue; }
     sprites.push("sprite " + name + " " + (uri && isLink(uri) ? uri : "green") + " 48 48");
   }
+  /* A sound could be a link to somewhere that will not let this page read
+     it, or a megabyte of base64 that would fill game.txt - and a sound has to
+     live in the student's own media to survive the next laptop anyway. So it
+     stays behind, and the note says exactly what to do about it. */
   for (const { name } of walkPp2d(assets.sound)) {
-    notes.push('The sound "' + name + '" stayed behind: sounds here are the two the engine makes itself, blip and crunch.');
+    notes.push('The sound "' + name + '" stayed behind. Add it again with + next to Sounds and it goes to your own media.');
   }
 
   files[MANIFEST_FILE] =
-    "# This file tells the game about your screens and your pictures.\n" +
+    "# This file tells the game about your screens, your pictures and your sounds.\n" +
     "# Anything after a # is a note to yourself - the game ignores it.\n" +
     (rooms.length ? "\n# A room is one screen.\n" + rooms.map((name) => "room " + name).join("\n") + "\n" : "") +
     (sprites.length ? "\n# A picture: its name, a colour or a link, how wide, how tall.\n" + sprites.join("\n") + "\n" : "");

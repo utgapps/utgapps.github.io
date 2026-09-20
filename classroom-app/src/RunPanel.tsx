@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProjectKind } from "./lib/types";
 import { buildPreview, isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
-import { buildGamePreview } from "./lib/pixelpad";
+import { buildGamePreview, useGameAudio } from "./lib/pixelpad";
 
 function sameFiles(a: Record<string, string>, b: Record<string, string>) {
   const keys = Object.keys(a);
@@ -15,6 +15,9 @@ function sameFiles(a: Record<string, string>, b: Record<string, string>) {
    student's 40-requests-per-minute budget while they are still typing the call. */
 export function RunPanel({ files, kind = "web" }: { files: Record<string, string>; kind?: ProjectKind }) {
   const game = kind === "pixelpad";
+  /* A game's sounds are fetched out here, because the frame they play in
+     has no origin of its own to fetch them with. */
+  const audio = useGameAudio(files);
   const [runFiles, setRunFiles] = useState<Record<string, string> | null>(null);
   const [runId, setRunId] = useState(0);       // key bump: forces a real unmount
   const [nonce, setNonce] = useState("");      // identifies this run's messages
@@ -106,7 +109,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
     {runFiles
       ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
                 onLoad={() => { if (game && debug) tellFrameDebug(true); }}
-                srcDoc={(game ? buildGamePreview : buildPreview)(runFiles, nonce)} />
+                srcDoc={game ? buildGamePreview(runFiles, nonce, audio) : buildPreview(runFiles, nonce)} />
       : <div className="preview-idle">
           <p>Press <strong>▶ Run</strong> to {game ? "play your game" : "see your project"}.</p>
           <p className="muted">{game

@@ -8,8 +8,8 @@
    Run.
 
    It also holds every generated file to its generator: the engine, the word
-   list, the stylesheet and the glyphs are all cut out of
-   vendor/pixelpad-offline.html, and a hand-edit to any of them would be
+   list, the stylesheet, the glyphs and the two sound helpers are all cut out
+   of vendor/pixelpad-offline.html, and a hand-edit to any of them would be
    invisible - it would work, right up until the next regeneration silently
    threw it away. The stylesheet is the one that would hurt most quietly: the
    game editor is meant to BE the offline IDE, so a rule tuned by hand here
@@ -19,7 +19,8 @@
 */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { cutEngine, cutApi, cutIdeCss, cutIcons, OUT, API_OUT, CSS_OUT, ICONS_OUT } from "../tools/build-engine.mjs";
+import { cutEngine, cutApi, cutIdeCss, cutIcons, cutSynth,
+         OUT, API_OUT, CSS_OUT, ICONS_OUT, SYNTH_OUT } from "../tools/build-engine.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const read = (p) => readFileSync(here + p, "utf8");
@@ -56,6 +57,21 @@ check(ICONS_OUT + " is what tools/build-engine.mjs produces",
       read("../" + ICONS_OUT) === cutIcons().text,
       "re-run `node tools/build-engine.mjs`");
 
+// 1f. and so are the helpers that turn a synthesised sound into a file. The
+//     Sounds pane plays blip and crunch with these; the engine itself never
+//     makes a file of either.
+const synth = cutSynth();
+check(SYNTH_OUT + " is what tools/build-engine.mjs produces",
+      read("../" + SYNTH_OUT) === synth.text,
+      "re-run `node tools/build-engine.mjs`");
+/* The sidebar used to name blip and crunch itself. A third synthesised
+   sound would have reached the engine and not the sidebar, so a child
+   could play a sound they could not see. */
+check("the Sounds list is the engine's own, not a copy of it",
+      read("../src/PixelPadIde.tsx").includes("BUILT_IN_SOUNDS") &&
+        synth.text.includes("export const BUILT_IN_SOUNDS"),
+      "the editor names the built-in sounds itself instead of reading them off the engine");
+
 // 1e. every rule in it stays inside the editor. Unscoped, one of these would
 //     repaint the rest of the classroom - and only on the pages a game is on.
 const loose = css.text.split("\n")
@@ -82,6 +98,17 @@ for (const id of cut.needs) {
   check('the preview page provides #' + id, lib.includes('id="' + id + '"'),
         "the engine calls getElementById('" + id + "') but the page has no such element");
 }
+
+// 4b. the frame is handed everything it needs rather than asking for it. A
+//     sound has to be read as bytes, which the classroom server will not let a
+//     frame with no origin do - so the page outside fetches it and inlines it,
+//     and a preview that started fetching for itself would be silently broken
+//     for every student while working perfectly on this machine.
+const runner = lib.slice(lib.indexOf("function runner("), lib.indexOf("export function buildGamePreview"));
+check("the preview frame never fetches", !/fetch\s*\(|XMLHttpRequest|importScripts/.test(runner),
+      (runner.match(/fetch\s*\(|XMLHttpRequest|importScripts/) || [])[0]);
+check("a game's sounds reach the engine", /SOUNDS\.set\(name/.test(runner) && /decodeAudioData/.test(runner),
+      "the runner never hands the engine a sound, so play_sound() can only ever blip");
 
 // 5. a game is more than its panels now: shared functions run before any
 //    start() does, and the debug bar is wired inside the frame because every

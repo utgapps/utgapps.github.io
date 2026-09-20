@@ -13,7 +13,7 @@ import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { buildPreview, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
-import { buildGamePreview, GAME_ENTRY } from "./lib/pixelpad";
+import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/pixelpad";
 import { RunPanel } from "./RunPanel";
 import { PixelPadIde } from "./PixelPadIde";
 import { ProjectPicker } from "./ProjectPicker";
@@ -743,10 +743,14 @@ function GearMenu({ items }: { items: { label: string; onClick: () => void; dang
 
 function StaticPreview({ files, kind }: { files: Record<string, string>; kind: ProjectKind }) {
   const [nonce, setNonce] = useState("");
+  /* A game's sounds, fetched by this page: the frame is sandboxed, so it has
+     no origin the server would answer. A teacher watching hears what the
+     student hears. */
+  const audio = useGameAudio(files);
   if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
-  const build = kind === "pixelpad" ? buildGamePreview : buildPreview;
   return nonce
-    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW} srcDoc={build(files, nonce)} />
+    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
+              srcDoc={kind === "pixelpad" ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce)} />
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
 }
 
