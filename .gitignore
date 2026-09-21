@@ -16,3 +16,8 @@ ai101/test/package-lock.json
 classroom-app/*.tsbuildinfo
 classroom-worker/.dev.vars
 .wrangler/
+
+# The offline Pixel Art Maker has its access gate stripped out, so it must not
+# be served from the public site. Build it with build-offline.py and hand it
+# out deliberately.
+pixel-art-maker/pixel-art-maker-offline.html
