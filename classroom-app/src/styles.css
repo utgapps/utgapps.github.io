@@ -224,7 +224,7 @@ body.running-full { overflow: hidden; }
 .project-actions { display: flex; gap: 4px; justify-content: flex-end; padding: 6px 10px; border-top: 1px solid #e6eef0; background: #fafcfd; }
 .kind-badge { border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .kind-badge.web { color: #0a6299; background: #e7f7ff; }.kind-badge.java { color: #6d5a22; background: #f6efdc; }
-.kind-badge.pixelpad { color: #2f6b3a; background: #e6f7ea; }
+.kind-badge.game { color: #2f6b3a; background: #e6f7ea; }
 .project-card.new, .project-card.coedit { align-content: center; justify-items: center; gap: 6px; padding: 24px; border-style: dashed; color: #4d6871; text-align: center; }
 .project-card.new:hover { border-color: #01aefd; color: #0a6299; }
 .project-card.new .plus, .project-card.coedit .plus { font-size: 22px; }
@@ -398,10 +398,10 @@ body.running-full { overflow: hidden; }
 .media-actions { display: flex; justify-content: space-between; }
 .media-actions .danger { color: #d33; }
 
-/* ---- the PixelPad game editor ----
-   The editor is src/pixelpad-ide.css, which IS the offline IDE's stylesheet:
-   cut out of vendor/pixelpad-offline.html by tools/build-engine.mjs, scoped
-   under .pp3d-ide and otherwise untouched. Nothing about the look of that
+/* ---- the Python Game Editor ----
+   The editor is src/game-editor.css, which IS the offline IDE's stylesheet:
+   cut out of vendor/game-editor-offline.html by tools/build-engine.mjs, scoped
+   under .pge-ide and otherwise untouched. Nothing about the look of that
    editor belongs in this file.
 
    What is here is the two places the online one cannot be the same thing
@@ -418,7 +418,7 @@ body.running-full { overflow: hidden; }
        need to do, so it has a small form the original has no equivalent of. */
 
 /* Framed, because unlike the offline IDE this is not the whole window. */
-.pp3d-ide { border: 1px solid var(--ui-border); border-radius: 7px; }
+.pge-ide { border: 1px solid var(--ui-border); border-radius: 7px; }
 
 /* The offline IDE is a page to itself: the only rules its elements meet are
    its own. Here the classroom's form styling - a label is a grid with a gap
@@ -428,87 +428,87 @@ body.running-full { overflow: hidden; }
    inside the editor, and the cut is the only thing that dresses them; every
    rule in it is at least as specific as this one, so nothing here overrides
    the copy. */
-.pp3d-ide label, .pp3d-ide input, .pp3d-ide select, .pp3d-ide button, .pp3d-ide textarea {
+.pge-ide label, .pge-ide input, .pge-ide select, .pge-ide button, .pge-ide textarea {
   display: inline; margin: 0; padding: 0; width: auto; gap: 0;
   font: inherit; color: inherit; border: 0; border-radius: 0; background: none;
 }
-.pp3d-ide input[type="checkbox"] { display: inline-block; }
+.pge-ide input[type="checkbox"] { display: inline-block; }
 /* The offline markup puts a second <label for> inside each toggle; nesting one
    label in another makes a browser toggle twice, so the icon sits in a span. */
-.pp3d-ide .form-check-inline span { padding-right: 3.5px; cursor: pointer; display: inline-flex; }
+.pge-ide .form-check-inline span { padding-right: 3.5px; cursor: pointer; display: inline-flex; }
 
 /* The cut asks for 20vh of console. In the offline IDE the window IS the
    editor, so that is a fifth of it; here the editor is a box on a page and a
    fifth of the window is the wrong fifth. Same rule, measured against the same
    thing it was measured against. */
-.pp3d-ide #pp-console { height: 20%; }
+.pge-ide #pp-console { height: 20%; }
 
-.pp3d-ide #canvasContainer iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; display: block; }
+.pge-ide #canvasContainer iframe { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; display: block; }
 /* Before the first PLAY, the offline editor shows an empty black 16:9 stage -
    not a sentence where the game will be. The hint it replaced is now the
    console's opening line, which is where the offline editor keeps it. */
-.pp3d-ide .pp-stage-idle { margin: auto; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; background: #000; }
+.pge-ide .pp-stage-idle { margin: auto; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; background: #000; }
 
 /* CodeMirror, wearing .ppe */
-.pp3d-ide .cm-host, .pp3d-ide .cm-host .cm-editor { height: 100%; }
-.pp3d-ide .cm-host, .pp3d-ide .cm-host .cm-editor { background: var(--ed-bg); color: var(--ed-fg); font-family: Consolas, "Courier New", monospace; font-size: 14px; }
-.pp3d-ide .cm-host .cm-editor.cm-focused { outline: none; }
-.pp3d-ide .cm-host .cm-scroller { font: 14px/19px Consolas, "Courier New", monospace; font-feature-settings: "liga" 0, "calt" 0; }
-.pp3d-ide .cm-host .cm-content { padding: 0; caret-color: var(--ed-fg); }
-.pp3d-ide .cm-host .cm-line { padding: 0; }
-.pp3d-ide .cm-host .cm-gutters { min-width: 64px; border: 0; background: var(--ed-bg); color: var(--ed-gutter); }
-.pp3d-ide .cm-host .cm-lineNumbers .cm-gutterElement { min-width: 0; padding: 0 26px 0 8px; }
-.pp3d-ide .cm-host .cm-activeLineGutter { background: transparent; color: var(--ed-gutter-active); }
-.pp3d-ide .cm-host .cm-activeLine { background: var(--ed-line); }
-.pp3d-ide .cm-selectionBackground, .pp3d-ide .cm-content ::selection { background: var(--ed-sel); }
-.pp3d-ide .cm-cursor { border-left-color: var(--ed-fg); }
-.pp3d-ide .cm-panels { background: var(--ui-bg); color: var(--ui-fg); border-color: var(--ui-border); }
+.pge-ide .cm-host, .pge-ide .cm-host .cm-editor { height: 100%; }
+.pge-ide .cm-host, .pge-ide .cm-host .cm-editor { background: var(--ed-bg); color: var(--ed-fg); font-family: Consolas, "Courier New", monospace; font-size: 14px; }
+.pge-ide .cm-host .cm-editor.cm-focused { outline: none; }
+.pge-ide .cm-host .cm-scroller { font: 14px/19px Consolas, "Courier New", monospace; font-feature-settings: "liga" 0, "calt" 0; }
+.pge-ide .cm-host .cm-content { padding: 0; caret-color: var(--ed-fg); }
+.pge-ide .cm-host .cm-line { padding: 0; }
+.pge-ide .cm-host .cm-gutters { min-width: 64px; border: 0; background: var(--ed-bg); color: var(--ed-gutter); }
+.pge-ide .cm-host .cm-lineNumbers .cm-gutterElement { min-width: 0; padding: 0 26px 0 8px; }
+.pge-ide .cm-host .cm-activeLineGutter { background: transparent; color: var(--ed-gutter-active); }
+.pge-ide .cm-host .cm-activeLine { background: var(--ed-line); }
+.pge-ide .cm-selectionBackground, .pge-ide .cm-content ::selection { background: var(--ed-sel); }
+.pge-ide .cm-cursor { border-left-color: var(--ed-fg); }
+.pge-ide .cm-panels { background: var(--ui-bg); color: var(--ui-fg); border-color: var(--ui-border); }
 /* the suggestion list, as #suggest */
-.pp3d-ide .cm-tooltip { border-color: var(--sug-border); background: var(--sug-bg); color: var(--ed-fg); }
-.pp3d-ide .cm-tooltip.cm-tooltip-autocomplete { box-shadow: 0 2px 8px rgba(0,0,0,.18); }
-.pp3d-ide .cm-tooltip-autocomplete > ul { min-width: 200px; max-height: 172px; font: 13px Consolas, "Courier New", monospace; }
-.pp3d-ide .cm-tooltip-autocomplete > ul > li { padding: 1px 8px; color: var(--ed-fg); }
-.pp3d-ide .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sug-sel); color: #fff; }
-.pp3d-ide .cm-completionIcon { display: none; }
+.pge-ide .cm-tooltip { border-color: var(--sug-border); background: var(--sug-bg); color: var(--ed-fg); }
+.pge-ide .cm-tooltip.cm-tooltip-autocomplete { box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.pge-ide .cm-tooltip-autocomplete > ul { min-width: 200px; max-height: 172px; font: 13px Consolas, "Courier New", monospace; }
+.pge-ide .cm-tooltip-autocomplete > ul > li { padding: 1px 8px; color: var(--ed-fg); }
+.pge-ide .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--sug-sel); color: #fff; }
+.pge-ide .cm-completionIcon { display: none; }
 
 /* a panel nobody has written yet, in place of the editor */
-.pp3d-ide .pp-blank { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--ed-bg); color: var(--ui-fg); }
-.pp3d-ide .pp-blank p { margin: 0; max-width: 330px; font-size: 13px; line-height: 1.55; }
+.pge-ide .pp-blank { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--ed-bg); color: var(--ui-fg); }
+.pge-ide .pp-blank p { margin: 0; max-width: 330px; font-size: 13px; line-height: 1.55; }
 
 /* the line of game.txt a picture is */
-.pp3d-ide .pp-sprite-form { flex: none; max-height: 48%; overflow: auto; padding: 10px 14px 14px; background: var(--ui-bg); color: var(--ui-fg); border-top: 1px solid var(--ui-border); }
-.pp3d-ide .pp-sprite-form label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
-.pp3d-ide .pp-sprite-form input, .pp3d-ide .pp-sprite-form select { display: block; width: 100%; margin-top: 3px; padding: 5px 7px; font: inherit; font-size: 13px; font-weight: 400; border: 1px solid var(--ui-border); border-radius: 3.5px; background: var(--ed-bg); color: var(--ed-fg); }
-.pp3d-ide .pp-file-button { display: inline-block; margin-top: 4px; padding: 5.25px 10.5px; border-radius: 3.5px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
-.pp3d-ide .pp-file-button input { display: none; }
-.pp3d-ide .pp-form-row { margin-top: 10px; text-align: right; }
-.pp3d-ide .pp-form-left { text-align: left; }
-.pp3d-ide .pp-form-left .btn { margin-left: 0; display: inline-flex; align-items: center; gap: 6px; }
+.pge-ide .pp-sprite-form { flex: none; max-height: 48%; overflow: auto; padding: 10px 14px 14px; background: var(--ui-bg); color: var(--ui-fg); border-top: 1px solid var(--ui-border); }
+.pge-ide .pp-sprite-form label { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 700; }
+.pge-ide .pp-sprite-form input, .pge-ide .pp-sprite-form select { display: block; width: 100%; margin-top: 3px; padding: 5px 7px; font: inherit; font-size: 13px; font-weight: 400; border: 1px solid var(--ui-border); border-radius: 3.5px; background: var(--ed-bg); color: var(--ed-fg); }
+.pge-ide .pp-file-button { display: inline-block; margin-top: 4px; padding: 5.25px 10.5px; border-radius: 3.5px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pge-ide .pp-file-button input { display: none; }
+.pge-ide .pp-form-row { margin-top: 10px; text-align: right; }
+.pge-ide .pp-form-left { text-align: left; }
+.pge-ide .pp-form-left .btn { margin-left: 0; display: inline-flex; align-items: center; gap: 6px; }
 /* The file's ending sits beside the name box rather than inside it: it is
    what the picture or the sound IS, and not something to type or delete. */
-.pp3d-ide .pp-name-row { display: flex; align-items: center; gap: 6px; }
-.pp3d-ide .pp-name-row input { flex: 1 1 auto; min-width: 0; }
-.pp3d-ide .pp-name-ext { flex: none; margin-top: 3px; font-size: 13px; font-weight: 400; opacity: .7; }
-.pp3d-ide .pp-note { display: block; font-size: 12px; line-height: 1.5; opacity: .75; }
-.pp3d-ide #assetPreviewBody .pp-note { margin: auto; padding: 0 20px; text-align: center; }
-.pp3d-ide .pp-problem { margin: 6px 0 0; color: #D8000C; font-size: 12px; font-weight: 700; line-height: 1.5; }
-.pp3d-ide.pp-dark .pp-problem { color: #F48771; }
-.pp3d-ide #modal .pp-modal-note { margin: 0 0 8px; font-size: 12px; opacity: .75; }
+.pge-ide .pp-name-row { display: flex; align-items: center; gap: 6px; }
+.pge-ide .pp-name-row input { flex: 1 1 auto; min-width: 0; }
+.pge-ide .pp-name-ext { flex: none; margin-top: 3px; font-size: 13px; font-weight: 400; opacity: .7; }
+.pge-ide .pp-note { display: block; font-size: 12px; line-height: 1.5; opacity: .75; }
+.pge-ide #assetPreviewBody .pp-note { margin: auto; padding: 0 20px; text-align: center; }
+.pge-ide .pp-problem { margin: 6px 0 0; color: #D8000C; font-size: 12px; font-weight: 700; line-height: 1.5; }
+.pge-ide.pp-dark .pp-problem { color: #F48771; }
+.pge-ide #modal .pp-modal-note { margin: 0 0 8px; font-size: 12px; opacity: .75; }
 
 /* the + over Sprites: where a new picture comes from */
-.pp3d-ide #modal .pp-choice-row { display: flex; gap: 10px; }
-.pp3d-ide .pp-choice { flex: 1 1 0; width: 168px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 12px; font: inherit; text-align: center; color: inherit; background: transparent; border: 1px solid var(--ui-border); border-radius: 5.6px; cursor: pointer; }
-.pp3d-ide .pp-choice:hover { border-color: var(--accent); background: rgba(0, 123, 255, .08); }
-.pp3d-ide .pp-choice strong { font-size: 13px; }
-.pp3d-ide .pp-choice span { font-size: 11.5px; line-height: 1.45; opacity: .75; }
+.pge-ide #modal .pp-choice-row { display: flex; gap: 10px; }
+.pge-ide .pp-choice { flex: 1 1 0; width: 168px; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 12px; font: inherit; text-align: center; color: inherit; background: transparent; border: 1px solid var(--ui-border); border-radius: 5.6px; cursor: pointer; }
+.pge-ide .pp-choice:hover { border-color: var(--accent); background: rgba(0, 123, 255, .08); }
+.pge-ide .pp-choice strong { font-size: 13px; }
+.pge-ide .pp-choice span { font-size: 11.5px; line-height: 1.45; opacity: .75; }
 
 /* the drawing window: the site's own Pixel Art Maker, over the whole editor */
-.pp3d-ide .pp-art { position: fixed; inset: 0; z-index: 600; display: flex; flex-direction: column; background: rgba(0, 0, 0, .55); }
-.pp3d-ide .pp-art-bar { display: flex; align-items: center; gap: 9px; padding: 7px 12px; background: var(--ui-bg); color: var(--ui-fg); font-size: 12.5px; font-weight: 700; }
-.pp3d-ide .pp-art-bar .spacer { flex: 1 1 auto; }
-.pp3d-ide .pp-art-bar .pp-problem { margin: 0; }
-.pp3d-ide .pp-art-busy { font-weight: 400; opacity: .75; }
-.pp3d-ide .pp-art-frame { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
+.pge-ide .pp-art { position: fixed; inset: 0; z-index: 600; display: flex; flex-direction: column; background: rgba(0, 0, 0, .55); }
+.pge-ide .pp-art-bar { display: flex; align-items: center; gap: 9px; padding: 7px 12px; background: var(--ui-bg); color: var(--ui-fg); font-size: 12.5px; font-weight: 700; }
+.pge-ide .pp-art-bar .spacer { flex: 1 1 auto; }
+.pge-ide .pp-art-bar .pp-problem { margin: 0; }
+.pge-ide .pp-art-busy { font-weight: 400; opacity: .75; }
+.pge-ide .pp-art-frame { flex: 1 1 auto; width: 100%; border: 0; background: #fff; }
 
 /* Pressed, because the engine's debug bar is either on or off and the button
    has to say which. */

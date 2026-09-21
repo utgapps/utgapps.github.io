@@ -1,6 +1,6 @@
-/* Cut the runnable engine out of the offline PixelPAD IDE.
+/* Cut the runnable engine out of the offline Python Game Editor.
 
-   vendor/pixelpad-offline.html is a single-file clone of pixelpad.io: its own
+   vendor/game-editor-offline.html is a single-file IDE of our own: its own
    Python tokenizer, parser and evaluator, its own canvas renderer, AND a whole
    IDE around them - sidebar, tabs, code editor, .pp2d import/export, browser
    storage. The classroom already has an editor, so it needs the first half and
@@ -34,11 +34,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
-export const SOURCE = "vendor/pixelpad-offline.html";
-export const OUT = "src/lib/pixelpad-engine.js";
-export const API_OUT = "src/lib/pixelpad-api.ts";
-export const CSS_OUT = "src/pixelpad-ide.css";
-export const ICONS_OUT = "src/lib/pixelpad-icons.ts";
+export const SOURCE = "vendor/game-editor-offline.html";
+export const OUT = "src/lib/game-engine.js";
+export const API_OUT = "src/lib/game-api.ts";
+export const CSS_OUT = "src/game-editor.css";
+export const ICONS_OUT = "src/lib/game-icons.ts";
 
 
 /* Normalised to \n: the vendored file is CRLF on Windows, and every marker
@@ -77,7 +77,7 @@ export function cutApi() {
 
    Two things have to change on the way through, both mechanical:
 
-     - every selector is scoped under .pp3d-ide, because this CSS is loaded
+     - every selector is scoped under .pge-ide, because this CSS is loaded
        into an app that has a page around the editor. `body` and `:root` become
        that element: they are where the offline file keeps the IDE's font and
        its colour variables. The rules for `html` are dropped - the app owns
@@ -88,15 +88,15 @@ export function cutApi() {
 
    Anything else - a colour, a border, a width - comes through untouched, and
    the check below refuses a cut that quietly kept a rem or lost the scope. */
-const CSS_ROOT = ".pp3d-ide";
+const CSS_ROOT = ".pge-ide";
 
 function scopeSelector(list) {
   return list.split(",").map((one) => {
     const sel = one.trim();
-    if (sel === ":root" || sel === "body" || sel === "#pp3d-ide") return CSS_ROOT;
+    if (sel === ":root" || sel === "body" || sel === "#pge-ide") return CSS_ROOT;
     if (sel === "body.pp-dark") return CSS_ROOT + ".pp-dark";
     if (sel.startsWith("body.pp-dark ")) return CSS_ROOT + ".pp-dark " + sel.slice(13);
-    if (sel.startsWith("#pp3d-ide")) return CSS_ROOT + sel.slice(9);
+    if (sel.startsWith("#pge-ide")) return CSS_ROOT + sel.slice(9);
     return CSS_ROOT + " " + sel;
   }).join(",");
 }
@@ -141,7 +141,7 @@ export function cutIdeCss() {
     }
   }
   /* The three columns the editor is made of. If the vendored file renames one,
-     the markup in src/PixelPadIde.tsx is wrong too, and silently: it would
+     the markup in src/GameEditor.tsx is wrong too, and silently: it would
      render as an unstyled list of divs. */
   for (const id of ["#pp-block0", "#pp-block1", "#pp-block2", "#debugPanel", "#pp-console"]) {
     if (!scoped.includes(id)) fail("the stylesheet no longer styles " + id);
@@ -151,7 +151,7 @@ export function cutIdeCss() {
     "/* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.\n" +
     " *\n" +
     " * The offline IDE's stylesheet, from " + SOURCE + ", scoped\n" +
-    " * under .pp3d-ide and with its rem values resolved against the 14px root\n" +
+    " * under .pge-ide and with its rem values resolved against the 14px root\n" +
     " * that file sets. Nothing else is changed, because the classroom's game\n" +
     " * editor is meant to BE that IDE rather than resemble it.\n" +
     " */\n" + scoped.trim() + "\n";

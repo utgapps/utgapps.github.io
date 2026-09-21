@@ -14,12 +14,12 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { yCollab } from "y-codemirror.next";
 import { fileText } from "./lib/collab";
-import { API_NAMES, ATTR_NAMES, PY_KEYWORDS } from "./lib/pixelpad-api";
+import { API_NAMES, ATTR_NAMES, PY_KEYWORDS } from "./lib/game-api";
 
 /* The offline IDE suggests as you type, and a child who has met key_is_pressed
    once can find it again by typing "key". The words are the offline IDE's own
    lists, cut out of the vendored file by tools/build-engine.mjs - see
-   src/lib/pixelpad-api.js - so neither editor drifts from the engine.
+   src/lib/game-api.ts - so neither editor drifts from the engine.
 
    Ordered the way that file orders them: what the engine can do first, then
    what a thing has on it, then Python. CodeMirror keeps that order for equally
@@ -40,9 +40,9 @@ function gameWords(context: CompletionContext) {
 
 
 /* The offline IDE's own colours, by name, so the editor in a game project is
-   the editor in vendor/pixelpad-offline.html: the same four token colours, and
+   the editor in vendor/game-editor-offline.html: the same four token colours, and
    the same two sets of them, because every value here is a variable that
-   src/pixelpad-ide.css redefines under .pp-dark. CodeMirror's default
+   src/game-editor.css redefines under .pp-dark. CodeMirror's default
    highlighter is a generated class name and cannot be reached from a
    stylesheet, so this is the one part of the theme that has to be JavaScript. */
 const PPE_TOKENS = HighlightStyle.define([
@@ -56,7 +56,7 @@ const PPE_TOKENS = HighlightStyle.define([
 function langFor(file: string) {
   if (file.endsWith(".css")) return css();
   if (file.endsWith(".js")) return javascript();
-  // PixelPad panels are Python, and indentation is the one thing that breaks a
+  // Game panels are Python, and indentation is the one thing that breaks a
   // game at this age - so it gets a mode that indents rather than plain text.
   if (file.endsWith(".py")) {
     const py = python();
@@ -69,7 +69,7 @@ function langFor(file: string) {
 // are rendered by yCollab from the shared awareness (their color + name).
 //
 // `ppe` dresses it as the offline IDE's editor widget - the metrics are in
-// src/pixelpad-ide.css, under .pp3d-ide, and only the token colours are here.
+// src/game-editor.css, under .pge-ide, and only the token colours are here.
 // `suggest` is the IDE's lightbulb: a child who finds the suggestion list
 // getting in the way can put it down, and typing stops summoning it.
 export function CollabEditor({ doc, file, awareness, readOnly, ppe, suggest = true }: {

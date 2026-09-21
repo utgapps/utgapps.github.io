@@ -1,13 +1,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PixelPAD — Offline</title>
+<title>Python Game Editor — Offline</title>
 <style>
 /* ============================================================
-   PixelPAD offline clone — styles mirror the live IDE's
+   Python Game Editor — styles mirror the online IDE's
    computed values (colours, metrics, borders) 1:1.
    ============================================================ */
 :root{
-  --ide-bg:#F8F8FF;      /* #pp3d-ide background          */
+  --ide-bg:#F8F8FF;      /* #pge-ide background          */
   --ui-bg:#E7E9EB;       /* .ide-ui background            */
   --ui-fg:#343A40;       /* .ide-ui colour                */
   --ui-border:#D5DBE1;   /* column-adjust / tab borders   */
@@ -17,7 +17,7 @@
   --success:#10B981;     /* .btn-success                  */
   --dark:#1F2937;        /* .bg-dark                      */
   --stage:#343A40;       /* #pp-block2 rendered background */
-  --purple:#45156C;      /* .bg-pixelpad                  */
+  --purple:#45156C;      /* the original's brand purple   */
   --purple-lt:#6D399F;   /* .debugButton                  */
   --purple-dk:#2F1C40;   /* #debugPanel                   */
   --ed-bg:#FFFFFF;
@@ -57,7 +57,7 @@ body.pp-dark{
 }
 
 *{box-sizing:border-box}
-/* PixelPAD's page sets a 14px root, so every rem below is 14px-based */
+/* The original's page sets a 14px root, so every rem below is 14px-based */
 html{font-size:14px}
 html,body{height:100%}
 body{
@@ -74,7 +74,7 @@ svg.i{width:1em;height:1em;fill:currentColor;vertical-align:-.125em;flex:none}
 svg.i2x{width:1.4em;height:1.4em}
 
 /* ---------- root ---------- */
-#pp3d-ide{height:100vh;background:var(--ide-bg);overflow:hidden}
+#pge-ide{height:100vh;background:var(--ide-bg);overflow:hidden}
 
 /* ---------- left column : assets ---------- */
 #pp-block0{
@@ -300,7 +300,7 @@ body.pp-dark #modal .box{background:#2D2D30;color:#CCC}
 #modal .btn-sec{background:#6C757D;border-color:#6C757D;color:#fff}
 </style>
 
-<div id="pp3d-ide">
+<div id="pge-ide">
 
   <!-- ============ assets sidebar ============ -->
   <div id="pp-block0" class="ide-ui usel">
@@ -341,7 +341,7 @@ body.pp-dark #modal .box{background:#2D2D30;color:#CCC}
     <div class="assetHeader">Project</div>
     <ul class="pp-asset-list" style="padding-bottom:3rem">
       <li id="newProject" title="Erase the saved project and start fresh"><svg class="i" data-ic="file"></svg><span class="name">New</span></li>
-      <li id="exportProject" title="Export a .pp2d file — opens on pixelpad.io"><svg class="i" data-ic="download"></svg><span class="name">Export</span></li>
+      <li id="exportProject" title="Save your whole game as a file"><svg class="i" data-ic="download"></svg><span class="name">Export</span></li>
       <li id="exportBundle" title="Export a .ppoff bundle — everything packed in one offline file"><svg class="i" data-ic="package"></svg><span class="name">Export All</span></li>
       <li id="importProject" title="Import a .pp2d file or a .ppoff bundle"><svg class="i" data-ic="upload"></svg><span class="name">Import</span></li>
     </ul>
@@ -647,7 +647,7 @@ const SYNTH = {
       control flow, functions, classes, comprehensions, f-strings.
    ============================================================ */
 /* Error text mirrors Skulpt (the Python runtime the original IDE uses),
-   because PixelPAD prints the bare exception message with no type prefix.
+   because the original prints the bare exception message with no type prefix.
    Its parser reports almost every malformed line as "bad input". */
 class PyError extends Error {
   constructor(type, msg, line) { super(msg); this.type = type; this.line = line || 0; }
@@ -2001,7 +2001,7 @@ for (const m of Object.values(MODULES)) for (const k in m) if (typeof m[k] === '
 <script>
 /* ============================================================
    5. ENGINE — 1600x900 world, origin centre, +y up.
-      Mirrors the PixelPAD script model: every class owns a
+      Mirrors the original script model: every class owns a
       START block (runs once at spawn) and a LOOP block
       (runs every frame), with `self` bound to the instance.
    ============================================================ */
@@ -2011,12 +2011,12 @@ const WORLD_W = 1280, WORLD_H = 720;
 /* thrown to unwind a script whose error has already been reported */
 const ABORT = { abort: true };
 
-/* pixelpad.io turns a text's halign/valign into a PIXI anchor. Measured against
+/* The online IDE turns a text's halign/valign into a PIXI anchor. Measured against
    the real engine, not guessed: left/center/right and top/middle/bottom map to
    0/0.5/1, and a property nobody set anchors at 0 - so x,y is the TOP-LEFT of
    the text box, not its middle. Every camp workbook's GAME OVER screen sets
    halign="center"; without these it hangs off the right edge here and centres
-   on pixelpad.io, which is the kind of difference a kid blames on their code. */
+   online, which is the kind of difference a kid blames on their code. */
 const TEXT_ANCHOR_X = { left: 0, center: 0.5, right: 1 };
 const TEXT_ANCHOR_Y = { top: 0, middle: 0.5, bottom: 1 };
 
@@ -2533,7 +2533,7 @@ const Engine = {
   },
 };
 
-/* ---------- the PixelPAD standard library ---------- */
+/* ---------- the game standard library ---------- */
 function installEngineApi(g) {
   const E = Engine;
   const need = (o, what, line) => {
@@ -2696,11 +2696,11 @@ function installEngineApi(g) {
     destroy_graphic: (what) => { E.destroyGraphic(what); return null; },
 
     /* --- filters ---
-       The shaders run on a graphics card through PixelPAD's own renderer.
+       The shaders run on a graphics card through the original's renderer.
        This preview draws on a plain 2D canvas and has nowhere to run them,
        so a game that uses one still plays - it just plays without the glow.
        It says so once per run, because a child holding their preview up
-       against the same game on pixelpad.io should know which difference is
+       against the same game running online should know which difference is
        the preview's and which is theirs. */
     add_filter: (obj, filter) => {
       noteFilters();
@@ -2715,7 +2715,7 @@ function installEngineApi(g) {
     vibrate_phone: () => null,
 
     /* --- ai ---
-       On pixelpad.io prompt_ai() asks a language model and poll_ai() gathers
+       Online, prompt_ai() asks a language model and poll_ai() gathers
        the reply a word at a time. Nothing in this preview reaches the
        network - that is the whole point of it - so the question is taken and
        the answer says where a real one lives. The documentation already
@@ -2728,7 +2728,7 @@ function installEngineApi(g) {
     },
     poll_ai: () => E.ai
       ? 'The preview cannot reach the AI, so ' + (E.ai.who || 'it') +
-        ' has nothing to say here. Run this game on pixelpad.io for a real answer.'
+        ' has nothing to say here.'
       : '',
 
     /* --- saved data (per browser) --- */
@@ -2829,7 +2829,7 @@ function noteFilters() {
   if (FILTERS_NOTED) return;
   FILTERS_NOTED = true;
   INTERP.stdout('Filters need a graphics card, which this preview does not use. ' +
-                'Your game plays without them here, and with them on pixelpad.io.\n');
+                'Your game plays without them here.\n');
 }
 function hexColor(v, dflt) {
   if (v === null) return null;
@@ -2852,7 +2852,7 @@ function fromPlain(v) {
   if (v && typeof v === 'object') { const d = new Map(); for (const k in v) d.set(k, fromPlain(v[k])); return d; }
   return v;
 }
-const DATA_PREFIX = 'pixelpad.offline.data.';
+const DATA_PREFIX = 'game-editor.offline.data.';
 /* The original exposes several spellings of the same object property, plus
    two read-only ones. Writes mirror through __hooks; reads that are not
    stored attributes resolve through __computed. */
@@ -3390,7 +3390,7 @@ const PP2D = {
       proj.sprites.length + ' sprites, ' + proj.sounds.length + ' sounds, ' +
       proj.functions.length + ' functions.', 'sys');
     if (remote.length) {
-      logLine('These ' + remote.length + ' asset(s) live on pixelpad.io and cannot be downloaded offline:', 'err');
+      logLine('These ' + remote.length + ' asset(s) live online and cannot be downloaded here:', 'err');
       logLine('  ' + remote.join(', '), 'err');
       logLine('Placeholders are in use — re-add the files with the + buttons to replace them.', 'sys');
     }
@@ -3401,7 +3401,7 @@ const PP2D = {
 /* ============================================================
    .ppoff — the offline bundle.
 
-   .pp2d has to stay JSON for pixelpad.io, so its artwork rides
+   .pp2d has to stay JSON for the online IDE, so its artwork rides
    along as base64 (about a third bigger than the raw bytes).
    This container stores the files themselves:
 
@@ -3411,7 +3411,7 @@ const PP2D = {
      raw file bytes                 concatenated, in index order
 
    It also keeps what .pp2d has nowhere to put: the project name,
-   which assets are built in, and the original pixelpad.io uri of
+   which assets are built in, and the original online uri of
    anything imported from there, so a later .pp2d export still
    points at the right artwork.
    ============================================================ */
@@ -3616,7 +3616,7 @@ function wavDataUri(pcm) {
 /* ============================================================
    8. IDE — project model, sidebar, tabs, toolbar, persistence.
    ============================================================ */
-const STORE_KEY = 'pixelpad.offline.project.v1';
+const STORE_KEY = 'game-editor.offline.project.v1';
 
 const DEMO = {
   classes: [
@@ -3800,8 +3800,8 @@ let loadedDemo = false;
 function loadProject() {
   try {
     const q = location.search + location.hash;
-    /* ...pixelpad-offline.html?demo  loads the worked example
-       ...pixelpad-offline.html?reset wipes back to an empty project */
+    /* ...game-editor-offline.html?demo  loads the worked example
+       ...game-editor-offline.html?reset wipes back to an empty project */
     if (/[?#]demo/i.test(q)) { loadedDemo = true; return newProject(); }
     if (/[?#]reset/i.test(q)) { localStorage.removeItem(STORE_KEY); return blankProject(); }
     const raw = localStorage.getItem(STORE_KEY);
@@ -3991,7 +3991,7 @@ function showAssetPreview(t) {
     if (src) { audio.src = src; } else { audio.removeAttribute('src'); }
     const bytes = src ? Math.round(src.length * 0.75 / 1024) : 0;
     info.textContent = t.obj.name + '\n' +
-      (t.obj.missing ? 'missing — file lives on pixelpad.io, re-add it with +'
+      (t.obj.missing ? 'missing — file lives online, re-add it with +'
         : src ? 'playable · about ' + bytes + ' KB' : 'no audio data') +
       '\n\nplay_sound("' + t.obj.name + '")';
   }
@@ -4230,7 +4230,7 @@ function setupResize(handleId, apply) {
   const h = document.getElementById(handleId);
   h.addEventListener('mousedown', e => {
     e.preventDefault();
-    const ide = document.getElementById('pp3d-ide');
+    const ide = document.getElementById('pge-ide');
     const move = ev => { apply(ev.clientX, ide.clientWidth); Engine.fit(); Engine.render(); refreshEditors(); };
     const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.style.cursor = ''; };
     document.body.style.cursor = 'col-resize';
@@ -4267,7 +4267,7 @@ function refreshEditors() {
   /* canvas */
   Engine.canvas = document.getElementById('stage');
   Engine.ctx = Engine.canvas.getContext('2d');
-  /* PixelPAD's logPyErrors: the bare exception message, no type prefix,
+  /* The original's logPyErrors: the bare exception message, no type prefix,
      suffixed with the block it came from and the line within that block. */
   Engine.onError = (where, err, isPy) =>
     logLine(isPy ? err.message + ' in ' + where + ' on line ' + err.line : err.message);
@@ -4476,7 +4476,7 @@ function refreshEditors() {
     if (!saved) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  logLine('PixelPAD offline — press PLAY (or F5) to run. Ctrl+S saves to this browser.', 'sys');
+  logLine('Python Game Editor — press PLAY (or F5) to run. Ctrl+S saves to this browser.', 'sys');
   if (loadedDemo) logLine('Demo project. Use A and D to move your character.', 'sys');
   else if (isBlank(Project)) logLine('Empty project. Add classes, sprites and sounds with the + buttons.', 'sys');
 })();

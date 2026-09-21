@@ -21,7 +21,7 @@ function adminPage(): Plugin {
   };
 }
 
-/* The PixelPad editor opens the site's Pixel Art Maker at /pixel-art-maker/,
+/* The game editor opens the site's Pixel Art Maker at /pixel-art-maker/,
    which on the live site is the directory next to /classroom/. The dev server
    is rooted one level in from that, so without this the drawing window is a
    404 in dev and only in dev - the kind of gap that gets found by a student. */

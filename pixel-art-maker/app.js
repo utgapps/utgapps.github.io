@@ -369,7 +369,7 @@
     updateStatus();
   }
   function pushUndo() {
-    /* Something has been drawn. The PixelPad editor reads this off the window
+    /* Something has been drawn. The game editor reads this off the window
        when its Close button is pressed, so that closing the drawing window on
        ten minutes of work asks first, and closing an untouched one does not. */
     window.UTG_DRAWN = true;
@@ -724,7 +724,7 @@
 
   // ============================================================
   //  Game-scale preview (press & hold) — show the art inside a to-scale
-  //  1280×720 PixelPad game window, then zoom back to fill the viewport.
+  //  1280×720 game window, then zoom back to fill the viewport.
   // ============================================================
   const GAME_W = 1280, GAME_H = 720;
   let previewing = false;
@@ -852,7 +852,7 @@
     a.click();
   }
 
-  // Save, when this page is the drawing window inside the PixelPad editor: the
+  // Save, when this page is the drawing window inside the game editor: the
   // picture goes back to the game rather than to a downloads folder a school
   // laptop may well wipe overnight. The editor on the other side uploads it to
   // the child's own media and writes the sprite line in game.txt.
@@ -1167,7 +1167,7 @@
     selectColor(state.color);
     updateWelcomeHint();
 
-    /* The drawing window inside the PixelPad editor - the same tool, except
+    /* The drawing window inside the game editor - the same tool, except
        that Save hands the picture to the game. index.html sets UTG_EMBED and
        skips the class-code guard there, because the editor around this page
        has already signed the child in. */

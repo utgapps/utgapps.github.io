@@ -16,7 +16,13 @@ export type Device = {
   revoked?: boolean;
 };
 
-export type ProjectKind = "web" | "java" | "pixelpad";
+/* The value a game project carries in the database. It predates the editor's
+   name and sits in every row students have already saved, so it is a stored
+   value rather than a label: changing it is a D1 migration, not a rename.
+   Nothing a student sees comes from here - see KIND_LABEL in ProjectPicker. */
+export const GAME_KIND = "pixelpad" as const;
+
+export type ProjectKind = "web" | "java" | typeof GAME_KIND;
 
 export type Project = {
   id: string;
@@ -64,7 +70,7 @@ export type PendingJoin = {
 // Required argument rather than a default: both call sites should be looked at
 // when a new kind appears, not silently fall through to "web".
 export const starterFiles = (kind: ProjectKind): Record<string, string> =>
-  kind === "java" ? javaStarter() : kind === "pixelpad" ? gameStarter() : webStarter();
+  kind === "java" ? javaStarter() : kind === GAME_KIND ? gameStarter() : webStarter();
 
 // Only the page to start with. Making a stylesheet and a script - and wiring
 // them up yourself - is worth learning, so the editor no longer does it behind

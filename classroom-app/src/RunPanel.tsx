@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { GAME_KIND } from "./lib/types";
 import type { ProjectKind } from "./lib/types";
 import { buildPreview, isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
-import { buildGamePreview, useGameAudio } from "./lib/pixelpad";
+import { buildGamePreview, useGameAudio } from "./lib/game-project";
 
 function sameFiles(a: Record<string, string>, b: Record<string, string>) {
   const keys = Object.keys(a);
@@ -14,7 +15,7 @@ function sameFiles(a: Record<string, string>, b: Record<string, string>) {
    For a course whose whole point is calling a rate-limited API, that spends a
    student's 40-requests-per-minute budget while they are still typing the call. */
 export function RunPanel({ files, kind = "web" }: { files: Record<string, string>; kind?: ProjectKind }) {
-  const game = kind === "pixelpad";
+  const game = kind === GAME_KIND;
   /* A game's sounds are fetched out here, because the frame they play in
      has no origin of its own to fetch them with. */
   const audio = useGameAudio(files);

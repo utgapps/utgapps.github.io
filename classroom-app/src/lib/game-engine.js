@@ -1,6 +1,6 @@
 /* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.
  *
- * Sections 2 to 5 of vendor/pixelpad-offline.html: the procedural sprite and
+ * Sections 2 to 5 of vendor/game-editor-offline.html: the procedural sprite and
  * sound assets, the Python tokenizer, parser and evaluator, and the 2D
  * engine - everything needed to RUN a game, and none of the IDE around it.
  *
@@ -194,7 +194,7 @@ const SYNTH = {
       control flow, functions, classes, comprehensions, f-strings.
    ============================================================ */
 /* Error text mirrors Skulpt (the Python runtime the original IDE uses),
-   because PixelPAD prints the bare exception message with no type prefix.
+   because the original prints the bare exception message with no type prefix.
    Its parser reports almost every malformed line as "bad input". */
 class PyError extends Error {
   constructor(type, msg, line) { super(msg); this.type = type; this.line = line || 0; }
@@ -1544,7 +1544,7 @@ for (const m of Object.values(MODULES)) for (const k in m) if (typeof m[k] === '
 
 /* ============================================================
    5. ENGINE — 1600x900 world, origin centre, +y up.
-      Mirrors the PixelPAD script model: every class owns a
+      Mirrors the original script model: every class owns a
       START block (runs once at spawn) and a LOOP block
       (runs every frame), with `self` bound to the instance.
    ============================================================ */
@@ -1554,12 +1554,12 @@ const WORLD_W = 1280, WORLD_H = 720;
 /* thrown to unwind a script whose error has already been reported */
 const ABORT = { abort: true };
 
-/* pixelpad.io turns a text's halign/valign into a PIXI anchor. Measured against
+/* The online IDE turns a text's halign/valign into a PIXI anchor. Measured against
    the real engine, not guessed: left/center/right and top/middle/bottom map to
    0/0.5/1, and a property nobody set anchors at 0 - so x,y is the TOP-LEFT of
    the text box, not its middle. Every camp workbook's GAME OVER screen sets
    halign="center"; without these it hangs off the right edge here and centres
-   on pixelpad.io, which is the kind of difference a kid blames on their code. */
+   online, which is the kind of difference a kid blames on their code. */
 const TEXT_ANCHOR_X = { left: 0, center: 0.5, right: 1 };
 const TEXT_ANCHOR_Y = { top: 0, middle: 0.5, bottom: 1 };
 
@@ -2076,7 +2076,7 @@ const Engine = {
   },
 };
 
-/* ---------- the PixelPAD standard library ---------- */
+/* ---------- the game standard library ---------- */
 function installEngineApi(g) {
   const E = Engine;
   const need = (o, what, line) => {
@@ -2239,11 +2239,11 @@ function installEngineApi(g) {
     destroy_graphic: (what) => { E.destroyGraphic(what); return null; },
 
     /* --- filters ---
-       The shaders run on a graphics card through PixelPAD's own renderer.
+       The shaders run on a graphics card through the original's renderer.
        This preview draws on a plain 2D canvas and has nowhere to run them,
        so a game that uses one still plays - it just plays without the glow.
        It says so once per run, because a child holding their preview up
-       against the same game on pixelpad.io should know which difference is
+       against the same game running online should know which difference is
        the preview's and which is theirs. */
     add_filter: (obj, filter) => {
       noteFilters();
@@ -2258,7 +2258,7 @@ function installEngineApi(g) {
     vibrate_phone: () => null,
 
     /* --- ai ---
-       On pixelpad.io prompt_ai() asks a language model and poll_ai() gathers
+       Online, prompt_ai() asks a language model and poll_ai() gathers
        the reply a word at a time. Nothing in this preview reaches the
        network - that is the whole point of it - so the question is taken and
        the answer says where a real one lives. The documentation already
@@ -2271,7 +2271,7 @@ function installEngineApi(g) {
     },
     poll_ai: () => E.ai
       ? 'The preview cannot reach the AI, so ' + (E.ai.who || 'it') +
-        ' has nothing to say here. Run this game on pixelpad.io for a real answer.'
+        ' has nothing to say here.'
       : '',
 
     /* --- saved data (per browser) --- */
@@ -2372,7 +2372,7 @@ function noteFilters() {
   if (FILTERS_NOTED) return;
   FILTERS_NOTED = true;
   INTERP.stdout('Filters need a graphics card, which this preview does not use. ' +
-                'Your game plays without them here, and with them on pixelpad.io.\n');
+                'Your game plays without them here.\n');
 }
 function hexColor(v, dflt) {
   if (v === null) return null;
@@ -2395,7 +2395,7 @@ function fromPlain(v) {
   if (v && typeof v === 'object') { const d = new Map(); for (const k in v) d.set(k, fromPlain(v[k])); return d; }
   return v;
 }
-const DATA_PREFIX = 'pixelpad.offline.data.';
+const DATA_PREFIX = 'game-editor.offline.data.';
 /* The original exposes several spellings of the same object property, plus
    two read-only ones. Writes mirror through __hooks; reads that are not
    stored attributes resolve through __computed. */

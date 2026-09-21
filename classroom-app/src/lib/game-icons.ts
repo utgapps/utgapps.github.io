@@ -1,6 +1,6 @@
 /* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.
  *
- * The offline IDE's own glyphs, from vendor/pixelpad-offline.html. Every one
+ * The offline IDE's own glyphs, from vendor/game-editor-offline.html. Every one
  * is a path inside a 0 0 16 16 box that inherits the current colour.
  */
 export const ICONS: Record<string, string> = {

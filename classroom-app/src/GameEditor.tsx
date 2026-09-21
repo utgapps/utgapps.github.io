@@ -4,18 +4,18 @@ import type { Awareness } from "y-protocols/awareness";
 import { CollabEditor } from "./CollabEditor";
 import { docToFiles, fileText, filesMap } from "./lib/collab";
 import { MANIFEST_FILE, RGB, artPath, buildGamePreview, fromPp2d, functionOf, isBookkeeping, panelOf,
-         parseManifest, splitName, toPp2d, useGameAudio, type Sound, type Sprite } from "./lib/pixelpad";
+         parseManifest, splitName, toPp2d, useGameAudio, type Sound, type Sprite } from "./lib/game-project";
 import { zipStore, type ZipEntry } from "./lib/zip";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
-import { ICONS } from "./lib/pixelpad-icons";
+import { ICONS } from "./lib/game-icons";
 import { downloadFile } from "./lib/classroom";
 import { apiUploadMedia } from "./lib/api";
 import { compressAudio, compressImage } from "./lib/media";
-import "./pixelpad-ide.css";
+import "./game-editor.css";
 
-/* The PixelPad editor.
+/* The Python Game Editor.
  *
- * This is the offline IDE - vendor/pixelpad-offline.html - rather than a
+ * This is the offline IDE - vendor/game-editor-offline.html - rather than a
  * screen that resembles it. Its stylesheet and its glyphs are cut out of that
  * file by tools/build-engine.mjs, and the markup below is the markup in it,
  * id for id: #pp-block0 down the left with the things in the game, #pp-block1
@@ -119,7 +119,7 @@ function Icon({ name, className }: { name: string; className?: string }) {
               dangerouslySetInnerHTML={{ __html: ICONS[name] ?? "" }} />;
 }
 
-export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = true, onSave }: {
+export function GameEditor({ doc, awareness, files, token, readOnly, saved = true, onSave }: {
   doc: Y.Doc; awareness: Awareness; files: Record<string, string>; token?: string; readOnly?: boolean;
   /** Whether everything typed has reached the server. The offline IDE's SAVE
    *  button is the one thing on this screen that cannot be copied honestly:
@@ -241,7 +241,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   // effect twice and say hello twice.
   const [log, setLog] = useState<PreviewMessage[]>([{
     __utg: "", kind: "system", at: Date.now(),
-    text: "PixelPad - press PLAY to run your game. Everything you type saves to your account.",
+    text: "Python Game Editor - press PLAY to run your game. Everything you type saves to your account.",
   }]);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const outRef = useRef<HTMLPreElement>(null);
@@ -620,7 +620,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
 
   function exportProject() {
     downloadFile("game.pp2d", toPp2d(snapshot), "application/json");
-    say("system", "Exported game.pp2d - it opens here and on pixelpad.io.");
+    say("system", "Exported game.pp2d - your whole game in one file.");
   }
 
   /* Every picture and every sound in the game, as one zip.
@@ -783,7 +783,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
   const startTab = <><Icon name="flag" /><span><span>{shownName}</span> Start</span></>;
   const loopTab = <><Icon name="redo" /><span><span>{shownName}</span> Loop</span></>;
 
-  return <div id="pp3d-ide" ref={ideRef} className={dark ? "pp3d-ide pp-dark" : "pp3d-ide"}
+  return <div id="pge-ide" ref={ideRef} className={dark ? "pge-ide pp-dark" : "pge-ide"}
               style={height ? { height: height + "px" } : undefined}>
 
     {/* ============ assets sidebar ============ */}
@@ -891,7 +891,7 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
               them: this one is the game itself - the code, the rooms and the
               list of pictures - and the one below is the pictures. */}
           <SideItem name="Export code" icon="download" active={false}
-                    title="Save a .pp2d file of the whole game - it opens on pixelpad.io"
+                    title="Save your whole game as a file"
                     onOpen={exportProject} />
           <SideItem name="Export art" icon="image" active={false}
                     title="Save a zip of every picture and sound in this game"

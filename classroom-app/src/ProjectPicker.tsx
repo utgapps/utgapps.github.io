@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { apiListProjects, apiCreateProject, apiDeleteProject, apiSaveProjectById, type ApiProjectSummary, type ApiCoeditRoom } from "./lib/api";
 import { CoEditJoinDialog } from "./CoEdit";
-import { starterFiles, type ProjectKind } from "./lib/types";
+import { GAME_KIND, starterFiles, type ProjectKind } from "./lib/types";
 
 const LOGO = "https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg";
 
 /* Module scope on purpose: it is per browsing session, not per mount. */
 let offeredFirstProject = false;
 
-const KIND_LABEL: Record<ProjectKind, string> = { web: "Web", java: "Java", pixelpad: "Game" };
+const KIND_LABEL: Record<ProjectKind, string> = { web: "Web", java: "Java", [GAME_KIND]: "Game" };
+/* The badge colour is picked by class name, and the stored kind is not a
+   name anybody should read - see GAME_KIND. */
+const KIND_CLASS: Record<ProjectKind, string> = { web: "web", java: "java", [GAME_KIND]: "game" };
 
 function edited(at: number) {
   const minutes = Math.round((Date.now() - at) / 60000);
@@ -97,7 +100,7 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
                 surprise. */}
             {projects.map((project) => <div className={`project-card${project.owner ? " shared" : ""}`} key={project.id}>
               <button className="project-open" onClick={() => onOpen(project.id)}>
-                <span className={`kind-badge ${project.kind}`}>{KIND_LABEL[project.kind] ?? "Web"}</span>
+                <span className={`kind-badge ${KIND_CLASS[project.kind] ?? "web"}`}>{KIND_LABEL[project.kind] ?? "Web"}</span>
                 <strong>{project.title}</strong>
                 <small>{edited(project.updatedAt)}</small>
                 {project.owner
@@ -145,8 +148,8 @@ function NewProjectDialog({ suggested, onCreate, onCancel, canCancel }: {
           <strong>HTML / CSS / JavaScript</strong>
           <span>Web pages that run right here, with a preview and a console.</span>
         </button>
-        <button className={kind === "pixelpad" ? "kind-card selected" : "kind-card"} onClick={() => setKind("pixelpad")}>
-          <strong>PixelPad game</strong>
+        <button className={kind === GAME_KIND ? "kind-card selected" : "kind-card"} onClick={() => setKind(GAME_KIND)}>
+          <strong>Python game</strong>
           <span>Python games that run right here. You get a monster on the screen the moment you press Run.</span>
         </button>
         {/* Deliberately secondary, and honest about it. A chooser whose second

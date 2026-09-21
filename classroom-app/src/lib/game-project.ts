@@ -1,14 +1,14 @@
-// Builds and runs a PixelPad game project.
+// Builds and runs a Python game project.
 //
-// PixelPad (https://pixelpad.io) is a browser Python 2D engine: every class and
+// The editor is a browser Python 2D engine: every class and
 // every room owns a start() that runs once and a loop() that runs every frame.
 // This project kind keeps that shape and spells each panel as its own file -
 // "Monster.loop.py" - so line numbers start again in every panel and an error
 // that says "on line 2" means the second line of the file the student has open.
 // Dots, not spaces: the API rejects a path with a space in it.
 //
-// The engine itself is ours, not a CDN's. src/lib/pixelpad-engine.js is cut out
-// of vendor/pixelpad-offline.html by tools/build-engine.mjs and inlined into the
+// The engine itself is ours, not a CDN's. src/lib/game-engine.js is cut out
+// of vendor/game-editor-offline.html by tools/build-engine.mjs and inlined into the
 // preview frame, so a game runs with no network at all. That matters in a
 // classroom: thirty children press Run in the same minute on a school network
 // that may block a CDN outright, and a lesson that a third party's outage can
@@ -17,8 +17,8 @@
 // text matches the real IDE's word for word.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import ENGINE from "./pixelpad-engine.js?raw";
-import { ICONS } from "./pixelpad-icons";
+import ENGINE from "./game-engine.js?raw";
+import { ICONS } from "./game-icons";
 
 export const MANIFEST_FILE = "game.txt";
 export const GAME_ENTRY = "Game.start.py";
@@ -592,9 +592,9 @@ function asDataUri(blob: Blob): Promise<string> {
 
 /* ---------- .pp2d ---------------------------------------------------------
 
-   The file pixelpad.io itself reads and writes, so a game made here opens
+   The interchange format the online IDE reads and writes, so a game made here opens
    there and a game made there opens here. Its shape, verified against a live
-   export and mirrored in vendor/pixelpad-offline.html:
+   export and mirrored in vendor/game-editor-offline.html:
 
      { "pythonAssets": {
          "script":   [ {"Game": {"type":"game script",    "start":"", "loop":""}} ],

@@ -1,9 +1,9 @@
-/* Hold the game preview to PixelPAD's own documentation.
+/* Hold the game preview to the engine's published documentation.
 
-   A child in this class is taught from https://pixelpad.io/docs, and copies
-   lines out of it. Every name in there is a promise: type it and the game
-   does the thing the page says. Our engine is a rewrite - it runs in the
-   classroom editor with no network and no pixelpad.io account - so the only
+   A child in this class is taught from the engine documentation at SPEC
+   below, and copies lines out of it. Every name in there is a promise:
+   type it and the game does the thing the page says. Our engine is a rewrite - it runs in the
+   classroom editor with no network and no online account - so the only
    thing keeping that promise is a list, and a list nobody checks is a list
    that drifts. draw_ellipse was documented for years and was never here;
    text(t, x, y) took the x and the y and threw them away. Neither looked
@@ -18,7 +18,7 @@
 
        node test/documented-api.mjs
 
-   When pixelpad.io documents something new, add it here first and watch it
+   When the documentation gains something new, add it here first and watch it
    go red.
 */
 import { readFileSync } from "node:fs";
@@ -77,7 +77,7 @@ function stubBrowser() {
    in a function body makes those names locals, and the tail hands back the
    few the preview frame itself uses. */
 function boot() {
-  const source = readFileSync(here + "../src/lib/pixelpad-engine.js", "utf8");
+  const source = readFileSync(here + "../src/lib/game-engine.js", "utf8");
   const stub = stubBrowser();
   const make = new Function(
     "document", "window", "localStorage", "performance", "requestAnimationFrame", "cancelAnimationFrame",
@@ -157,11 +157,15 @@ const DOCUMENTED = {
 };
 
 run("");   /* installs the API into the globals */
+/* The upstream specification this preview is measured against. It is a
+   citation, not a dependency: nothing here ever fetches it. */
+const SPEC = "https://pixelpad.io/docs";
+
 for (const [section, names] of Object.entries(DOCUMENTED)) {
   const missing = names.filter((name) => !E.INTERP.globals.has(name));
   check("the " + section + " section: " + names.length + " name" + (names.length === 1 ? "" : "s"),
         missing.length === 0,
-        "documented at https://pixelpad.io/docs/?c=" + section + " and not here: " + missing.join(", "));
+        "documented at " + SPEC + "/?c=" + section + " and not here: " + missing.join(", "));
 }
 
 /* ================================================================ *
@@ -313,14 +317,14 @@ ask("a multiplayer game says it needs a server rather than failing as a typo",
 
 ask("the AI answer says the preview cannot reach it, in a sentence a child can read",
     'prompt_ai("hello")\ngame.answer = poll_ai()',
-    (a) => typeof a === "string" && /preview|offline|pixelpad\.io/i.test(a));
+    (a) => typeof a === "string" && /preview|offline/i.test(a));
 
 /* ================================================================ *
  * 3. The editor suggests the documented spellings                   *
  * ================================================================ */
 console.log("\nwhat the editor offers while a child types");
 
-const api = readFileSync(here + "../src/lib/pixelpad-api.ts", "utf8");
+const api = readFileSync(here + "../src/lib/game-api.ts", "utf8");
 const suggested = new Set([...api.matchAll(/'([^']+)'/g)].map((m) => m[1]));
 const everyName = Object.values(DOCUMENTED).flat();
 const unsuggested = everyName.filter((name) => !suggested.has(name));
@@ -334,5 +338,5 @@ const unlisted = ATTRS.filter((name) => !suggested.has(name));
 check("every documented property is a suggestion too", unlisted.length === 0,
       "not offered after a dot: " + unlisted.join(", "));
 
-console.log(bad ? `\n${bad} problem(s)` : "\nthe preview does what pixelpad.io documents");
+console.log(bad ? `\n${bad} problem(s)` : "\nthe preview does what the documentation promises");
 process.exit(bad ? 1 : 0);

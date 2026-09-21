@@ -1,6 +1,6 @@
 /* Guard the game preview against ever needing a network again.
 
-   A PixelPad project used to boot from a CDN script. One blocked domain on a
+   A game project used to boot from a CDN script. One blocked domain on a
    school network, or one bad afternoon at a third party, and every game in the
    room stops at once - during the lesson, with nothing the teacher can do. The
    engine now ships inside the bundle, and these checks are what keep it that
@@ -9,7 +9,7 @@
 
    It also holds every generated file to its generator: the engine, the word
    list, the stylesheet, the glyphs and the two sound helpers are all cut out
-   of vendor/pixelpad-offline.html, and a hand-edit to any of them would be
+   of vendor/game-editor-offline.html, and a hand-edit to any of them would be
    invisible - it would work, right up until the next regeneration silently
    threw it away. The stylesheet is the one that would hurt most quietly: the
    game editor is meant to BE the offline IDE, so a rule tuned by hand here
@@ -36,7 +36,7 @@ const committed = read("../" + OUT);
 check(OUT + " is what tools/build-engine.mjs produces",
       committed === cut.text,
       "re-run `node tools/build-engine.mjs`; if you meant to change the engine, " +
-      "change vendor/pixelpad-offline.html and regenerate");
+      "change vendor/game-editor-offline.html and regenerate");
 
 // 1b. and so is the word list the editor suggests from
 const api = cutApi();
@@ -63,14 +63,14 @@ check(ICONS_OUT + " is what tools/build-engine.mjs produces",
        sound as if it were part of the project, the way two synthesised ones
        used to sit at the top of that list. */
 check("the Sounds list offers nothing nobody put there",
-      !read("../src/PixelPadIde.tsx").includes("BUILT_IN_SOUNDS"),
+      !read("../src/GameEditor.tsx").includes("BUILT_IN_SOUNDS"),
       "the editor lists sounds the engine makes up, which are not files and cannot be deleted");
 
 // 1e. every rule in it stays inside the editor. Unscoped, one of these would
 //     repaint the rest of the classroom - and only on the pages a game is on.
 const loose = css.text.split("\n")
-  .filter((line) => /^[.#a-zA-Z:*\\[]/.test(line) && !line.includes(".pp3d-ide"));
-check("the IDE stylesheet touches nothing outside .pp3d-ide", loose.length === 0, loose[0]);
+  .filter((line) => /^[.#a-zA-Z:*\\[]/.test(line) && !line.includes(".pge-ide"));
+check("the IDE stylesheet touches nothing outside .pge-ide", loose.length === 0, loose[0]);
 
 // 2. it reaches nothing outside the frame
 check("the engine has no http(s) URL in it", !/https?:\/\//.test(committed),
@@ -79,8 +79,8 @@ check("the engine never fetches", !/\bfetch\s*\(|XMLHttpRequest|importScripts/.t
       (committed.match(/\bfetch\s*\(|XMLHttpRequest|importScripts/) || [])[0]);
 
 // 3. neither does the page built around it
-const lib = read("../src/lib/pixelpad.ts");
-const body = lib.replace(/^\s*(\/\/.*|\*.*|\/\*.*)$/gm, "");   // comments may cite pixelpad.io
+const lib = read("../src/lib/game-project.ts");
+const body = lib.replace(/^\s*(\/\/.*|\*.*|\/\*.*)$/gm, "");   // comments may cite a url
 check("buildGamePreview loads no script from anywhere", !/<script src=/.test(body),
       (body.match(/<script src=[^"]*"[^"]*"/) || [])[0]);
 check("no CDN host survives in the source", !/cdn\.|jsdelivr|unpkg|cdnjs/.test(body),

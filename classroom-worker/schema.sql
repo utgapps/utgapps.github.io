@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id         TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
   title      TEXT NOT NULL,
-  kind       TEXT NOT NULL DEFAULT 'web',   -- 'web' | 'java'; fixed at creation
+  kind       TEXT NOT NULL DEFAULT 'web',   -- 'web' | 'java' | 'pixelpad' (a game); fixed at creation
   files      TEXT NOT NULL,                 -- JSON: { filename: contents }
   created_at INTEGER NOT NULL DEFAULT 0,    -- picker order; updated_at reshuffles on every autosave
   updated_at INTEGER NOT NULL,

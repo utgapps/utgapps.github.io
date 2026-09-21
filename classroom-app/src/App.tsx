@@ -13,13 +13,14 @@ import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { buildPreview, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
-import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/pixelpad";
+import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/game-project";
 import { RunPanel } from "./RunPanel";
-import { PixelPadIde } from "./PixelPadIde";
+import { GameEditor } from "./GameEditor";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
+import { GAME_KIND } from "./lib/types";
 import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
 
 type Mode = "home" | "instructor" | "student" | "projects";
@@ -743,7 +744,7 @@ function StaticPreview({ files, kind }: { files: Record<string, string>; kind: P
   if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
   return nonce
     ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
-              srcDoc={kind === "pixelpad" ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce)} />
+              srcDoc={kind === GAME_KIND ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce)} />
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
 }
 
@@ -1159,21 +1160,21 @@ function MediaPanel({ token }: { token: string }) {
 
 export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly, token, saved, save }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean; token?: string; saved?: boolean; save?: () => void }) {
   /* A game is not a folder of files with a page beside it, so it does not get
-     the file tree: PixelPadIde shows the same shared document as classes,
-     rooms and pictures, the way the offline PixelPad does.
+     the file tree: GameEditor shows the same shared document as classes,
+     rooms and pictures, the way the offline editor does.
 
      Two components rather than one with a branch in it. Opening a different
      project keeps this element mounted, so a student going from a web page to
      a game would change which hooks run - React counts them, and mismatched
      counts is the crash where the editor goes blank mid-lesson. */
-  if (kind === "pixelpad") return <PixelPadIde doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} saved={saved} onSave={save} />;
+  if (kind === GAME_KIND) return <GameEditor doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} saved={saved} onSave={save} />;
   return <FileWorkspace doc={doc} awareness={awareness} files={files} kind={kind} readOnly={readOnly} />;
 }
 
 function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
   // Where a run starts: the page for a web project, the first panel for a game.
-  const entry = kind === "pixelpad" ? GAME_ENTRY : ENTRY_FILE;
+  const entry = kind === GAME_KIND ? GAME_ENTRY : ENTRY_FILE;
   const [file, setFile] = useState(names.includes(entry) ? entry : (names[0] || entry));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
 

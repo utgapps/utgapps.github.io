@@ -15,7 +15,8 @@ function accessDevice() {
 }
 
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
-export type ProjectKind = "web" | "java" | "pixelpad";
+export type { ProjectKind } from "./types";
+import type { ProjectKind } from "./types";
 // The picker list deliberately carries no files - see the worker's GET /projects.
 /* owner is somebody else's name, and only on a project shared WITH you: your
    own projects have it null. members is how many people it is shared with. */

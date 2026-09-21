@@ -1,6 +1,6 @@
 /* GENERATED - do not edit. Run `node tools/build-engine.mjs` instead.
  *
- * The words vendor/pixelpad-offline.html suggests while you type, so the
+ * The words vendor/game-editor-offline.html suggests while you type, so the
  * classroom editor suggests exactly the same ones. A name added to the
  * engine reaches both editors by regenerating this file, and neither by
  * editing it.

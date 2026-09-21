@@ -7,6 +7,10 @@ const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
 const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102"];
+/* "pixelpad" is the stored value a game project has always carried and sits
+   in rows students saved long before the editor was named; it is a column
+   value, not a label, so renaming it would be a migration rather than a
+   rename. Nothing a student sees comes from this list. */
 const PROJECT_KINDS = ["web", "java", "pixelpad"];
 const PROJECT_LIMIT = 30;
 const PLAY_GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
