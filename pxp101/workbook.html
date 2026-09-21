@@ -202,6 +202,136 @@ The green lines are the ones added that week.</p>
 <h3>Stuck?</h3>
 <p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
 The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Show the score</h2>
+<p class="lead">The <b class="term">score</b> has been climbing since last week, hidden inside the game. Today we put it on the screen. <a class="term" href="textbook.html#g-text">text</a>() makes a label, and in <b class="term">loop</b> we rewrite it every frame so it always shows the score and <b class="term">lives</b> right now.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">text</b>() makes a label - writing on the screen.</li><li>str() turns a number into writing so you can show it.</li><li>Rewriting the label every <b class="term">loop</b> keeps it up to date.</li><li>The <b class="term">score</b> and <b class="term">lives</b> were there all along - now you can see them.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a label with text()</span><span class="pill">str() to show a number</span><span class="pill">a label that updates every loop</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Move it</strong><p style="margin:8px 0 0">Change Game.label.y = 235 to 0 and press Play. Where is the score now?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what the label&#x27;s y controls.</p></div><div class="card"><strong>Challenge 2. Change the words</strong><p style="margin:8px 0 0">Change &#x27;Score: &#x27; to &#x27;Points: &#x27; and press Play.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can find and change the words a label shows.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>A bomb appears</h2>
+<p class="lead">Time for danger. You draw a <b class="term">sprite</b> for a bomb, make a new <b class="term">class</b> for it - your third, after Monster and Food - and drop one into the <a class="term" href="textbook.html#g-room">room</a>. It just sits there for now; next week it falls.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Bomb is your third <b class="term">class</b>, after Monster and Food.</li><li>A <b class="term">class</b> needs its own <b class="term">sprite</b> and its own import.</li><li>Bomb() makes one bomb and puts it in the <b class="term">room</b>.</li><li>It just waits for now - next week it falls.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a third class: Bomb</span><span class="pill">drawing the bomb sprite</span><span class="pill">making a Bomb object</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Two bombs</strong><p style="margin:8px 0 0">In Play start, add a second line Game.bombX = Bomb() and press Play. How many bombs wait up high?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can make more than one of the same class.</p></div><div class="card"><strong>Challenge 2. Lower start</strong><p style="margin:8px 0 0">Change the bomb&#x27;s random.randint(300, 700) to (100, 300) and press Play. Where does it wait now?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what the two numbers control.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>The bomb falls</h2>
+<p class="lead">The bomb learns the trick the food knows: take a little off its y every <b class="term">loop</b> and it <b class="term">falls</b>. When it drops off the bottom, <b class="term">recycle</b> sends it back up - for ever.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The bomb <b class="term">falls</b> the same way the food does - off its y every <b class="term">loop</b>.</li><li>Every falling thing shares the one Game.fallSpeed.</li><li><b class="term">recycle</b> sends the bomb back up when it drops off the bottom.</li><li>Touching it still does nothing - the hit comes next week.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">the bomb falls like the food</span><span class="pill">sharing Game.fallSpeed</span><span class="pill">recycling the bomb</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. A slow bomb</strong><p style="margin:8px 0 0">You cannot make just the bomb slow yet - it shares fallSpeed. Change Game.fallSpeed = 3 to 1, press Play, and watch BOTH the food and the bomb slow down.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain why the food slowed down too.</p></div><div class="card"><strong>Challenge 2. Predict it</strong><p style="margin:8px 0 0">Before pressing Play, tell someone what the bomb will do if you delete its recycle if.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You made a guess, then checked it.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>A bomb costs a life</h2>
+<p class="lead">Now a bomb bites. When it touches the monster you lose a <b class="term">life</b>. We also set up a <a class="term" href="textbook.html#g-flag">flag</a> - Game.dead - that starts False and will flip to True when the last life is gone. Next week the flag ends the game.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">flag</b> is a True/False the game remembers, like Game.dead.</li><li>get_collision catches a bomb touching the monster.</li><li>A hit takes one off your <b class="term">lives</b> and sends the bomb to -300 for its <b class="term">recycle</b>.</li><li>The game does not end yet - that is next week.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a flag: Game.dead</span><span class="pill">losing a life on a hit</span><span class="pill">reusing recycle for the bomb</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Harder</strong><p style="margin:8px 0 0">Change Game.lives = 3 (in Game start) to 1 and press Play. How forgiving is the game now?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what Game.lives controls.</p></div><div class="card"><strong>Challenge 2. Two lost at once</strong><p style="margin:8px 0 0">Change the - 1 in the hit to - 2 and press Play. What happens on a hit?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what the number after the minus controls.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Game over</h2>
+<p class="lead">The last life should end the game. We finish the bomb&#x27;s hit with an <b class="term">if</b> inside an <b class="term">if</b> - only when that was the last life, raise the <b class="term">flag</b>. Then Game <b class="term">loop</b> watches the flag and, because Game lives through a <b class="term">room</b> change when the bomb would not, does the switch to GameOver.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An <b class="term">if</b> inside an <b class="term">if</b> runs only when both are true - here, only on the last life.</li><li>The bomb raises the <b class="term">flag</b> instead of switching rooms, because the switch would destroy it.</li><li>Game <b class="term">loop</b> watches the flag and does the switch, because Game survives a <b class="term">room</b> change.</li><li>GameOver exists now, but it is empty until next week.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">an if inside an if</span><span class="pill">raising the flag on the last life</span><span class="pill">Game loop ends the game</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Two lives</strong><p style="margin:8px 0 0">Change Game.lives = 3 to 2 and play until GAME OVER. Does it end a hit sooner?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can connect the starting lives to when the game ends.</p></div><div class="card"><strong>Challenge 2. Trace it</strong><p style="margin:8px 0 0">Tell someone the order: bomb hit, last life, flag up, Game loop sees it, room switches. Say it without looking.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain how the flag passes the message.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>The GameOver screen</h2>
+<p class="lead">Last week the game switched to an empty GameOver <b class="term">room</b>. Today we give that <b class="term">room</b> a big message: GAME OVER. It is <b class="term">text</b>() - the same label trick from week 6 - on a different screen.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>GameOver is a <b class="term">room</b> - a whole screen the game switches to.</li><li><b class="term">text</b>() makes a label on any screen, not just Play.</li><li>fontSize makes writing bigger; halign center lines it up in the middle.</li><li>The tap does nothing yet - that is week 13.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">decorating the GameOver room</span><span class="pill">a big centered message</span><span class="pill">fontSize and halign</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Bigger</strong><p style="margin:8px 0 0">Change fontSize = 40 to 60 and press Play, then lose. How does the message look?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what fontSize controls.</p></div><div class="card"><strong>Challenge 2. Your words</strong><p style="margin:8px 0 0">Change &#x27;GAME OVER - tap to play again&#x27; to your own message and lose to see it.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can change what a label says.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>Show the final score</h2>
+<p class="lead">Under GAME OVER, show how well you did. A second <b class="term">text</b>() label reads your final <b class="term">score</b>, with str() turning the number into writing - and because a <b class="term">room</b>&#x27;s <b class="term">start</b> runs every time you enter it, it is fresh each game.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">room</b> can hold more than one label.</li><li>str() turns the <b class="term">score</b> number into writing to show it.</li><li>A different .y keeps two labels from overlapping.</li><li>A <b class="term">room</b>&#x27;s <b class="term">start</b> runs every time you enter it, so the score is fresh.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a second label on GameOver</span><span class="pill">showing the final score with str()</span><span class="pill">start runs each time you enter a room</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Move it</strong><p style="margin:8px 0 0">Change the final score&#x27;s y = -60 to -120 and lose. Where is it now?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can place a label where you want it.</p></div><div class="card"><strong>Challenge 2. Best yet</strong><p style="margin:8px 0 0">Play three games and write down your three final scores. Which is your best?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can read the final score off the screen.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>Play again</h2>
+<p class="lead">One tap should start a fresh game. In the GameOver <b class="term">loop</b>, <a class="term" href="textbook.html#g-key_was_pressed">key_was_pressed</a>(&#x27; &#x27;) or a click sends you back to Play - after putting the <b class="term">score</b>, <b class="term">lives</b> and speed back to the start. A <b class="term">room</b> is allowed to switch itself, unlike the bomb.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">key_was_pressed</b>(&#x27; &#x27;) or a click lets a screen wait for a tap.</li><li>Resetting the <b class="term">score</b>, <b class="term">lives</b> and speed makes the next game fresh.</li><li>A <b class="term">room</b> may call set_room on itself - it survives the switch.</li><li>That is the whole game loop: play, lose, play again.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">waiting for a tap with key_was_pressed</span><span class="pill">resetting the game</span><span class="pill">a room may switch itself</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Space or click</strong><p style="margin:8px 0 0">Play, lose, and try both: press the space bar, and click the mouse. Do both start a new game?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can name two ways to trigger the same code.</p></div><div class="card"><strong>Challenge 2. Keep the score</strong><p style="margin:8px 0 0">Delete the Game.score = 0 reset line, play twice, and watch what the score does. Then put it back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say why the reset lines matter.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>Harder and busier</h2>
+<p class="lead">Make it a real game. Every catch now nudges Game.fallSpeed up, so it gets faster the better you do - with a cap at 9 so it never becomes impossible. Then fill the screen: more Food and more Bomb <b class="term">objects</b>.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Adding to Game.fallSpeed on every catch makes the game get faster.</li><li>A cap holds the speed at 9 so it stays hard but possible.</li><li>Every <b class="term">object</b> you make needs its own name.</li><li>More food and bombs make a busy, real game.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">every catch speeds it up</span><span class="pill">a cap so it stays possible</span><span class="pill">more food and bombs at once</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Steeper</strong><p style="margin:8px 0 0">Change the + 0.2 in the catch to + 1 and play. How fast does it get now?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what the 0.2 controls.</p></div><div class="card"><strong>Challenge 2. A crowd</strong><p style="margin:8px 0 0">Add one more Game.foodD = Food() to Play start and play. Is it more fun or too much?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can add another object of a class.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>A title screen</h2>
+<p class="lead">A finished game needs a front door. You build a Start <b class="term">room</b> with the title MONSTER MUNCH, listen for a tap to go to Play, and - the one time all course long - change Game <b class="term">start</b> to boot on Start instead of Play.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">room</b> can be a title screen, not just where you play.</li><li><b class="term">key_was_pressed</b> or a click lets a screen wait for a tap.</li><li>Game <b class="term">start</b>&#x27;s set_room picks which <b class="term">room</b> the game opens on.</li><li>You changed one line - the whole course&#x27;s only rewrite - and the game is done.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a title screen room</span><span class="pill">tap to begin</span><span class="pill">the game&#x27;s one rewrite: boot on Start</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Your title</strong><p style="margin:8px 0 0">Change &#x27;MONSTER MUNCH - tap to begin&#x27; to your own game&#x27;s name and press Play.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You named your game.</p></div><div class="card"><strong>Challenge 2. Show a friend</strong><p style="margin:8px 0 0">Let someone play your whole game, from the title screen to GAME OVER and back.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Someone else played the game you built.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
 </section>
 </div>
 <footer>&copy; 2026 UTG Academy</footer>

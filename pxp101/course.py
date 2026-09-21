@@ -37,7 +37,7 @@ PROJECT_BLURB = (
 
 # Raise this as weeks land; the build refuses to run if WEEKS and this number
 # disagree, so a week can never quietly go missing.
-TOTAL_WEEKS = 5
+TOTAL_WEEKS = 15
 
 # A whole game is about this many lines of Python by week 15. AI101's budget is
 # 1000 for teenagers; eight-year-olds type slowly and read slower. The spine in
@@ -104,10 +104,27 @@ def SET(panel, block, lines):
 GAME_START, GAME_LOOP = "Game start", "Game loop"
 MON_START, MON_LOOP = "Monster start", "Monster loop"
 FOOD_START, FOOD_LOOP = "Food start", "Food loop"
+BOMB_START, BOMB_LOOP = "Bomb start", "Bomb loop"
 PLAY_START, PLAY_LOOP = "Play start", "Play loop"
+OVER_START, OVER_LOOP = "GameOver start", "GameOver loop"
+START_START, START_LOOP = "Start start", "Start loop"
 
-PANELS = [GAME_START, MON_START, MON_LOOP, FOOD_START, FOOD_LOOP, PLAY_START]
-ROOMS = ["Play"]
+# File (reading) order, which is what line numbers count in. Game and each
+# class come before the rooms that make them; the rooms run in play order:
+# Start, then Play, then GameOver.
+PANELS = [GAME_START, GAME_LOOP,
+          MON_START, MON_LOOP,
+          FOOD_START, FOOD_LOOP,
+          BOMB_START, BOMB_LOOP,
+          PLAY_START, PLAY_LOOP,
+          OVER_START, OVER_LOOP,
+          START_START, START_LOOP]
+
+# Play is where the game happens and the room every week up to 14 lives in;
+# GameOver arrives in week 10, the Start title screen in week 15. Game start's
+# set_room picks the room on boot, so the list order here is just which rooms
+# exist, not which one shows first.
+ROOMS = ["Play", "GameOver", "Start"]
 
 # The order blocks appear inside a panel. A block missing from this list is an
 # authoring error and build.py will say so; a block listed here but not yet
@@ -116,11 +133,19 @@ ROOMS = ["Play"]
 # score and lives ABOVE it, and setup (week 1) stays at the bottom.
 ORDER = {
     GAME_START: ["score", "lives", "speed", "flag", "setup"],
+    GAME_LOOP: ["over"],
     MON_START: ["look"],
     MON_LOOP: ["follow", "edges"],
     FOOD_START: ["look", "place"],
-    FOOD_LOOP: ["fall", "catch", "recycle"],
-    PLAY_START: ["make", "makeFood"],
+    FOOD_LOOP: ["fall", "catch", "cap", "recycle"],
+    BOMB_START: ["look", "place"],
+    BOMB_LOOP: ["fall", "hit", "recycle"],
+    PLAY_START: ["make", "makeFood", "makeBomb", "makeMore", "hud"],
+    PLAY_LOOP: ["label"],
+    OVER_START: ["message", "score"],
+    OVER_LOOP: ["again"],
+    START_START: ["title"],
+    START_LOOP: ["begin"],
 }
 
 # Every sprite the child draws: name -> (colour, width, height) in real pixels.
@@ -133,6 +158,7 @@ ORDER = {
 SPRITES = {
     "monster.png": ("green", 48, 48),
     "food.png": ("orange", 30, 30),
+    "bomb.png": ("dark", 34, 34),
 }
 
 
@@ -569,6 +595,749 @@ WEEKS = [
  ],
 },
 
+# ---------------------------------------------------------------- week 6 ----
+{
+ "n": 6,
+ "title": "Show the score",
+ "big_idea": "The [[score]] has been climbing since last week, hidden inside the game. Today we put it on the screen. [[text]]() makes a label, and in [[loop]] we rewrite it every frame so it always shows the score and [[lives]] right now.",
+ "new_concepts": ["a label with text()", "str() to show a number", "a label that updates every loop"],
+ "objectives": [
+   "Make a label on the screen with [[text]]()",
+   "Show the [[score]] and [[lives]] on it",
+   "Rewrite the label every [[loop]] so it stays right",
+   "Press Play and watch the number climb as you catch food",
+ ],
+ "ops": [
+  ADD(PLAY_START, "hud", [
+    "Game.label = text()",
+    'Game.label.color = "white"',
+    "Game.label.y = 235",
+    "Game.label.text = 'Score: 0'",
+  ]),
+  ADD(PLAY_LOOP, "label", [
+    "Game.label.text = 'Score: ' + str(Game.score) + '   Lives: ' + str(Game.lives)",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "The score you cannot see",
+       "<p>Press Play on last week's game and catch some food. The score is going up - but "
+       "you cannot see it anywhere. Today we put it on the screen.</p>",
+       ask=("You caught food last week but saw no number. Where was the score?", "Counting inside the game - today we show it")),
+  STEP(PLAY_START, "hud", "Make the label",
+       ["Open <strong>Play start</strong>, under where you make the food. <code>text()</code> makes a "
+        "label - a bit of writing on the screen. Make it white so it shows on the dark background, put "
+        "it near the top (<code>y = 235</code>, big y is up), and start it saying <code>Score: 0</code>."],
+       at="0:08",
+       ask=("Why start the label saying Score: 0 and not leave it blank?", "So there is something to see the moment the game starts")),
+  STEP(PLAY_LOOP, "label", "Keep it up to date",
+       ["Open <strong>Play loop</strong>. Every loop, rewrite the label with the score and lives as they "
+        "are <em>right now</em>. <code>str()</code> turns each number into writing so it can join the "
+        "sentence. Press Play - the number climbs as you catch food!"],
+       at="0:22",
+       ask=("Why rewrite the label every loop instead of just once?", "The score keeps changing - a one-time label would stay stuck at 0")),
+  TALK("0:40", "Watch it climb",
+       "<p>Everyone plays for a minute and watches the score go up as they catch food. Seeing the "
+       "number move is the first time the counting feels real.</p>"),
+ ],
+ "errors": [
+   ("The label does not show", "The text() line is missing from Play start, or the colour is the same as the background so you cannot see it."),
+   ("The number never changes", "The label line is in Play start instead of Play loop. It has to be rewritten over and over, so it lives in loop."),
+   ("An error about str", "Check the + signs and quotes: 'Score: ' + str(Game.score) + '   Lives: ' + str(Game.lives). Every bit of writing is in quotes and joined with +."),
+   ("It says Score: 0 and stays there", "The Play loop label line is missing - only the starting label from Play start is showing."),
+ ],
+ "recap": [
+   "[[text]]() makes a label - writing on the screen.",
+   "str() turns a number into writing so you can show it.",
+   "Rewriting the label every [[loop]] keeps it up to date.",
+   "The [[score]] and [[lives]] were there all along - now you can see them.",
+ ],
+ "homework": [
+   {"task": "Move it", "detail": "Change Game.label.y = 235 to 0 and press Play. Where is the score now?", "done": "You can say what the label's y controls."},
+   {"task": "Change the words", "detail": "Change 'Score: ' to 'Points: ' and press Play.", "done": "You can find and change the words a label shows."},
+ ],
+ "bonus": {"title": "A label of your own",
+           "body": "<p>Just to try: add a second <code>text()</code> label somewhere on the screen that says your "
+                   "name. You already know every line you need - make one, set its colour, and set its .text.</p>"},
+ "slides": [
+   {"title": "Show the score", "sub": "text() puts words on the screen", "bullets": [
+     "A label made with text()", "Rewritten every loop", "The score at last"]},
+   {"title": "Make the label", "bullets": [], "code": [(PLAY_START, "hud")]},
+   {"title": "Keep it up to date", "bullets": [], "code": [(PLAY_LOOP, "label")]},
+   {"title": "Checkpoint: the score shows", "checkpoint": True,
+    "say": "Press Play. A white 'Score: 0   Lives: 3' should sit near the top, and the number should climb every time you catch food."},
+ ],
+},
+
+# ---------------------------------------------------------------- week 7 ----
+{
+ "n": 7,
+ "title": "A bomb appears",
+ "big_idea": "Time for danger. You draw a [[sprite]] for a bomb, make a new [[class]] for it - your third, after Monster and Food - and drop one into the [[room]]. It just sits there for now; next week it falls.",
+ "new_concepts": ["a third class: Bomb", "drawing the bomb sprite", "making a Bomb object"],
+ "draw": ["bomb.png"],
+ "objectives": [
+   "Draw a bomb [[sprite]]",
+   "Give the Bomb [[class]] its picture and a starting spot",
+   "Make one Bomb and drop it in the [[room]]",
+   "Press Play and see the bomb waiting up high",
+ ],
+ "ops": [
+  ADD(BOMB_START, "look", [
+    "import random",
+    "self.image = sprite('bomb.png')",
+  ]),
+  ADD(BOMB_START, "place", [
+    "self.x = random.randint(-300, 300)",
+    "self.y = random.randint(300, 700)",
+  ]),
+  ADD(PLAY_START, "makeBomb", [
+    "Game.bomb = Bomb()",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "A new danger",
+       "<p>We have a monster you steer and food to catch. A game needs something to avoid too. "
+       "Today we add a bomb.</p>",
+       ask=("We have made a Monster and a Food. What do you call a kind of thing like that?", "A class")),
+  STEP(BOMB_START, "look", "Give the bomb its picture",
+       ["Draw a bomb first. Then open <strong>Bomb start</strong>. <code>import random</code> at the top - "
+        "this panel is on its own - and give the bomb the picture you drew with <code>sprite('bomb.png')</code>."],
+       at="0:08",
+       ask=("Why does Bomb start need its own import random when Food start already has one?", "Each panel is on its own - it cannot borrow another panel's import")),
+  STEP(BOMB_START, "place", "Put it somewhere random and high",
+       ["Just under it: a random spot across the screen, and a starting height even higher than the food "
+        "(300 to 700), so the very first bomb takes a moment to arrive."],
+       at="0:18",
+       ask=("Why start the bomb higher than the food?", "So the first bomb takes a moment and does not hit you the instant you press Play")),
+  STEP(PLAY_START, "makeBomb", "Make one bomb",
+       ["Open <strong>Play start</strong>. <code>Game.bomb = Bomb()</code> makes one bomb and drops it in the "
+        "room, exactly the way we make a Food. Press Play - a bomb is waiting up high."],
+       at="0:28"),
+  TALK("0:38", "It just sits there",
+       "<p>The bomb hangs up high and does nothing - it has no loop yet. That is next week, when it "
+       "starts to fall. For now, enjoy that your game has a third kind of thing in it.</p>"),
+ ],
+ "errors": [
+   ("No bomb appears", "Game.bomb = Bomb() is missing from Play start, so no bomb was ever made."),
+   ("An error about the picture", "The sprite name must match the file you drew exactly: sprite('bomb.png')."),
+   ("An error about random", "Bomb start needs its own import random at the top - a panel cannot use another panel's import."),
+   ("The bomb falls already", "If it moves, a falling line ended up in Bomb start by mistake. Falling comes next week, in Bomb loop."),
+ ],
+ "recap": [
+   "Bomb is your third [[class]], after Monster and Food.",
+   "A [[class]] needs its own [[sprite]] and its own import.",
+   "Bomb() makes one bomb and puts it in the [[room]].",
+   "It just waits for now - next week it falls.",
+ ],
+ "homework": [
+   {"task": "Two bombs", "detail": "In Play start, add a second line Game.bombX = Bomb() and press Play. How many bombs wait up high?", "done": "You can make more than one of the same class."},
+   {"task": "Lower start", "detail": "Change the bomb's random.randint(300, 700) to (100, 300) and press Play. Where does it wait now?", "done": "You can say what the two numbers control."},
+ ],
+ "bonus": {"title": "A whole new class",
+           "body": "<p>Think ahead: making a Bomb was the same three steps as making a Food - a picture, a "
+                   "place, and one line in Play start to make it. Any new thing you dream up follows the same "
+                   "three steps. The bonus track builds a bonus class this way in a later week.</p>"},
+ "slides": [
+   {"title": "A bomb appears", "sub": "your third class", "bullets": [
+     "Draw a bomb sprite", "A new class with its own picture", "Made and dropped in the room"]},
+   {"title": "Give the bomb its picture", "bullets": [], "code": [(BOMB_START, "look")]},
+   {"title": "Put it random and high", "bullets": [], "code": [(BOMB_START, "place")]},
+   {"title": "Make one bomb", "bullets": [], "code": [(PLAY_START, "makeBomb")]},
+   {"title": "Checkpoint: a bomb is waiting", "checkpoint": True,
+    "say": "Press Play. A bomb should appear somewhere up high and just hang there. It does not move yet - that is next week."},
+ ],
+},
+
+# ---------------------------------------------------------------- week 8 ----
+{
+ "n": 8,
+ "title": "The bomb falls",
+ "big_idea": "The bomb learns the trick the food knows: take a little off its y every [[loop]] and it [[falls|fall]]. When it drops off the bottom, [[recycle]] sends it back up - for ever.",
+ "new_concepts": ["the bomb falls like the food", "sharing Game.fallSpeed", "recycling the bomb"],
+ "objectives": [
+   "Make the bomb [[fall]] by changing its y in [[loop]]",
+   "Use the same Game.fallSpeed the food uses",
+   "[[recycle]] the bomb back to the top when it drops off the bottom",
+   "Press Play and dodge the falling bomb",
+ ],
+ "ops": [
+  ADD(BOMB_LOOP, "fall", [
+    "import random",
+    "self.y = self.y - Game.fallSpeed",
+  ]),
+  ADD(BOMB_LOOP, "recycle", [
+    "if self.y < -260:",
+    "    self.x = random.randint(-300, 300)",
+    "    self.y = random.randint(300, 700)",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "It just hangs there",
+       "<p>Press Play. The bomb sits up high doing nothing. We taught the food to fall a few weeks "
+       "ago - today the bomb learns the exact same trick.</p>",
+       ask=("How did we make the food fall?", "Take Game.fallSpeed off its y every loop")),
+  STEP(BOMB_LOOP, "fall", "Make the bomb fall",
+       ["Open <strong>Bomb loop</strong>. <code>import random</code> again - its own panel - then the same "
+        "falling line the food uses: take <code>Game.fallSpeed</code> off <code>self.y</code> every loop. "
+        "Press Play - the bomb falls!"],
+       at="0:08",
+       ask=("The bomb and food both use Game.fallSpeed. Can one fall faster than the other right now?", "No - they share the one speed")),
+  STEP(BOMB_LOOP, "recycle", "Send it back to the top",
+       ["Just like the food: only when the bomb drops past the bottom (-260) do these lines pick a new "
+        "random spot up high, so it falls again for ever. Press Play - bombs keep coming."],
+       at="0:20",
+       ask=("Why send it a bit past the bottom (-260) before it jumps back?", "So it is fully gone before it reappears and you do not see it flick")),
+  TALK("0:36", "Dodge it",
+       "<p>Everyone plays and dodges the falling bomb. Notice that touching it still does nothing - no "
+       "life is lost yet. That is next week.</p>"),
+ ],
+ "errors": [
+   ("The bomb does not move", "The fall line is in Bomb start instead of Bomb loop. Falling happens over and over, so it lives in loop."),
+   ("It falls once and vanishes", "The [[recycle]] if is missing, or its lines are not indented four spaces under it."),
+   ("An error about random", "Bomb loop needs its own import random - the recycle uses random.randint."),
+   ("Touching the bomb does nothing", "That is right for this week. Losing a life when it hits you is next week."),
+ ],
+ "recap": [
+   "The bomb [[falls|fall]] the same way the food does - off its y every [[loop]].",
+   "Every falling thing shares the one Game.fallSpeed.",
+   "[[recycle]] sends the bomb back up when it drops off the bottom.",
+   "Touching it still does nothing - the hit comes next week.",
+ ],
+ "homework": [
+   {"task": "A slow bomb", "detail": "You cannot make just the bomb slow yet - it shares fallSpeed. Change Game.fallSpeed = 3 to 1, press Play, and watch BOTH the food and the bomb slow down.", "done": "You can explain why the food slowed down too."},
+   {"task": "Predict it", "detail": "Before pressing Play, tell someone what the bomb will do if you delete its recycle if.", "done": "You made a guess, then checked it."},
+ ],
+ "bonus": {"title": "A bomb of its own speed",
+           "body": "<p>Just to wonder about: what would it take for the bomb to fall faster than the food? "
+                   "It would need a speed of its own, not the shared <code>Game.fallSpeed</code>. Hold that "
+                   "thought - the bonus track gives the bomb its own speed later.</p>"},
+ "slides": [
+   {"title": "The bomb falls", "sub": "the same trick as the food", "bullets": [
+     "Off its y every loop", "Shares Game.fallSpeed", "Recycled back to the top"]},
+   {"title": "Make the bomb fall", "bullets": [], "code": [(BOMB_LOOP, "fall")]},
+   {"title": "Send it back to the top", "bullets": [], "code": [(BOMB_LOOP, "recycle")]},
+   {"title": "Checkpoint: bombs rain down", "checkpoint": True,
+    "say": "Press Play. The bomb should fall, drop off the bottom, and come back up high to fall again - over and over. Touching it does nothing yet."},
+ ],
+},
+
+# ---------------------------------------------------------------- week 9 ----
+{
+ "n": 9,
+ "title": "A bomb costs a life",
+ "big_idea": "Now a bomb bites. When it touches the monster you lose a [[life|lives]]. We also set up a [[flag]] - Game.dead - that starts False and will flip to True when the last life is gone. Next week the flag ends the game.",
+ "new_concepts": ["a flag: Game.dead", "losing a life on a hit", "reusing recycle for the bomb"],
+ "objectives": [
+   "Set up a [[flag]], Game.dead, that starts off False",
+   "Lose a [[life|lives]] when a bomb touches the monster",
+   "Send the hit bomb below the floor so [[recycle]] lifts it back",
+   "Press Play - watch the lives go down (the game does not end yet)",
+ ],
+ "ops": [
+  ADD(GAME_START, "flag", [
+    "Game.dead = False",
+  ]),
+  ADD(BOMB_LOOP, "hit", [
+    "if get_collision(self, 'Monster'):",
+    "    Game.lives = Game.lives - 1",
+    "    self.y = -300",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "It falls right through you",
+       "<p>Press Play. The bomb falls, but you can walk the monster right into it and nothing happens. "
+       "Today a bomb starts to cost you.</p>",
+       ask=("The bomb falls right through you. What should touching one cost?", "A life")),
+  STEP(GAME_START, "flag", "Set up the dead flag",
+       ["Open <strong>Game start</strong>. <code>Game.dead = False</code> is a <strong>flag</strong> - a "
+        "True/False the whole game remembers. It starts False: nothing has ended the game. In a moment the "
+        "bomb will flip it, and next week Game will watch for it."],
+       at="0:08",
+       ask=("Game.dead is False now. What could make it True?", "Losing your last life to a bomb")),
+  STEP(BOMB_LOOP, "hit", "Lose a life on a hit",
+       ["Open <strong>Bomb loop</strong>. Just like catching food, <code>get_collision</code> checks the "
+        "touch. When a bomb touches the monster: take one off <code>Game.lives</code>, and drop the bomb to "
+        "-300 so its recycle lifts it back up. Press Play and let a bomb hit you - a life is gone."],
+       at="0:18",
+       ask=("Why drop the hit bomb to -300, the same as a caught food?", "So the recycle we already wrote sends it back to the top")),
+  TALK("0:34", "It does not end yet",
+       "<p>Lives go down, and can even drop below zero, and the game keeps going. That is on purpose - "
+       "ending the game on the last life is next week's whole lesson.</p>"),
+ ],
+ "errors": [
+   ("Lives do not go down", "The hit code is in Bomb start instead of Bomb loop, or get_collision is misspelled."),
+   ("An error about Game.dead", "Game.dead = False is missing from Game start. It has to exist before anything can set it True."),
+   ("The bomb vanishes on a hit and never comes back", "The bomb's [[recycle]] if is missing or changed - self.y = -300 relies on it."),
+   ("Lives go below zero and nothing happens", "That is right for now - ending the game on the last life is next week."),
+ ],
+ "recap": [
+   "A [[flag]] is a True/False the game remembers, like Game.dead.",
+   "get_collision catches a bomb touching the monster.",
+   "A hit takes one off your [[lives]] and sends the bomb to -300 for its [[recycle]].",
+   "The game does not end yet - that is next week.",
+ ],
+ "homework": [
+   {"task": "Harder", "detail": "Change Game.lives = 3 (in Game start) to 1 and press Play. How forgiving is the game now?", "done": "You can say what Game.lives controls."},
+   {"task": "Two lost at once", "detail": "Change the - 1 in the hit to - 2 and press Play. What happens on a hit?", "done": "You can say what the number after the minus controls."},
+ ],
+ "bonus": {"title": "A shield",
+           "body": "<p>Just to imagine: what if one special catch gave you a life back instead of a point? You "
+                   "would write <code>Game.lives = Game.lives + 1</code> somewhere. Hold that thought - the "
+                   "bonus track builds a power-up later.</p>"},
+ "slides": [
+   {"title": "A bomb costs a life", "sub": "and a flag to remember it", "bullets": [
+     "A flag: Game.dead starts False", "A hit takes a life", "The bomb rides its recycle back up"]},
+   {"title": "Set up the dead flag", "bullets": [], "code": [(GAME_START, "flag")]},
+   {"title": "Lose a life on a hit", "bullets": [], "code": [(BOMB_LOOP, "hit")]},
+   {"title": "Checkpoint: hits hurt", "checkpoint": True,
+    "say": "Press Play. Steer into a bomb - a life should drop on the label, and the bomb should jump back to the top. The game keeps going even past zero for now."},
+ ],
+},
+
+# --------------------------------------------------------------- week 10 ----
+{
+ "n": 10,
+ "title": "Game over",
+ "big_idea": "The last life should end the game. We finish the bomb's hit with an [[if]] inside an [[if]] - only when that was the last life, raise the [[flag]]. Then Game [[loop]] watches the flag and, because Game lives through a [[room]] change when the bomb would not, does the switch to GameOver.",
+ "new_concepts": ["an if inside an if", "raising the flag on the last life", "Game loop ends the game"],
+ "objectives": [
+   "Raise the Game.dead [[flag]] only on the very last life",
+   "Have Game [[loop]] watch the flag every frame",
+   "Switch to the GameOver [[room]] when the flag is up",
+   "Press Play, lose all three lives, and see the game react",
+ ],
+ "ops": [
+  ADD(BOMB_LOOP, "hit", [
+    "    if Game.lives < 1:",
+    "        Game.dead = True",
+  ]),
+  ADD(GAME_LOOP, "over", [
+    "if Game.dead:",
+    "    Game.dead = False",
+    "    set_room('GameOver')",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "One life too many",
+       "<p>Press Play and lose every life. The number goes past zero and the game just keeps going. "
+       "Today the last life actually ends the game.</p>",
+       ask=("Lives go below zero right now. When should the game actually end?", "When the last life is gone - at zero")),
+  STEP(BOMB_LOOP, "hit", "End it on the last life",
+       ["Back in <strong>Bomb loop</strong>, add two more lines under the hit. An <code>if</code> "
+        "<em>inside</em> the collision if - pushed in eight spaces - only when <code>Game.lives</code> drops "
+        "below 1: raise the flag, <code>Game.dead = True</code>. The bomb does not switch rooms itself - "
+        "watch why next."],
+       at="0:08",
+       ask=("Why does the bomb raise a flag instead of switching to GameOver itself?", "Switching rooms would destroy the bomb halfway through this very step")),
+  STEP(GAME_LOOP, "over", "Let Game end the game",
+       ["Open <strong>Game loop</strong> - Game's own loop, which keeps running through any room change. "
+        "Every frame it checks the flag. When <code>Game.dead</code> is True: lower it again, then "
+        "<code>set_room('GameOver')</code>. Game survives the switch, so it is the safe one to do it."],
+       at="0:20",
+       ask=("Why is Game the safe place to call set_room, when the bomb was not?", "Game is not destroyed by the room change - the bomb was")),
+  TALK("0:34", "The screen goes blank",
+       "<p>Lose all three lives and the screen goes blank. That is the GameOver [[room]] - it exists now, "
+       "but it is empty. We decorate it next week. Seeing the switch happen is the win for today.</p>"),
+ ],
+ "errors": [
+   ("The game never ends", "The over block is missing from Game loop, or Game.dead is never set True in the bomb's hit."),
+   ("It ends after one hit, not three", "The if Game.lives < 1 test is wrong or not nested inside the collision if - it must be pushed in eight spaces."),
+   ("An error about set_room", "GameOver is spelled differently in set_room('GameOver') than the room's name will be. They must match exactly."),
+   ("The game ends but the screen is blank", "That is right this week - GameOver is an empty room until next week fills it."),
+ ],
+ "recap": [
+   "An [[if]] inside an [[if]] runs only when both are true - here, only on the last life.",
+   "The bomb raises the [[flag]] instead of switching rooms, because the switch would destroy it.",
+   "Game [[loop]] watches the flag and does the switch, because Game survives a [[room]] change.",
+   "GameOver exists now, but it is empty until next week.",
+ ],
+ "homework": [
+   {"task": "Two lives", "detail": "Change Game.lives = 3 to 2 and play until GAME OVER. Does it end a hit sooner?", "done": "You can connect the starting lives to when the game ends."},
+   {"task": "Trace it", "detail": "Tell someone the order: bomb hit, last life, flag up, Game loop sees it, room switches. Say it without looking.", "done": "You can explain how the flag passes the message."},
+ ],
+ "bonus": {"title": "A different ending",
+           "body": "<p>Just to think about: the flag lets one part of the game tell another that something "
+                   "happened. What else could raise a flag? Winning, maybe - reaching a score. The bonus track "
+                   "adds a You Win screen the same way, later.</p>"},
+ "slides": [
+   {"title": "Game over", "sub": "the flag ends the game", "bullets": [
+     "An if inside an if - the last life", "Raise the flag", "Game loop does the switch"]},
+   {"title": "End it on the last life", "bullets": [], "code": [(BOMB_LOOP, "hit")]},
+   {"title": "Let Game end the game", "bullets": [], "code": [(GAME_LOOP, "over")]},
+   {"title": "Checkpoint: it ends", "checkpoint": True,
+    "say": "Press Play and lose all three lives. The game should switch away from Play to a blank screen - the empty GameOver room. We fill it next week."},
+ ],
+},
+
+# --------------------------------------------------------------- week 11 ----
+{
+ "n": 11,
+ "title": "The GameOver screen",
+ "big_idea": "Last week the game switched to an empty GameOver [[room]]. Today we give that [[room]] a big message: GAME OVER. It is [[text]]() - the same label trick from week 6 - on a different screen.",
+ "new_concepts": ["decorating the GameOver room", "a big centered message", "fontSize and halign"],
+ "objectives": [
+   "Give the GameOver [[room]] a GAME OVER message",
+   "Use [[text]]() again, on a different screen",
+   "Make it big and centered with fontSize and halign",
+   "Press Play, lose, and read the message",
+ ],
+ "ops": [
+  ADD(OVER_START, "message", [
+    "Game.message = text()",
+    'Game.message.color = "white"',
+    "Game.message.fontSize = 40",
+    'Game.message.halign = "center"',
+    "Game.message.text = 'GAME OVER - tap to play again'",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "The blank screen",
+       "<p>Press Play and lose. The screen goes blank - that empty GameOver [[room]] from last week. "
+       "Today we put words on it.</p>",
+       ask=("Last week the screen went blank when you lost. Which room were you looking at?", "The empty GameOver room")),
+  STEP(OVER_START, "message", "Write GAME OVER",
+       ["Open <strong>GameOver start</strong>. This is <code>text()</code> again, just like the score label: "
+        "make a label, make it white, then two new tricks - <code>fontSize = 40</code> to make it big and "
+        "<code>halign = \"center\"</code> to line it up in the middle. Its words: GAME OVER - tap to play again."],
+       at="0:08",
+       ask=("This is text() again, like the score label. What is different this time?", "It is in the GameOver room, and it is big and centered")),
+  TALK("0:24", "Tapping does nothing yet",
+       "<p>The message invites a tap to play again, but tapping does nothing so far. That is honest - we "
+       "write the code that listens for the tap in week 13.</p>",
+       ask=("The message says 'tap to play again' but tapping does nothing. When will it work?", "In two weeks, when we write the loop that listens")),
+  TALK("0:34", "Lose on purpose",
+       "<p>Everyone plays, loses on purpose, and reads their GAME OVER screen. A real ending makes the "
+       "game feel finished.</p>"),
+ ],
+ "errors": [
+   ("No message appears", "The message block is missing from GameOver start, or its colour matches the background."),
+   ("The message is tiny or off to the side", "Check fontSize = 40 and halign = \"center\"."),
+   ("Tapping does nothing", "That is expected until week 13, when the GameOver loop starts listening."),
+   ("An error about text", "Game.message = text() has to come first, before you set its .color, .fontSize and .text."),
+ ],
+ "recap": [
+   "GameOver is a [[room]] - a whole screen the game switches to.",
+   "[[text]]() makes a label on any screen, not just Play.",
+   "fontSize makes writing bigger; halign center lines it up in the middle.",
+   "The tap does nothing yet - that is week 13.",
+ ],
+ "homework": [
+   {"task": "Bigger", "detail": "Change fontSize = 40 to 60 and press Play, then lose. How does the message look?", "done": "You can say what fontSize controls."},
+   {"task": "Your words", "detail": "Change 'GAME OVER - tap to play again' to your own message and lose to see it.", "done": "You can change what a label says."},
+ ],
+ "bonus": {"title": "Two lines of message",
+           "body": "<p>Just to try: add a second label under GAME OVER with a message of your own. You know every "
+                   "line - make a label, colour it, set its .y lower, and set its .text.</p>"},
+ "slides": [
+   {"title": "The GameOver screen", "sub": "text() on a new room", "bullets": [
+     "A big GAME OVER message", "Centered with halign", "Read after you lose"]},
+   {"title": "Write GAME OVER", "bullets": [], "code": [(OVER_START, "message")]},
+   {"title": "Checkpoint: GAME OVER shows", "checkpoint": True,
+    "say": "Press Play and lose all three lives. A big white 'GAME OVER - tap to play again' should be centered on the screen. Tapping does nothing yet."},
+ ],
+},
+
+# --------------------------------------------------------------- week 12 ----
+{
+ "n": 12,
+ "title": "Show the final score",
+ "big_idea": "Under GAME OVER, show how well you did. A second [[text]]() label reads your final [[score]], with str() turning the number into writing - and because a [[room]]'s [[start]] runs every time you enter it, it is fresh each game.",
+ "new_concepts": ["a second label on GameOver", "showing the final score with str()", "start runs each time you enter a room"],
+ "objectives": [
+   "Add a second label to the GameOver [[room]]",
+   "Show the final [[score]] with str()",
+   "Put it just under the GAME OVER message",
+   "Play, lose, and read your score",
+ ],
+ "ops": [
+  ADD(OVER_START, "score", [
+    "Game.finalScore = text()",
+    'Game.finalScore.color = "white"',
+    "Game.finalScore.fontSize = 28",
+    'Game.finalScore.halign = "center"',
+    "Game.finalScore.y = -60",
+    "Game.finalScore.text = 'Final Score: ' + str(Game.score)",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "How did I do?",
+       "<p>GAME OVER shows, but not how you did. Today we add your final score right under it.</p>",
+       ask=("GAME OVER shows, but not how you did. What should we add?", "Your final score")),
+  STEP(OVER_START, "score", "Show the score you got",
+       ["Open <strong>GameOver start</strong>, under the message. A second label: white, a little smaller "
+        "(<code>fontSize = 28</code>), centered, and set lower with <code>y = -60</code> so it sits under "
+        "GAME OVER. Its words join writing and the number: <code>'Final Score: ' + str(Game.score)</code>."],
+       at="0:08",
+       ask=("How do we put the number Game.score inside the writing?", "str() turns it into writing so it joins the sentence")),
+  TALK("0:24", "Fresh every game",
+       "<p>Play twice and lose with different scores. The number is right each time - because "
+       "GameOver's [[start]] runs every time you enter the [[room]], so it reads the score fresh.</p>",
+       ask=("Play twice and get different scores. Why is the number right each time?", "GameOver start runs every time you enter the room, so it reads the score fresh")),
+  TALK("0:36", "A real ending",
+       "<p>Everyone plays a full game and reads their final score. The game now has a real ending - one "
+       "more week and you can play again.</p>"),
+ ],
+ "errors": [
+   ("The score does not show", "The score block is missing from GameOver start, or it sits on top of the message - check its y = -60."),
+   ("It always shows the same number", "str(Game.score) is missing, or the number was written straight into the words - it must read Game.score."),
+   ("An error about +", "Join writing and the number with +: 'Final Score: ' + str(Game.score)."),
+   ("The two labels overlap", "Give the final score a different y, like -60, so it sits under the GAME OVER message."),
+ ],
+ "recap": [
+   "A [[room]] can hold more than one label.",
+   "str() turns the [[score]] number into writing to show it.",
+   "A different .y keeps two labels from overlapping.",
+   "A [[room]]'s [[start]] runs every time you enter it, so the score is fresh.",
+ ],
+ "homework": [
+   {"task": "Move it", "detail": "Change the final score's y = -60 to -120 and lose. Where is it now?", "done": "You can place a label where you want it."},
+   {"task": "Best yet", "detail": "Play three games and write down your three final scores. Which is your best?", "done": "You can read the final score off the screen."},
+ ],
+ "bonus": {"title": "A high score",
+           "body": "<p>Just to wonder: how would the game remember your BEST score across games? It would need a "
+                   "number on Game that only ever goes up. Hold that thought - the bonus track keeps a high "
+                   "score later.</p>"},
+ "slides": [
+   {"title": "Show the final score", "sub": "str() on the GameOver screen", "bullets": [
+     "A second label", "Reads your final score", "Sits under GAME OVER"]},
+   {"title": "Show the score you got", "bullets": [], "code": [(OVER_START, "score")]},
+   {"title": "Checkpoint: your score shows", "checkpoint": True,
+    "say": "Press Play, catch some food, then lose. Under GAME OVER you should read 'Final Score:' and the number you got - and a different number after a different game."},
+ ],
+},
+
+# --------------------------------------------------------------- week 13 ----
+{
+ "n": 13,
+ "title": "Play again",
+ "big_idea": "One tap should start a fresh game. In the GameOver [[loop]], [[key_was_pressed]](' ') or a click sends you back to Play - after putting the [[score]], [[lives]] and speed back to the start. A [[room]] is allowed to switch itself, unlike the bomb.",
+ "new_concepts": ["waiting for a tap with key_was_pressed", "resetting the game", "a room may switch itself"],
+ "objectives": [
+   "Listen for a tap in the GameOver [[loop]]",
+   "Reset the [[score]], [[lives]] and speed",
+   "Go back to the Play [[room]] for a fresh game",
+   "Play a whole game, lose, tap, and go again",
+ ],
+ "ops": [
+  ADD(OVER_LOOP, "again", [
+    "if key_was_pressed(' ') or mouse_was_pressed('left'):",
+    "    Game.score = 0",
+    "    Game.lives = 3",
+    "    Game.fallSpeed = 3",
+    "    set_room('Play')",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "Make the tap work",
+       "<p>The GameOver screen says tap to play again, but nothing happens. Today we make it real.</p>",
+       ask=("The message says tap to play again. Where should the code that listens live?", "In GameOver loop - it has to check over and over")),
+  STEP(OVER_LOOP, "again", "Listen and reset",
+       ["Open <strong>GameOver loop</strong>. <code>key_was_pressed(' ')</code> is true the moment the space "
+        "bar goes down, and <code>mouse_was_pressed('left')</code> the moment you click. When either happens: "
+        "put the score back to 0, lives back to 3, speed back to 3, then <code>set_room('Play')</code> for a "
+        "clean game."],
+       at="0:08",
+       ask=("Why set the score and lives back before going to Play?", "So the new game starts fresh, not with 0 lives and top speed")),
+  TALK("0:24", "A room may switch itself",
+       "<p>Week 10 said the bomb must never call <code>set_room</code>. But GameOver loop just did. The "
+       "difference: a [[room]] is not destroyed by a room change the way an [[object]] in it is.</p>",
+       ask=("Why can GameOver loop call set_room safely when the bomb could not?", "A room is not destroyed by a room change the way an object is")),
+  TALK("0:36", "A whole game",
+       "<p>Everyone plays a full loop: catch food, lose to bombs, read the score, tap, and go again. The "
+       "game is a real game now.</p>"),
+ ],
+ "errors": [
+   ("Tapping does nothing", "The again block is in GameOver start instead of GameOver loop - listening has to happen over and over."),
+   ("The new game starts already over", "The reset lines are missing - Game.lives = 3 and the others must run before set_room('Play')."),
+   ("It goes to Play but the speed is still fast", "Game.fallSpeed = 3 is missing from the reset."),
+   ("An error about key_was_pressed", "Check the quotes: key_was_pressed(' ') with a space in the quotes, and mouse_was_pressed('left')."),
+ ],
+ "recap": [
+   "[[key_was_pressed]](' ') or a click lets a screen wait for a tap.",
+   "Resetting the [[score]], [[lives]] and speed makes the next game fresh.",
+   "A [[room]] may call set_room on itself - it survives the switch.",
+   "That is the whole game loop: play, lose, play again.",
+ ],
+ "homework": [
+   {"task": "Space or click", "detail": "Play, lose, and try both: press the space bar, and click the mouse. Do both start a new game?", "done": "You can name two ways to trigger the same code."},
+   {"task": "Keep the score", "detail": "Delete the Game.score = 0 reset line, play twice, and watch what the score does. Then put it back.", "done": "You can say why the reset lines matter."},
+ ],
+ "bonus": {"title": "A pause",
+           "body": "<p>Just to imagine: the same tap trick could pause the game - a key that flips a Game.paused "
+                   "flag the loops check. Hold that thought - the bonus track adds a pause later.</p>"},
+ "slides": [
+   {"title": "Play again", "sub": "a tap starts a fresh game", "bullets": [
+     "Listen with key_was_pressed", "Reset score, lives, speed", "Back to Play"]},
+   {"title": "Listen and reset", "bullets": [], "code": [(OVER_LOOP, "again")]},
+   {"title": "Checkpoint: play again works", "checkpoint": True,
+    "say": "Press Play, lose all your lives, then tap space or click. The game should start over fresh - full lives, score at zero, slow again."},
+ ],
+},
+
+# --------------------------------------------------------------- week 14 ----
+{
+ "n": 14,
+ "title": "Harder and busier",
+ "big_idea": "Make it a real game. Every catch now nudges Game.fallSpeed up, so it gets faster the better you do - with a cap at 9 so it never becomes impossible. Then fill the screen: more Food and more Bomb [[objects|object]].",
+ "new_concepts": ["every catch speeds it up", "a cap so it stays possible", "more food and bombs at once"],
+ "objectives": [
+   "Speed the game up a little on every catch",
+   "Cap the speed so it stays possible",
+   "Make more food and bombs for a busy screen",
+   "Play a fast, full game",
+ ],
+ "ops": [
+  ADD(FOOD_LOOP, "catch", [
+    "    Game.fallSpeed = Game.fallSpeed + 0.2",
+  ]),
+  ADD(FOOD_LOOP, "cap", [
+    "if Game.fallSpeed > 9:",
+    "    Game.fallSpeed = 9",
+  ]),
+  ADD(PLAY_START, "makeMore", [
+    "Game.foodB = Food()",
+    "Game.foodC = Food()",
+    "Game.bombB = Bomb()",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "Too easy",
+       "<p>The game works, but it never gets harder and there is only one food and one bomb. Today we "
+       "fix both.</p>",
+       ask=("A good game gets harder as you play. What could we change on every catch?", "The falling speed")),
+  STEP(FOOD_LOOP, "catch", "Speed up on every catch",
+       ["Back in <strong>Food loop</strong>, add one line to the catch, inside the if: each catch nudges "
+        "<code>Game.fallSpeed</code> up by 0.2. The better you do, the faster it falls."],
+       at="0:08",
+       ask=("If the speed keeps climbing with no limit, what happens?", "It gets impossible - too fast to catch anything")),
+  STEP(FOOD_LOOP, "cap", "Put a lid on the speed",
+       ["Under the catch, a cap: only when <code>Game.fallSpeed</code> climbs past 9, hold it at 9. Hard, "
+        "but always possible."],
+       at="0:20",
+       ask=("Why hold it at 9 instead of letting it climb for ever?", "So a great player is challenged, but the game never becomes unplayable")),
+  STEP(PLAY_START, "makeMore", "Fill the screen",
+       ["Open <strong>Play start</strong> and make more objects: two more foods and a second bomb. Each "
+        "needs its own name - <code>Game.foodB</code>, <code>Game.foodC</code>, <code>Game.bombB</code>. Now "
+        "there is more to catch and more to dodge at once."],
+       at="0:30"),
+  TALK("0:40", "A fast, full game",
+       "<p>Everyone plays. The screen is busy and the speed climbs the longer you last. It feels like a "
+       "real arcade game now.</p>"),
+ ],
+ "errors": [
+   ("It does not speed up", "The + 0.2 line is missing from the catch, or it is not indented under the collision if."),
+   ("It gets impossibly fast", "The cap is missing - if Game.fallSpeed > 9 then Game.fallSpeed = 9."),
+   ("Only one food and one bomb still", "The makeMore lines are missing from Play start, or they were put in a loop instead of start."),
+   ("An error about a name", "Each new object needs its own name: Game.foodB, Game.foodC, Game.bombB - all different."),
+ ],
+ "recap": [
+   "Adding to Game.fallSpeed on every catch makes the game get faster.",
+   "A cap holds the speed at 9 so it stays hard but possible.",
+   "Every [[object]] you make needs its own name.",
+   "More food and bombs make a busy, real game.",
+ ],
+ "homework": [
+   {"task": "Steeper", "detail": "Change the + 0.2 in the catch to + 1 and play. How fast does it get now?", "done": "You can say what the 0.2 controls."},
+   {"task": "A crowd", "detail": "Add one more Game.foodD = Food() to Play start and play. Is it more fun or too much?", "done": "You can add another object of a class."},
+ ],
+ "bonus": {"title": "Even more",
+           "body": "<p>Just to try: how many foods and bombs can you add before the game is too busy to play? Each "
+                   "one is a single line in Play start with a new name. Find your limit.</p>"},
+ "slides": [
+   {"title": "Harder and busier", "sub": "speed up, cap, and crowd the screen", "bullets": [
+     "Every catch speeds it up", "A cap at 9", "More food and bombs"]},
+   {"title": "Speed up on every catch", "bullets": [], "code": [(FOOD_LOOP, "catch")]},
+   {"title": "Put a lid on the speed", "bullets": [], "code": [(FOOD_LOOP, "cap")]},
+   {"title": "Fill the screen", "bullets": [], "code": [(PLAY_START, "makeMore")]},
+   {"title": "Checkpoint: fast and full", "checkpoint": True,
+    "say": "Press Play. There should be more food and more bombs, and the longer you catch food the faster everything falls - up to a hard but playable limit."},
+ ],
+},
+
+# --------------------------------------------------------------- week 15 ----
+{
+ "n": 15,
+ "title": "A title screen",
+ "big_idea": "A finished game needs a front door. You build a Start [[room]] with the title MONSTER MUNCH, listen for a tap to go to Play, and - the one time all course long - change Game [[start]] to boot on Start instead of Play.",
+ "new_concepts": ["a title screen room", "tap to begin", "the game's one rewrite: boot on Start"],
+ "objectives": [
+   "Build a Start [[room]] with a big title",
+   "Tap to begin - go from Start to Play",
+   "Change the game to boot on the Start [[room]]",
+   "Play your finished game from the title screen",
+ ],
+ "ops": [
+  ADD(START_START, "title", [
+    "Game.title = text()",
+    'Game.title.color = "white"',
+    "Game.title.fontSize = 44",
+    'Game.title.halign = "center"',
+    "Game.title.text = 'MONSTER MUNCH - tap to begin'",
+  ]),
+  ADD(START_LOOP, "begin", [
+    "if key_was_pressed(' ') or mouse_was_pressed('left'):",
+    "    set_room('Play')",
+  ]),
+  SET(GAME_START, "setup", [
+    "set_room('Start')",
+  ]),
+ ],
+ "flow": [
+  TALK("0:00", "A front door",
+       "<p>Your game jumps straight into playing. Finished games show a title first - a front door you "
+       "tap to begin. Today you build one.</p>",
+       ask=("Your game jumps straight into Play. What do finished games show first?", "A title screen")),
+  STEP(START_START, "title", "Make the title",
+       ["In a new <strong>Start</strong> room's start, a big centered label - the same <code>text()</code> "
+        "trick, one more time: white, <code>fontSize = 44</code>, centered, saying MONSTER MUNCH - tap to "
+        "begin."],
+       at="0:08",
+       ask=("This is text() a fourth time. What have you learned to reuse?", "A label: text(), then colour, fontSize, halign, and text")),
+  STEP(START_LOOP, "begin", "Tap to begin",
+       ["Open <strong>Start loop</strong>. Listen the same way GameOver does: when the player taps space or "
+        "clicks, <code>set_room('Play')</code>. A [[room]] may switch itself."],
+       at="0:18",
+       ask=("Why does this go in Start loop and not Start start?", "Listening for a tap has to happen over and over")),
+  STEP(GAME_START, "setup", "Boot on the title",
+       ["One change in <strong>Game start</strong>: the old <code>set_room('Play')</code> becomes "
+        "<code>set_room('Start')</code>. Back in week 1 there was no Start room to open on - now there is. "
+        "This is the only line the whole course ever rewrites."],
+       at="0:28"),
+  TALK("0:40", "You built a game",
+       "<p>Press Play. Your title screen shows, you tap to begin, you play, you lose, you read your score, "
+       "you tap again. Fifteen weeks, one line at a time, and it is a whole game. Well done.</p>"),
+ ],
+ "errors": [
+   ("No title shows", "The title block is missing from Start start, or the game still boots on Play - check set_room('Start') in Game start."),
+   ("Tapping the title does nothing", "The begin block is in Start start instead of Start loop - listening has to happen over and over."),
+   ("The game still opens on Play", "Game start still says set_room('Play'). Change it to set_room('Start')."),
+   ("An error about the room name", "Start must be spelled the same in set_room('Start') and as the room's name."),
+ ],
+ "recap": [
+   "A [[room]] can be a title screen, not just where you play.",
+   "[[key_was_pressed]] or a click lets a screen wait for a tap.",
+   "Game [[start]]'s set_room picks which [[room]] the game opens on.",
+   "You changed one line - the whole course's only rewrite - and the game is done.",
+ ],
+ "homework": [
+   {"task": "Your title", "detail": "Change 'MONSTER MUNCH - tap to begin' to your own game's name and press Play.", "done": "You named your game."},
+   {"task": "Show a friend", "detail": "Let someone play your whole game, from the title screen to GAME OVER and back.", "done": "Someone else played the game you built."},
+ ],
+ "bonus": {"title": "Where next",
+           "body": "<p>Your game is done, but the bonus track never was - a high score, a power-up, a pause, a "
+                   "second level. Every one is the same moves you already know: a new [[object]], a [[flag]], a "
+                   "line in a [[loop]]. Pick one and keep going.</p>"},
+ "slides": [
+   {"title": "A title screen", "sub": "a front door for your game", "bullets": [
+     "A Start room with the title", "Tap to begin", "The game boots on Start"]},
+   {"title": "Make the title", "bullets": [], "code": [(START_START, "title")]},
+   {"title": "Tap to begin", "bullets": [], "code": [(START_LOOP, "begin")]},
+   {"title": "Boot on the title", "bullets": [], "code": [(GAME_START, "setup")]},
+   {"title": "Checkpoint: the whole game", "checkpoint": True,
+    "say": "Press Play. The title screen shows first. Tap to begin, play a full game with food and bombs, lose, read your score, and tap to play again from a fresh start."},
+ ],
+},
+
 ]
 
 
@@ -602,6 +1371,12 @@ def line_concepts(panel, line):
         keys.append("pp:collision")
     if re.match(r"Game\.\w+ = Game\.\w+ \+", stripped):
         keys.append("pp:change")
+    if "= text()" in stripped:
+        keys.append("pp:text")
+    if re.match(r"Game\.\w+ = (True|False)$", stripped):
+        keys.append("pp:flag")
+    if "key_was_pressed(" in stripped or "mouse_was_pressed(" in stripped:
+        keys.append("pp:press")
     if stripped.startswith("if "):
         keys.append("pp:if")
     return keys
@@ -657,6 +1432,18 @@ CONCEPTS = {
         ["The line under an [[if]] only runs when the if is true.",
          "That line is indented four spaces - that is how Python knows it belongs to the if."],
         "if self.x > 320:"),
+    "pp:text": ("game", "text() shows words on the screen",
+        ["[[text]]() makes a label. Set its .text to the words you want to show.",
+         "Add str() when the words include a number, so 3 becomes the writing '3'."],
+        "Game.label = text()"),
+    "pp:flag": ("py", "A flag the game remembers",
+        ["A [[flag]] is a True/False the game keeps, like Game.dead.",
+         "One part of the game sets it, and another part checks it and acts."],
+        "Game.dead = False"),
+    "pp:press": ("py", "Waiting for a tap",
+        ["[[key_was_pressed(' ')|key_was_pressed]] is true the moment the space bar goes down; mouse_was_pressed('left') the moment you click.",
+         "Put it in an [[if]] to wait on a screen until the player taps to go on."],
+        "if key_was_pressed(' ') or mouse_was_pressed('left'):"),
 }
 
 # The words a child has to learn to read this game. Prose across every page
@@ -682,6 +1469,9 @@ GLOSSARY = {
     "get_collision": "Asks whether two objects are touching. It is true only at the moment they touch - put it in an if to catch that moment.",
     "score":   "The number that counts what you have caught. You make it bigger by adding one to it.",
     "lives":   "How many hearts you have left. When they run out, the game is over.",
+    "text":    "A label that shows words or numbers on the screen. You make one with text() and set its .text to what it should say.",
+    "flag":    "A True/False the game remembers, like Game.dead. One part of the game sets it and another part checks it.",
+    "key_was_pressed": "True for the one moment a key goes down - key_was_pressed(' ') for the space bar. mouse_was_pressed('left') does the same for a click, so a screen can wait for a tap.",
 }
 
 # Animated metaphors. Reuses build.concept_visual's library - see SLIDE-RULES.
@@ -711,6 +1501,12 @@ VISUALS = {
                   "cap": "Take the number in, add one, the new number comes out."},
     "pp:if": {"kind": "fork", "cond": "self.x > 320", "yes": "put it back", "no": "carry on",
               "cap": "[[if]] means only when - the indented line runs only if it is true."},
+    "pp:text": {"kind": "swap", "off": "(nothing)", "on": "Score: 0",
+                "cap": "[[text]]() puts words on the screen; .text is what they say."},
+    "pp:flag": {"kind": "swap", "off": "Game.dead = False", "on": "Game.dead = True",
+                "cap": "A [[flag]] is a True/False the game remembers and checks."},
+    "pp:press": {"kind": "event", "btn": "tap", "action": "set_room('Play')",
+                 "cap": "[[key_was_pressed|key_was_pressed]] or a click lets a screen wait for a tap."},
 }
 
 LINE_NOTES = {
@@ -752,7 +1548,98 @@ LINE_NOTES = {
         "Only when this food is touching the monster...",
         "...add one to the score...",
         "...and drop it below the floor, so the recycle lifts it back to the top.",
+        "...and speed the whole game up a little - every catch makes it harder.",
     ],
+    # --- weeks 6-15 -------------------------------------------------------
+    (PLAY_START, "hud"): [
+        "Make a label - a bit of writing on the screen.",
+        "White, so it shows up on the dark background.",
+        "Put it near the top. Big y is up.",
+        "What it says before you have caught anything.",
+    ],
+    (PLAY_LOOP, "label"): [
+        "Every loop, rewrite the label with the score and lives right now. str() turns each number into writing.",
+    ],
+    (BOMB_START, "look"): [
+        "Bomb start is its own panel, so it needs its own import.",
+        "Use the bomb picture you drew.",
+    ],
+    (BOMB_START, "place"): [
+        "A random spot across the screen, the same as the food.",
+        "Higher than the food starts, so the first bomb gives you a moment.",
+    ],
+    (PLAY_START, "makeBomb"): ["Make one bomb and drop it in the room, just like a Food."],
+    (BOMB_LOOP, "fall"): [
+        "Bomb loop is its own panel too - its own import.",
+        "The same falling line the food uses. Bombs share the one speed.",
+    ],
+    (BOMB_LOOP, "recycle"): [
+        "Only when the bomb has dropped off the bottom...",
+        "...pick a new spot across the screen...",
+        "...back up high, ready to fall again.",
+    ],
+    (GAME_START, "flag"): ["A flag: not dead yet. Nothing has ended the game."],
+    # hit is written across two weeks: week 9 types the first three lines, week
+    # 10 the last two. One notes list covers both - week 9 uses the first three,
+    # week 10 the last two, because a note lines up with the line it explains.
+    (BOMB_LOOP, "hit"): [
+        "Only when this bomb is touching the monster...",
+        "...take one life away...",
+        "...and drop the bomb below the floor, so the recycle lifts it back up.",
+        "Only when that was the last life...",
+        "...raise the dead flag. Game loop is watching for it.",
+    ],
+    (GAME_LOOP, "over"): [
+        "Every loop, Game checks the flag. Only when it is True...",
+        "...lower it again, ready for next time...",
+        "...switch to the GameOver screen. Game does it, because it lives through the room change.",
+    ],
+    (OVER_START, "message"): [
+        "A label for the GameOver screen.",
+        "White, so it shows on the dark room.",
+        "Big writing - this is the main message.",
+        "Line it up in the middle of the screen.",
+        "The words to show. The tap part starts working in two weeks.",
+    ],
+    (OVER_START, "score"): [
+        "A second label, for the score you got.",
+        "White again.",
+        "A little smaller than the GAME OVER line.",
+        "Middle of the screen, left to right.",
+        "A bit below the middle, under the message.",
+        "The words plus your score. str() turns the number into writing.",
+    ],
+    (OVER_LOOP, "again"): [
+        "Only when the player taps space or clicks the mouse...",
+        "...set the score back to zero...",
+        "...give back all three lives...",
+        "...slow it back to the start speed...",
+        "...and go to Play for a fresh game. A room is allowed to switch itself.",
+    ],
+    (FOOD_LOOP, "cap"): [
+        "Only when the speed has climbed past 9...",
+        "...hold it at 9, so it gets hard but never impossible.",
+    ],
+    (PLAY_START, "makeMore"): [
+        "A second piece of food.",
+        "A third.",
+        "And a second bomb. Now the screen is busy.",
+    ],
+    (START_START, "title"): [
+        "A label for the title screen.",
+        "White writing.",
+        "Big - it is the name of your game.",
+        "Middle of the screen.",
+        "The name, and how to start.",
+    ],
+    (START_LOOP, "begin"): [
+        "Only when the player taps...",
+        "...start the game by going to the Play room.",
+    ],
+    # Week 15 rewrites setup, so its changed line needs its own note - the week-1
+    # note ("start on Play") would be wrong here. notes_for reads the (week, ...)
+    # key first, so week 1 keeps its note and week 15 gets this one.
+    (15, GAME_START, "setup"): ["Now start on the Start screen - your title - instead of Play."],
 }
 
 DELETE_NOTES = {}
@@ -809,6 +1696,144 @@ QUIZZES = {
                      "To make it bigger", "To end the game"], "answer": 0,
          "why": "-300 is below the floor, so the recycle if sends it back up high."},
     ],
+    (6, PLAY_LOOP, "label"): [
+        {"q": "What does text() make?",
+         "options": ["A label - words on the screen", "A new room",
+                     "A falling food", "A random number"], "answer": 0,
+         "why": "text() makes a label; its .text is the words it shows."},
+        {"q": "Why do we put str() around Game.score?",
+         "options": ["To turn the number into writing we can show", "To make it bigger",
+                     "To make it random", "To hide it"], "answer": 0,
+         "why": "The label holds writing, so str() turns the number 3 into the writing '3'."},
+        {"q": "Why is the label line in Play loop, not Play start? (this week)",
+         "options": ["So it updates every loop as the score changes", "To make it appear once",
+                     "loop is tidier", "It does not matter"], "answer": 0,
+         "why": "The score keeps changing, so the label has to be rewritten over and over in loop."},
+    ],
+    (7, PLAY_START, "makeBomb"): [
+        {"q": "Bomb is our third what?",
+         "options": ["Class - a kind of thing", "Room", "Score", "Colour"], "answer": 0,
+         "why": "A class is a kind of thing. Monster, Food, and now Bomb."},
+        {"q": "What does Game.bomb = Bomb() do?",
+         "options": ["Makes one bomb and puts it in the room", "Draws the bomb picture",
+                     "Ends the game", "Adds to the score"], "answer": 0,
+         "why": "Bomb() makes one bomb; nothing appears until you make it."},
+        {"q": "Where does the falling code for the bomb go next week?",
+         "options": ["Bomb loop", "Bomb start", "Play start", "Game start"], "answer": 0,
+         "why": "Anything that moves lives in loop, so the bomb falls from Bomb loop."},
+    ],
+    (8, BOMB_LOOP, "recycle"): [
+        {"q": "How does the bomb fall?",
+         "options": ["Take Game.fallSpeed off its y every loop", "Add to its y every loop",
+                     "Change its picture", "Press Play twice"], "answer": 0,
+         "why": "Falling is taking a little off y each loop - the same line the food uses."},
+        {"q": "Why does the bomb need its own recycle?",
+         "options": ["So it comes back after it drops off the bottom", "To make it bigger",
+                     "To end the game", "To change its colour"], "answer": 0,
+         "why": "Recycle sends it back up high so it can fall again for ever."},
+        {"q": "Do the bomb and food share Game.fallSpeed? (this week)",
+         "options": ["Yes - it is one number the whole game shares", "No, each has its own",
+                     "Only the food falls", "Only the bomb falls"], "answer": 0,
+         "why": "fallSpeed lives on Game, so every falling thing uses the same speed."},
+    ],
+    (9, BOMB_LOOP, "hit"): [
+        {"q": "What happens when a bomb touches the monster?",
+         "options": ["You lose a life", "You score a point",
+                     "The game speeds up", "Nothing"], "answer": 0,
+         "why": "get_collision catches the touch, and Game.lives goes down by one."},
+        {"q": "What is Game.dead?",
+         "options": ["A flag - a True/False the game remembers", "A room",
+                     "A picture", "The score"], "answer": 0,
+         "why": "A flag is a True/False. Game.dead starts False and turns True on the last life."},
+        {"q": "Why send the hit bomb to -300 too? (this week)",
+         "options": ["So its recycle lifts it back to the top", "To delete it",
+                     "To end the game", "To score a point"], "answer": 0,
+         "why": "Just like the food, -300 is below the floor so the recycle sends it back up."},
+    ],
+    (10, GAME_LOOP, "over"): [
+        {"q": "Why does Game loop do the room switch, not the bomb?",
+         "options": ["Game lives through a room change; the bomb is destroyed by it",
+                     "Game is faster", "The bomb cannot use set_room", "It looks nicer"], "answer": 0,
+         "why": "Switching rooms destroys the bomb mid-step, so Game, which survives, does it."},
+        {"q": "How does Game loop know the game is over?",
+         "options": ["It checks the Game.dead flag", "It counts the score",
+                     "It looks at the mouse", "It asks the food"], "answer": 0,
+         "why": "The bomb raises the flag; Game loop watches it and acts when it is True."},
+        {"q": "What is a flag good for? (this week)",
+         "options": ["One part of the game tells another part something happened",
+                     "Making things fall", "Drawing pictures", "Keeping score"], "answer": 0,
+         "why": "The bomb sets it and Game loop checks it - a flag passes a message between them."},
+    ],
+    (11, OVER_START, "message"): [
+        {"q": "What is GameOver?",
+         "options": ["Another room - a second screen", "A kind of thing",
+                     "A number", "A picture"], "answer": 0,
+         "why": "GameOver is a room, a whole screen the game switches to when you lose."},
+        {"q": "What does halign = \"center\" do?",
+         "options": ["Lines the words up in the middle", "Makes them white",
+                     "Makes them bigger", "Makes them fall"], "answer": 0,
+         "why": "halign is how the writing lines up left-to-right; center puts it in the middle."},
+        {"q": "The tap-to-play-again words show now, but tapping does nothing yet. Why? (this week)",
+         "options": ["We write the code that listens for the tap in two weeks", "It is broken",
+                     "You tapped wrong", "The room is asleep"], "answer": 0,
+         "why": "The message is just writing for now; the loop that listens comes in week 13."},
+    ],
+    (12, OVER_START, "score"): [
+        {"q": "How do we show the score you got inside the words?",
+         "options": ["str(Game.score) turns the number into writing", "get_collision",
+                     "random.randint", "set_room"], "answer": 0,
+         "why": "str() makes the number into writing so it can join the rest of the sentence."},
+        {"q": "Why is Game.finalScore.y set to -60?",
+         "options": ["To put it a little below the middle, under the message", "To hide it",
+                     "To make it fall", "To make it white"], "answer": 0,
+         "why": "y is up and down; -60 is just below the centre, under the GAME OVER line."},
+        {"q": "Does GameOver.start run again every time you lose? (this week)",
+         "options": ["Yes - start runs each time the room is shown", "No, only once ever",
+                     "Only on the first game", "Never"], "answer": 0,
+         "why": "A room's start runs each time you enter it, so the final score is fresh every game."},
+    ],
+    (13, OVER_LOOP, "again"): [
+        {"q": "What does key_was_pressed(' ') check?",
+         "options": ["Whether the space bar was just pressed", "The score",
+                     "Where the mouse is", "If a bomb hit"], "answer": 0,
+         "why": "It is true for the one moment the space bar goes down."},
+        {"q": "Why set the score, lives, and fallSpeed back before Play?",
+         "options": ["So the next game starts fresh, not where the last one ended",
+                     "To end the game", "To make it harder", "To draw the bomb"], "answer": 0,
+         "why": "Without resetting, you would start the new game with 0 lives and full speed."},
+        {"q": "GameOver loop is allowed to call set_room on itself. Why is that safe? (this week)",
+         "options": ["A room is not destroyed by a room change the way an object is",
+                     "Rooms are faster", "It is not really safe", "set_room only works in rooms"], "answer": 0,
+         "why": "A room survives the switch, unlike the bomb - that is why week 10 used a flag instead."},
+    ],
+    (14, FOOD_LOOP, "cap"): [
+        {"q": "What makes the game speed up as you play?",
+         "options": ["Each catch adds a little to Game.fallSpeed", "The clock",
+                     "Pressing Play", "The mouse"], "answer": 0,
+         "why": "The catch now adds 0.2 to fallSpeed, so every catch makes the food fall faster."},
+        {"q": "What does the cap do?",
+         "options": ["Stops the speed climbing past 9", "Speeds it up more",
+                     "Adds a life", "Makes a new food"], "answer": 0,
+         "why": "Only when fallSpeed goes over 9, it is held at 9 - hard but not impossible."},
+        {"q": "Why make more food and bombs this week? (this week)",
+         "options": ["A busier screen makes the game more fun and harder", "To slow it down",
+                     "To end the game", "To show the score"], "answer": 0,
+         "why": "More Food() and Bomb() objects means more to catch and more to dodge at once."},
+    ],
+    (15, START_LOOP, "begin"): [
+        {"q": "What is the Start room for?",
+         "options": ["A title screen you tap to begin", "Keeping score",
+                     "Making the bomb fall", "Ending the game"], "answer": 0,
+         "why": "Start is the first screen the player sees, with the title and 'tap to begin'."},
+        {"q": "Week 15 changes set_room('Play') to set_room('Start'). Why?",
+         "options": ["So the game boots on the new title screen", "To make it faster",
+                     "To add a life", "To delete Play"], "answer": 0,
+         "why": "Game start's set_room picks the boot room; now the game opens on the title."},
+        {"q": "This is the whole course's ONE rewrite. Why is it allowed? (this week)",
+         "options": ["It teaches a real lesson about rooms, it is not just churn",
+                     "Rewrites are always fine", "It saves typing", "It was a mistake"], "answer": 0,
+         "why": "A rewrite that carries a real lesson earns its place; week 1 had no Start room to boot into yet."},
+    ],
 }
 
-EXPANDED_WEEKS = {1, 2, 3, 4, 5}
+EXPANDED_WEEKS = set(range(1, 16))

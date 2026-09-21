@@ -1,0 +1,167 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 11 &#183; The GameOver screen &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PXP101</strong></header>
+<div class="wrap">
+<p class="eyebrow">Week 11 of 15</p>
+<h1>The GameOver screen</h1>
+<p class="lead">Last week the game switched to an empty GameOver <a class="term" href="textbook.html#g-room">room</a>. Today we give that <b class="term">room</b> a big message: GAME OVER. It is <a class="term" href="textbook.html#g-text">text</a>() - the same label trick from week 6 - on a different screen.</p>
+<p><span class="pill">decorating the GameOver room</span><span class="pill">a big centered message</span><span class="pill">fontSize and halign</span></p>
+<p class="teach-row"><a class="pill" href="slides/week-11.html">Slides for week 11</a>
+   <a class="pill ghost" href="slides/week-11.pptx">.pptx</a>
+   <a class="pill ghost" href="textbook.html#chapter-11">Chapter 11 of the book</a>
+   <a class="pill ghost" href="teacher.html#week-11">Lesson plan for week 11</a></p>
+<div class="note"><strong>Where you should be by the end of this week.</strong>
+The green lines are what is new since week 10. Everything else you already had.
+Your project is now 54 lines.</div>
+<div class="bonus"><strong>Finished early? Two lines of message</strong><p>Just to try: add a second label under GAME OVER with a message of your own. You know every line - make a label, colour it, set its .y lower, and set its .text.</p><p class="muted" style="margin:6px 0 0;font-size:13px">Nothing in a later week depends on this, so it is safe to skip and safe to keep.</p></div>
+<h2>Your code after week 11</h2>
+<div class="tabs" data-tabs><button class="tab active" data-for="w11-0">Game start</button><button class="tab" data-for="w11-1">Game loop</button><button class="tab" data-for="w11-2">Monster start</button><button class="tab" data-for="w11-3">Monster loop</button><button class="tab" data-for="w11-4">Food start</button><button class="tab" data-for="w11-5">Food loop</button><button class="tab" data-for="w11-6">Bomb start</button><button class="tab" data-for="w11-7">Bomb loop</button><button class="tab" data-for="w11-8">Play start</button><button class="tab" data-for="w11-9">Play loop</button><button class="tab" data-for="w11-10">GameOver start</button></div><div data-pane="w11-0"><div class="snip"><div class="snip-head"><span class="file">Game start</span><span class="rng">lines 1&ndash;5</span><span class="tag">green = new this week</span><button data-copy="w11-code-0">Copy</button></div><div class="code"><table id="w11-code-0"><tr><td class="ln">1</td><td class="src">Game.score = 0</td></tr><tr><td class="ln">2</td><td class="src">Game.lives = 3</td></tr><tr><td class="ln">3</td><td class="src">Game.fallSpeed = 3</td></tr><tr><td class="ln">4</td><td class="src">Game.dead = False</td></tr><tr><td class="ln">5</td><td class="src">set_room(&#x27;Play&#x27;)</td></tr></table></div></div></div><div data-pane="w11-1" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Game loop</span><span class="rng">lines 1&ndash;3</span><span class="tag">green = new this week</span><button data-copy="w11-code-1">Copy</button></div><div class="code"><table id="w11-code-1"><tr><td class="ln">1</td><td class="src">if Game.dead:</td></tr><tr><td class="ln">2</td><td class="src">    Game.dead = False</td></tr><tr><td class="ln">3</td><td class="src">    set_room(&#x27;GameOver&#x27;)</td></tr></table></div></div></div><div data-pane="w11-2" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Monster start</span><span class="rng">lines 1&ndash;2</span><span class="tag">green = new this week</span><button data-copy="w11-code-2">Copy</button></div><div class="code"><table id="w11-code-2"><tr><td class="ln">1</td><td class="src">self.image = sprite(&#x27;monster.png&#x27;)</td></tr><tr><td class="ln">2</td><td class="src">self.y = -210</td></tr></table></div></div></div><div data-pane="w11-3" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Monster loop</span><span class="rng">lines 1&ndash;5</span><span class="tag">green = new this week</span><button data-copy="w11-code-3">Copy</button></div><div class="code"><table id="w11-code-3"><tr><td class="ln">1</td><td class="src">self.x = mouse_x()</td></tr><tr><td class="ln">2</td><td class="src">if self.x &gt; 320:</td></tr><tr><td class="ln">3</td><td class="src">    self.x = 320</td></tr><tr><td class="ln">4</td><td class="src">if self.x &lt; -320:</td></tr><tr><td class="ln">5</td><td class="src">    self.x = -320</td></tr></table></div></div></div><div data-pane="w11-4" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Food start</span><span class="rng">lines 1&ndash;4</span><span class="tag">green = new this week</span><button data-copy="w11-code-4">Copy</button></div><div class="code"><table id="w11-code-4"><tr><td class="ln">1</td><td class="src">import random</td></tr><tr><td class="ln">2</td><td class="src">self.image = sprite(&#x27;food.png&#x27;)</td></tr><tr><td class="ln">3</td><td class="src">self.x = random.randint(-300, 300)</td></tr><tr><td class="ln">4</td><td class="src">self.y = random.randint(260, 600)</td></tr></table></div></div></div><div data-pane="w11-5" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Food loop</span><span class="rng">lines 1&ndash;8</span><span class="tag">green = new this week</span><button data-copy="w11-code-5">Copy</button></div><div class="code"><table id="w11-code-5"><tr><td class="ln">1</td><td class="src">import random</td></tr><tr><td class="ln">2</td><td class="src">self.y = self.y - Game.fallSpeed</td></tr><tr><td class="ln">3</td><td class="src">if get_collision(self, &#x27;Monster&#x27;):</td></tr><tr><td class="ln">4</td><td class="src">    Game.score = Game.score + 1</td></tr><tr><td class="ln">5</td><td class="src">    self.y = -300</td></tr><tr><td class="ln">6</td><td class="src">if self.y &lt; -260:</td></tr><tr><td class="ln">7</td><td class="src">    self.x = random.randint(-300, 300)</td></tr><tr><td class="ln">8</td><td class="src">    self.y = random.randint(260, 600)</td></tr></table></div></div></div><div data-pane="w11-6" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Bomb start</span><span class="rng">lines 1&ndash;4</span><span class="tag">green = new this week</span><button data-copy="w11-code-6">Copy</button></div><div class="code"><table id="w11-code-6"><tr><td class="ln">1</td><td class="src">import random</td></tr><tr><td class="ln">2</td><td class="src">self.image = sprite(&#x27;bomb.png&#x27;)</td></tr><tr><td class="ln">3</td><td class="src">self.x = random.randint(-300, 300)</td></tr><tr><td class="ln">4</td><td class="src">self.y = random.randint(300, 700)</td></tr></table></div></div></div><div data-pane="w11-7" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Bomb loop</span><span class="rng">lines 1&ndash;10</span><span class="tag">green = new this week</span><button data-copy="w11-code-7">Copy</button></div><div class="code"><table id="w11-code-7"><tr><td class="ln">1</td><td class="src">import random</td></tr><tr><td class="ln">2</td><td class="src">self.y = self.y - Game.fallSpeed</td></tr><tr><td class="ln">3</td><td class="src">if get_collision(self, &#x27;Monster&#x27;):</td></tr><tr><td class="ln">4</td><td class="src">    Game.lives = Game.lives - 1</td></tr><tr><td class="ln">5</td><td class="src">    self.y = -300</td></tr><tr><td class="ln">6</td><td class="src">    if Game.lives &lt; 1:</td></tr><tr><td class="ln">7</td><td class="src">        Game.dead = True</td></tr><tr><td class="ln">8</td><td class="src">if self.y &lt; -260:</td></tr><tr><td class="ln">9</td><td class="src">    self.x = random.randint(-300, 300)</td></tr><tr><td class="ln">10</td><td class="src">    self.y = random.randint(300, 700)</td></tr></table></div></div></div><div data-pane="w11-8" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Play start</span><span class="rng">lines 1&ndash;7</span><span class="tag">green = new this week</span><button data-copy="w11-code-8">Copy</button></div><div class="code"><table id="w11-code-8"><tr><td class="ln">1</td><td class="src">Game.monster = Monster()</td></tr><tr><td class="ln">2</td><td class="src">Game.foodA = Food()</td></tr><tr><td class="ln">3</td><td class="src">Game.bomb = Bomb()</td></tr><tr><td class="ln">4</td><td class="src">Game.label = text()</td></tr><tr><td class="ln">5</td><td class="src">Game.label.color = &quot;white&quot;</td></tr><tr><td class="ln">6</td><td class="src">Game.label.y = 235</td></tr><tr><td class="ln">7</td><td class="src">Game.label.text = &#x27;Score: 0&#x27;</td></tr></table></div></div></div><div data-pane="w11-9" style="display:none"><div class="snip"><div class="snip-head"><span class="file">Play loop</span><span class="rng">line 1</span><span class="tag">green = new this week</span><button data-copy="w11-code-9">Copy</button></div><div class="code"><table id="w11-code-9"><tr><td class="ln">1</td><td class="src">Game.label.text = &#x27;Score: &#x27; + str(Game.score) + &#x27;   Lives: &#x27; + str(Game.lives)</td></tr></table></div></div></div><div data-pane="w11-10" style="display:none"><div class="snip"><div class="snip-head"><span class="file">GameOver start</span><span class="rng">lines 1&ndash;5</span><span class="tag">green = new this week</span><button data-copy="w11-code-10">Copy</button></div><div class="code"><table id="w11-code-10"><tr class="new"><td class="ln">1</td><td class="src">Game.message = text()</td></tr><tr class="new"><td class="ln">2</td><td class="src">Game.message.color = &quot;white&quot;</td></tr><tr class="new"><td class="ln">3</td><td class="src">Game.message.fontSize = 40</td></tr><tr class="new"><td class="ln">4</td><td class="src">Game.message.halign = &quot;center&quot;</td></tr><tr class="new"><td class="ln">5</td><td class="src">Game.message.text = &#x27;GAME OVER - tap to play again&#x27;</td></tr></table></div></div></div>
+<div class="nav"><a href="week-10.html">&larr; Week 10</a><a href="week-12.html">Week 12 &rarr;</a></div>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>

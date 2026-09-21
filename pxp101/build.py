@@ -63,8 +63,16 @@ def blocks_at(upto):
             existing = [index for index, (bid, _lines) in enumerate(blocks[filename]) if bid == block_id]
             if kind == "add":
                 if existing:
-                    raise SystemExit(f"week {week['n']}: block '{block_id}' already exists in {filename}; use SET")
-                blocks[filename].append((block_id, lines))
+                    # A block is grown across weeks by ADDing to it again: week 9
+                    # writes Bomb loop:hit's first three lines, week 10 ADDs the
+                    # two that end the game. New lines append in week order, so an
+                    # earlier week stays a clean PREFIX of the finished block -
+                    # which is exactly what spine.py's WEEK_OF records and its
+                    # prefix check proves. SET is only ever a sanctioned rewrite.
+                    at = existing[0]
+                    blocks[filename][at] = (block_id, blocks[filename][at][1] + lines)
+                else:
+                    blocks[filename].append((block_id, lines))
             elif kind == "set":
                 if not existing:
                     raise SystemExit(f"week {week['n']}: block '{block_id}' not in {filename} yet; use ADD")
@@ -105,8 +113,11 @@ def state_upto(week_n, done):
         if (filename, block_id) not in done:
             continue
         existing = [index for index, (bid, _lines) in enumerate(blocks[filename]) if bid == block_id]
-        if existing:
+        if kind == "set" and existing:
             blocks[filename][existing[0]] = (block_id, lines)
+        elif existing:                       # ADD to a block an earlier week began: append
+            at = existing[0]
+            blocks[filename][at] = (block_id, blocks[filename][at][1] + lines)
         else:
             blocks[filename].append((block_id, lines))
     out = {}
@@ -716,18 +727,25 @@ def code_block(filename, text, marks, ident, gone=None):
 
 
 def files_view(upto, ident_prefix):
-    """The three files as clickable tabs, with the current week highlighted."""
+    """The files a student has actually touched by this week, as clickable tabs.
+
+    Only panels with code now (or ones that lost a line this week) get a tab: an
+    eight-year-old opening week 1 should not scroll past eight empty panels for
+    rooms and a class they meet months later. Empty future panels still exist in
+    the assembled game so a set_room target is always valid - they just have
+    nothing to show here yet."""
     files = state_at(upto)
     marks = changed_lines(upto)
     gone = removed_lines(upto)
+    shown = [name for name in FILES if files[name].strip() or gone[name]]
     tabs = "".join(
         f'<button class="tab{" active" if index == 0 else ""}" data-for="{ident_prefix}-{index}">{esc(name)}</button>'
-        for index, name in enumerate(FILES)
+        for index, name in enumerate(shown)
     )
     panes = "".join(
         f'<div data-pane="{ident_prefix}-{index}"{"" if index == 0 else ' style="display:none"'}>'
         f'{code_block(name, files[name], marks[name], f"{ident_prefix}-code-{index}", gone[name])}</div>'
-        for index, name in enumerate(FILES)
+        for index, name in enumerate(shown)
     )
     return f'<div class="tabs" data-tabs>{tabs}</div>{panes}'
 
