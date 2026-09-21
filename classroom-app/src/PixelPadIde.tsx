@@ -887,7 +887,12 @@ export function PixelPadIde({ doc, awareness, files, token, readOnly, saved = tr
           onOpen={() => setSelected({ kind: "file", name: path })}
           onDelete={readOnly ? undefined : () => deleteFile(path)} />)}
         {!readOnly && <>
-          <SideItem name="Export" icon="download" active={false} title="Save a .pp2d file - it opens on pixelpad.io" onOpen={exportProject} />
+          {/* "Export code" rather than "Export", now that there are two of
+              them: this one is the game itself - the code, the rooms and the
+              list of pictures - and the one below is the pictures. */}
+          <SideItem name="Export code" icon="download" active={false}
+                    title="Save a .pp2d file of the whole game - it opens on pixelpad.io"
+                    onOpen={exportProject} />
           <SideItem name="Export art" icon="image" active={false}
                     title="Save a zip of every picture and sound in this game"
                     onOpen={() => { void exportArt(); }} />

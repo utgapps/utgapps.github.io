@@ -1554,6 +1554,15 @@ const WORLD_W = 1280, WORLD_H = 720;
 /* thrown to unwind a script whose error has already been reported */
 const ABORT = { abort: true };
 
+/* pixelpad.io turns a text's halign/valign into a PIXI anchor. Measured against
+   the real engine, not guessed: left/center/right and top/middle/bottom map to
+   0/0.5/1, and a property nobody set anchors at 0 - so x,y is the TOP-LEFT of
+   the text box, not its middle. Every camp workbook's GAME OVER screen sets
+   halign="center"; without these it hangs off the right edge here and centres
+   on pixelpad.io, which is the kind of difference a kid blames on their code. */
+const TEXT_ANCHOR_X = { left: 0, center: 0.5, right: 1 };
+const TEXT_ANCHOR_Y = { top: 0, middle: 0.5, bottom: 1 };
+
 const Engine = {
   canvas: null, ctx: null,
   running: false, paused: false,
@@ -1562,7 +1571,8 @@ const Engine = {
   /* x/y are world units; sx/sy are canvas pixels, for drawing the readout */
   mouse: { x: 0, y: 0, sx: 0, sy: 0, over: false, down: false, pressed: false, released: false },
   camera: { x: 0, y: 0, zoom: 1, w: WORLD_W, h: WORLD_H },
-  graphics: [], nextGraphicId: 1,
+  graphics: [], nextGraphicId: 1, nextFilterId: 1,
+  ai: null,                    /* the last prompt_ai(), for poll_ai() */
   sprites: new Map(),          // name -> {canvas, cols, rows}
   classes: new Map(),          // name -> {name, start, loop, ast}
   gameObj: null,
@@ -1594,7 +1604,9 @@ const Engine = {
     this.keys.clear(); this.keysDown.clear(); this.keysUp.clear();
     this.selected = null;
     this.camera = { x: 0, y: 0, zoom: 1, w: WORLD_W, h: WORLD_H };
-    this.graphics = []; this.nextGraphicId = 1;
+    this.graphics = []; this.nextGraphicId = 1; this.nextFilterId = 1;
+    this.ai = null;
+    FILTERS_NOTED = false;
     stopAllSounds();
     this.fit();          /* re-fit: a previous run may have resized the camera */
     RNGSEED = (Date.now() & 0x7fffffff) || 1;
@@ -1723,7 +1735,34 @@ const Engine = {
     if (!this.execAst(rec.startAst, this.scopeFor(o), clsName + '.start()')) throw ABORT;
     return o;
   },
-  destroy(o) { if (o instanceof PyObj) o.__alive = false; },
+  destroy(o) {
+    if (!(o instanceof PyObj)) return;
+    if (o.__graphic) { this.destroyGraphic(o); return; }
+    o.__alive = false;
+  },
+  /* A graphic is a thing on the screen like any other: it has the movable
+     properties the documentation lists, it sorts by z against the sprites,
+     and destroy() takes it away. The number the older drawRect() handed back
+     is still on it as .id, so destroy_graphic(id) keeps working for a game
+     written before any of this. */
+  makeGraphic(kind, shape, thickness, lineColor, fillColor, fillDefault) {
+    const g = new PyObj(new PyClass('Graphic', []));
+    g.__id = this.nextId++;
+    g.__alive = true;
+    g.__graphic = Object.assign({ kind: kind, thickness: num(thickness, 2),
+                                  line: hexColor(lineColor, 0x000000),
+                                  fill: hexColor(fillColor, fillDefault) }, shape);
+    g.attrs.set('x', 0); g.attrs.set('y', 0); g.attrs.set('z', 0);
+    g.attrs.set('angle', 0); g.attrs.set('alpha', 1); g.attrs.set('visible', true);
+    g.attrs.set('scaleX', 1); g.attrs.set('scaleY', 1);
+    g.attrs.set('id', g.__id);
+    this.graphics.push(g);
+    return g;
+  },
+  destroyGraphic(what) {
+    const id = (what instanceof PyObj) ? what.__id : Number(what);
+    this.graphics = this.graphics.filter(g => g.__id !== id);
+  },
   attachAliases(o) { return attachAliases(o); },
   /* set_room: destroy everything not flagged persistent, then spawn the
      room's own script so its start() runs and its loop() ticks */
@@ -1737,20 +1776,25 @@ const Engine = {
     this.currentRoom = name;
     return this.spawn(name, null, line);
   },
-  makeText(s) {
+  makeText(s, x, y) {
     const o = new PyObj(new PyClass('Text', []));
     o.__id = this.nextId++;
     o.__rec = { name: 'Text', startAst: null, loopAst: null };
     o.__alive = true; o.__anim = null; o.__frame = 0; o.__ftime = 0;
     o.__isText = true;
-    o.attrs.set('x', 0); o.attrs.set('y', 0); o.attrs.set('z', 0);
+    /* text("hi", 120, -40) is how the documentation writes it, and the two
+       numbers used to be read and thrown away - every label appeared in the
+       middle of the screen no matter what the child asked for. */
+    o.attrs.set('x', num(x, 0)); o.attrs.set('y', num(y, 0)); o.attrs.set('z', 0);
     o.attrs.set('scaleX', 1); o.attrs.set('scaleY', 1);
     o.attrs.set('angle', 0); o.attrs.set('rotation', 0); o.attrs.set('alpha', 1);
     o.attrs.set('visible', true); o.attrs.set('persistent', false);
     o.attrs.set('sprite', null);
     o.attrs.set('text', s === undefined || s === null ? '' : str(s));
     o.attrs.set('fontSize', 30);
+    o.attrs.set('fontFamily', 'Roboto');
     o.attrs.set('color', '#FFFFFF');
+    o.attrs.set('halign', 'left'); o.attrs.set('valign', 'top');
     o.attrs.set('skewX', 0); o.attrs.set('skewY', 0);
     attachAliases(o);
     this.objects.push(o);
@@ -1851,9 +1895,14 @@ const Engine = {
     c.fillStyle = '#000';
     c.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const order = this.objects.slice().sort((a, b) => (Number(a.attrs.get('z')) || 0) - (Number(b.attrs.get('z')) || 0) || a.__id - b.__id);
+    /* One pile, sorted by z. The documentation says a graphic's z decides
+       what it sits in front of, and a second pass over the graphics could
+       only ever put every one of them in front of every sprite. */
+    const order = this.objects.concat(this.graphics)
+      .sort((a, b) => (Number(a.attrs.get('z')) || 0) - (Number(b.attrs.get('z')) || 0) || a.__id - b.__id);
     for (const o of order) {
       if (!pyBool(o.attrs.get('visible'))) continue;
+      if (o.__graphic) { this.drawGraphic(c, o); continue; }
       const an = o.__anim, sp = an ? an.sprite : o.attrs.get('sprite');
       const x = Number(o.attrs.get('x')) || 0, y = Number(o.attrs.get('y')) || 0;
       const sx = Number(o.attrs.get('scaleX')); const sy = Number(o.attrs.get('scaleY'));
@@ -1866,10 +1915,18 @@ const Engine = {
         c.globalAlpha = Math.max(0, Math.min(1, isNum(alpha) ? alpha : 1));
         c.translate(px, py);
         if (rot) c.rotate(-rot);
-        c.font = Math.max(1, fs) + 'px Rubik,"Segoe UI",system-ui,sans-serif';
-        c.textAlign = 'left'; c.textBaseline = 'middle';
+        skewCanvas(c, o);
+        c.scale(isNum(sx) ? sx : 1, isNum(sy) ? sy : 1);
+        c.font = Math.max(1, fs) + 'px ' + fontStack(o.attrs.get('fontFamily'));
+        const anchorX = TEXT_ANCHOR_X[o.attrs.get('halign')] || 0;
+        const anchorY = TEXT_ANCHOR_Y[o.attrs.get('valign')] || 0;
+        const textBody = str(o.attrs.get('text'));
+        c.textAlign = 'left'; c.textBaseline = 'top';
         c.fillStyle = str(o.attrs.get('color') || '#FFFFFF');
-        c.fillText(str(o.attrs.get('text')), 0, 0);
+        const metrics = c.measureText(textBody);
+        const textHeight = (metrics.fontBoundingBoxAscent || 0) +
+                           (metrics.fontBoundingBoxDescent || 0) || fs * 1.2;
+        c.fillText(textBody, -anchorX * metrics.width, -anchorY * textHeight);
         c.restore();
         continue;
       }
@@ -1881,6 +1938,7 @@ const Engine = {
       c.globalAlpha = Math.max(0, Math.min(1, isNum(alpha) ? alpha : 1));
       c.translate(px, py);
       if (rot) c.rotate(-rot);
+      skewCanvas(c, o);
       c.scale((isNum(sx) ? sx : 1) * this.scale, (isNum(sy) ? sy : 1) * this.scale);
       c.imageSmoothingEnabled = true;
       try {
@@ -1888,21 +1946,45 @@ const Engine = {
       } catch (e) { /* zero-size frame */ }
       c.restore();
     }
-    /* drawRect / drawLine graphics sit above the sprites */
-    for (const gr of this.graphics) {
-      c.save();
-      c.lineWidth = Math.max(1, gr.thickness * this.scale * this.camera.zoom);
-      if (gr.kind === 'rect') {
-        const [x1, y1] = this.w2s(gr.x1, gr.y1), [x2, y2] = this.w2s(gr.x2, gr.y2);
-        if (gr.fill !== null) { c.fillStyle = gr.fill; c.fillRect(x1, y1, x2 - x1, y2 - y1); }
-        if (gr.line !== null && gr.thickness > 0) { c.strokeStyle = gr.line; c.strokeRect(x1, y1, x2 - x1, y2 - y1); }
-      } else {
-        const [x1, y1] = this.w2s(gr.x1, gr.y1), [x2, y2] = this.w2s(gr.x2, gr.y2);
-        c.strokeStyle = gr.line; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
-      }
-      c.restore();
-    }
     if (this.debug.on) this.renderDebug();
+  },
+  /* Every shape is drawn in world units - the canvas is put into them
+     first, flipping y, because world y is up and a screen's is down. So
+     the numbers below are the ones the child typed, thickness included,
+     and the graphic's own x, y, angle and scale move the whole shape the
+     way they move an object. */
+  drawGraphic(c, g) {
+    const s = g.__graphic;
+    const k = this.scale * this.camera.zoom;
+    if (!(k > 0)) return;
+    const sx = Number(g.attrs.get('scaleX')), sy = Number(g.attrs.get('scaleY'));
+    const alpha = g.attrs.get('alpha');
+    const rot = (Number(g.attrs.get('angle')) || 0) * Math.PI / 180;
+    const [px, py] = this.w2s(Number(g.attrs.get('x')) || 0, Number(g.attrs.get('y')) || 0);
+    c.save();
+    c.globalAlpha = Math.max(0, Math.min(1, isNum(alpha) ? alpha : 1));
+    c.translate(px, py);
+    if (rot) c.rotate(-rot);
+    c.scale(k * (isNum(sx) ? sx : 1), -k * (isNum(sy) ? sy : 1));
+    c.lineWidth = Math.max(s.thickness, 1 / k);
+    c.beginPath();
+    if (s.kind === 'rect') {
+      c.rect(Math.min(s.x1, s.x2), Math.min(s.y1, s.y2), Math.abs(s.x2 - s.x1), Math.abs(s.y2 - s.y1));
+    } else if (s.kind === 'ellipse') {
+      c.ellipse(s.cx, s.cy, Math.max(s.rx, 0.001), Math.max(s.ry, 0.001), 0, 0, Math.PI * 2);
+    } else if (s.kind === 'poly') {
+      s.points.forEach((p, i) => { if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); });
+      c.closePath();
+    } else if (s.kind === 'arc') {
+      /* degrees, anticlockwise from the right: the y flip above is what
+         turns the canvas's clockwise into the documented direction */
+      c.arc(s.cx, s.cy, Math.max(s.r, 0.001), s.a1 * Math.PI / 180, s.a2 * Math.PI / 180);
+    } else {
+      c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2);
+    }
+    if (s.fill !== null) { c.fillStyle = s.fill; c.fill(); }
+    if (s.line !== null && s.thickness > 0) { c.strokeStyle = s.line; c.stroke(); }
+    c.restore();
   },
   renderDebug() {
     const c = this.ctx, S = this.scale;
@@ -2026,19 +2108,22 @@ function installEngineApi(g) {
     },
     set_sprite: (o, sp) => { need(o, 'set_sprite()', 0); o.__anim = null; o.attrs.set('sprite', sp); return null; },
     destroy: (o) => { E.destroy(o); return null; },
-    get_collision: (o, clsName) => {
+    /* The documented filter is the name of a class OR one particular
+       object, and the documented answer for "nothing is touching" is
+       False - which a child does write out, as `if hit == False`. */
+    get_collision: (o, filter) => {
       need(o, 'get_collision()', 0);
       for (const other of E.objects) {
         if (other === o || !other.__alive) continue;
-        if (clsName !== undefined && clsName !== null && other.__rec.name !== str(clsName)) continue;
+        if (!collisionFilter(other, filter)) continue;
         if (E.overlap(o, other)) return other;
       }
-      return null;
+      return false;
     },
-    get_collisions: (o, clsName) => {
+    get_collisions: (o, filter) => {
       need(o, 'get_collisions()', 0);
       return E.objects.filter(other => other !== o && other.__alive &&
-        (clsName === undefined || clsName === null || other.__rec.name === str(clsName)) && E.overlap(o, other));
+        collisionFilter(other, filter) && E.overlap(o, other));
     },
     get_objects: (clsName) => clsName === undefined ? E.objects.filter(o => o.__alive) : E.objectsOf(str(clsName)),
     count_objects: (clsName) => (clsName === undefined ? E.objects.filter(o => o.__alive) : E.objectsOf(str(clsName))).length,
@@ -2060,8 +2145,8 @@ function installEngineApi(g) {
     play_sound: (what) => { playSound(what, false); return null; },
     set_room: (name) => E.setRoom(str(name), 0),
     get_room: () => E.currentRoom,
-    text: (s) => E.makeText(s),
-    new_text: (s) => E.makeText(s),
+    text: (s, x, y) => E.makeText(s, x, y),
+    new_text: (s, x, y) => E.makeText(s, x, y),
     screen_width: () => WORLD_W,
     screen_height: () => WORLD_H,
     frame_count: () => E.frame,
@@ -2127,29 +2212,67 @@ function installEngineApi(g) {
     consolelog: (o) => { INTERP.stdout(str(o) + '\n'); return o; },
     wait: () => null,
 
-    /* --- graphics --- */
-    drawRect: (x1, y1, x2, y2, thickness, lineColor, fillColor) => {
-      const g2 = {
-        id: E.nextGraphicId++, kind: 'rect',
-        x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100),
-        thickness: num(thickness, 2), line: hexColor(lineColor, 0x000000), fill: hexColor(fillColor, 0x228B22),
-      };
-      E.graphics.push(g2); return g2.id;
-    },
-    drawLine: (x1, y1, x2, y2, thickness, lineColor) => {
-      const g2 = {
-        id: E.nextGraphicId++, kind: 'line',
-        x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100),
-        thickness: num(thickness, 2), line: hexColor(lineColor, 0x228B22), fill: null,
-      };
-      E.graphics.push(g2); return g2.id;
-    },
-    destroy_graphic: (id) => { E.graphics = E.graphics.filter(x => x.id !== id); return null; },
+    /* --- graphics ---
+       Colours arrive as hex numbers, as the documentation writes them:
+       0xFF0000. Leaving a fill out means no fill, which is why draw_arc
+       and draw_line default theirs to nothing rather than to a colour. */
+    draw_rectangle: (x1, y1, x2, y2, thickness, lineColor, fillColor) =>
+      E.makeGraphic('rect', { x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100) },
+                    thickness, lineColor, fillColor, 0x228B22),
+    draw_ellipse: (x, y, w, h, thickness, lineColor, fillColor) =>
+      E.makeGraphic('ellipse', { cx: num(x, 0), cy: num(y, 0),
+                                 rx: Math.abs(num(w, 50)), ry: Math.abs(num(h, 50)) },
+                    thickness, lineColor, fillColor, 0x228B22),
+    draw_polygon: (points, thickness, lineColor, fillColor) =>
+      E.makeGraphic('poly', { points: iterate(points, 0).map((p) => {
+                                const pair = iterate(p, 0);
+                                return [num(pair[0], 0), num(pair[1], 0)];
+                              }) },
+                    thickness, lineColor, fillColor, 0x228B22),
+    draw_arc: (x, y, radius, startAngle, endAngle, thickness, lineColor, fillColor) =>
+      E.makeGraphic('arc', { cx: num(x, 0), cy: num(y, 0), r: Math.abs(num(radius, 50)),
+                             a1: num(startAngle, 0), a2: num(endAngle, 90) },
+                    thickness, lineColor, fillColor, null),
+    draw_line: (x1, y1, x2, y2, thickness, lineColor) =>
+      E.makeGraphic('line', { x1: num(x1, 0), y1: num(y1, 0), x2: num(x2, 100), y2: num(y2, 100) },
+                    thickness, lineColor, null, null),
+    destroy_graphic: (what) => { E.destroyGraphic(what); return null; },
 
-    /* --- accepted but inert offline --- */
-    add_filter: () => null,
-    remove_filter: () => null,
+    /* --- filters ---
+       The shaders run on a graphics card through PixelPAD's own renderer.
+       This preview draws on a plain 2D canvas and has nowhere to run them,
+       so a game that uses one still plays - it just plays without the glow.
+       It says so once per run, because a child holding their preview up
+       against the same game on pixelpad.io should know which difference is
+       the preview's and which is theirs. */
+    add_filter: (obj, filter) => {
+      noteFilters();
+      const id = E.nextFilterId++;
+      if (obj instanceof PyObj) (obj.__filters || (obj.__filters = new Map())).set(id, filter || null);
+      return id;
+    },
+    remove_filter: (obj, id) => {
+      if (obj instanceof PyObj && obj.__filters) obj.__filters.delete(Number(id));
+      return null;
+    },
     vibrate_phone: () => null,
+
+    /* --- ai ---
+       On pixelpad.io prompt_ai() asks a language model and poll_ai() gathers
+       the reply a word at a time. Nothing in this preview reaches the
+       network - that is the whole point of it - so the question is taken and
+       the answer says where a real one lives. The documentation already
+       says poll_ai() holds what went wrong when a question cannot be
+       answered, so this IS the documented behaviour, not a stub. */
+    prompt_ai: (prompt, name) => {
+      E.ai = { asked: str(prompt === undefined || prompt === null ? '' : prompt),
+               who: (name === undefined || name === null) ? null : str(name) };
+      return null;
+    },
+    poll_ai: () => E.ai
+      ? 'The preview cannot reach the AI, so ' + (E.ai.who || 'it') +
+        ' has nothing to say here. Run this game on pixelpad.io for a real answer.'
+      : '',
 
     /* --- saved data (per browser) --- */
     data_save: (k, v) => { try { localStorage.setItem(DATA_PREFIX + str(k), JSON.stringify(toPlain(v))); } catch (e) {} return null; },
@@ -2167,6 +2290,12 @@ function installEngineApi(g) {
       return null;
     },
   };
+
+  /* every filter the documentation lists, made and carried but not drawn */
+  for (const name of FILTER_KINDS) {
+    API['new_' + name + '_filter'] = (settings) =>
+      ({ __filter: true, kind: name, settings: settings === undefined ? null : settings });
+  }
 
   /* multiplayer needs a server, so fail loudly instead of NameError */
   for (const name of ['init_multiplayer', 'create_server', 'join_server', 'inspect_server', 'get_server_event',
@@ -2193,7 +2322,8 @@ function installEngineApi(g) {
     camera_x: 'get_camera_x', camera_y: 'get_camera_y',
     camera_set: 'set_camera', camera_move: 'move_camera',
     destroyGraphic: 'destroy_graphic',
-    draw_rect: 'drawRect', draw_line: 'drawLine',
+    drawRect: 'draw_rectangle', draw_rect: 'draw_rectangle',
+    drawLine: 'draw_line', drawEllipse: 'draw_ellipse',
   };
   for (const alias in ALIASES) if (API[ALIASES[alias]]) API[alias] = API[ALIASES[alias]];
 
@@ -2201,9 +2331,53 @@ function installEngineApi(g) {
   return API;
 }
 const num = (v, d) => (v === undefined || v === null || !isFinite(Number(v))) ? d : Number(v);
+
+/* The four fonts the documentation offers, each with something to fall
+   back to: this file asks the network for nothing, so a machine without
+   Roboto on it gets whatever it does have of that shape. */
+const FONT_STACKS = {
+  'roboto': 'Roboto,"Segoe UI",system-ui,sans-serif',
+  'roboto slab': '"Roboto Slab",Georgia,"Times New Roman",serif',
+  'source sans pro': '"Source Sans Pro","Segoe UI",system-ui,sans-serif',
+  'rubik': 'Rubik,"Segoe UI",system-ui,sans-serif',
+};
+function fontStack(name) {
+  return FONT_STACKS[str(name === undefined || name === null ? '' : name).toLowerCase()] ||
+         FONT_STACKS['roboto'];
+}
+
+/* skewX and skewY are documented in degrees. They are a shear, not a
+   rotation, and at 90 degrees a shear is infinitely wide - so the angle
+   stops just short of that rather than making the canvas give up. */
+function skewCanvas(c, o) {
+  const kx = Math.max(-89, Math.min(89, Number(o.attrs.get('skewX')) || 0));
+  const ky = Math.max(-89, Math.min(89, Number(o.attrs.get('skewY')) || 0));
+  if (!kx && !ky) return;
+  c.transform(1, Math.tan(ky * Math.PI / 180), Math.tan(kx * Math.PI / 180), 1, 0, 0);
+}
+
+function collisionFilter(other, filter) {
+  if (filter === undefined || filter === null) return true;
+  if (filter instanceof PyObj) return other === filter;
+  return !!other.__rec && other.__rec.name === str(filter);
+}
+
+const FILTER_KINDS = ['adjustment', 'adv_bloom', 'ascii', 'bevel', 'bulge_pinch', 'color_map',
+  'color_replace', 'convolution', 'cross_hatch', 'crt', 'dot', 'drop_shadow', 'emboss', 'glitch',
+  'glow', 'godray', 'kawase_blur', 'motion_blur', 'multicolor_replace', 'old_film', 'outline',
+  'pixelate', 'radial_blur', 'reflection', 'rgb_split', 'shockwave', 'simple_lightmap',
+  'tilt_shift', 'twist', 'zoom_blur'];
+let FILTERS_NOTED = false;
+function noteFilters() {
+  if (FILTERS_NOTED) return;
+  FILTERS_NOTED = true;
+  INTERP.stdout('Filters need a graphics card, which this preview does not use. ' +
+                'Your game plays without them here, and with them on pixelpad.io.\n');
+}
 function hexColor(v, dflt) {
   if (v === null) return null;
   let n = (v === undefined) ? dflt : v;
+  if (n === null) return null;            /* no fill asked for, none drawn */
   if (isStr(n)) return n;                       /* allow "#ff0000" too */
   n = Math.max(0, Math.trunc(Number(n) || 0));
   return '#' + n.toString(16).padStart(6, '0');
