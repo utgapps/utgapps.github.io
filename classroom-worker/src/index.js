@@ -6,7 +6,7 @@ const DAY = 86400000;
 const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
-const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102"];
+const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102", "pxp101"];
 /* "pixelpad" is the stored value a game project has always carried and sits
    in rows students saved long before the editor was named; it is a column
    value, not a label, so renaming it would be a migration rather than a
