@@ -2317,24 +2317,43 @@ def build_slide_states():
 
 TEXTBOOK_CSS = """
 .tb-step{border-left:4px solid #01aefd;padding:2px 0 2px 16px;margin:26px 0}
-.tb-step h4{margin:0 0 6px;font-size:20px}
-.tb-step .where{margin:0 0 10px;color:#4a5b63}
-.tb-lines{margin:12px 0 0;padding-left:0;list-style:none}
-.tb-lines li{margin:0 0 6px;display:flex;gap:10px;align-items:baseline}
-.tb-lines .ln{flex:0 0 62px;font:600 12px/1.6 Consolas,monospace;color:#6d8c97;
-  text-transform:uppercase;letter-spacing:.04em}
+.tb-step h4{margin:0 0 8px;font-size:20px}
+.tb-where{display:inline-block;margin-left:8px;font:700 11px/1 Consolas,monospace;
+  text-transform:uppercase;letter-spacing:.05em;color:#0a6299;background:#eaf6fd;
+  border:1px solid #cfe8f7;border-radius:6px;padding:4px 8px;vertical-align:middle;white-space:nowrap}
+.tb-note{margin:10px 0 0;color:#31434b;max-width:70ch}
 .tb-play{display:inline-block;margin:14px 0 0;padding:8px 16px;border-radius:8px;
   background:#ffd633;color:#04222f;font-weight:800}
 .tb-word{background:#eefaff;border:1px solid #bfe6f7;border-radius:10px;padding:14px 16px;margin:18px 0}
 .tb-word .h{font-weight:800;color:#0a6299;margin:0 0 4px}
-.tb-word code{background:#fff}
+.tb-word p:last-child{margin-bottom:0}
 .tb-glossary{display:grid;gap:12px;margin:10px 0 0}
 .tb-term{background:#f6fbff;border:1px solid #d7ecf7;border-radius:10px;padding:12px 16px;scroll-margin-top:16px}
 .tb-term .h{font-weight:800;color:#0a6299;margin:0 0 2px;font-size:18px}
 .tb-term p:last-child{margin:0}
 .tb-draw{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
 .tb-draw .sp{border:1px solid #cbd9dd;border-radius:10px;padding:12px 16px;min-width:190px}
-@media print{.tb-step{break-inside:avoid}}
+@media print{
+  /* A printed book, not a web page: turn the sheet on its side and set two book
+     pages side by side, filled in reading order, so a chapter costs half the paper.
+     `size:letter landscape` here overrides the portrait @page the shared CSS sets. */
+  @page{size:letter landscape;margin:12mm}
+  /* The title block, how-to box, jump nav and Print button are screen furniture -
+     a child holding the printed book does not need them on page one. */
+  .wrap>.eyebrow,.wrap>h1,.wrap>.lead,.wrap>.warn,.jump,.printbtn{display:none}
+  .tb-book{column-count:2;column-gap:16mm;column-fill:auto}
+  /* The shared print CSS starts every .chapter on a fresh SHEET; in two columns
+     that wastes the right-hand page, so let chapters flow column to column. */
+  .tb-book .chapter{page-break-before:auto;break-before:auto;page-break-inside:auto}
+  .tb-book .chapter:first-of-type{break-before:auto}
+  .tb-step{break-inside:avoid}
+  /* Resized to fit the narrower column. */
+  .tb-book,.tb-note{font-size:12px}
+  .tb-book h2{font-size:19px}.tb-book h3{font-size:15px}.tb-step h4{font-size:14px}
+  .tb-where{font-size:9px;padding:3px 6px}
+  .tb-book table,.tb-book code,.tb-book pre{font-size:10.5px}
+  .tb-play{font-size:11px;padding:5px 11px}
+}
 """
 
 
@@ -2370,9 +2389,11 @@ def build_textbook():
             count += 1
             panel, block = beat["file"], beat["block"]
             start, lines, marks, gone = block_code(wk, panel, block)
-            notes = notes_for(wk, panel, block) or []
 
-            # A new idea gets its box just BEFORE the step that uses it.
+            # A new idea gets its box just BEFORE the step that uses it. The box
+            # explains the word only - the code sample it used to carry is the same
+            # line the very next step shows in its table, so printing it twice just
+            # gave a young reader the same code three times over.
             words = []
             for index, line in enumerate(lines):
                 if not line.strip() or (start + index) not in marks:
@@ -2381,30 +2402,29 @@ def build_textbook():
                     concept = course.CONCEPTS.get(key)
                     if concept and key not in seen:
                         seen.add(key)
-                        example = concept[3] if len(concept) > 3 else ""
                         words.append(
-                            '<div class="tb-word"><p class="h">New word: {term}</p>{ex}{pts}</div>'.format(
+                            '<div class="tb-word"><p class="h">New word: {term}</p>{pts}</div>'.format(
                                 term=esc(concept[1]),
-                                ex=('<p><code>%s</code></p>' % esc(example)) if example else "",
                                 pts="".join("<p>%s</p>" % esc(pt) for pt in concept[2])))
 
-            told = "".join(
-                '<li><span class="ln">line {0}</span><span>{1}</span></li>'.format(start + index, note)
-                for index, note in enumerate(notes[:len(lines)])
-                if note and (start + index) in marks)
-            told = '<ol class="tb-lines">%s</ol>' % told if told else ""
-
+            # Where the code goes is a short tag on the step title, not its own
+            # sentence; and the step gets ONE calm note about what it makes happen,
+            # not a line-by-line list restating code the child has just read. The
+            # step's own authored note is that one sentence.
             kind = week_ops(week).get((panel, block))
-            where = ("Find <b>{0}</b> and change it &mdash; only the green lines."
-                     if kind == "set" else
-                     "Open <b>{0}</b> and type the green lines.").format(esc(panel))
+            verb = "change the green lines" if kind == "set" else "type the green lines"
+            note = " ".join(part for part in beat["notes"] if part)
+            note = '<p class="tb-note">%s</p>' % note if note else ""
             steps.append(
-                '{words}<div class="tb-step"><h4>Step {step}. {title}</h4>'
-                '<p class="where">{where}</p>{code}{told}'
+                '{words}<div class="tb-step">'
+                '<h4>Step {step}. {title}'
+                ' <span class="tb-where">{panel} &middot; {verb}</span></h4>'
+                '{code}{note}'
                 '<p><span class="tb-play">&#9654; Press Play!</span></p></div>'.format(
-                    words="".join(words), step=count, title=esc(beat["title"]), where=where,
+                    words="".join(words), step=count, title=esc(beat["title"]),
+                    panel=esc(panel), verb=verb,
                     code=code_table(panel, start, lines, marks, tag="green = type this", gone=gone),
-                    told=told))
+                    note=note))
 
         wrong = "".join("<li><b>{0}</b> &mdash; {1}</li>".format(esc(sym), esc(fix))
                         for sym, fix in week["errors"])
@@ -2433,7 +2453,7 @@ def build_textbook():
         for slug, definition in course.GLOSSARY.items())
     chapters.append(
         '<section class="chapter" id="glossary"><p class="eyebrow">Glossary</p>'
-        '<h2>Every word in this book</h2>'
+        '<h2>Every important word in this book</h2>'
         '<p class="lead">The blue words in the lessons all live here. Come back to this list '
         'whenever a word stops making sense.</p>'
         '<div class="tb-glossary">%s</div></section>' % glossary_items)
@@ -2451,7 +2471,7 @@ def build_textbook():
         'If you skip the Play you will not know which line broke it.</p>'
         '<p><strong>Four spaces.</strong> When a line is pushed in, push it in with four spaces. '
         'Python cares about that more than about anything else.</p></div>'
-        '{chapters}</div>').format(
+        '<div class="tb-book">{chapters}</div></div>').format(
             css=TEXTBOOK_CSS, title=esc(course.COURSE_TITLE), blurb=esc(course.PROJECT_BLURB),
             jump=jump, chapters="".join(chapters))
     write("textbook.html", page("The book", body))
