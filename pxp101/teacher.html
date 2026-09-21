@@ -1,0 +1,203 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teacher curriculum &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PXP101</strong></header>
+<div class="wrap">
+<p class="eyebrow">Teacher curriculum</p>
+<h1>PXP101 &#183; Monster Munch</h1>
+<p class="lead">2 one-hour lessons for eight-year-olds. Every hour is built so you are talking for well under half of it, and so nobody goes more than a few minutes without pressing Play.</p>
+<nav class="jump" aria-label="Jump to a week"><span>Week</span><a href="#week-1">1</a><a href="#week-2">2</a></nav>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Say this in week 1</h3>
+<p><strong>Nothing here needs the internet except PixelPad itself.</strong> The game runs
+entirely in the browser - there is no server, no account and no API key anywhere in this
+course. A finished week is a single file that plays on any computer.</p>
+<p><strong>The child draws the art.</strong> Every sprite is listed with the exact size to
+draw it. The generated games use plain coloured rectangles as stand-ins so the code can be
+tested; they are meant to be replaced.</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">How to run this course</h3>
+  
+<p><strong>Press Play constantly.</strong> The single biggest difference from an older
+class: an eight-year-old needs to see the effect of what they typed within a minute or two.
+Every step in this book ends at a Play. If you are more than two steps from a Play, stop and
+run it anyway.</p>
+<p><strong>Typing is the hard part, not the thinking.</strong> Expect
+<code>self</code> to become <code>slef</code>, missing colons, and lost indentation. Those
+are not comprehension failures. The error box tells you the line number - read it together.</p>
+<p><strong>Indentation is the one rule to be strict about.</strong> Four spaces, always,
+and only after a line ending in a colon. Everything else can be fixed later.</p>
+<p><strong>Pacing.</strong> The line counts per week are the pacing model. A week that runs
+long should drop its bonus, never its Play moments.</p>
+
+</div>
+<section class="chapter" id="week-1">
+<h2>Week 1 &middot; Your monster appears</h2>
+<p class="lead">A game is made of objects you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
+<div class="card"><strong>They leave today able to:</strong>
+<ul class="tight"><li>Draw a sprite at the size the book asks for</li><li>Say what start means - it happens once</li><li>Put an object into a room and see it appear</li><li>Press Play and find their own monster on the screen</li></ul></div>
+<div class="card"><strong>Everything typed this week</strong><table class="plan"><tr><th>File</th><th>Where</th><th>What to do</th></tr><tr><td><b>Game start</b></td><td>line 1</td><td>type it in fresh</td></tr><tr><td><b>Monster start</b></td><td>lines 1&ndash;2</td><td>type it in fresh</td></tr><tr><td><b>Play start</b></td><td>line 1</td><td>type it in fresh</td></tr></table><p class="muted" style="margin:8px 0 0;font-size:13px">Line numbers are as the file stands at the END of this week, which is what the student sees on the week page. Work top to bottom and they will line up.</p></div>
+<h3>How the hour goes</h3>
+<section class="beat"><h4><span class="at">0:00</span>Look at the game you are going to make</h4><p><p>Play the finished Monster Munch on the board for about a minute. Catch some food. Let one bomb hit. Then close it.</p></p><p><p>Say the promise out loud: <em>by the end of today your own monster is on the screen, and it is one you drew.</em></p></p><div class="say"><b>Ask the room:</b> What is the monster doing when you catch food?<span class="listen">Listening for: Anything - they are just looking closely</span></div></section><section class="beat"><h4><span class="at">0:06</span>Draw your monster</h4><p><p>Open PixelPad, make a new sprite called <code>monster.png</code> and draw it <strong>48 by 48</strong>. Big blocky shapes. Two eyes is plenty.</p></p><p><p>Do not let this run long - eight-year-olds will happily draw for the whole hour. Five minutes, then move on. They can improve it any week.</p></p><div class="say"><b>Ask the room:</b> What size are we drawing?<span class="listen">Listening for: 48 by 48 - point at the number in the corner</span></div></section><section class="beat step"><h4>Tell the game which screen to show</h4><p class="step-lead">New. Goes at the very top of <b>Game start</b>, above everything else.</p><div class="snip"><div class="snip-head"><span class="file">Game start</span><span class="rng">line 1</span><span class="tag">new this week</span></div><div class="code"><table><tr class="new"><td class="ln">1</td><td class="src">set_room(&#x27;Play&#x27;)</td></tr></table></div></div><p class="chunk-note">A <em>room</em> is one screen of your game. This says: start on the screen called Play.</p></section><section class="beat step"><h4>Give the monster its picture and put it near the bottom</h4><p class="step-lead">New. Goes at the very top of <b>Monster start</b>, above everything else.</p><div class="snip"><div class="snip-head"><span class="file">Monster start</span><span class="rng">lines 1&ndash;2</span><span class="tag">new this week</span></div><div class="code"><table><tr class="new"><td class="ln">1</td><td class="src">self.image = sprite(&#x27;monster.png&#x27;)</td></tr><tr class="new"><td class="ln">2</td><td class="src">self.y = -210</td></tr></table></div></div><p class="chunk-note"><code>start</code> happens ONCE, the moment the monster is made. It picks the picture you drew, then sits it near the bottom of the screen.</p><div class="say"><b>Ask the room:</b> y is -210. Is that near the top or the bottom?<span class="listen">Listening for: Bottom - minus means down</span></div></section><section class="beat step"><h4><span class="at">0:35</span>Make one monster in the Play room</h4><p class="step-lead">New. Goes at the very top of <b>Play start</b>, above everything else.</p><div class="snip"><div class="snip-head"><span class="file">Play start</span><span class="rng">line 1</span><span class="tag">new this week</span></div><div class="code"><table><tr class="new"><td class="ln">1</td><td class="src">Game.monster = Monster()</td></tr></table></div></div><p class="chunk-note">This is the line that actually makes it. Press Play - your monster is there!</p></section><section class="beat"><h4><span class="at">0:45</span>Show each other</h4><p><p>Everyone turns their screen to the person next to them. Thirty seconds. Every monster looks different and that is the whole point.</p></p></section>
+<h3>What will go wrong</h3>
+<ul class="tight"><li><strong>Nothing appears at all</strong> &mdash; The Play room&#x27;s start is empty, or the class is called something other than Monster. The name in Play start must match the class name exactly.</li><li><strong>A grey box instead of a monster</strong> &mdash; The sprite is not called monster.png. The name in the code and the name of the sprite must be identical, including .png.</li><li><strong>An error about &#x27;sprite&#x27;</strong> &mdash; Check the quotes: sprite(&#x27;monster.png&#x27;) needs both single quotes.</li></ul>
+<div class="bonus"><strong>Bonus for fast finishers: Two monsters</strong><p>Add a second line under the first one in <strong>Play start</strong>: <code>Game.monster2 = Monster()</code>. Press Play. Why can you only see one? (They are in exactly the same spot.)</p><p class="muted" style="margin:6px 0 0;font-size:13px">Nothing in a later week depends on this, so it is safe to skip and safe to keep.</p></div>
+<h3>Homework set today</h3>
+<ul class="tight"><li>Make it yours</li><li>Move it</li></ul>
+</section><section class="chapter" id="week-2">
+<h2>Week 2 &middot; It follows your mouse</h2>
+<p class="lead">loop happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
+<div class="card"><strong>They leave today able to:</strong>
+<ul class="tight"><li>Say the difference between start and loop</li><li>Use mouse_x() to move an object</li><li>Write an if and indent the line under it</li><li>Stop the monster running off the screen</li></ul></div>
+<div class="card"><strong>Everything typed this week</strong><table class="plan"><tr><th>File</th><th>Where</th><th>What to do</th></tr><tr><td><b>Monster loop</b></td><td>line 1</td><td>type it in fresh</td></tr><tr><td><b>Monster loop</b></td><td>lines 2&ndash;5</td><td>type it in fresh</td></tr></table><p class="muted" style="margin:8px 0 0;font-size:13px">Line numbers are as the file stands at the END of this week, which is what the student sees on the week page. Work top to bottom and they will line up.</p></div>
+<h3>How the hour goes</h3>
+<section class="beat"><h4><span class="at">0:00</span>start once, loop for ever</h4><p><p>Ask one child to stand up ONCE. That is start. Now ask them to wave, and keep waving, and keep waving. That is loop.</p></p><p><p>Say the number out loud: loop runs about <strong>sixty times a second</strong>. That is why things look like they are moving.</p></p><div class="say"><b>Ask the room:</b> Which one would you put &#x27;give the monster its picture&#x27; in?<span class="listen">Listening for: start - it only needs doing once</span></div></section><section class="beat step"><h4><span class="at">0:12</span>Make the monster follow your mouse</h4><p class="step-lead">New. Goes at the very top of <b>Monster loop</b>, above everything else.</p><div class="snip"><div class="snip-head"><span class="file">Monster loop</span><span class="rng">line 1</span><span class="tag">new this week</span></div><div class="code"><table><tr class="new"><td class="ln">1</td><td class="src">self.x = mouse_x()</td></tr></table></div></div><p class="chunk-note"><code>mouse_x()</code> is where your mouse is, left to right. Because this is in loop, it happens again and again - so the monster keeps up with you. Press Play and move the mouse!</p><div class="say"><b>Ask the room:</b> What would happen if we put this line in start instead?<span class="listen">Listening for: It would move once and then stop</span></div></section><section class="beat"><h4><span class="at">0:22</span>It runs off the screen</h4><p><p>Let them find it. Push the mouse right out past the edge - the monster keeps going and disappears. Everyone should see the problem before you fix it.</p></p><div class="say"><b>Ask the room:</b> Where did it go?<span class="listen">Listening for: Off the side - the screen stops but the monster did not</span></div></section><section class="beat step"><h4><span class="at">0:30</span>Stop it at the edges</h4><p class="step-lead">New. Goes at the end of <b>Monster loop</b>.</p><div class="snip"><div class="snip-head"><span class="file">Monster loop</span><span class="rng">lines 2&ndash;5</span><span class="tag">new this week</span></div><div class="code"><table><tr class="new"><td class="ln">2</td><td class="src">if self.x &gt; 320:</td></tr><tr class="new"><td class="ln">3</td><td class="src">    self.x = 320</td></tr><tr class="new"><td class="ln">4</td><td class="src">if self.x &lt; -320:</td></tr><tr class="new"><td class="ln">5</td><td class="src">    self.x = -320</td></tr></table></div></div><p class="chunk-note"><code>if</code> means <em>only when</em>. If the monster has gone past 320, put it back to 320. The line underneath is indented FOUR SPACES - that is how Python knows it belongs to the if. Press Play - now it stops at both sides.</p><div class="say"><b>Ask the room:</b> Why is the second line pushed in?<span class="listen">Listening for: It only runs when the if is true</span></div></section><section class="beat"><h4><span class="at">0:45</span>Play each other&#x27;s games</h4><p><p>Swap seats. Everyone plays the game of the person next to them for one minute.</p></p></section>
+<h3>What will go wrong</h3>
+<ul class="tight"><li><strong>The monster does not move</strong> &mdash; The line is in Monster start instead of Monster loop. start happens once.</li><li><strong>An error about indentation</strong> &mdash; The line under the if needs exactly four spaces in front of it, and nothing else on the if line after the colon.</li><li><strong>It stops in the middle of the screen</strong> &mdash; One of the numbers is too small - check for 320, not 32.</li><li><strong>It still runs off one side only</strong> &mdash; The second if uses a minus: -320, not 320.</li></ul>
+<div class="bonus"><strong>Bonus for fast finishers: A shy monster</strong><p>Try <code>self.x = mouse_x() - 100</code>. The monster now hangs back from your mouse. Change the 100 and see how far behind it stays.</p><p class="muted" style="margin:6px 0 0;font-size:13px">Nothing in a later week depends on this, so it is safe to skip and safe to keep.</p></div>
+<h3>Homework set today</h3>
+<ul class="tight"><li>Squeeze it in</li><li>Upside down</li></ul>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+if(new URLSearchParams(location.search).has('embed'))document.body.classList.add('embedded');function utgJump(){var id=location.hash.slice(1);if(!id)return;var el=document.getElementById(id);if(el)el.scrollIntoView();}addEventListener('load',utgJump);addEventListener('hashchange',utgJump);</script>

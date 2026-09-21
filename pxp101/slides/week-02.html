@@ -1,0 +1,330 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 2 slides &middot; PXP101 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+.slide.line{overflow-y:auto}
+.slide.line .filebar{margin-bottom:.55em}
+.slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
+.code tr.ctx td{color:#aebfcb}
+.code tr.ctx .ln{color:#7c909d}
+.code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
+box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
+.code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.code tr.gone.hi td:last-child{color:#f3928b;background:rgba(243,146,139,.16);text-decoration:line-through}
+.code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
+.linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
+.slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.quiz{justify-content:flex-start;overflow-y:auto}
+.slide.quiz .eyebrow{color:#8a5cd0}
+.slide.quiz.answered .eyebrow{color:#0f8a4c}
+.opts{list-style:upper-alpha;margin:clamp(16px,3vh,34px) 0 0;padding-left:1.5em;
+display:grid;gap:clamp(9px,1.7vh,18px)}
+.opts li{font-size:clamp(17px,2.2vw,29px);line-height:1.35;padding-left:.3em}
+.slide.quiz.answered .opts li{color:#8a9aa5}
+.slide.quiz.answered .opts li.right{color:#0f8a4c;font-weight:800}
+.quiz-hint{color:#5b7178;font-size:clamp(14px,1.7vw,22px);margin-top:clamp(16px,3vh,30px)}
+.quiz-why{color:#0a6299;font-size:clamp(16px,2vw,27px);line-height:1.5;
+margin-top:clamp(16px,3vh,30px);max-width:46ch}
+.slide.checkpoint{justify-content:flex-start;overflow-y:auto}
+.cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
+.cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
+padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
+.cp-run:hover{background:#ffdf5c}
+.cp-out{margin-top:16px;width:100%}
+.cp-out iframe{width:100%;height:min(56vh,520px);border:1px solid #cbd9dd;border-radius:8px;background:#0f1320}
+.cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
+.cp-console-head{padding:6px 12px;background:#16303a;color:#cfe3e8;font-size:13px;font-weight:700;
+letter-spacing:.03em}
+.cp-console-body{max-height:min(22vh,180px);overflow:auto;padding:8px 12px;
+font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
+.cp-console-body .cp-muted{color:#7f9aa4}
+.cp-row{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}
+.cp-row.error{color:#ff9d8e}.cp-row.warn{color:#f4c869}.cp-row.net{color:#8fb3bd}.cp-row.info{color:#9fd8ee}
+@media (max-width:640px){.bar .hint{display:none}}
+.slide.concept-vis{align-items:center;text-align:center;justify-content:center}
+.slide.concept-vis .sub{margin-top:.4em}
+.vis{width:100%;max-width:min(780px,94%);margin:clamp(12px,2.6vh,26px) auto 0}
+.vis.mock{max-width:min(500px,66%)}
+.vis svg{width:100%;height:auto;display:block;overflow:visible}
+.vis-cap{color:#0a6299;text-align:center;font-size:clamp(16px,2.1vw,27px);font-weight:600;
+margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
+.vb-rect{fill:#132833;stroke:#33586a;stroke-width:2.5}
+.vb-txt{fill:#e6f2f6;font:700 30px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vb-in .vb-rect{fill:#20301b;stroke:#ffd633}
+.vb-hi{fill:rgba(1,174,253,.30);stroke:#01aefd;stroke-width:3}
+.vmachine{fill:#0f2c38;stroke:#01aefd;stroke-width:3}
+.vmlabel{fill:#7fd8ff;font:800 26px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vtile rect{fill:#16303a;stroke:#33586a;stroke-width:2.5}
+.vtile text{fill:#e6f2f6;font:700 23px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vt-in rect{stroke:#ffd633}
+.vt-out rect{fill:#16321f;stroke:#7fe0a0}
+.vt-cloud rect{fill:#0f2c38;stroke:#01aefd}
+.vplus{fill:#7fd8ff;font:800 42px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.varrow{fill:#5b8aa0;font:800 30px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vswap-off{fill:#2a2030;stroke:#c98be0;stroke-width:3}
+.vswap-on{fill:#16321f;stroke:#7fe0a0;stroke-width:3}
+.vb-pick .vb-rect{fill:#16321f;stroke:#7fe0a0}
+.vt-btn rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag text{fill:#7fd8ff}
+.vt-no rect{fill:#1a2730;stroke:#7c909d}
+.vt-no text{fill:#aebfcb}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="pxp101";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 2</p><h1>It follows your mouse</h1></section><section class="slide"><h2>start once. loop for ever.</h2><ul class="pts"><li>start happens one time</li><li>loop happens about 60 times a second</li><li>Moving things live in loop</li></ul></section><section class="slide"><h2>Follow the mouse</h2></section><section class="slide concept-vis"><p class="eyebrow">PixelPad</p><h2>loop happens over and over</h2><p class="sub mono">self.x = mouse_x()</p><div class="vis"><style>@keyframes v6k{0%{transform:translateX(0px)}12%{transform:translateX(0px)}25%{transform:translateX(104px)}37%{transform:translateX(104px)}50%{transform:translateX(208px)}62%{transform:translateX(208px)}75%{transform:translateX(312px)}87%{transform:translateX(312px)}100%{transform:translateX(0)}}.v6-hi{animation:v6k 3.6s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="loop runs again and again, about 60 times a second."><rect class="v6-hi vb-hi" x="140" y="67" width="88" height="76" rx="14"/><g class="vb "><rect class="vb-rect" x="140" y="73" width="88" height="64" rx="13"/><text class="vb-txt" x="184" y="105">1</text></g><g class="vb "><rect class="vb-rect" x="244" y="73" width="88" height="64" rx="13"/><text class="vb-txt" x="288" y="105">2</text></g><g class="vb "><rect class="vb-rect" x="348" y="73" width="88" height="64" rx="13"/><text class="vb-txt" x="392" y="105">3</text></g><g class="vb "><rect class="vb-rect" x="452" y="73" width="88" height="64" rx="13"/><text class="vb-txt" x="496" y="105">4</text></g></svg></div><p class="vis-cap">loop runs again and again, about 60 times a second.</p></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>mouse_x()</h2><p class="sub mono">self.x = mouse_x()</p><div class="vis"><style>@keyframes v7k{0%{transform:translateX(0)}50%{transform:translateX(500px)}100%{transform:translateX(0)}}.v7-m{animation:v7k 2.4s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="mouse_x() follows your mouse, left and right."><line x1="72" y1="105" x2="608" y2="105" stroke="#33586a" stroke-width="2" stroke-dasharray="6 6"/><circle class="v7-m" cx="90" cy="105" r="18" fill="#01aefd"/></svg></div><p class="vis-cap">mouse_x() follows your mouse, left and right.</p></section><section class="slide dark line"><p class="filebar">Type this into Monster loop <span class="part">line 1</span></p><table class="code"><tr class="hi"><td class="ln">1</td><td>self.x = mouse_x()</td></tr></table><p class="linenote">Follow the mouse, left and right.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: it follows you</h2><p class="cp-say">Press Play and move your mouse. Your monster should slide along the bottom. Now push it off the side - it escapes!</p><button class="cp-run" data-cp="cp2-1">&#9654; Play it</button><div class="cp-out" id="out-cp2-1"></div><script type="text/plain" id="src-cp2-1"><!DOCTYPE html><html><head><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<meta charset="utf-8"><title>Week 2</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}#game{height:100vh}#game #pp-block0,#game #pp-block1,#game #pp-console,#game #pp-col-adjust-code,#game #pp-col-adjust-canvas{display:none!important}#game #pp-block2{width:100%!important}#game #pp-block2-child>.row:not(#canvasContainer){display:none!important}#game #canvasContainer{flex:1 1 auto}</style></head><body><div id="game"></div><script src="https://cdn.jsdelivr.net/gh/pixelpad-io/pixelpad.min@main/pixelpad.min.js"><\/script><script>
+PixelPad.game("#game", {"autoplay": true, "theme": "dark", "layout": "vertical", "canEdit": true, "textures": {"monster.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAZElEQVR4nO3PMQ0AIADAMHRiAbM4AhEcDcmO/d2Ye52fGxrQgAY0oAENaEADGtCABjSgAQ1oQAMa0IAGNKABDWhAAxrQgAY0oAENaEADGtCABjSgAQ1oQAMa0IAGNKABDWjAaxexqjVajAJPEAAAAABJRU5ErkJggg=="}, "start": "set_room('Play')", "loop": "", "classes": {"Monster": {"start": "self.image = sprite('monster.png')\nself.y = -210", "loop": "self.x = mouse_x()"}}, "rooms": {"Play": {"start": "Game.monster = Monster()", "loop": ""}}});
+(function(){var n=0;var iv=setInterval(function(){n++;window.dispatchEvent(new Event("resize"));var b=document.querySelector("#game #pp-start");if(!window.ppApp&&b&&b.textContent.trim()==="PLAY")b.click();if(window.ppApp||n>80){window.dispatchEvent(new Event("resize"));clearInterval(iv);}},200);})();
+<\/script></body></html></script></section><section class="slide"><h2>Stop it at the edges</h2></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>if means only when</h2><p class="sub mono">if self.x &gt; 320:</p><div class="vis"><style>@keyframes v8k{0%{transform:translate(0,0);opacity:0}12%{opacity:1}58%{transform:translate(-112px,66px);opacity:1}78%{transform:translate(-112px,66px);opacity:0}100%{opacity:0}}.v8-tok{fill:#ffd633}.v8-tok{animation:v8k 3.0s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="if means only when - the indented line runs only if it is true."><rect class="vmachine" x="250" y="16" width="180" height="58" rx="12"/><text class="vmlabel" x="340" y="45" style="font-size:21px">self.x &gt; 320</text><path d="M340,74 L228,140" stroke="#33586a" stroke-width="2.5" fill="none"/><path d="M340,74 L452,140" stroke="#33586a" stroke-width="2.5" fill="none"/><g class="vtile vt-out"><rect x="150" y="140" width="156" height="58" rx="10"/><text x="228" y="169">put it back</text></g><g class="vtile vt-no"><rect x="374" y="140" width="156" height="58" rx="10"/><text x="452" y="169">carry on</text></g><circle class="v8-tok" cx="340" cy="74" r="10"/></svg></div><p class="vis-cap">if means only when - the indented line runs only if it is true.</p></section><section class="slide dark line"><p class="filebar">Type this into Monster loop <span class="part">line 2</span></p><table class="code"><tr class="hi"><td class="ln">2</td><td>if self.x &gt; 320:</td></tr></table><p class="linenote">Only when the monster has gone too far right...</p></section><section class="slide dark line"><p class="filebar">Type this into Monster loop <span class="part">line 3</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.x &gt; 320:</td></tr><tr class="hi"><td class="ln">3</td><td>    self.x = 320</td></tr></table><p class="linenote">...put it back to the edge. Four spaces in front!</p></section><section class="slide dark line"><p class="filebar">Type this into Monster loop <span class="part">line 4</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.x &gt; 320:</td></tr><tr class="ctx"><td class="ln">3</td><td>    self.x = 320</td></tr><tr class="hi"><td class="ln">4</td><td>if self.x &lt; -320:</td></tr></table><p class="linenote">Only when it has gone too far left...</p></section><section class="slide dark line"><p class="filebar">Type this into Monster loop <span class="part">line 5</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.x &gt; 320:</td></tr><tr class="ctx"><td class="ln">3</td><td>    self.x = 320</td></tr><tr class="ctx"><td class="ln">4</td><td>if self.x &lt; -320:</td></tr><tr class="hi"><td class="ln">5</td><td>    self.x = -320</td></tr></table><p class="linenote">...put it back to that edge too.</p></section><section class="slide dark line whole"><p class="filebar">All together in Monster loop</p><table class="code"><tr class="new"><td class="ln">2</td><td>if self.x &gt; 320:</td></tr><tr class="new"><td class="ln">3</td><td>    self.x = 320</td></tr><tr class="new"><td class="ln">4</td><td>if self.x &lt; -320:</td></tr><tr class="new"><td class="ln">5</td><td>    self.x = -320</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>Where does a line go if you want it to happen over and over?</h2><ol class="opts"><li class="">start</li><li class="">loop</li><li class="">It does not matter</li><li class="">In the picture</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>Where does a line go if you want it to happen over and over?</h2><ol class="opts"><li class="">start</li><li class="right">loop</li><li class="">It does not matter</li><li class="">In the picture</li></ol><p class="quiz-why">start happens once. loop happens again and again.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>What does if mean?</h2><ol class="opts"><li class="">Always</li><li class="">Only when</li><li class="">Never</li><li class="">Twice</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>What does if mean?</h2><ol class="opts"><li class="">Always</li><li class="right">Only when</li><li class="">Never</li><li class="">Twice</li></ol><p class="quiz-why">The line underneath only runs when the if is true.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>Why is the line under the if pushed in four spaces? (from week 2)</h2><ol class="opts"><li class="">To look tidy</li><li class="">So Python knows it belongs to the if</li><li class="">Because it is a long line</li><li class="">It does not need to be</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>Why is the line under the if pushed in four spaces? (from week 2)</h2><ol class="opts"><li class="">To look tidy</li><li class="right">So Python knows it belongs to the if</li><li class="">Because it is a long line</li><li class="">It does not need to be</li></ol><p class="quiz-why">Indenting is how Python sees which lines belong to the if.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: it stays on screen</h2><p class="cp-say">Press Play. However far you push, your monster should stop at the edge.</p><button class="cp-run" data-cp="cp2-2">&#9654; Play it</button><div class="cp-out" id="out-cp2-2"></div><script type="text/plain" id="src-cp2-2"><!DOCTYPE html><html><head><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<meta charset="utf-8"><title>Week 2</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}#game{height:100vh}#game #pp-block0,#game #pp-block1,#game #pp-console,#game #pp-col-adjust-code,#game #pp-col-adjust-canvas{display:none!important}#game #pp-block2{width:100%!important}#game #pp-block2-child>.row:not(#canvasContainer){display:none!important}#game #canvasContainer{flex:1 1 auto}</style></head><body><div id="game"></div><script src="https://cdn.jsdelivr.net/gh/pixelpad-io/pixelpad.min@main/pixelpad.min.js"><\/script><script>
+PixelPad.game("#game", {"autoplay": true, "theme": "dark", "layout": "vertical", "canEdit": true, "textures": {"monster.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAZElEQVR4nO3PMQ0AIADAMHRiAbM4AhEcDcmO/d2Ye52fGxrQgAY0oAENaEADGtCABjSgAQ1oQAMa0IAGNKABDWhAAxrQgAY0oAENaEADGtCABjSgAQ1oQAMa0IAGNKABDWjAaxexqjVajAJPEAAAAABJRU5ErkJggg=="}, "start": "set_room('Play')", "loop": "", "classes": {"Monster": {"start": "self.image = sprite('monster.png')\nself.y = -210", "loop": "self.x = mouse_x()\nif self.x > 320:\n    self.x = 320\nif self.x < -320:\n    self.x = -320"}}, "rooms": {"Play": {"start": "Game.monster = Monster()", "loop": ""}}});
+(function(){var n=0;var iv=setInterval(function(){n++;window.dispatchEvent(new Event("resize"));var b=document.querySelector("#game #pp-start");if(!window.ppApp&&b&&b.textContent.trim()==="PLAY")b.click();if(window.ppApp||n>80){window.dispatchEvent(new Event("resize"));clearInterval(iv);}},200);})();
+<\/script></body></html></script></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+// The week this deck is (from its own filename), so the classroom shell knows
+// which week + slide the teacher is on - that is the compare point for the
+// teacher's "Identify problem" (only what the class has reached so far).
+var DECK_WEEK = (function () { var m = location.pathname.match(/week-(\d+)/); return m ? parseInt(m[1], 10) : null; })();
+
+function reportSlide() {
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ utg: 'deck', action: 'slide', week: DECK_WEEK, index: at, total: slides.length }, location.origin); } catch (e) {}
+}
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+  focusTypedLine(slides[at]);
+  reportSlide();
+}
+
+// A code slide can be taller than the screen. The line to type is always the
+// newest (last) line of the block, so when a scrollable code slide opens, jump
+// to the bottom - the line they type and its note land on screen and nobody has
+// to scroll down to find them. Review ("all together") slides have no such line,
+// so they read from the top.
+function focusTypedLine(slide) {
+  if (!slide || !slide.classList.contains('line')) return;
+  var hasTarget = !!slide.querySelector('tr.hi');
+  function go() {
+    // Bail if the class moved on before a late callback (font load) fires.
+    if (slides[at] !== slide || !slide.classList.contains('on')) return;
+    slide.scrollTop = hasTarget ? slide.scrollHeight : 0;
+  }
+  requestAnimationFrame(go);
+  // Rubik/Consolas can load after first paint and make the code taller; without
+  // re-running once fonts are in, the jump uses the pre-font height and stops
+  // short, leaving the line off-screen - exactly the bug this fixes.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+// Full screen and any projector/window resize change the slide height, so
+// re-pin the line-to-type to the bottom of whatever code slide is showing.
+window.addEventListener('resize', function () { focusTypedLine(slides[at]); });
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+
+// Checkpoint slides: play the real game at that week's state, so the class can
+// compare theirs against it. It boots from the PixelPad CDN and needs nothing else.
+[].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var id = btn.getAttribute('data-cp');
+    var out = document.getElementById('out-' + id);
+    if (out.firstChild) {
+      if (out._cpStop) out._cpStop();       // drop the console listener
+      out.innerHTML = ''; btn.textContent = '▶ Play it'; return;
+    }
+    // The stored page escapes the script close tag so the text/plain box is not
+    // closed early; undo that before it becomes a real document, or the first
+    // script tag never closes and none of the project's JS runs. (The close tag
+    // is built from pieces so this very file does not contain a literal one.)
+    var CLOSE = '<' + '/script';
+    var raw = document.getElementById('src-' + id).textContent.split('<\\' + '/script').join(CLOSE);
+    var frame = document.createElement('iframe');
+    // allow-same-origin so the engine can use canvas and storage; the page is
+    // generated from this course's own code, nothing student-supplied.
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    out.appendChild(frame);
+
+    // A console under the output, fed by the bridge inside the page. It is how
+    // the class sees a console.log, an error, or a request that failed.
+    var con = document.createElement('div');
+    con.className = 'cp-console';
+    con.innerHTML = '<div class="cp-console-head">Console</div>'
+                  + '<div class="cp-console-body"><span class="cp-muted">console.log, errors '
+                  + 'and network requests from the output show up here.</span></div>';
+    out.appendChild(con);
+    var body = con.querySelector('.cp-console-body');
+    var first = true;
+    function onMsg(ev) {
+      if (ev.source !== frame.contentWindow) return;          // only this output
+      var d = ev.data; if (!d || d.utg !== 'cp-log') return;
+      if (first) { body.innerHTML = ''; first = false; }       // clear the hint
+      var row = document.createElement('div');
+      row.className = 'cp-row ' + (d.level || 'log');
+      row.textContent = d.text;
+      body.appendChild(row); body.scrollTop = body.scrollHeight;
+    }
+    window.addEventListener('message', onMsg);
+    out._cpStop = function () { window.removeEventListener('message', onMsg); };
+
+    frame.srcdoc = raw;
+    btn.textContent = 'Hide it';
+  };
+});
+</script>

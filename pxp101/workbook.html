@@ -1,0 +1,186 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PXP101</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>PXP101 &#183; Monster Munch</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>Nothing here needs the internet except PixelPad itself.</strong> The game runs
+entirely in the browser - there is no server, no account and no API key anywhere in this
+course. A finished week is a single file that plays on any computer.</p>
+<p><strong>The child draws the art.</strong> Every sprite is listed with the exact size to
+draw it. The generated games use plain coloured rectangles as stand-ins so the code can be
+tested; they are meant to be replaced.</p>
+</div>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>Your monster appears</h2>
+<p class="lead">A game is made of objects you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A sprite is a picture you draw.</li><li>start happens once, right at the beginning.</li><li>y is up and down. Minus numbers are down.</li><li>Monster() makes one monster.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">sprite</span><span class="pill">start</span><span class="pill">room</span><span class="pill">x and y</span><span class="pill">making an object</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make it yours</strong><p style="margin:8px 0 0">Redraw monster.png so it looks like a monster YOU invented. Same size, 48 by 48.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Play and your own drawing is on the screen.</p></div><div class="card"><strong>Challenge 2. Move it</strong><p style="margin:8px 0 0">Change -210 to a different number and press Play. Try -100. Try 0. Try 200.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what bigger and smaller numbers do to the monster.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>It follows your mouse</h2>
+<p class="lead">loop happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>loop happens over and over, about sixty times a second.</li><li>mouse_x() is where your mouse is, left to right.</li><li>if means only when.</li><li>The line under an if is indented four spaces.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">loop</span><span class="pill">mouse_x()</span><span class="pill">if</span><span class="pill">the edges of the screen</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Squeeze it in</strong><p style="margin:8px 0 0">Change both 320s to 150 and press Play. Then try 400.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain what the number is measuring.</p></div><div class="card"><strong>Challenge 2. Upside down</strong><p style="margin:8px 0 0">Add self.y = mouse_y() under the follow line and press Play.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Your monster follows the mouse everywhere, and you can say why.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
