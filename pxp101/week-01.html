@@ -115,6 +115,11 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
 </style>
 <script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../guard.js"></script>
@@ -122,7 +127,7 @@ html:not(.utg-can-print) .printbtn{display:none}
 <div class="wrap">
 <p class="eyebrow">Week 1 of 5</p>
 <h1>Your monster appears</h1>
-<p class="lead">A game is made of objects you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
+<p class="lead">A game is made of <a class="term" href="textbook.html#g-object">objects</a> you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
 <p><span class="pill">sprite</span><span class="pill">start</span><span class="pill">room</span><span class="pill">x and y</span><span class="pill">making an object</span></p>
 <p class="teach-row"><a class="pill" href="slides/week-01.html">Slides for week 1</a>
    <a class="pill ghost" href="slides/week-01.pptx">.pptx</a>

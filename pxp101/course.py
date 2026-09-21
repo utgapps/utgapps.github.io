@@ -142,13 +142,13 @@ WEEKS = [
 {
  "n": 1,
  "title": "Your monster appears",
- "big_idea": "A game is made of objects you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.",
+ "big_idea": "A game is made of [[objects|object]] you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.",
  "new_concepts": ["sprite", "start", "room", "x and y", "making an object"],
  "draw": ["monster.png"],
  "objectives": [
-   "Draw a sprite at the size the book asks for",
-   "Say what start means - it happens once",
-   "Put an object into a room and see it appear",
+   "Draw a [[sprite]] at the size the book asks for",
+   "Say what [[start]] means - it happens once",
+   "Put an [[object]] into a [[room]] and see it appear",
    "Press Play and find their own monster on the screen",
  ],
  "ops": [
@@ -177,7 +177,7 @@ WEEKS = [
        "Five minutes, then move on. They can improve it any week.</p>",
        ask=("What size are we drawing?", "48 by 48 - point at the number in the corner")),
   STEP(GAME_START, "setup", "Tell the game which screen to show",
-       ["A <em>room</em> is one screen of your game. This says: start on the screen called Play."]),
+       ["A [[room]] is one screen of your game. This says: start on the screen called Play."]),
   STEP(MON_START, "look", "Give the monster its picture and put it near the bottom",
        ["<code>start</code> happens ONCE, the moment the monster is made. It picks the picture "
         "you drew, then sits it near the bottom of the screen."],
@@ -190,15 +190,15 @@ WEEKS = [
        "looks different and that is the whole point.</p>"),
  ],
  "errors": [
-   ("Nothing appears at all", "The Play room's start is empty, or the class is called something other than Monster. The name in Play start must match the class name exactly."),
+   ("Nothing appears at all", "The Play room's start is empty, or the [[class]] is called something other than Monster. The name in Play start must match the class name exactly."),
    ("A grey box instead of a monster", "The sprite is not called monster.png. The name in the code and the name of the sprite must be identical, including .png."),
    ("An error about 'sprite'", "Check the quotes: sprite('monster.png') needs both single quotes."),
  ],
  "recap": [
-   "A sprite is a picture you draw.",
-   "start happens once, right at the beginning.",
+   "A [[sprite]] is a picture you draw.",
+   "[[start]] happens once, right at the beginning.",
    "y is up and down. Minus numbers are down.",
-   "Monster() makes one monster.",
+   "Monster() makes one [[monster|object]].",
  ],
  "homework": [
    {"task": "Make it yours", "detail": "Redraw monster.png so it looks like a monster YOU invented. Same size, 48 by 48.", "done": "You press Play and your own drawing is on the screen."},
@@ -225,12 +225,12 @@ WEEKS = [
 {
  "n": 2,
  "title": "It follows your mouse",
- "big_idea": "loop happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.",
+ "big_idea": "[[loop]] happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.",
  "new_concepts": ["loop", "mouse_x()", "if", "the edges of the screen"],
  "objectives": [
-   "Say the difference between start and loop",
-   "Use mouse_x() to move an object",
-   "Write an if and indent the line under it",
+   "Say the difference between [[start]] and [[loop]]",
+   "Use mouse_x() to move an [[object]]",
+   "Write an [[if]] and indent the line under it",
    "Stop the monster running off the screen",
  ],
  "ops": [
@@ -246,13 +246,13 @@ WEEKS = [
  ],
  "flow": [
   TALK("0:00", "start once, loop for ever",
-       "<p>Ask one child to stand up ONCE. That is start. Now ask them to wave, and keep waving, "
-       "and keep waving. That is loop.</p>",
+       "<p>Ask one child to stand up ONCE. That is [[start]]. Now ask them to wave, and keep waving, "
+       "and keep waving. That is [[loop]].</p>",
        "<p>Say the number out loud: loop runs about <strong>sixty times a second</strong>. That is "
        "why things look like they are moving.</p>",
        ask=("Which one would you put 'give the monster its picture' in?", "start - it only needs doing once")),
   STEP(MON_LOOP, "follow", "Make the monster follow your mouse",
-       ["<code>mouse_x()</code> is where your mouse is, left to right. Because this is in loop, it "
+       ["<code>mouse_x()</code> is where your mouse is, left to right. Because this is in [[loop]], it "
         "happens again and again - so the monster keeps up with you. Press Play and move the mouse!"],
        at="0:12",
        ask=("What would happen if we put this line in start instead?", "It would move once and then stop")),
@@ -270,15 +270,15 @@ WEEKS = [
        "<p>Swap seats. Everyone plays the game of the person next to them for one minute.</p>"),
  ],
  "errors": [
-   ("The monster does not move", "The line is in Monster start instead of Monster loop. start happens once."),
+   ("The monster does not move", "The line is in Monster start instead of Monster loop. [[start]] happens once."),
    ("An error about indentation", "The line under the if needs exactly four spaces in front of it, and nothing else on the if line after the colon."),
    ("It stops in the middle of the screen", "One of the numbers is too small - check for 320, not 32."),
    ("It still runs off one side only", "The second if uses a minus: -320, not 320."),
  ],
  "recap": [
-   "loop happens over and over, about sixty times a second.",
-   "mouse_x() is where your mouse is, left to right.",
-   "if means only when.",
+   "[[loop]] happens over and over, about sixty times a second.",
+   "[[mouse_x()|mouse_x]] is where your mouse is, left to right.",
+   "[[if]] means only when.",
    "The line under an if is indented four spaces.",
  ],
  "homework": [
@@ -304,13 +304,13 @@ WEEKS = [
 {
  "n": 3,
  "title": "Food to catch",
- "big_idea": "A game needs something to DO. Today you draw food and make a new KIND of thing - a Food - that shows up high on the screen at a surprise spot every time you press Play.",
+ "big_idea": "A game needs something to DO. Today you draw food and make a new [[KIND of thing|class]] - a Food - that shows up high on the screen at a [[random]] spot every time you press Play.",
  "new_concepts": ["a second class", "import random", "random.randint()"],
  "draw": ["food.png"],
  "objectives": [
    "Draw a second sprite at the size the book asks for",
-   "Make a new class - a Food - the same way they made a Monster",
-   "Use random.randint() to put it in a surprise place",
+   "Make a new [[class]] - a Food - the same way they made a Monster",
+   "Use [[random.randint()|random]] to put it in a surprise place",
    "Press Play and find food up high, somewhere new every time",
  ],
  "ops": [
@@ -340,7 +340,7 @@ WEEKS = [
        "<p>Five minutes only, the same as the monster. It can be redrawn any week.</p>",
        ask=("What size is the food?", "30 by 30 - smaller than the 48 monster")),
   TALK("0:12", "A second kind of thing",
-       "<p>Monster is a <em>class</em> - a kind of thing in your game. Now we make a second kind: "
+       "<p>Monster is a [[class]] - a kind of thing in your game. Now we make a second kind: "
        "Food. It gets its own <code>start</code> and <code>loop</code>, exactly like Monster did.</p>",
        "<p>In PixelPad, add a new Class and call it <strong>Food</strong>. Open its empty Food start "
        "panel, ready to type.</p>",
@@ -370,8 +370,8 @@ WEEKS = [
    ("Nothing appears at all", "Game.foodA = Food() is missing from Play start, or the new class is not called Food."),
  ],
  "recap": [
-   "A class is a kind of thing. Food is our second one.",
-   "import random gives you surprise numbers.",
+   "A [[class]] is a kind of thing. Food is our second one.",
+   "import [[random]] gives you surprise numbers.",
    "random.randint(-300, 300) is a random number between two numbers.",
    "Food() makes one piece of food, just like Monster() makes a monster.",
  ],
@@ -400,11 +400,11 @@ WEEKS = [
 {
  "n": 4,
  "title": "It falls",
- "big_idea": "loop runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to fall again - for ever.",
+ "big_idea": "[[loop]] runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to [[fall]] again - for ever.",
  "new_concepts": ["a number you can change", "falling by changing y", "recycling an object"],
  "objectives": [
    "Make a number - fallSpeed - that the whole game can use",
-   "Make the food fall by changing its y in loop",
+   "Make the food [[fall]] by changing its y in [[loop]]",
    "Send the food back to the top when it drops off the bottom",
    "Press Play and watch food rain down without stopping",
  ],
@@ -453,14 +453,14 @@ WEEKS = [
  "errors": [
    ("The food does not move", "The fall line is in Food start instead of Food loop. Falling has to happen over and over, so it lives in loop."),
    ("An error about Game.fallSpeed", "Game.fallSpeed = 3 is missing from Game start, or it is spelled differently in the two places. The name must match exactly."),
-   ("It falls once and vanishes", "The recycle if is missing, or its two lines are not indented four spaces under it."),
+   ("It falls once and vanishes", "The [[recycle]] if is missing, or its two lines are not indented four spaces under it."),
    ("The food flies UP instead of down", "The line says plus instead of minus. Falling is self.y = self.y - Game.fallSpeed."),
  ],
  "recap": [
    "Game.fallSpeed is a number the whole game shares.",
-   "Taking a little off y every loop makes something fall.",
-   "if means only when.",
-   "When the food drops off the bottom, we send it back to the top to fall again.",
+   "Taking a little off y every [[loop]] makes something [[fall]].",
+   "[[if]] means only when.",
+   "When the food drops off the bottom, we [[recycle]] it - back to the top to fall again.",
  ],
  "homework": [
    {"task": "Faster, slower", "detail": "Change Game.fallSpeed = 3 to 1, press Play, then to 8. Watch the difference.", "done": "You can say what fallSpeed does to the game."},
@@ -489,11 +489,11 @@ WEEKS = [
 {
  "n": 5,
  "title": "Catch it",
- "big_idea": "get_collision asks: are these two things touching? When the monster touches the food, we add one to the score and send the food below the floor - so last week's recycle lifts it straight back to the top.",
+ "big_idea": "[[get_collision]] asks: are these two things touching? When the monster touches the food, we add one to the [[score]] and send the food below the floor - so last week's [[recycle]] lifts it straight back to the top.",
  "new_concepts": ["a score you keep", "get_collision()", "changing a number by adding"],
  "objectives": [
-   "Start a score and some lives at the beginning of the game",
-   "Use get_collision() to tell when the monster touches the food",
+   "Start a [[score]] and some [[lives]] at the beginning of the game",
+   "Use [[get_collision()|get_collision]] to tell when the monster touches the food",
    "Add one to the score when they touch",
    "Press Play and catch food - watch it jump back to the top",
  ],
@@ -545,10 +545,10 @@ WEEKS = [
    ("An error about get_collision", "Check the quotes and the comma: get_collision(self, 'Monster'). 'Monster' is the class name, in single quotes."),
  ],
  "recap": [
-   "Game.score and Game.lives are numbers the whole game shares.",
+   "Your [[score]] and your [[lives]] are numbers the whole game shares.",
    "get_collision(self, 'Monster') is True when two things are touching.",
    "Game.score = Game.score + 1 means take the score and make it one bigger.",
-   "Sending the food to -300 lets last week's recycle lift it back up.",
+   "Sending the food to -300 lets last week's [[recycle]] lift it back up.",
  ],
  "homework": [
    {"task": "Worth more", "detail": "Change the + 1 in the catch to + 5 and press Play. Catch some food.", "done": "You can say what the number after the plus controls."},
@@ -610,19 +610,19 @@ def line_concepts(panel, line):
 # key -> (kind, title, [bullets], example). kind picks the slide's eyebrow.
 CONCEPTS = {
     "pp:start": ("game", "start happens once",
-        ["Everything in start runs one time, right at the beginning.",
+        ["Everything in [[start]] runs one time, right at the beginning.",
          "Use it to set a picture, a place, or a starting number."],
         "self.image = sprite('monster.png')"),
     "pp:loop": ("game", "loop happens over and over",
-        ["loop runs about 60 times every second, for as long as the game is on.",
+        ["[[loop]] runs about 60 times every second, for as long as the game is on.",
          "Anything that moves lives in loop."],
         "self.x = mouse_x()"),
     "pp:room": ("game", "A room is one screen",
-        ["Your game can have more than one screen. Each one is a room.",
+        ["Your game can have more than one screen. Each one is a [[room]].",
          "set_room picks which screen to show."],
         "set_room('Play')"),
     "pp:sprite": ("art", "A sprite is your picture",
-        ["sprite() finds the picture you drew and puts it on the object.",
+        ["[[sprite]]() finds the picture you drew and puts it on the [[object]].",
          "The name has to match exactly, including the .png."],
         "self.image = sprite('monster.png')"),
     "pp:y": ("game", "y is up and down",
@@ -638,54 +638,79 @@ CONCEPTS = {
          "Nothing appears until you make it."],
         "Game.monster = Monster()"),
     "pp:random": ("py", "A surprise number",
-        ["random.randint(a, b) gives a different number between a and b every time.",
+        ["[[random.randint(a, b)|random]] gives a different number between a and b every time.",
          "It is how the food lands somewhere new on every press of Play."],
         "self.x = random.randint(-300, 300)"),
     "pp:fall": ("game", "Falling is just changing y",
-        ["Take a little off y every loop and the object slides down the screen.",
-         "The bigger the number you take off, the faster it falls."],
+        ["Take a little off y every [[loop]] and the [[object]] slides down the screen.",
+         "The bigger the number you take off, the faster it [[falls|fall]]."],
         "self.y = self.y - Game.fallSpeed"),
     "pp:collision": ("game", "get_collision - are they touching?",
-        ["get_collision(self, 'Monster') is True only when this object is touching a Monster.",
-         "Put it in an if to make something happen the moment they touch."],
+        ["[[get_collision(self, 'Monster')|get_collision]] is True only when this [[object]] is touching a Monster.",
+         "Put it in an [[if]] to make something happen the moment they touch."],
         "if get_collision(self, 'Monster'):"),
     "pp:change": ("py", "Change a number by adding to it",
-        ["Game.score = Game.score + 1 takes the score and makes it one bigger.",
+        ["Game.score = Game.score + 1 takes the [[score]] and makes it one bigger.",
          "The old value goes in on the right, the new value comes out on the left."],
         "Game.score = Game.score + 1"),
     "pp:if": ("py", "if means only when",
-        ["The line under an if only runs when the if is true.",
+        ["The line under an [[if]] only runs when the if is true.",
          "That line is indented four spaces - that is how Python knows it belongs to the if."],
         "if self.x > 320:"),
+}
+
+# The words a child has to learn to read this game. Prose across every page
+# marks a term the FIRST time it is used in its real coding sense - written
+# [[loop]], or [[falls|fall]] when the sentence bends the word - and the build
+# turns that first use into a link to the entry here, and any later use on the
+# same page into the same blue-bold, no link. A plain English "start typing" or
+# "the room is dark" is never marked, so it never lights up. Every slug a mark
+# names must exist here or the build refuses to ship. Keep a definition to one
+# sentence, second person, true of what the child actually did.
+GLOSSARY = {
+    "start":   "The part of an object that runs once, the moment the object is made - you use it to set a picture or a starting spot.",
+    "loop":    "The part of an object that runs over and over, about sixty times a second, for as long as the game is on. Anything that moves lives here.",
+    "room":    "One screen of your game. A game can have more than one room, and set_room picks which one you see.",
+    "object":  "A thing in your game you can see and give orders to - the monster, a piece of food, a bomb.",
+    "class":   "A KIND of thing. Food is a class, and every single piece of food is made from it.",
+    "sprite":  "The picture you drew, put onto an object. The name has to match exactly, including the .png.",
+    "mouse_x": "Where your mouse is, left to right. Put it in loop and your object keeps up with your hand.",
+    "if":      "Runs the line under it only when something is true. That line is pushed in four spaces so Python knows it belongs to the if.",
+    "random":  "A surprise number. random.randint(a, b) gives a different number between a and b every time, so the food lands somewhere new on every Play.",
+    "fall":    "Taking a little off y every loop so an object slides down the screen. The more you take off, the faster it falls.",
+    "recycle": "Sending an object back up to the top after it drops off the bottom, so it can fall again for ever.",
+    "get_collision": "Asks whether two objects are touching. It is true only at the moment they touch - put it in an if to catch that moment.",
+    "score":   "The number that counts what you have caught. You make it bigger by adding one to it.",
+    "lives":   "How many hearts you have left. When they run out, the game is over.",
 }
 
 # Animated metaphors. Reuses build.concept_visual's library - see SLIDE-RULES.
 VISUALS = {
     "pp:start": {"kind": "machine", "in": "game opens", "label": "start", "out": "done once",
-                 "cap": "start runs one time, then never again."},
+                 "cap": "[[start]] runs one time, then never again."},
     "pp:loop": {"kind": "loop", "items": ["1", "2", "3", "4"],
-                "cap": "loop runs again and again, about 60 times a second."},
+                "cap": "[[loop]] runs again and again, about 60 times a second."},
     "pp:room": {"kind": "swap", "off": "Play room", "on": "another room",
-                "cap": "A room is one screen. set_room swaps which one you see."},
+                "cap": "A [[room]] is one screen. set_room swaps which one you see."},
     "pp:sprite": {"kind": "swap", "off": "nothing", "on": "your art",
-                  "cap": "sprite() puts the picture you drew onto the object."},
+                  "cap": "[[sprite]]() puts the picture you drew onto the [[object]]."},
     "pp:y": {"kind": "resize", "axis": "h",
              "cap": "y is up and down. Minus numbers go DOWN."},
     "pp:mouse": {"kind": "motion",
-                 "cap": "mouse_x() follows your mouse, left and right."},
+                 "cap": "[[mouse_x()|mouse_x]] follows your mouse, left and right."},
     "pp:make": {"kind": "dom", "parent": "Play room", "child": "a Monster", "mode": "add",
-                "cap": "Monster() makes one and puts it in the room."},
+                "cap": "Monster() makes one and puts it in the [[room]]."},
     "pp:random": {"kind": "pick", "items": ["-300", "-100", "0", "100", "300"], "at": 3, "label": "?",
-                  "cap": "random.randint lands on a different number every time."},
+                  "cap": "[[random.randint|random]] lands on a different number every time."},
     # pp:fall has no visual on purpose: the only "moving" metaphor is horizontal,
     # and a sideways picture for falling would teach the wrong thing. The text
     # bullets carry it.
     "pp:collision": {"kind": "fork", "cond": "touching?", "yes": "score!", "no": "keep falling",
-                     "cap": "get_collision asks a yes/no question: are they touching?"},
+                     "cap": "[[get_collision]] asks a yes/no question: are they touching?"},
     "pp:change": {"kind": "machine", "in": "3", "label": "+ 1", "out": "4",
                   "cap": "Take the number in, add one, the new number comes out."},
     "pp:if": {"kind": "fork", "cond": "self.x > 320", "yes": "put it back", "no": "carry on",
-              "cap": "if means only when - the indented line runs only if it is true."},
+              "cap": "[[if]] means only when - the indented line runs only if it is true."},
 }
 
 LINE_NOTES = {

@@ -115,6 +115,11 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
 </style>
 <script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../guard.js"></script>
@@ -122,7 +127,7 @@ html:not(.utg-can-print) .printbtn{display:none}
 <div class="wrap">
 <p class="eyebrow">Week 4 of 5</p>
 <h1>It falls</h1>
-<p class="lead">loop runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to fall again - for ever.</p>
+<p class="lead"><a class="term" href="textbook.html#g-loop">loop</a> runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to <a class="term" href="textbook.html#g-fall">fall</a> again - for ever.</p>
 <p><span class="pill">a number you can change</span><span class="pill">falling by changing y</span><span class="pill">recycling an object</span></p>
 <p class="teach-row"><a class="pill" href="slides/week-04.html">Slides for week 4</a>
    <a class="pill ghost" href="slides/week-04.pptx">.pptx</a>

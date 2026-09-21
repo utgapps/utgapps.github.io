@@ -115,6 +115,11 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
 </style>
 <script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../guard.js"></script>
@@ -122,7 +127,7 @@ html:not(.utg-can-print) .printbtn{display:none}
 <div class="wrap">
 <p class="eyebrow">Week 2 of 5</p>
 <h1>It follows your mouse</h1>
-<p class="lead">loop happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
+<p class="lead"><a class="term" href="textbook.html#g-loop">loop</a> happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
 <p><span class="pill">loop</span><span class="pill">mouse_x()</span><span class="pill">if</span><span class="pill">the edges of the screen</span></p>
 <p class="teach-row"><a class="pill" href="slides/week-02.html">Slides for week 2</a>
    <a class="pill ghost" href="slides/week-02.pptx">.pptx</a>

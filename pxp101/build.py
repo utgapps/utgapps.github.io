@@ -492,6 +492,50 @@ def esc(text):
     return html.escape(str(text)).encode("ascii", "xmlcharrefreplace").decode("ascii")
 
 
+# A term is marked in the prose as [[loop]], or [[falls|fall]] when the sentence
+# needs a different word than the glossary slug. The marker is plain ASCII, so it
+# rides safely through esc() untouched and we can resolve it in one pass over the
+# finished page - the same [[...]] works whether the surrounding text was escaped
+# or authored as raw HTML.
+TERM_MARK = re.compile(r"\[\[([^\[\]|]+?)(?:\|([^\[\]]+?))?\]\]")
+
+
+def _term_parts(match):
+    shown = match.group(1).strip()
+    slug = (match.group(2) or shown).strip().lower()
+    if slug not in course.GLOSSARY:
+        raise SystemExit(f"unknown glossary term [[{match.group(0)[2:-2]}]] - "
+                         f"add {slug!r} to course.GLOSSARY or fix the mark")
+    return shown, slug
+
+
+def render_terms(page_html, root=""):
+    """Turn every [[term]] mark into its highlight. The first use of a term on a
+    page links to its glossary entry; later uses on the same page are the same
+    blue-bold without a link, so a word is defined once but stays visible."""
+    seen = set()
+
+    def sub(match):
+        shown, slug = _term_parts(match)
+        if slug in seen:
+            return f'<b class="term">{shown}</b>'
+        seen.add(slug)
+        return f'<a class="term" href="{root}textbook.html#g-{slug}">{shown}</a>'
+
+    resolved = TERM_MARK.sub(sub, page_html)
+    if "[[" in resolved:
+        stray = resolved[resolved.index("[["):resolved.index("[[") + 40]
+        raise SystemExit(f"unclosed or malformed term mark near {stray!r}")
+    return resolved
+
+
+def strip_terms(text):
+    """The plain-text form for the .pptx, where a run carries no link: keep the
+    word the sentence used and drop the mark. Also validates the slug, so a typo
+    fails the deck build too, not only the web pages."""
+    return TERM_MARK.sub(lambda match: _term_parts(match)[0], text)
+
+
 def guard(tool="pxp101", up="../"):
     """The site access gate. `up` is the path back to the site root - the slide
     decks sit one folder deeper than everything else this builder writes."""
@@ -615,6 +659,11 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
 """
 
 COPY_JS = """
@@ -643,7 +692,10 @@ document.querySelectorAll('[data-tabs]').forEach(function(group){
 
 
 def page(title, body, extra_js="", tool="pxp101"):
-    return f"""<meta charset="utf-8">
+    # Every page this builder writes at the site root links its glossary terms
+    # back to textbook.html; the slide decks sit a folder deeper and pass their
+    # own root. render_terms runs last, over the whole finished page.
+    return render_terms(f"""<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} &middot; UTG Academy</title>
 {FONT}
@@ -653,7 +705,7 @@ def page(title, body, extra_js="", tool="pxp101"):
 {body}
 <footer>&copy; 2026 UTG Academy</footer>
 <script>{COPY_JS}{extra_js}</script>
-"""
+""")
 
 
 def code_block(filename, text, marks, ident, gone=None):
@@ -1702,7 +1754,7 @@ def build_slides():
 
     def concept_slide(deck, spec, eyebrow=""):
         slide = deck.slides.add_slide(deck.slide_layouts[5])
-        slide.shapes.title.text = spec["title"]
+        slide.shapes.title.text = strip_terms(spec["title"])
         run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
         run.font.size, run.font.bold, run.font.color.rgb = Pt(38), True, INK
         if eyebrow:
@@ -1719,7 +1771,8 @@ def build_slides():
         for index, line in enumerate(body):
             para = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
             is_bullet = line in spec.get("bullets", [])
-            para.text = ("• " + line) if is_bullet else line
+            shown = strip_terms(line)
+            para.text = ("• " + shown) if is_bullet else shown
             para.runs[0].font.size = Pt(24 if is_bullet else 28)
             para.runs[0].font.color.rgb = INK if is_bullet else BRAND
             para.space_after = Pt(14)
@@ -1797,7 +1850,7 @@ def build_slides():
             code.font.color.rgb = GUTTER if (hi is not None and index != hi) else NEW
         nb = slide.shapes.add_textbox(Inches(0.6), Inches(6.15), Inches(12.1), Inches(1.15))
         nf = nb.text_frame; nf.word_wrap = True
-        nf.paragraphs[0].text = note
+        nf.paragraphs[0].text = strip_terms(note)
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
     def del_slide(deck, filename, start, context, dropped, note, replacing=False):
@@ -1828,7 +1881,7 @@ def build_slides():
                 code.font._rPr.set("strike", "sngStrike")
         nb = slide.shapes.add_textbox(Inches(0.6), Inches(6.15), Inches(12.1), Inches(1.15))
         nf = nb.text_frame; nf.word_wrap = True
-        nf.paragraphs[0].text = note
+        nf.paragraphs[0].text = strip_terms(note)
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
     made = 0
@@ -1985,6 +2038,9 @@ margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
 .vt-tag text{fill:#7fd8ff}
 .vt-no rect{fill:#1a2730;stroke:#7c909d}
 .vt-no text{fill:#aebfcb}
+.term{color:#0a6299;font-weight:700}
+a.term{color:#0a6299;border-bottom:1px dotted #7fbfe0}
+.slide.dark .term{color:#7fd8ff}
 """
 
 DECK_JS = r"""
@@ -2181,6 +2237,9 @@ def build_html_decks():
 <script>{js}</script>
 """.format(week_number=week["n"], font=FONT, css=DECK_CSS, guard=guard("pxp101", up="../../"),
            slides="".join(slides), dots=dots, js=DECK_JS)
+        # The decks sit in pxp101/slides/, so a glossary link reaches the book
+        # one folder up.
+        html_out = render_terms(html_out, root="../")
         with open(os.path.join(SLIDES_DIR, "week-%02d.html" % week["n"]), "w",
                   encoding="utf-8") as handle:
             handle.write(html_out)
@@ -2269,6 +2328,10 @@ TEXTBOOK_CSS = """
 .tb-word{background:#eefaff;border:1px solid #bfe6f7;border-radius:10px;padding:14px 16px;margin:18px 0}
 .tb-word .h{font-weight:800;color:#0a6299;margin:0 0 4px}
 .tb-word code{background:#fff}
+.tb-glossary{display:grid;gap:12px;margin:10px 0 0}
+.tb-term{background:#f6fbff;border:1px solid #d7ecf7;border-radius:10px;padding:12px 16px;scroll-margin-top:16px}
+.tb-term .h{font-weight:800;color:#0a6299;margin:0 0 2px;font-size:18px}
+.tb-term p:last-child{margin:0}
 .tb-draw{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
 .tb-draw .sp{border:1px solid #cbd9dd;border-radius:10px;padding:12px 16px;min-width:190px}
 @media print{.tb-step{break-inside:avoid}}
@@ -2358,7 +2421,25 @@ def build_textbook():
                 idea=esc(week["big_idea"]),
                 draw=draw, steps="".join(steps), bonus=bonus, wrong=wrong, recap=recap))
 
+    chapter_count = len(chapters)
+    # The glossary every blue word in the book links to. Anchored id="g-<slug>"
+    # to match render_terms; ordered as the child meets the words.
+    code_head = {"mouse_x": "mouse_x()", "get_collision": "get_collision()"}
+    glossary_items = "".join(
+        '<div class="tb-term" id="g-{slug}"><p class="h">{head}</p><p>{definition}</p></div>'.format(
+            slug=slug,
+            head=('<code>%s</code>' % esc(code_head[slug])) if slug in code_head else esc(slug),
+            definition=esc(definition))
+        for slug, definition in course.GLOSSARY.items())
+    chapters.append(
+        '<section class="chapter" id="glossary"><p class="eyebrow">Glossary</p>'
+        '<h2>Every word in this book</h2>'
+        '<p class="lead">The blue words in the lessons all live here. Come back to this list '
+        'whenever a word stops making sense.</p>'
+        '<div class="tb-glossary">%s</div></section>' % glossary_items)
+
     jump = "".join('<a href="#chapter-{0}">{0}</a>'.format(week["n"]) for week in course.WEEKS)
+    jump += '<a href="#glossary">Words</a>'
     body = (
         '<style>{css}</style><div class="wrap">'
         '<p class="eyebrow">The book</p><h1>{title}</h1><p class="lead">{blurb}</p>'
@@ -2374,7 +2455,7 @@ def build_textbook():
             css=TEXTBOOK_CSS, title=esc(course.COURSE_TITLE), blurb=esc(course.PROJECT_BLURB),
             jump=jump, chapters="".join(chapters))
     write("textbook.html", page("The book", body))
-    return len(chapters)
+    return chapter_count
 
 
 def write(name, text):

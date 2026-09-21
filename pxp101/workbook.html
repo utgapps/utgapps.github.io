@@ -115,6 +115,11 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
 </style>
 <script>window.UTG_GUARD="../";window.UTG_TOOL="pxp101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
 <script src="../guard.js"></script>
@@ -135,9 +140,9 @@ tested; they are meant to be replaced.</p>
 <section class="chapter">
 <p class="eyebrow">Chapter 1</p>
 <h2>Your monster appears</h2>
-<p class="lead">A game is made of objects you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
+<p class="lead">A game is made of <a class="term" href="textbook.html#g-object">objects</a> you draw and then tell what to do. Today you draw a monster and write four lines of Python that put it on the screen.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>A sprite is a picture you draw.</li><li>start happens once, right at the beginning.</li><li>y is up and down. Minus numbers are down.</li><li>Monster() makes one monster.</li></ul>
+<ul class="tight"><li>A <a class="term" href="textbook.html#g-sprite">sprite</a> is a picture you draw.</li><li><a class="term" href="textbook.html#g-start">start</a> happens once, right at the beginning.</li><li>y is up and down. Minus numbers are down.</li><li>Monster() makes one <b class="term">monster</b>.</li></ul>
 <h3>Words to know</h3>
 <p><span class="pill">sprite</span><span class="pill">start</span><span class="pill">room</span><span class="pill">x and y</span><span class="pill">making an object</span></p>
 <h3>Challenges</h3>
@@ -148,9 +153,9 @@ The green lines are the ones added that week.</p>
 </section><section class="chapter">
 <p class="eyebrow">Chapter 2</p>
 <h2>It follows your mouse</h2>
-<p class="lead">loop happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
+<p class="lead"><a class="term" href="textbook.html#g-loop">loop</a> happens over and over, many times every second. That is what makes a game move. Today your monster follows your mouse, and learns to stop at the edges.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>loop happens over and over, about sixty times a second.</li><li>mouse_x() is where your mouse is, left to right.</li><li>if means only when.</li><li>The line under an if is indented four spaces.</li></ul>
+<ul class="tight"><li><b class="term">loop</b> happens over and over, about sixty times a second.</li><li><a class="term" href="textbook.html#g-mouse_x">mouse_x()</a> is where your mouse is, left to right.</li><li><a class="term" href="textbook.html#g-if">if</a> means only when.</li><li>The line under an if is indented four spaces.</li></ul>
 <h3>Words to know</h3>
 <p><span class="pill">loop</span><span class="pill">mouse_x()</span><span class="pill">if</span><span class="pill">the edges of the screen</span></p>
 <h3>Challenges</h3>
@@ -161,9 +166,9 @@ The green lines are the ones added that week.</p>
 </section><section class="chapter">
 <p class="eyebrow">Chapter 3</p>
 <h2>Food to catch</h2>
-<p class="lead">A game needs something to DO. Today you draw food and make a new KIND of thing - a Food - that shows up high on the screen at a surprise spot every time you press Play.</p>
+<p class="lead">A game needs something to DO. Today you draw food and make a new <a class="term" href="textbook.html#g-class">KIND of thing</a> - a Food - that shows up high on the screen at a <a class="term" href="textbook.html#g-random">random</a> spot every time you press Play.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>A class is a kind of thing. Food is our second one.</li><li>import random gives you surprise numbers.</li><li>random.randint(-300, 300) is a random number between two numbers.</li><li>Food() makes one piece of food, just like Monster() makes a monster.</li></ul>
+<ul class="tight"><li>A <b class="term">class</b> is a kind of thing. Food is our second one.</li><li>import <b class="term">random</b> gives you surprise numbers.</li><li>random.randint(-300, 300) is a random number between two numbers.</li><li>Food() makes one piece of food, just like Monster() makes a monster.</li></ul>
 <h3>Words to know</h3>
 <p><span class="pill">a second class</span><span class="pill">import random</span><span class="pill">random.randint()</span></p>
 <h3>Challenges</h3>
@@ -174,9 +179,9 @@ The green lines are the ones added that week.</p>
 </section><section class="chapter">
 <p class="eyebrow">Chapter 4</p>
 <h2>It falls</h2>
-<p class="lead">loop runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to fall again - for ever.</p>
+<p class="lead"><b class="term">loop</b> runs about sixty times a second. If you take a little off y every single loop, the food slides down the screen. And when it drops off the bottom, we send it back up to <a class="term" href="textbook.html#g-fall">fall</a> again - for ever.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>Game.fallSpeed is a number the whole game shares.</li><li>Taking a little off y every loop makes something fall.</li><li>if means only when.</li><li>When the food drops off the bottom, we send it back to the top to fall again.</li></ul>
+<ul class="tight"><li>Game.fallSpeed is a number the whole game shares.</li><li>Taking a little off y every <b class="term">loop</b> makes something <b class="term">fall</b>.</li><li><b class="term">if</b> means only when.</li><li>When the food drops off the bottom, we <a class="term" href="textbook.html#g-recycle">recycle</a> it - back to the top to fall again.</li></ul>
 <h3>Words to know</h3>
 <p><span class="pill">a number you can change</span><span class="pill">falling by changing y</span><span class="pill">recycling an object</span></p>
 <h3>Challenges</h3>
@@ -187,9 +192,9 @@ The green lines are the ones added that week.</p>
 </section><section class="chapter">
 <p class="eyebrow">Chapter 5</p>
 <h2>Catch it</h2>
-<p class="lead">get_collision asks: are these two things touching? When the monster touches the food, we add one to the score and send the food below the floor - so last week&#x27;s recycle lifts it straight back to the top.</p>
+<p class="lead"><a class="term" href="textbook.html#g-get_collision">get_collision</a> asks: are these two things touching? When the monster touches the food, we add one to the <a class="term" href="textbook.html#g-score">score</a> and send the food below the floor - so last week&#x27;s <b class="term">recycle</b> lifts it straight back to the top.</p>
 <h3>What you learned</h3>
-<ul class="tight"><li>Game.score and Game.lives are numbers the whole game shares.</li><li>get_collision(self, &#x27;Monster&#x27;) is True when two things are touching.</li><li>Game.score = Game.score + 1 means take the score and make it one bigger.</li><li>Sending the food to -300 lets last week&#x27;s recycle lift it back up.</li></ul>
+<ul class="tight"><li>Your <b class="term">score</b> and your <a class="term" href="textbook.html#g-lives">lives</a> are numbers the whole game shares.</li><li>get_collision(self, &#x27;Monster&#x27;) is True when two things are touching.</li><li>Game.score = Game.score + 1 means take the score and make it one bigger.</li><li>Sending the food to -300 lets last week&#x27;s <b class="term">recycle</b> lift it back up.</li></ul>
 <h3>Words to know</h3>
 <p><span class="pill">a score you keep</span><span class="pill">get_collision()</span><span class="pill">changing a number by adding</span></p>
 <h3>Challenges</h3>
