@@ -934,6 +934,15 @@ def checkpoint_page(week_n):
     return CP_BRIDGE + html
 
 
+def checkpoint_files_json(week_n):
+    """The checkpoint's three files, separate and exactly as a student types them
+    - no console bridge, nothing inlined, and the placeholder key left in place -
+    for the slide's download button to zip up. Every "<" is escaped so no file
+    content can end the <script> block that carries it."""
+    files = {name: text + "\n" for name, text in state_at(week_n).items()}
+    return json.dumps(files, ensure_ascii=False).replace("<", "\\u003c")
+
+
 def balance_quiz(quiz):
     """Move the correct option off "always A". Quizzes are authored with the
     right answer first (easy to read); this deterministically reseats it at a
@@ -985,6 +994,8 @@ def slide_plan(week, seen):
             for index, (filename, start, lines, marks, gone) in enumerate(chunks, start=1):
                 out.append(("chunk", {"file": filename, "start": start, "lines": lines,
                                       "marks": marks, "gone": gone, "part": index, "parts": len(chunks)}))
+            if out:
+                out[-1][1].setdefault("completes", []).extend(refs)
             continue
         eyebrow_for = {"html": "HTML", "css": "CSS", "js": "JavaScript"}
         delete_notes = getattr(course, "DELETE_NOTES", {})
@@ -1067,6 +1078,12 @@ def slide_plan(week, seen):
                     whole.pop()
                 out.append(("block", {"file": filename, "start": start,
                                       "lines": whole, "marks": marks, "block": block}))
+            # The block is fully typed as of the last slide it produced. That is
+            # the "all together" slide when there is one, but a one-line block or
+            # a delete-only change has none - and without this mark the teacher's
+            # per-slide snapshot would never count it as done.
+            if out:
+                out[-1][1].setdefault("completes", []).append((filename, block))
             # After the chunk is whole, a quick multiple-choice check: a few
             # questions on the code just typed, plus one or two from earlier weeks
             # to keep old ideas fresh. Each is a question slide then a reveal
@@ -1667,10 +1684,15 @@ def deck_render_html(desc):
         return ('<section class="slide checkpoint">'
                 '<p class="eyebrow">Checkpoint &middot; run it</p>'
                 '<h2>{0}</h2><p class="cp-say">{1}</p>'
+                '<div class="cp-actions">'
                 '<button class="cp-run" data-cp="{2}">&#9654; Show the output</button>'
+                '<button class="cp-zip" data-cp="{2}" data-name="{4}">&#8595; Download the files</button>'
+                '</div>'
                 '<div class="cp-out" id="out-{2}"></div>'
                 '<script type="text/plain" id="src-{2}">{3}</script>'
-                '</section>').format(esc(d["title"]), esc(d["say"]), cid, page)
+                '<script type="application/json" id="files-{2}">{5}</script>'
+                '</section>').format(esc(d["title"]), esc(d["say"]), cid, page,
+                                     "ai101-week-%02d" % d["week"], checkpoint_files_json(d["week"]))
     if kind in ("quiz", "quizanswer"):
         q = d["quiz"]
         answered = kind == "quizanswer"
@@ -2032,6 +2054,10 @@ margin-top:clamp(16px,3vh,30px);max-width:46ch}
 .cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
 padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
 .cp-run:hover{background:#ffdf5c}
+.cp-actions{display:flex;flex-wrap:wrap;gap:10px}
+.cp-zip{font:inherit;font-weight:700;color:#0a6299;background:#fff;border:2px solid #0a6299;border-radius:8px;
+padding:.45em 1em;font-size:clamp(14px,1.6vw,19px);cursor:pointer}
+.cp-zip:hover{background:#e8f4fb}
 .cp-out{margin-top:16px;width:100%}
 .cp-out iframe{width:100%;height:min(42vh,440px);border:1px solid #cbd9dd;border-radius:8px;background:#fff}
 .cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
@@ -2180,6 +2206,68 @@ function cpDemoKey() {
   });
   return _cpKey;
 }
+
+// Checkpoint slides: download the files as they stand at this checkpoint, as a
+// zip - index.html, style.css and script.js, exactly as typed on the slides, so
+// a student who fell behind can catch up and a teacher has a known-good copy.
+// Built right here in the page (a plain "stored" zip needs no library), so it
+// works offline and inside the classroom's slide viewer alike.
+var CRC_TABLE = (function () {
+  var t = [];
+  for (var n = 0; n < 256; n++) {
+    var c = n;
+    for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  var c = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function makeZip(files) {           // [{name, text}] -> Uint8Array
+  var enc = new TextEncoder(), parts = [], central = [], offset = 0;
+  var DATE = (2026 - 1980) << 9 | 1 << 5 | 1;   // a fixed date: same files, same zip
+  function head(sig, size) { var b = new DataView(new ArrayBuffer(size)); b.setUint32(0, sig, true); return b; }
+  files.forEach(function (f) {
+    var name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    var h = head(0x04034b50, 30);
+    h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);   // version, UTF-8 names
+    h.setUint16(12, DATE, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+    h.setUint16(26, name.length, true);
+    var c = head(0x02014b50, 46);
+    c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint16(14, DATE, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    central.push(new Uint8Array(c.buffer), name);
+    offset += 30 + name.length + data.length;
+  });
+  var size = central.reduce(function (n, p) { return n + p.length; }, 0);
+  var e = head(0x06054b50, 22);
+  e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, size, true); e.setUint32(16, offset, true);
+  var all = parts.concat(central, [new Uint8Array(e.buffer)]);
+  var out = new Uint8Array(all.reduce(function (n, p) { return n + p.length; }, 0)), at = 0;
+  all.forEach(function (p) { out.set(p, at); at += p.length; });
+  return out;
+}
+[].slice.call(document.querySelectorAll('.cp-zip')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var id = btn.getAttribute('data-cp'), folder = btn.getAttribute('data-name');
+    var files = JSON.parse(document.getElementById('files-' + id).textContent);
+    var zip = makeZip(Object.keys(files).map(function (n) { return { name: folder + '/' + n, text: files[n] }; }));
+    var url = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = folder + '.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  };
+});
 
 // Checkpoint slides: reveal the project's live output so the class can compare.
 [].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
@@ -2380,11 +2468,21 @@ def build_slide_states():
         snaps = [{"slide": 0, "files": state_with(prior, week, done)}]  # floor: prior weeks
         for pos, (kind, d) in enumerate(plan):
             idx = pos + 1               # deck index; slide 0 is the week-title slide
-            if kind == "block":
-                done.add((d["file"], d["block"]))
+            if d.get("completes"):
+                done.update(d["completes"])
                 snaps.append({"slide": idx, "files": state_with(prior, week, done)})
             elif kind == "checkpoint":
-                snaps.append({"slide": idx, "files": state_with(prior, week, done)})
+                # The checkpoint runs (and exports) state_at(its week). That must
+                # be exactly what the class has typed by this slide, or the
+                # output shows code they have not written yet.
+                here = state_with(prior, week, done)
+                if here != state_at(d["week"]):
+                    off = [name for name in FILES if here[name] != state_at(d["week"])[name]]
+                    raise SystemExit(
+                        f"week {n}: checkpoint '{d['title']}' (slide {idx}) runs code that "
+                        f"does not match the slides before it ({', '.join(off)}). Move it "
+                        f"after the week's last code slide.")
+                snaps.append({"slide": idx, "files": here})
         snaps.append({"slide": len(plan), "files": state_at(n)})   # week final, last slide
         by_index = {snap["slide"]: snap for snap in snaps}          # last write per index
         weeks_out.append({"n": n, "states": [by_index[k] for k in sorted(by_index)]})

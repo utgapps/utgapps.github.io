@@ -91,6 +91,11 @@ CASES = [
                         'counts[week["n"]] = 2 + len(slide_plan', "pptx count"),
      "deck drift"),
 
+    ("a checkpoint runs code the class has not typed yet", "course.py",
+     lambda s: sub_once(s, r"_at = len._sl. - 1 if not .*?else len._sl.",
+                        "_at = len(_sl) - 1", "checkpoint placement"),
+     "does not match the slides before it"),
+
     ("a block is missing from the file ordering", "course.py",
      lambda s: sub_once(s, r'JS:   \["hello", ', 'JS:   [', "order"),
      ""),   # any failure will do - the message differs by which block is dropped

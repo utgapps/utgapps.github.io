@@ -3500,7 +3500,11 @@ _LAST_CHECKPOINTS = {
 for _n, _cp in _LAST_CHECKPOINTS.items():
     _sl = WEEKS[_n - 1]["slides"]
     if _cp["title"] not in [s.get("title") for s in _sl]:
-        _sl.insert(len(_sl) - 1, {"checkpoint": True, **_cp})
+        # Just before the closing slide - unless code is typed on that slide,
+        # as in week 14, where the checkpoint would otherwise run code the class
+        # has not typed yet. Then it goes last, after the code.
+        _at = len(_sl) - 1 if not _sl[-1].get("code") else len(_sl)
+        _sl.insert(_at, {"checkpoint": True, **_cp})
 
 QUIZZES.update({
     (13, JS, "settings"): [
