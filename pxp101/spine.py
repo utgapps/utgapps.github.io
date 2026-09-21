@@ -121,11 +121,14 @@ SPINE = {
         # Catching sends the food BELOW the floor rather than back to the top,
         # so the recycle block written in week 4 is what lifts it - one idea
         # paying for itself, which is the best thing an eight-year-old can see.
-        ("catch", [                                             # wk 5, +1 wk 14
+        # Week 5 writes the first three lines; week 14 APPENDS the speed-up as
+        # the last line, so week 5's block is a clean prefix (the two lines
+        # inside the if run in either order). See WEEK_OF below.
+        ("catch", [                                             # wk 5, then +1 wk 14
             "if get_collision(self, 'Monster'):",
             "    Game.score = Game.score + 1",
-            "    Game.fallSpeed = Game.fallSpeed + 0.2",
             "    self.y = -300",
+            "    Game.fallSpeed = Game.fallSpeed + 0.2",
         ]),
         ("cap", [                                               # wk 14
             "if Game.fallSpeed > 9:",
@@ -171,13 +174,17 @@ SPINE = {
 
     # ---------------------------------------------------------------- Play --
     "Play start": [
-        ("make", [
-            "Game.monster = Monster()",                         # wk 1
-            "Game.foodA = Food()",                              # wk 3
-            "Game.bomb = Bomb()",                               # wk 7
-            "Game.foodB = Food()",                              # wk 14
-            "Game.foodC = Food()",                              # wk 14
-            "Game.bombB = Bomb()",                              # wk 14
+        # One object per week, each its own block, because the course grows this
+        # panel by ADDing a block a week - never by rewriting an earlier one. The
+        # blocks sit next to each other in file order, so the finished panel reads
+        # as one run of Game.thing = Thing() lines.
+        ("make",     ["Game.monster = Monster()"]),            # wk 1
+        ("makeFood", ["Game.foodA = Food()"]),                 # wk 3
+        ("makeBomb", ["Game.bomb = Bomb()"]),                  # wk 7
+        ("makeMore", [                                          # wk 14
+            "Game.foodB = Food()",
+            "Game.foodC = Food()",
+            "Game.bombB = Bomb()",
         ]),
         # Lives are on the label from week 6, three weeks before anything can
         # take one. Writing it once means week 9 never rewrites it - and the
@@ -284,13 +291,14 @@ WEEK_OF = {
     ("Monster loop", "follow"): 2, ("Monster loop", "edges"): 2,
     ("Food start", "look"): 3, ("Food start", "place"): 3,
     ("Food loop", "fall"): 4,
-    ("Food loop", "catch"): [(5, 2), (14, 1), (5, 1)],
+    ("Food loop", "catch"): [(5, 3), (14, 1)],
     ("Food loop", "cap"): 14, ("Food loop", "recycle"): 4,
     ("Bomb start", "look"): 7, ("Bomb start", "place"): 7,
     ("Bomb loop", "fall"): 8,
     ("Bomb loop", "hit"): [(9, 3), (10, 2)],
     ("Bomb loop", "recycle"): 8,
-    ("Play start", "make"): [(1, 1), (3, 1), (7, 1), (14, 3)],
+    ("Play start", "make"): 1, ("Play start", "makeFood"): 3,
+    ("Play start", "makeBomb"): 7, ("Play start", "makeMore"): 14,
     ("Play start", "hud"): 6,
     ("Play loop", "label"): 6,
     ("GameOver start", "message"): 11, ("GameOver start", "score"): 12,
