@@ -178,8 +178,50 @@ def block_code(week_n, filename, block_id):
     return start, lines, changed_lines(week_n)[filename], gone
 
 
+# The PixelPad editor colours Python itself, in the Monaco "vs" theme: keywords
+# blue, strings dark red, numbers green, comments green. A child types a line in
+# the editor and sees it go blue; the book has to show the same line the same
+# way, or the book is about some other program. These are the editor's own
+# keywords, copied from highlightPython() in game-editor-offline.html.
+PY_KEYWORDS = frozenset("""
+and as assert break class continue def del elif else except finally for from
+global if import in is lambda nonlocal not or pass raise return try while with
+yield True False None self
+""".split())
+
+PY_TOKEN = re.compile(r"""
+    (?P<comment>\#.*$)
+  | (?P<string>"[^"\\]*(?:\\.[^"\\]*)*"?|'[^'\\]*(?:\\.[^'\\]*)*'?)
+  | (?P<number>\b\d[\d_]*\.?[\d_]*)
+  | (?P<name>[A-Za-z_][A-Za-z0-9_]*)
+""", re.VERBOSE)
+
+TOKEN_CLASS = {"comment": "tk-c", "string": "tk-s", "number": "tk-n"}
+
+
+def python_html(line):
+    """One line of Python, escaped and coloured the way the editor colours it.
+
+    Nothing here guesses at meaning - it is the editor's own rule set, so a
+    line cannot come out one colour in the book and another on the screen the
+    child is typing into.
+    """
+    out, cursor = [], 0
+    for match in PY_TOKEN.finditer(line):
+        out.append(esc(line[cursor:match.start()]))
+        kind = match.lastgroup
+        text = esc(match.group())
+        if kind == "name" and match.group() not in PY_KEYWORDS:
+            out.append(text)
+        else:
+            out.append(f'<span class="{TOKEN_CLASS.get(kind, "tk-k")}">{text}</span>')
+        cursor = match.end()
+    out.append(esc(line[cursor:]))
+    return "".join(out)
+
+
 def code_table(filename, start, lines, marks, ident=None, tag="", gone=None,
-               range_label=None):
+               range_label=None, syntax=False):
     """One styled snippet: file chip, line range, the code, changes accented.
 
     Deleted lines are drawn back in where they used to be, struck through, so a
@@ -191,11 +233,12 @@ def code_table(filename, start, lines, marks, ident=None, tag="", gone=None,
     """
     gone = gone or {}
     rows = []
+    paint = python_html if syntax else esc
 
     def removals(at):
         return "".join(
             f'<tr class="gone"><td class="ln">{at}</td>'
-            f'<td class="src">{esc(text) or "&nbsp;"}</td></tr>'
+            f'<td class="src">{paint(text) or "&nbsp;"}</td></tr>'
             for text in gone.get(at, []))
 
     for offset, line in enumerate(lines):
@@ -203,7 +246,7 @@ def code_table(filename, start, lines, marks, ident=None, tag="", gone=None,
         rows.append(removals(number))
         cls = ' class="new"' if number in marks else ""
         rows.append(f'<tr{cls}><td class="ln">{number}</td>'
-                    f'<td class="src">{esc(line) or "&nbsp;"}</td></tr>')
+                    f'<td class="src">{paint(line) or "&nbsp;"}</td></tr>')
     rows.append(removals(start + len(lines)))
     end = start + len(lines) - 1
     if range_label is None:
@@ -545,6 +588,21 @@ def strip_terms(text):
     word the sentence used and drop the mark. Also validates the slug, so a typo
     fails the deck build too, not only the web pages."""
     return TERM_MARK.sub(lambda match: _term_parts(match)[0], text)
+
+
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def big_idea_split(text):
+    """A chapter's opening line, and the rest of the paragraph behind it.
+
+    Every big_idea is authored to open with a short hook - "Time for danger.",
+    "Now a bomb bites." - and that sentence is worth setting on its own in big
+    type. A [[term]] mark never contains sentence punctuation, so splitting on
+    it here cannot cut a mark in half.
+    """
+    parts = SENTENCE_END.split(text.strip(), maxsplit=1)
+    return parts[0], ".", parts[1] if len(parts) > 1 else ""
 
 
 def bold_terms(text):
@@ -2379,23 +2437,100 @@ def build_slide_states():
 # --------------------------------------------------------------------------
 
 TEXTBOOK_CSS = """
-.tb-step{border-left:4px solid #01aefd;padding:2px 0 2px 16px;margin:26px 0}
-.tb-step h4{margin:0 0 8px;font-size:20px}
-.tb-where{display:inline-block;margin-left:8px;font:700 11px/1 Consolas,monospace;
-  text-transform:uppercase;letter-spacing:.05em;color:#0a6299;background:#eaf6fd;
-  border:1px solid #cfe8f7;border-radius:6px;padding:4px 8px;vertical-align:middle;white-space:nowrap}
-.tb-note{margin:10px 0 0;color:#31434b;max-width:70ch}
-.tb-play{display:inline-block;margin:14px 0 0;padding:8px 16px;border-radius:8px;
-  background:#ffd633;color:#04222f;font-weight:800}
-.tb-word{background:#eefaff;border:1px solid #bfe6f7;border-radius:10px;padding:14px 16px;margin:18px 0}
+/* The reader is seven or eight, reads slowly, and would much rather be typing
+   than reading. Three rules follow from that and explain most of what is here.
+
+   Big type, short lines. The book sets 17px on screen and holds prose to about
+   50 characters a line, which is where a new reader stops losing their place.
+
+   A child who looks up always has to be able to find their way back, so every
+   step carries a big numbered disc and a box to tick, and each chapter says
+   how many steps it has before the first one starts. Nothing is a wall.
+
+   Ink, not fill. Chrome prints with "Background graphics" off unless someone
+   remembers to turn it on, and this book is meant to be printed. So nothing
+   that has to be legible may depend on a background colour: every box earns
+   its edge with a BORDER and dark text, and the fills are decoration that the
+   page can lose without losing meaning. */
+.tb-book{font-size:17px;line-height:1.75}
+.tb-book h2{font-size:31px;line-height:1.15;margin:2px 0 10px}
+.tb-book h3{font-size:20px;margin:32px 0 10px}
+.tb-count{font-weight:400;color:#5d6b79;font-size:.8em}
+
+/* The opening sentence of a chapter, set big and alone. Every chapter's first
+   sentence is a hook a slow reader can finish - "Time for danger.", "Now a
+   bomb bites." - and the rest of the paragraph follows underneath in ordinary
+   size for whoever wants it. */
+.tb-hook{font-size:22px;line-height:1.4;font-weight:700;color:#12303f;margin:0 0 8px;max-width:30ch}
+.tb-book .lead{font-size:17px;line-height:1.7;color:#31434b;max-width:52ch}
+
+.tb-step{border-left:4px solid #01aefd;padding:2px 0 2px 16px;margin:30px 0}
+.tb-step h4{margin:0 0 7px;font-size:19px;line-height:1.45}
+/* Tick it when it works. A printed book a child marks up is a book they finish. */
+.tb-tick{display:inline-block;width:16px;height:16px;border:2px solid #7e94a3;
+  border-radius:4px;margin-right:9px;vertical-align:-1px}
+.tb-num{display:inline-block;min-width:27px;height:27px;line-height:23px;text-align:center;
+  border:2px solid #0a6299;border-radius:50%;background:#e7f7ff;color:#0a6299;
+  font-weight:800;font-size:15px;margin-right:9px;vertical-align:-4px}
+.tb-where{display:inline-block;margin:0 0 4px;font-size:14px;color:#0a6299;
+  background:#eaf6fd;border:1px solid #9dcfe8;border-radius:6px;padding:3px 9px}
+.tb-where b{font-weight:800}
+.tb-note{margin:10px 0 0;color:#31434b;max-width:52ch}
+.tb-play{display:inline-block;margin:14px 0 0;padding:7px 16px;border-radius:8px;
+  border:2px solid #d3a400;background:#ffd633;color:#04222f;font-weight:800}
+.tb-word{background:#eefaff;border:2px solid #9dd8f2;border-radius:10px;padding:14px 16px;margin:20px 0}
 .tb-word .h{font-weight:800;color:#0a6299;margin:0 0 4px}
+.tb-word p{max-width:52ch}
 .tb-word p:last-child{margin-bottom:0}
+/* One thing that can go wrong per card, the symptom first, because a child
+   looks for the symptom - they cannot know the cause yet. */
+.tb-oops{border-left:4px solid #e9952a;padding:2px 0 2px 14px;margin:14px 0}
+.tb-oops .h{font-weight:800;margin:0 0 2px;color:#8a5200}
+.tb-oops p{margin:0;max-width:52ch}
+.tb-learned{list-style:none;padding:0;margin:10px 0 0;max-width:52ch}
+.tb-learned li{margin:0 0 7px;padding-left:26px;position:relative}
+.tb-learned li::before{content:"\\2713";position:absolute;left:0;color:#1a9e4b;font-weight:800}
 .tb-glossary{display:grid;gap:12px;margin:10px 0 0}
-.tb-term{background:#f6fbff;border:1px solid #d7ecf7;border-radius:10px;padding:12px 16px;scroll-margin-top:16px}
+.tb-term{background:#f6fbff;border:1px solid #bcddee;border-radius:10px;padding:12px 16px;scroll-margin-top:16px}
 .tb-term .h{font-weight:800;color:#0a6299;margin:0 0 2px;font-size:18px}
 .tb-term p:last-child{margin:0}
 .tb-draw{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 0}
-.tb-draw .sp{border:1px solid #cbd9dd;border-radius:10px;padding:12px 16px;min-width:190px}
+.tb-draw .sp{border:1px solid #9fb4bc;border-radius:10px;padding:12px 16px;min-width:190px}
+
+/* ---- the code, exactly as the editor draws it ----------------------------
+   The snippets elsewhere on the site are dark, which is fine on a screen and
+   wrong here twice over. A child typing into PixelPad sees black on white in
+   the Monaco "vs" theme, so a dark book is a book about a different program.
+   And printed with backgrounds off, that dark block loses its fill and leaves
+   pale grey code on white paper. Black on white is what the editor shows and
+   what a printer can actually put down. Every colour below is the editor's
+   own, taken from game-editor-offline.html; the only liberty is a looser line
+   height than its 19px, because this is read on paper, not scrolled. */
+.tb-book .snip{background:#fff;border:2px solid #9fb4bc;border-radius:10px;margin:14px 0}
+.tb-book .snip-head{background:#eef3f6;border-bottom:2px solid #9fb4bc;color:#4a5f6b;
+  padding:7px 14px;font-size:13px}
+.tb-book .snip-head .file{color:#0b3a52;font:800 13px Consolas,"Courier New",monospace}
+.tb-book .snip-head .rng,.tb-book .snip-head .tag{color:#4a5f6b}
+.tb-book .snip .code{padding:9px 0}
+.tb-book .snip table{font:14px/21px Consolas,"Courier New",monospace}
+.tb-book .snip td.ln{color:#237893;padding:0 14px 0 12px;box-shadow:none;
+  border-left:5px solid transparent}
+.tb-book .snip td.src{color:#000}
+.tb-book .tk-k{color:#0000ff}
+.tb-book .tk-s{color:#a31515}
+.tb-book .tk-n{color:#098658}
+.tb-book .tk-c{color:#008000}
+/* The one place the book departs from the editor, and it has to: the child
+   needs to see WHICH lines are new. The editor marks a changed line with a bar
+   in the gutter, so this does the same, in green, thick enough to survive a
+   black-and-white printer - and the number goes bold beside it. The row tint
+   is the part that is allowed to vanish on paper. */
+.tb-book .snip tr.new td.ln{border-left-color:#1a9e4b;background:#e9f9ee;
+  color:#14703a;font-weight:800}
+.tb-book .snip tr.new td.src{background:#e9f9ee}
+.tb-book .snip tr.gone td.ln{border-left-color:#c03828;background:#fdeeec;
+  color:#93291c;font-weight:800}
+.tb-book .snip tr.gone td.src{background:#fdeeec;color:#93291c;text-decoration:line-through}
 @media print{
   /* A printed book, not a web page: turn the sheet on its side and set two book
      pages side by side, filled in reading order, so a chapter costs half the paper.
@@ -2410,12 +2545,28 @@ TEXTBOOK_CSS = """
   .tb-book .chapter{page-break-before:auto;break-before:auto;page-break-inside:auto}
   .tb-book .chapter:first-of-type{break-before:auto}
   .tb-step{break-inside:avoid}
-  /* Resized to fit the narrower column. */
-  .tb-book,.tb-note{font-size:12px}
-  .tb-book h2{font-size:19px}.tb-book h3{font-size:15px}.tb-step h4{font-size:14px}
-  .tb-where{font-size:9px;padding:3px 6px}
-  .tb-book table,.tb-book code,.tb-book pre{font-size:10.5px}
-  .tb-play{font-size:11px;padding:5px 11px}
+  .tb-word,.tb-oops,.tb-term{break-inside:avoid}
+  /* A chapter flows on from the last one to save paper, so it has to announce
+     itself some other way: a rule across the column, which is ink and prints. */
+  .tb-book .chapter{border-top:2px solid #9fb4bc;padding-top:10px;margin-top:16px}
+  .tb-book .chapter:first-of-type{border-top:0;padding-top:0;margin-top:0}
+  /* No heading stranded at the foot of a column, no single line of a paragraph
+     carried over on its own. */
+  .tb-book h2,.tb-book h3,.tb-step h4,.tb-hook,.tb-where{break-after:avoid}
+  .tb-book p{orphans:2;widows:2}
+  /* Sized for the column, but sized for the reader first. A seven-year-old
+     reading 10pt is a seven-year-old who stops. Two-up on landscape letter
+     gives each book page about 115mm, and 13.5px over that is roughly 45
+     characters a line - which is where an early reader wants to be. It costs
+     a few sheets against the 12px this used to set, and they are worth it. */
+  .tb-book,.tb-note,.tb-book .lead{font-size:13.5px;line-height:1.6}
+  .tb-book h2{font-size:21px}.tb-book h3{font-size:16px}.tb-step h4{font-size:15px}
+  .tb-hook{font-size:17px;line-height:1.35}
+  .tb-where{font-size:11px;padding:2px 7px}
+  .tb-book table,.tb-book code,.tb-book pre{font-size:11.5px;line-height:17px}
+  .tb-play{font-size:12px;padding:4px 11px}
+  .tb-num{min-width:22px;height:22px;line-height:19px;font-size:13px;vertical-align:-3px}
+  .tb-tick{width:14px;height:14px}
 }
 """
 
@@ -2478,31 +2629,47 @@ def build_textbook():
             verb = "change the green lines" if kind == "set" else "type the green lines"
             note = " ".join(part for part in beat["notes"] if part)
             note = '<p class="tb-note">%s</p>' % note if note else ""
+            # The number is a disc rather than "Step 3." so a child glancing
+            # back after looking away finds their place in one look, and the
+            # box beside it is there to tick when the step works.
             steps.append(
                 '{words}<div class="tb-step">'
-                '<h4>Step {step}. {title}'
-                ' <span class="tb-where">{panel} &middot; {verb}</span></h4>'
+                '<h4><span class="tb-tick"></span><span class="tb-num">{step}</span>{title}</h4>'
+                '<p class="tb-where">Open <b>{panel}</b> and {verb}</p>'
                 '{code}{note}'
                 '<p><span class="tb-play">&#9654; Press Play!</span></p></div>'.format(
                     words="".join(words), step=count, title=esc(beat["title"]),
                     panel=esc(panel), verb=verb,
-                    code=code_table(panel, start, lines, marks, tag="green = type this", gone=gone),
+                    code=code_table(panel, start, lines, marks, tag="green = type this",
+                                    gone=gone, syntax=True),
                     note=note))
 
-        wrong = "".join("<li><b>{0}</b> &mdash; {1}</li>".format(esc(sym), esc(fix))
-                        for sym, fix in week["errors"])
+        wrong = "".join(
+            '<div class="tb-oops"><p class="h">{0}</p><p>{1}</p></div>'.format(esc(sym), esc(fix))
+            for sym, fix in week["errors"])
         recap = "".join("<li>%s</li>" % esc(item) for item in week["recap"])
         bonus = bonus_block(week, "ch%d" % week["n"], "Finished early?")
 
+        # The first sentence carries the chapter on its own; the rest of the
+        # paragraph is for whoever wants it. A child who reads only the big
+        # line still knows what they are about to make.
+        hook, _, rest = big_idea_split(week["big_idea"])
+        lead = '<p class="tb-hook">%s</p>' % esc(hook)
+        if rest:
+            lead += '<p class="lead">%s</p>' % esc(rest)
+        # How many steps, said before the first one. "Three things to do" is a
+        # promise a child can hold; an unnumbered run of them is not.
+        how_many = "%d step%s" % (count, "" if count == 1 else "s")
+
         chapters.append(
             '<section class="chapter" id="chapter-{week_number}">'
-            '<p class="eyebrow">Chapter {week_number}</p><h2>{title}</h2><p class="lead">{idea}</p>'
-            '{draw}<h3>Build it</h3>{steps}{bonus}'
-            '<h3>If something goes wrong</h3><ul class="tight">{wrong}</ul>'
-            '<h3>What you learned</h3><ul class="tight">{recap}</ul></section>'.format(
-                week_number=wk, title=esc(week["title"]),
-                idea=esc(week["big_idea"]),
-                draw=draw, steps="".join(steps), bonus=bonus, wrong=wrong, recap=recap))
+            '<p class="eyebrow">Chapter {week_number} of {total}</p><h2>{title}</h2>{lead}'
+            '{draw}<h3>Build it <span class="tb-count">&mdash; {how_many}</span></h3>{steps}{bonus}'
+            '<h3>If something goes wrong</h3>{wrong}'
+            '<h3>What you learned</h3><ul class="tb-learned">{recap}</ul></section>'.format(
+                week_number=wk, total=TOTAL_WEEKS, title=esc(week["title"]), lead=lead,
+                draw=draw, how_many=how_many, steps="".join(steps), bonus=bonus,
+                wrong=wrong, recap=recap))
 
     chapter_count = len(chapters)
     # The glossary every blue word in the book links to. Anchored id="g-<slug>"
