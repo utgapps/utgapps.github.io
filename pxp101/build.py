@@ -547,6 +547,39 @@ def strip_terms(text):
     return TERM_MARK.sub(lambda match: _term_parts(match)[0], text)
 
 
+def bold_terms(text):
+    """The highlight for prose that already sits inside a link - the blurb on a
+    week card, which is itself wrapped in the card's own <a>. Same blue-bold as
+    a repeat use, but never an anchor: a link inside a link is invalid HTML, and
+    the browser closes the outer one early. That is what split every card on the
+    week index in two. Run this BEFORE the page-wide render_terms pass, which
+    would otherwise turn the first card mention into exactly the anchor this
+    exists to avoid."""
+    return TERM_MARK.sub(
+        lambda match: f'<b class="term">{_term_parts(match)[0]}</b>', text)
+
+
+LINK_TAG = re.compile(r"<a\b[^>]*>|</a\s*>", re.I)
+
+
+def check_no_nested_links(name, page_html):
+    """Refuse to write a page that puts a link inside a link.
+
+    HTML has no such thing: a browser silently closes the outer anchor at the
+    inner one, and every element after it escapes the container. Nothing throws
+    and nothing looks wrong in the source - it only shows up as a broken page,
+    which is how this shipped for three commits."""
+    depth = 0
+    for match in LINK_TAG.finditer(page_html):
+        if match.group(0).lower().startswith("</"):
+            depth = max(0, depth - 1)
+            continue
+        if depth:
+            near = page_html[max(0, match.start() - 90):match.start() + 60]
+            raise SystemExit(f"{name}: a link inside a link, near ...{near}")
+        depth += 1
+
+
 def guard(tool="pxp101", up="../"):
     """The site access gate. `up` is the path back to the site root - the slide
     decks sit one folder deeper than everything else this builder writes."""
@@ -757,7 +790,7 @@ def files_view(upto, ident_prefix):
 def build_index():
     cards = "".join(
         f'<a class="wk-card" href="week-{week["n"]:02d}.html"><span class="n">Week {week["n"]}</span>'
-        f'<h3>{esc(week["title"])}</h3><p>{esc(week["big_idea"])}</p></a>'
+        f'<h3>{esc(week["title"])}</h3><p>{bold_terms(esc(week["big_idea"]))}</p></a>'
         for week in course.WEEKS
     )
     body = f"""<div class="wrap">
@@ -2258,9 +2291,7 @@ def build_html_decks():
         # The decks sit in pxp101/slides/, so a glossary link reaches the book
         # one folder up.
         html_out = render_terms(html_out, root="../")
-        with open(os.path.join(SLIDES_DIR, "week-%02d.html" % week["n"]), "w",
-                  encoding="utf-8") as handle:
-            handle.write(html_out)
+        write("slides/week-%02d.html" % week["n"], html_out)
         counts[week["n"]] = len(slides)
     return counts
 
@@ -2497,6 +2528,11 @@ def build_textbook():
 
 
 def write(name, text):
+    """Every page and data file this builder emits goes through here, so the
+    page guards only have to be written once. `name` is relative to pxp101/ -
+    the decks pass "slides/week-NN.html"."""
+    if name.endswith(".html"):
+        check_no_nested_links(name, text)
     with open(os.path.join(HERE, name), "w", encoding="utf-8") as handle:
         handle.write(text)
 
