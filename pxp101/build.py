@@ -2521,8 +2521,8 @@ TEXTBOOK_CSS = """
 
 /* ---- the code, exactly as the editor draws it ----------------------------
    The snippets elsewhere on the site are dark, which is fine on a screen and
-   wrong here twice over. A child typing into PixelPad sees black on white in
-   the Monaco "vs" theme, so a dark book is a book about a different program.
+   wrong here twice over. A child typing into the code editor sees black on
+   white in the Monaco "vs" theme, so a dark book is about a different program.
    And printed with backgrounds off, that dark block loses its fill and leaves
    pale grey code on white paper. Black on white is what the editor shows and
    what a printer can actually put down. Every colour below is the editor's
@@ -2620,9 +2620,12 @@ def build_textbook():
                     name=esc(name), width=course.SPRITES[name][1],
                     height=course.SPRITES[name][2])
                 for name in week["draw"])
-            draw = ('<h3>Draw this first</h3><p>Make a new sprite in PixelPad for each one and give '
-                    'it exactly this name. The size matters &mdash; the code never resizes your '
-                    'picture.</p><div class="tb-draw">%s</div>' % cards)
+            # The book names no program. A class may be running this in the
+            # PixelPad site or in our own code editor, and a child told to open
+            # one who is sitting in front of the other is stuck before line 1.
+            draw = ('<h3>Draw this first</h3><p>Make a new sprite in the code editor for each one '
+                    'and give it exactly this name. The size matters &mdash; the code never '
+                    'resizes your picture.</p><div class="tb-draw">%s</div>' % cards)
 
         steps, count = [], 0
         for beat in week["flow"]:
@@ -2732,7 +2735,15 @@ def build_textbook():
         '<div class="tb-book">{chapters}</div></div>').format(
             css=TEXTBOOK_CSS, title=esc(course.COURSE_TITLE), blurb=esc(course.PROJECT_BLURB),
             jump=jump, chapters="".join(chapters))
-    write("textbook.html", page("The book", body))
+    book = page("The book", body)
+    # The book is the one thing a child reads on their own, so it names no
+    # program: it says "the code editor" and lets whoever runs the class decide
+    # which one that is. Every other page is read by a teacher, who can tell
+    # the difference, so the name stays there.
+    if "pixelpad" in book.lower():
+        raise SystemExit(
+            "textbook.html names PixelPad - the book says 'the code editor' instead")
+    write("textbook.html", book)
     return chapter_count
 
 
