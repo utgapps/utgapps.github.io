@@ -692,9 +692,23 @@ ul.tight li{margin-bottom:5px}
 .say b{color:#5b3fa0}
 .say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
 @media print{
-  @page{size:letter;margin:14mm}
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
   body{background:#fff}
-  header.site,.nav,.snip-head button,.noprint{display:none}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
   .beat{break-inside:avoid;page-break-inside:avoid}
   .snip{break-inside:avoid;page-break-inside:avoid}
   .chapter{page-break-before:always;page-break-inside:avoid}
@@ -2386,7 +2400,7 @@ TEXTBOOK_CSS = """
   /* A printed book, not a web page: turn the sheet on its side and set two book
      pages side by side, filled in reading order, so a chapter costs half the paper.
      `size:letter landscape` here overrides the portrait @page the shared CSS sets. */
-  @page{size:letter landscape;margin:12mm}
+  @page{size:letter landscape;margin:8mm 12mm}
   /* The title block, how-to box, jump nav and Print button are screen furniture -
      a child holding the printed book does not need them on page one. */
   .wrap>.eyebrow,.wrap>h1,.wrap>.lead,.wrap>.warn,.jump,.printbtn{display:none}
