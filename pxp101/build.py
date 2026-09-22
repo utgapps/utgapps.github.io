@@ -2502,6 +2502,8 @@ TEXTBOOK_CSS = """
 .tb-check p{margin:0}
 .tb-word{background:#eefaff;border:2px solid #9dd8f2;border-radius:10px;padding:14px 16px;margin:20px 0}
 .tb-word .h{font-weight:800;color:#0a6299;margin:0 0 4px}
+.tb-word .h code{font-family:Consolas,"Courier New",monospace;font-size:.96em;background:#fff;
+  border:1px solid #9dd8f2;border-radius:5px;padding:1px 6px}
 .tb-word p{max-width:52ch}
 .tb-word p:last-child{margin-bottom:0}
 /* One thing that can go wrong per card, the symptom first, because a child
@@ -2647,10 +2649,17 @@ def build_textbook():
                     concept = course.CONCEPTS.get(key)
                     if concept and key not in seen:
                         seen.add(key)
+                        label, name, lead = course.book_term(key)
+                        # A word the child types is set in code type, because
+                        # that is how it looks in the panel they are about to
+                        # type it into. An idea has no such spelling.
+                        shown = ("<code>%s</code>" % esc(name) if label == "New word"
+                                 else esc(name))
+                        body = [lead] + list(concept[2]) if lead else concept[2]
                         words.append(
-                            '<div class="tb-word"><p class="h">New word: {term}</p>{pts}</div>'.format(
-                                term=esc(concept[1]),
-                                pts="".join("<p>%s</p>" % esc(pt) for pt in concept[2])))
+                            '<div class="tb-word"><p class="h">{label}: {term}</p>{pts}</div>'.format(
+                                label=label, term=shown,
+                                pts="".join("<p>%s</p>" % esc(pt) for pt in body)))
 
             # Where the code goes is a short tag on the step title, not its own
             # sentence; and the step gets ONE calm note about what it makes happen,
@@ -2932,6 +2941,19 @@ def main():
                 raise SystemExit(f"quiz {key}: needs q, why, and 2+ options - {quiz.get('q')!r}")
             if not isinstance(quiz.get("answer"), int) or not (0 <= quiz["answer"] < len(opts)):
                 raise SystemExit(f"quiz {key}: answer index out of range - {quiz.get('q')!r}")
+
+    # A concept with no BOOK_TERMS entry would reach the book's box with only
+    # its slide title, which is the sentence that made those boxes read as
+    # nonsense. A stale entry is the quieter fault: it says a word is taught
+    # that nothing teaches any more.
+    missing = sorted(set(course.CONCEPTS) - set(course.BOOK_TERMS))
+    if missing:
+        raise SystemExit(
+            "no BOOK_TERMS entry for " + ", ".join(missing)
+            + " - name the word or the idea the book's box announces")
+    stale = sorted(set(course.BOOK_TERMS) - set(course.CONCEPTS))
+    if stale:
+        raise SystemExit("BOOK_TERMS names " + ", ".join(stale) + ", which CONCEPTS does not")
 
     build_index()
     build_weeks()

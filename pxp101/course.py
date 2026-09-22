@@ -1446,6 +1446,44 @@ CONCEPTS = {
         "if key_was_pressed(' ') or mouse_was_pressed('left'):"),
 }
 
+
+# --- the same concept, as the BOOK announces it -----------------------------
+#
+# A CONCEPTS title is written for a slide, where a whole sentence is the point:
+# "y is up and down". The book puts its boxes under a label, and a sentence
+# behind that label is nonsense - "New word: y is up and down", "New word:
+# Change a number by adding to it". So the book names the thing itself.
+#
+# key -> (kind, name, lead). kind is "word" for something the child types, and
+# the book prints it in code type; "idea" is a thing the code does, which has
+# no one word and is not printed as code. lead is a sentence saying what it IS,
+# for the few where the bullets go straight to how it behaves - most are
+# already clear from their first bullet and use "".
+BOOK_TERMS = {
+    "pp:start":     ("word", "start", ""),
+    "pp:loop":      ("word", "loop", ""),
+    "pp:room":      ("word", "room", ""),
+    "pp:sprite":    ("word", "sprite()", ""),
+    "pp:y":         ("word", "y", "y is how far up or down something is."),
+    "pp:mouse":     ("word", "mouse_x()", ""),
+    "pp:make":      ("idea", "Making an object", ""),
+    "pp:random":    ("word", "random.randint()", ""),
+    "pp:fall":      ("idea", "Falling", ""),
+    "pp:collision": ("word", "get_collision()", ""),
+    "pp:change":    ("idea", "Adding to a number", ""),
+    "pp:if":        ("word", "if", ""),
+    "pp:text":      ("word", "text()", ""),
+    "pp:flag":      ("word", "flag", ""),
+    "pp:press":     ("idea", "Waiting for a tap", ""),
+}
+
+
+def book_term(key):
+    """One concept's box heading in the book: (label, name, lead). The build
+    refuses to ship a concept with no entry, so this may raise."""
+    kind, name, lead = BOOK_TERMS[key]
+    return "New word" if kind == "word" else "New idea", name, lead
+
 # The words a child has to learn to read this game. Prose across every page
 # marks a term the FIRST time it is used in its real coding sense - written
 # [[loop]], or [[falls|fall]] when the sentence bends the word - and the build
