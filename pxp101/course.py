@@ -1644,6 +1644,134 @@ LINE_NOTES = {
 
 DELETE_NOTES = {}
 
+
+# --- what pressing Play should show you -------------------------------------
+#
+# One line per step, keyed (week, panel, block), for the box under every step
+# in the book.
+#
+# Roughly half the steps in this course change nothing a child can see. They
+# set a number up for later, or teach Game a word it will not use until next
+# week. A child who presses Play, sees precisely what they saw before, and was
+# never told to expect that concludes they have broken it - and then starts
+# undoing work that was right. So those steps say so out loud, and say what
+# Play IS good for there: proving the code runs clean.
+#
+# Where something does change, this says what to look at and, when it takes
+# doing something, what to do - move the mouse, let a bomb hit you, catch five.
+# Build.py refuses to ship a step that has no line here.
+CHECKS = {
+    (1, GAME_START, "setup"):
+        "Nothing to see yet - the screen stays empty, and that is right. You are "
+        "checking there is no red error, and telling the game which screen to open.",
+    (1, MON_START, "look"):
+        "Still nothing on the screen! You have described your monster, but nobody "
+        "has MADE one yet. That is the very next step.",
+    (1, PLAY_START, "make"):
+        "Your monster appears, near the bottom of the screen. This is the first "
+        "thing you can actually see.",
+    (2, MON_LOOP, "follow"):
+        "Move your mouse left and right. The monster slides along with it.",
+    (2, MON_LOOP, "edges"):
+        "Shove the mouse right off the side of the screen. The monster stops at the "
+        "edge instead of disappearing. Try both sides.",
+    (3, FOOD_START, "look"):
+        "Nothing changes. You have described the food, but there is no food in the "
+        "room yet - you make one two steps from here.",
+    (3, FOOD_START, "place"):
+        "Still nothing changes. Same reason: no Food exists yet. Play is only "
+        "telling you the code has no mistakes in it.",
+    (3, PLAY_START, "makeFood"):
+        "Your food appears, high above the screen - so high you may only see the "
+        "bottom of it. Press Play a few times: it lands in a different spot each go.",
+    (4, GAME_START, "speed"):
+        "Nothing moves yet. You have made a speed, but nothing is using it until "
+        "the next step.",
+    (4, FOOD_LOOP, "fall"):
+        "The food falls down the screen. It only falls once and then it is gone - "
+        "the next step fixes that.",
+    (4, FOOD_LOOP, "recycle"):
+        "The food rains down for ever: falls off the bottom, appears again up top "
+        "in a new spot. Watch it go round a few times.",
+    (5, GAME_START, "score"):
+        "Nothing changes on the screen. The score is a number the game is keeping "
+        "in its head - you put it on the screen in week 6.",
+    (5, GAME_START, "lives"):
+        "Nothing changes here either. Nothing takes a life away until the bombs "
+        "arrive in week 9, so there is nothing to see - only no red error.",
+    (5, FOOD_LOOP, "catch"):
+        "Catch the food with your monster. It vanishes and comes back at the top. "
+        "The score went up too, but it is hidden - you cannot see it until week 6.",
+    (6, PLAY_START, "hud"):
+        "Score: 0 appears in white near the top of the screen. Catch some food: it "
+        "still says 0, because nothing updates it yet. Next step.",
+    (6, PLAY_LOOP, "label"):
+        "Catch some food and WATCH THE NUMBER. It climbs, one for every catch. "
+        "Lives shows 3 and stays there.",
+    (7, BOMB_START, "look"):
+        "Nothing changes. You have described the bomb; there is no bomb in the room "
+        "until two steps from now.",
+    (7, BOMB_START, "place"):
+        "Nothing changes yet, same as before. Play is checking your code, not "
+        "showing you anything new.",
+    (7, PLAY_START, "makeBomb"):
+        "A bomb is sitting up high, above the food, not moving. It does not fall "
+        "until next week. Press Play again: it starts somewhere different.",
+    (8, BOMB_LOOP, "fall"):
+        "The bomb falls, at the same speed as the food. Like the food did, it falls "
+        "once and is gone.",
+    (8, BOMB_LOOP, "recycle"):
+        "Bombs keep coming, for ever, the way the food does. Dodge one - nothing "
+        "happens when it touches you yet. That is next week.",
+    (9, GAME_START, "flag"):
+        "Nothing changes. Game.dead is a yes-or-no the game keeps in its head. "
+        "The very next step is what flips it.",
+    (9, BOMB_LOOP, "hit"):
+        "Let a bomb hit your monster on purpose. Lives drops from 3 to 2, and the "
+        "bomb goes back up top. Take three hits: it goes to 0 and just keeps going. "
+        "Next week is where 0 ends the game.",
+    (10, BOMB_LOOP, "hit"):
+        "Nothing new to watch. Take three hits and the game still carries on - the "
+        "flag is up now, but nobody is watching for it until the next step.",
+    (10, GAME_LOOP, "over"):
+        "Lose all three lives on purpose. The screen goes BLACK and empty - that is "
+        "the GameOver room, and it is empty because you have not built it yet. You "
+        "build it next week.",
+    (11, OVER_START, "message"):
+        "Lose all three lives. Instead of a black screen you get GAME OVER - tap to "
+        "play again, in the middle. Tapping does nothing yet; that is week 13.",
+    (12, OVER_START, "score"):
+        "Catch a few pieces of food first, THEN lose your lives. Your score is "
+        "printed under GAME OVER, and it matches what you had.",
+    (13, OVER_LOOP, "again"):
+        "Lose the game, then tap the screen or press the space bar. A brand new "
+        "game starts: score back to 0, three lives, slow food. Play it round twice.",
+    (14, FOOD_LOOP, "catch"):
+        "Catch five or six in a row and feel it: the food comes down faster every "
+        "single time you catch one. Keep going and it gets silly.",
+    (14, FOOD_LOOP, "cap"):
+        "Catch a lot of food - more than thirty. It stops getting faster and holds "
+        "there. Hard, but you can still do it.",
+    (14, PLAY_START, "makeMore"):
+        "Three lots of food and two bombs now, all at once. It should feel like a "
+        "real game to play.",
+    (15, START_START, "title"):
+        "Nothing changes - you still land straight in the game. You have built the "
+        "title screen, but nothing opens it yet. Two more steps.",
+    (15, START_LOOP, "begin"):
+        "Still nothing changes, for the same reason. The last step is the one that "
+        "sends you to the Start screen.",
+    (15, GAME_START, "setup"):
+        "MONSTER MUNCH - tap to begin. Tap it: your game starts. Lose, tap again, "
+        "and you go round for ever. That is the whole game, finished.",
+}
+
+
+def check_for(week_n, panel, block):
+    """What to look for after Play, for one step. The build refuses to ship a
+    step that has no line, so this may raise rather than return nothing."""
+    return CHECKS[(week_n, panel, block)]
+
 QUIZZES = {
     (2, MON_LOOP, "edges"): [
         {"q": "Where does a line go if you want it to happen over and over?",

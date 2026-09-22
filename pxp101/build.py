@@ -592,6 +592,21 @@ def strip_terms(text):
 
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
+# Thirteen of the step notes end by telling the child to press Play and what
+# they will see. The book now says that underneath, in its own box, for every
+# step - so in the BOOK the sentence is said twice. Drop it there only: the
+# teacher guide and the slides render the same notes and have no such box, so
+# the note itself has to keep it.
+TRAILING_PLAY = re.compile(r"\s*Press Play\b[^.!?]*[.!?]+\s*$", re.I)
+
+
+def without_play_line(note):
+    previous = None
+    while note != previous:
+        previous = note
+        note = TRAILING_PLAY.sub("", note)
+    return note
+
 
 def big_idea_split(text):
     """A chapter's opening line, and the rest of the paragraph behind it.
@@ -2476,8 +2491,15 @@ TEXTBOOK_CSS = """
   background:#eaf6fd;border:1px solid #9dcfe8;border-radius:6px;padding:3px 9px}
 .tb-where b{font-weight:800}
 .tb-note{margin:10px 0 0;color:#31434b;max-width:52ch}
-.tb-play{display:inline-block;margin:14px 0 0;padding:7px 16px;border-radius:8px;
-  border:2px solid #d3a400;background:#ffd633;color:#04222f;font-weight:800}
+/* Press Play, and then what? A child who runs the game, sees exactly what they
+   saw last time and was not told to expect that assumes they have broken it -
+   and half the steps in this book genuinely change nothing you can look at.
+   So every step says which it is: what to watch for, or that there is nothing
+   to watch for and Play is only checking the code runs clean. */
+.tb-check{border:2px solid #d3a400;border-left-width:7px;background:#fffbe9;
+  border-radius:8px;padding:10px 14px;margin:14px 0 0;max-width:52ch}
+.tb-check .h{margin:0 0 3px;font-weight:800;color:#6d4f00}
+.tb-check p{margin:0}
 .tb-word{background:#eefaff;border:2px solid #9dd8f2;border-radius:10px;padding:14px 16px;margin:20px 0}
 .tb-word .h{font-weight:800;color:#0a6299;margin:0 0 4px}
 .tb-word p{max-width:52ch}
@@ -2521,16 +2543,22 @@ TEXTBOOK_CSS = """
 .tb-book .tk-n{color:#098658}
 .tb-book .tk-c{color:#008000}
 /* The one place the book departs from the editor, and it has to: the child
-   needs to see WHICH lines are new. The editor marks a changed line with a bar
-   in the gutter, so this does the same, in green, thick enough to survive a
-   black-and-white printer - and the number goes bold beside it. The row tint
-   is the part that is allowed to vanish on paper. */
-.tb-book .snip tr.new td.ln{border-left-color:#1a9e4b;background:#e9f9ee;
-  color:#14703a;font-weight:800}
-.tb-book .snip tr.new td.src{background:#e9f9ee}
-.tb-book .snip tr.gone td.ln{border-left-color:#c03828;background:#fdeeec;
-  color:#93291c;font-weight:800}
-.tb-book .snip tr.gone td.src{background:#fdeeec;color:#93291c;text-decoration:line-through}
+   needs to see WHICH lines to type. The whole line goes green, edge to edge,
+   number included - a band you could put a finger on - with the editor's own
+   change bar down the left in a darker green.
+
+   print-color-adjust:exact is what carries that green onto paper. Chrome drops
+   background fills when "Background graphics" is off, which is the default,
+   and this is the one fill in the book that MEANS something: lose it and the
+   book cannot say which lines to type. So it is the one fill that asks not to
+   be dropped. Everything else here still earns its edge with a border. */
+.tb-book .snip tr.new td{background:#d5f4e0;print-color-adjust:exact;
+  -webkit-print-color-adjust:exact}
+.tb-book .snip tr.new td.ln{border-left-color:#127c3d;color:#0d5c2d;font-weight:800}
+.tb-book .snip tr.gone td{background:#fbe3e0;print-color-adjust:exact;
+  -webkit-print-color-adjust:exact}
+.tb-book .snip tr.gone td.ln{border-left-color:#c03828;color:#93291c;font-weight:800}
+.tb-book .snip tr.gone td.src{color:#93291c;text-decoration:line-through}
 @media print{
   /* A printed book, not a web page: turn the sheet on its side and set two book
      pages side by side, filled in reading order, so a chapter costs half the paper.
@@ -2564,7 +2592,7 @@ TEXTBOOK_CSS = """
   .tb-hook{font-size:17px;line-height:1.35}
   .tb-where{font-size:11px;padding:2px 7px}
   .tb-book table,.tb-book code,.tb-book pre{font-size:11.5px;line-height:17px}
-  .tb-play{font-size:12px;padding:4px 11px}
+  .tb-check{font-size:12.5px;padding:7px 11px}
   .tb-num{min-width:22px;height:22px;line-height:19px;font-size:13px;vertical-align:-3px}
   .tb-tick{width:14px;height:14px}
 }
@@ -2627,7 +2655,7 @@ def build_textbook():
             # step's own authored note is that one sentence.
             kind = week_ops(week).get((panel, block))
             verb = "change the green lines" if kind == "set" else "type the green lines"
-            note = " ".join(part for part in beat["notes"] if part)
+            note = without_play_line(" ".join(part for part in beat["notes"] if part))
             note = '<p class="tb-note">%s</p>' % note if note else ""
             # The number is a disc rather than "Step 3." so a child glancing
             # back after looking away finds their place in one look, and the
@@ -2637,12 +2665,12 @@ def build_textbook():
                 '<h4><span class="tb-tick"></span><span class="tb-num">{step}</span>{title}</h4>'
                 '<p class="tb-where">Open <b>{panel}</b> and {verb}</p>'
                 '{code}{note}'
-                '<p><span class="tb-play">&#9654; Press Play!</span></p></div>'.format(
+                '<div class="tb-check"><p class="h">&#9654; Press Play</p>'
+                '<p>{check}</p></div></div>'.format(
                     words="".join(words), step=count, title=esc(beat["title"]),
                     panel=esc(panel), verb=verb,
-                    code=code_table(panel, start, lines, marks, tag="green = type this",
-                                    gone=gone, syntax=True),
-                    note=note))
+                    code=code_table(panel, start, lines, marks, gone=gone, syntax=True),
+                    note=note, check=esc(course.check_for(wk, panel, block))))
 
         wrong = "".join(
             '<div class="tb-oops"><p class="h">{0}</p><p>{1}</p></div>'.format(esc(sym), esc(fix))
@@ -2787,6 +2815,19 @@ def main():
         ghosts = {ref for ref in cited if ref[0] not in FILES}
         if ghosts:
             raise SystemExit(f"week {week['n']}: flow cites unknown file(s) {sorted(ghosts)}")
+
+        # Every step in the book ends "Press Play", and a child who presses it
+        # needs to know what they are looking for - including, half the time,
+        # that there is nothing to look for. An unanswered Play teaches a child
+        # that their working code is broken, so a missing line fails the build
+        # rather than printing a step that just says "Press Play" and stops.
+        blind = sorted(ref for ref in cited if (week["n"],) + ref not in course.CHECKS)
+        if blind:
+            raise SystemExit(
+                f"week {week['n']}: no CHECKS line for "
+                + ", ".join(f"{filename}:{block_id}" for filename, block_id in blind)
+                + " - say what pressing Play should show, or that nothing changes yet"
+            )
 
         # A whole hour with nothing to say back is a lecture, not a lesson.
         prompts = sum(1 for beat in week["flow"] if beat.get("ask"))
