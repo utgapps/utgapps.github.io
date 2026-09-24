@@ -1,0 +1,134 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 5 &#183; Again and again &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+/* a line that only moved in a level: a cool edge, no fill - nothing to type */
+.snip tr.moved td.ln{color:#6fb6dd;box-shadow:inset 3px 0 #3d8fc0}
+.snip tr.moved td.src{color:#a9cfe3}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors ---- */
+.chapter{scroll-margin-top:74px}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .wk-switch,
+body.embedded .brief,body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+ul.tight li{margin-bottom:5px}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="cs701";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>CS701</strong></header>
+<div class="wrap">
+<p class="eyebrow">Week 5 of 15</p>
+<h1>Again and again</h1>
+<p class="lead">A loop runs the same block again while a condition stays true. Today the single guess becomes six: the guessing code moves inside a while loop, and the game counts.</p>
+<p><span class="pill">while loop</span><span class="pill">loop condition</span><span class="pill">++</span><span class="pill">&amp;&amp; and ! in a condition</span><span class="pill">break</span><span class="pill">for loop (homework)</span><span class="pill">Random (homework)</span></p>
+<p class="teach-row"><a class="pill" href="slides/week-05.html">Slides for week 5</a>
+   <a class="pill ghost" href="slides/week-05.pptx">.pptx</a>
+   <a class="pill ghost" href="teacher.html#week-5">Lesson plan for week 5</a></p>
+<div class="note"><strong>Where you should be by the end of this week.</strong>
+The green lines are what is new since week 4. The 2 struck-through lines are ones you DELETE this week - take them out. The 8 lines with a blue edge are ones you already had: they only moved in one level, inside a new loop. Everything else you already had.
+Your project is now 74 lines.</div>
+<div class="bonus"><strong>Finished early? Guesses left</strong><p style="margin:6px 0 0">Before each guess, print how many guesses are left: maxGuesses - guessesUsed.</p><p class="muted" style="margin:6px 0 0;font-size:13px">Nothing in a later week depends on this, so it is safe to skip and safe to keep.</p></div>
+<h2>Your code after week 5</h2>
+<div class="tabs" data-tabs><button class="tab active" data-for="w5-0">Main.java</button></div><div data-pane="w5-0"><div class="snip"><div class="snip-head"><span class="file">Main.java</span><span class="rng">lines 1&ndash;74</span><span class="tag">green = new, struck through = deleted, blue edge = moved in with Tab this week</span><button data-copy="w5-code-0">Copy</button></div><div class="code"><table id="w5-code-0"><tr><td class="ln">1</td><td class="src">import java.util.Scanner;</td></tr><tr><td class="ln">2</td><td class="src">&nbsp;</td></tr><tr><td class="ln">3</td><td class="src">// Five Letters: find the secret word before your guesses run out.</td></tr><tr><td class="ln">4</td><td class="src">public class Main {</td></tr><tr><td class="ln">5</td><td class="src">&nbsp;</td></tr><tr><td class="ln">6</td><td class="src">    public static void main(String[] args) {</td></tr><tr><td class="ln">7</td><td class="src">        // The title screen.</td></tr><tr><td class="ln">8</td><td class="src">        System.out.println(&quot;=======================&quot;);</td></tr><tr><td class="ln">9</td><td class="src">        System.out.println(&quot;     FIVE  LETTERS&quot;);</td></tr><tr><td class="ln">10</td><td class="src">        System.out.println(&quot;=======================&quot;);</td></tr><tr><td class="ln">11</td><td class="src">        System.out.print(&quot;Find the secret word &quot;);</td></tr><tr><td class="ln">12</td><td class="src">        System.out.println(&quot;before your guesses run out.&quot;);</td></tr><tr><td class="ln">13</td><td class="src">&nbsp;</td></tr><tr><td class="ln">14</td><td class="src">        // The numbers the whole game is built on.</td></tr><tr><td class="ln">15</td><td class="src">        final int WORD_LENGTH = 5;</td></tr><tr><td class="ln">16</td><td class="src">        int maxGuesses = 6;</td></tr><tr><td class="ln">17</td><td class="src">&nbsp;</td></tr><tr><td class="ln">18</td><td class="src">        Scanner input = new Scanner(System.in);</td></tr><tr><td class="ln">19</td><td class="src">        System.out.print(&quot;What is your name? &quot;);</td></tr><tr><td class="ln">20</td><td class="src">        String playerName = input.nextLine();</td></tr><tr><td class="ln">21</td><td class="src">        System.out.println(&quot;Good luck, &quot; + playerName + &quot;!&quot;);</td></tr><tr><td class="ln">22</td><td class="src">&nbsp;</td></tr><tr><td class="ln">23</td><td class="src">        System.out.print(&quot;Pick a mode - 1 easy, 2 normal, 3 hard: &quot;);</td></tr><tr><td class="ln">24</td><td class="src">        int mode = input.nextInt();</td></tr><tr><td class="ln">25</td><td class="src">        input.nextLine();   // nextInt leaves the Enter key behind, so eat it</td></tr><tr><td class="ln">26</td><td class="src">        switch (mode) {</td></tr><tr><td class="ln">27</td><td class="src">            case 1:</td></tr><tr><td class="ln">28</td><td class="src">                maxGuesses = 8;</td></tr><tr><td class="ln">29</td><td class="src">                break;</td></tr><tr><td class="ln">30</td><td class="src">            case 2:</td></tr><tr><td class="ln">31</td><td class="src">                maxGuesses = 6;</td></tr><tr><td class="ln">32</td><td class="src">                break;</td></tr><tr><td class="ln">33</td><td class="src">            case 3:</td></tr><tr><td class="ln">34</td><td class="src">                maxGuesses = 4;</td></tr><tr><td class="ln">35</td><td class="src">                break;</td></tr><tr><td class="ln">36</td><td class="src">            default:</td></tr><tr><td class="ln">37</td><td class="src">                System.out.println(&quot;No mode &quot; + mode + &quot; - normal it is.&quot;);</td></tr><tr><td class="ln">38</td><td class="src">        }</td></tr><tr><td class="ln">39</td><td class="src">&nbsp;</td></tr><tr><td class="ln">40</td><td class="src">        int lettersToType = WORD_LENGTH * maxGuesses;</td></tr><tr><td class="ln">41</td><td class="src">        System.out.println(&quot;You get &quot; + maxGuesses + &quot; guesses at a &quot; + WORD_LENGTH + &quot;-letter word.&quot;);</td></tr><tr><td class="ln">42</td><td class="src">        System.out.println(&quot;That is up to &quot; + lettersToType + &quot; letters of typing.&quot;);</td></tr><tr><td class="ln">43</td><td class="src">&nbsp;</td></tr><tr><td class="ln">44</td><td class="src">        String secretWord = &quot;plant&quot;;</td></tr><tr><td class="ln">45</td><td class="src">&nbsp;</td></tr><tr><td class="ln">46</td><td class="src">        boolean won = false;</td></tr><tr><td class="ln">47</td><td class="src">        boolean gaveUp = false;</td></tr><tr class="new"><td class="ln">48</td><td class="src">        int guessesUsed = 0;</td></tr><tr class="new"><td class="ln">49</td><td class="src">&nbsp;</td></tr><tr class="new"><td class="ln">50</td><td class="src">        while (guessesUsed &lt; maxGuesses &amp;&amp; !won) {</td></tr><tr class="moved"><td class="ln">51</td><td class="src">            System.out.print(&quot;Your guess: &quot;);</td></tr><tr class="moved"><td class="ln">52</td><td class="src">            String guess = input.nextLine();</td></tr><tr><td class="ln">53</td><td class="src">&nbsp;</td></tr><tr class="moved"><td class="ln">54</td><td class="src">            if (guess.equals(&quot;quit&quot;) || guess.equals(&quot;q&quot;)) {</td></tr><tr class="moved"><td class="ln">55</td><td class="src">                gaveUp = true;</td></tr><tr class="new"><td class="ln">56</td><td class="src">                break;</td></tr><tr class="moved"><td class="ln">57</td><td class="src">            }</td></tr><tr class="new"><td class="ln">58</td><td class="src">&nbsp;</td></tr><tr class="new"><td class="ln">59</td><td class="src">            guessesUsed++;</td></tr><tr><td class="ln">60</td><td class="src">&nbsp;</td></tr><tr class="moved"><td class="ln">61</td><td class="src">            if (guess.equals(secretWord)) {</td></tr><tr class="moved"><td class="ln">62</td><td class="src">                won = true;</td></tr><tr class="moved"><td class="ln">63</td><td class="src">            }</td></tr><tr class="new"><td class="ln">64</td><td class="src">        }</td></tr><tr><td class="ln">65</td><td class="src">&nbsp;</td></tr><tr><td class="ln">66</td><td class="src">        if (won) {</td></tr><tr class="gone"><td class="ln">67</td><td class="src">            System.out.println(&quot;You found it!&quot;);</td></tr><tr class="new"><td class="ln">67</td><td class="src">            System.out.println(&quot;You found it in &quot; + guessesUsed + &quot;!&quot;);</td></tr><tr><td class="ln">68</td><td class="src">        } else if (gaveUp) {</td></tr><tr><td class="ln">69</td><td class="src">            System.out.println(&quot;You gave up. The word was &quot; + secretWord + &quot;.&quot;);</td></tr><tr><td class="ln">70</td><td class="src">        } else {</td></tr><tr class="gone"><td class="ln">71</td><td class="src">            System.out.println(&quot;Not this time. The word was &quot; + secretWord + &quot;.&quot;);</td></tr><tr class="new"><td class="ln">71</td><td class="src">            System.out.println(&quot;Out of guesses. The word was &quot; + secretWord + &quot;.&quot;);</td></tr><tr><td class="ln">72</td><td class="src">        }</td></tr><tr><td class="ln">73</td><td class="src">    }</td></tr><tr><td class="ln">74</td><td class="src">}</td></tr></table></div></div></div>
+<div class="nav"><a href="week-04.html">&larr; Week 4</a><a href="week-06.html">Week 6 &rarr;</a></div>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>

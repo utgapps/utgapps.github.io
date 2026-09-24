@@ -1,0 +1,295 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 15 slides &middot; CS701 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:5px}
+.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots i.on{background:#01aefd}
+.slide.line{overflow-y:auto}
+.slide.line .filebar{margin-bottom:.55em}
+.slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
+.code tr.ctx td{color:#aebfcb}
+.code tr.ctx .ln{color:#7c909d}
+.code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
+box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
+.code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.code tr.gone.hi td:last-child{color:#f3928b;background:rgba(243,146,139,.16);text-decoration:line-through}
+.code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
+.linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
+.slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.quiz{justify-content:flex-start;overflow-y:auto}
+.slide.quiz .eyebrow{color:#8a5cd0}
+.slide.quiz.answered .eyebrow{color:#0f8a4c}
+.opts{list-style:upper-alpha;margin:clamp(16px,3vh,34px) 0 0;padding-left:1.5em;
+display:grid;gap:clamp(9px,1.7vh,18px)}
+.opts li{font-size:clamp(17px,2.2vw,29px);line-height:1.35;padding-left:.3em}
+.slide.quiz.answered .opts li{color:#8a9aa5}
+.slide.quiz.answered .opts li.right{color:#0f8a4c;font-weight:800}
+.quiz-hint{color:#5b7178;font-size:clamp(14px,1.7vw,22px);margin-top:clamp(16px,3vh,30px)}
+.quiz-why{color:#0a6299;font-size:clamp(16px,2vw,27px);line-height:1.5;
+margin-top:clamp(16px,3vh,30px);max-width:46ch}
+.slide.checkpoint{justify-content:flex-start;overflow-y:auto}
+.cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
+.cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
+padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
+.cp-run:hover{background:#ffdf5c}
+.cp-actions{display:flex;flex-wrap:wrap;gap:10px}
+.cp-zip{font:inherit;font-weight:700;color:#0a6299;background:#fff;border:2px solid #0a6299;border-radius:8px;
+padding:.45em 1em;font-size:clamp(14px,1.6vw,19px);cursor:pointer}
+.cp-zip:hover{background:#e8f4fb}
+.cp-out{margin-top:16px;width:100%}
+.cp-out[hidden]{display:none}
+.cp-transcript{max-height:none;white-space:pre;overflow-x:auto;font-size:clamp(12px,1.45vw,18px);line-height:1.5}
+.cp-key{float:right;font-weight:600;color:#9fb9c2}
+.typed{color:#9fd8ee;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.clue-g{color:#7fe0a0;font-weight:800}
+.clue-y{color:#f4c869;font-weight:800}
+.code .moved td:last-child{color:#8fd0ff}
+.code .moved .ln{color:#5fa8d3}
+.cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
+.cp-console-head{padding:6px 12px;background:#16303a;color:#cfe3e8;font-size:13px;font-weight:700;
+letter-spacing:.03em}
+.cp-console-body{max-height:min(22vh,180px);overflow:auto;padding:8px 12px;
+font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
+.cp-console-body .cp-muted{color:#7f9aa4}
+.cp-row{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}
+.cp-row.error{color:#ff9d8e}.cp-row.warn{color:#f4c869}.cp-row.net{color:#8fb3bd}.cp-row.info{color:#9fd8ee}
+@media (max-width:640px){.bar .hint{display:none}}
+.slide.concept-vis{align-items:center;text-align:center;justify-content:center}
+.slide.concept-vis .sub{margin-top:.4em}
+.vis{width:100%;max-width:min(780px,94%);margin:clamp(12px,2.6vh,26px) auto 0}
+.vis.mock{max-width:min(500px,66%)}
+.vis svg{width:100%;height:auto;display:block;overflow:visible}
+.vis-cap{color:#0a6299;text-align:center;font-size:clamp(16px,2.1vw,27px);font-weight:600;
+margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
+.vb-rect{fill:#132833;stroke:#33586a;stroke-width:2.5}
+.vb-txt{fill:#e6f2f6;font:700 30px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vb-in .vb-rect{fill:#20301b;stroke:#ffd633}
+.vb-hi{fill:rgba(1,174,253,.30);stroke:#01aefd;stroke-width:3}
+.vmachine{fill:#0f2c38;stroke:#01aefd;stroke-width:3}
+.vmlabel{fill:#7fd8ff;font:800 26px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vtile rect{fill:#16303a;stroke:#33586a;stroke-width:2.5}
+.vtile text{fill:#e6f2f6;font:700 23px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vt-in rect{stroke:#ffd633}
+.vt-out rect{fill:#16321f;stroke:#7fe0a0}
+.vt-cloud rect{fill:#0f2c38;stroke:#01aefd}
+.vplus{fill:#7fd8ff;font:800 42px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.varrow{fill:#5b8aa0;font:800 30px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vswap-off{fill:#2a2030;stroke:#c98be0;stroke-width:3}
+.vswap-on{fill:#16321f;stroke:#7fe0a0;stroke-width:3}
+.vb-pick .vb-rect{fill:#16321f;stroke:#7fe0a0}
+.vt-btn rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag text{fill:#7fd8ff}
+.vt-no rect{fill:#1a2730;stroke:#7c909d}
+.vt-no text{fill:#aebfcb}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="cs701";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 15</p><h1>Your scoreboard</h1></section><section class="slide"><h2>An array of counters</h2><p class="sub mono">winsByGuesses[guessesUsed - 1]++</p><ul class="pts"><li>One box per possible guess count</li><li>A win in 1 goes in box 0</li><li>++ on one box of the array</li></ul></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 67</span></p><table class="code"><tr class="ctx"><td class="ln">63</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">64</td><td>        int gamesPlayed = 0;</td></tr><tr class="ctx"><td class="ln">65</td><td>        int gamesWon = 0;</td></tr><tr class="ctx"><td class="ln">66</td><td>        int bestScore = 0;</td></tr><tr class="hi"><td class="ln">67</td><td>        int[] winsByGuesses = new int[maxGuesses];</td></tr></table><p class="linenote">Below bestScore. One counter per guess count, all 0.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 177</span></p><table class="code"><tr class="ctx"><td class="ln">173</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">174</td><td>            gamesPlayed++;</td></tr><tr class="ctx"><td class="ln">175</td><td>            if (won) {</td></tr><tr class="ctx"><td class="ln">176</td><td>                gamesWon++;</td></tr><tr class="hi"><td class="ln">177</td><td>                winsByGuesses[guessesUsed - 1]++;</td></tr></table><p class="linenote">Below gamesWon++. Add one to this guess count&#x27;s box.</p></section><section class="slide"><h2>The chart</h2><p class="sub">A loop inside a loop</p><ul class="pts"><li>The outer loop: one row per guess count</li><li>The inner loop: one # per win</li><li>(row + 1) so people see 1 to 6</li></ul></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 194</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="hi"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr></table><p class="linenote">After the goodbye. A heading.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 195</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="hi"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr></table><p class="linenote">One row per guess count.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 196</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="ctx"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="hi"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr></table><p class="linenote">The label, counted from 1.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 197</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="ctx"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="ctx"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr><tr class="hi"><td class="ln">197</td><td>            for (int count = 0; count &lt; winsByGuesses[row]; count++) {</td></tr></table><p class="linenote">Once per win...</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 198</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="ctx"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="ctx"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr><tr class="ctx"><td class="ln">197</td><td>            for (int count = 0; count &lt; winsByGuesses[row]; count++) {</td></tr><tr class="hi"><td class="ln">198</td><td>                System.out.print(&quot;#&quot;);</td></tr></table><p class="linenote">...one #.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 200</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="ctx"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="ctx"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr><tr class="ctx"><td class="ln">197</td><td>            for (int count = 0; count &lt; winsByGuesses[row]; count++) {</td></tr><tr class="ctx"><td class="ln">198</td><td>                System.out.print(&quot;#&quot;);</td></tr><tr class="ctx"><td class="ln">199</td><td>            }</td></tr><tr class="hi"><td class="ln">200</td><td>            System.out.println(&quot; &quot; + winsByGuesses[row]);</td></tr></table><p class="linenote">End the bar with the number.</p></section><section class="slide dark line"><p class="filebar">Type this into Main.java <span class="part">line 201</span></p><table class="code"><tr class="ctx"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="ctx"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="ctx"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="ctx"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr><tr class="ctx"><td class="ln">197</td><td>            for (int count = 0; count &lt; winsByGuesses[row]; count++) {</td></tr><tr class="ctx"><td class="ln">198</td><td>                System.out.print(&quot;#&quot;);</td></tr><tr class="ctx"><td class="ln">199</td><td>            }</td></tr><tr class="ctx"><td class="ln">200</td><td>            System.out.println(&quot; &quot; + winsByGuesses[row]);</td></tr><tr class="hi"><td class="ln">201</td><td>        }</td></tr></table><p class="linenote">Close the row loop.</p></section><section class="slide dark line whole"><p class="filebar">All together in Main.java</p><table class="code"><tr class="new"><td class="ln">193</td><td>&nbsp;</td></tr><tr class="new"><td class="ln">194</td><td>        System.out.println(&quot;Wins by number of guesses:&quot;);</td></tr><tr class="new"><td class="ln">195</td><td>        for (int row = 0; row &lt; winsByGuesses.length; row++) {</td></tr><tr class="new"><td class="ln">196</td><td>            System.out.print((row + 1) + &quot; | &quot;);</td></tr><tr class="new"><td class="ln">197</td><td>            for (int count = 0; count &lt; winsByGuesses[row]; count++) {</td></tr><tr class="new"><td class="ln">198</td><td>                System.out.print(&quot;#&quot;);</td></tr><tr class="new"><td class="ln">199</td><td>            }</td></tr><tr class="new"><td class="ln">200</td><td>            System.out.println(&quot; &quot; + winsByGuesses[row]);</td></tr><tr class="new"><td class="ln">201</td><td>        }</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>winsByGuesses is {0, 3, 1, 0, 0, 0}. How long is the bar labelled 2?</h2><ol class="opts"><li class="">1 #</li><li class="">3 #s</li><li class="">2 #s</li><li class="">0</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>winsByGuesses is {0, 3, 1, 0, 0, 0}. How long is the bar labelled 2?</h2><ol class="opts"><li class="">1 #</li><li class="right">3 #s</li><li class="">2 #s</li><li class="">0</li></ol><p class="quiz-why">The label is row + 1, so the bar labelled 2 is row 1 and shows winsByGuesses[1], which is 3 - three wins in two guesses.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: the finished game</h2><p class="cp-say">Run it and play two rounds - win both if you can - then answer n and read your chart.</p><div class="cp-actions"><button class="cp-run" data-cp="cp40">&#9654; Show a sample run</button><button class="cp-zip" data-cp="cp40">&#8595; Download Main.java</button></div><div class="cp-out" id="out-cp40" hidden><div class="cp-console"><div class="cp-console-head">Console &mdash; a sample run<span class="cp-key"><b class="typed">underlined</b> = what you type</span></div><div class="cp-console-body cp-transcript">=======================
+     FIVE  LETTERS
+=======================
+Find the secret word before your guesses run out.
+What is your name? <b class="typed">Sam</b>
+Good luck, Sam!
+Read the rules first? (y/n) <b class="typed">n</b>
+Pick a mode - 1 easy, 2 normal, 3 hard: <b class="typed">2</b>
+You get 6 guesses at a 5-letter word.
+That is up to 30 letters of typing.
+q w e r t y u i o p 
+a s d f g h j k l 
+z x c v b n m 
+Guess 1 of 6: <b class="typed">could</b>
+<b class="clue-g">C</b><b class="clue-y">o</b><b class="clue-y">u</b><b class="clue-y">l</b><b class="clue-g">D</b>
+q w e r t y u i o p 
+a s d f g h j k l 
+z x c v b n m 
+Guess 2 of 6: <b class="typed">cloud</b>
+<b class="clue-g">C</b><b class="clue-g">L</b><b class="clue-g">O</b><b class="clue-g">U</b><b class="clue-g">D</b>
+<b class="clue-g">C</b><b class="clue-y">o</b><b class="clue-y">u</b><b class="clue-y">l</b><b class="clue-g">D</b>
+<b class="clue-g">C</b><b class="clue-g">L</b><b class="clue-g">O</b><b class="clue-g">U</b><b class="clue-g">D</b>
+-----
+-----
+-----
+-----
+You found it in 2!
+Brilliant!
+Fewest guesses so far: 2
+Play again? (y/n) <b class="typed">y</b>
+q w e r t y u i o p 
+a s d f g h j k l 
+z x c v b n m 
+Guess 1 of 6: <b class="typed">flame</b>
+<b class="clue-g">F</b><b class="clue-g">L</b><b class="clue-g">A</b><b class="clue-g">M</b><b class="clue-g">E</b>
+<b class="clue-g">F</b><b class="clue-g">L</b><b class="clue-g">A</b><b class="clue-g">M</b><b class="clue-g">E</b>
+-----
+-----
+-----
+-----
+-----
+You found it in 1!
+Unbelievable!
+Fewest guesses so far: 1
+Play again? (y/n) <b class="typed">n</b>
+Thanks for playing, Sam!
+You played 2 and won 2.
+That is 100.0% of your games.
+Wins by number of guesses:
+1 | # 1
+2 | # 1
+3 |  0
+4 |  0
+5 |  0
+6 |  0</div></div></div><script type="application/json" id="files-cp40">{"Main.java": "import java.util.ArrayList;\nimport java.util.Random;\nimport java.util.Scanner;\n\n// Five Letters: find the secret word before your guesses run out.\npublic class Main {\n\n    // Out here, outside main, so every method in the class can use it.\n    static Scanner input = new Scanner(System.in);\n\n    // Colour codes. The console reads these as instructions, not as letters.\n    static final String RESET = \"\\u001B[0m\";\n    static final String GREEN = \"\\u001B[32m\";\n    static final String YELLOW = \"\\u001B[33m\";\n\n    public static void main(String[] args) {\n        // The title screen.\n        System.out.println(\"=======================\");\n        System.out.println(\"     FIVE  LETTERS\");\n        System.out.println(\"=======================\");\n        System.out.print(\"Find the secret word \");\n        System.out.println(\"before your guesses run out.\");\n\n        // The numbers the whole game is built on.\n        final int WORD_LENGTH = 5;\n        int maxGuesses = 6;\n\n        System.out.print(\"What is your name? \");\n        String playerName = input.nextLine();\n        System.out.println(\"Good luck, \" + playerName + \"!\");\n\n        if (askYesNo(\"Read the rules first? (y/n) \")) {\n            System.out.println(\"CAPITAL letter = right letter, right place.\");\n            System.out.println(\"small letter   = in the word, wrong place.\");\n            System.out.println(\"_              = not in the word at all.\");\n        }\n\n        System.out.print(\"Pick a mode - 1 easy, 2 normal, 3 hard: \");\n        int mode = input.nextInt();\n        input.nextLine();   // nextInt leaves the Enter key behind, so eat it\n        switch (mode) {\n            case 1:\n                maxGuesses = 8;\n                break;\n            case 2:\n                maxGuesses = 6;\n                break;\n            case 3:\n                maxGuesses = 4;\n                break;\n            default:\n                System.out.println(\"No mode \" + mode + \" - normal it is.\");\n        }\n\n        int lettersToType = WORD_LENGTH * maxGuesses;\n        System.out.println(\"You get \" + maxGuesses + \" guesses at a \" + WORD_LENGTH + \"-letter word.\");\n        System.out.println(\"That is up to \" + lettersToType + \" letters of typing.\");\n\n        String[] words = {\"apple\", \"brick\", \"cloud\", \"dream\", \"flame\", \"ghost\",\n                          \"house\", \"lemon\", \"night\", \"plant\", \"river\", \"tiger\"};\n        Random random = new Random();\n        ArrayList\u003cString> usedWords = new ArrayList\u003c>();\n\n        int gamesPlayed = 0;\n        int gamesWon = 0;\n        int bestScore = 0;\n        int[] winsByGuesses = new int[maxGuesses];\n\n        char[][] keyboard = {\n            \"qwertyuiop\".toCharArray(),\n            \"asdfghjkl\".toCharArray(),\n            \"zxcvbnm\".toCharArray()\n        };\n\n        boolean keepPlaying = true;\n        while (keepPlaying) {\n            String secretWord = words[random.nextInt(words.length)];\n            while (usedWords.contains(secretWord)) {\n                secretWord = words[random.nextInt(words.length)];\n            }\n            usedWords.add(secretWord);\n            if (usedWords.size() == words.length) {\n                usedWords.clear();\n            }\n\n            boolean won = false;\n            boolean gaveUp = false;\n            int guessesUsed = 0;\n            String[] board = new String[maxGuesses];\n            for (int row = 0; row \u003c board.length; row++) {\n                board[row] = \"-----\";\n            }\n            String[] guesses = new String[maxGuesses];\n            String triedLetters = \"\";\n\n            while (guessesUsed \u003c maxGuesses && !won) {\n                for (int row = 0; row \u003c keyboard.length; row++) {\n                    for (int column = 0; column \u003c keyboard[row].length; column++) {\n                        char key = keyboard[row][column];\n                        if (triedLetters.indexOf(key) >= 0 && secretWord.indexOf(key) \u003c 0) {\n                            System.out.print(\". \");\n                        } else {\n                            System.out.print(key + \" \");\n                        }\n                    }\n                    System.out.println();\n                }\n\n                System.out.print(\"Guess \" + (guessesUsed + 1) + \" of \" + maxGuesses + \": \");\n                String guess = input.nextLine();\n                guess = guess.trim().toLowerCase();\n\n                if (guess.equals(\"quit\") || guess.equals(\"q\")) {\n                    gaveUp = true;\n                    break;\n                }\n\n                if (guess.length() != WORD_LENGTH) {\n                    System.out.println(\"It has to be \" + WORD_LENGTH + \" letters.\");\n                    continue;\n                }\n\n                if (!isAllLetters(guess)) {\n                    System.out.println(\"Letters only, please.\");\n                    continue;\n                }\n\n                boolean alreadyTried = false;\n                for (int row = 0; row \u003c guessesUsed; row++) {\n                    if (guesses[row].equals(guess)) {\n                        alreadyTried = true;\n                    }\n                }\n                if (alreadyTried) {\n                    System.out.println(\"You already tried \" + guess + \".\");\n                    continue;\n                }\n\n                guessesUsed++;\n                String clue = \"\";\n                for (int index = 0; index \u003c WORD_LENGTH; index++) {\n                    char letter = guess.charAt(index);\n                    if (letter == secretWord.charAt(index)) {\n                        clue = clue + GREEN + Character.toUpperCase(letter) + RESET;\n                    } else if (secretWord.indexOf(letter) >= 0) {\n                        clue = clue + YELLOW + letter + RESET;\n                    } else {\n                        clue = clue + \"_\";\n                    }\n                }\n                System.out.println(clue);\n                board[guessesUsed - 1] = clue;\n                guesses[guessesUsed - 1] = guess;\n                triedLetters = triedLetters + guess;\n\n                if (guess.equals(secretWord)) {\n                    won = true;\n                }\n            }\n\n            for (String row : board) {\n                System.out.println(row);\n            }\n\n            if (won) {\n                System.out.println(\"You found it in \" + guessesUsed + \"!\");\n                System.out.println(winMessage(guessesUsed));\n            } else if (gaveUp) {\n                System.out.println(\"You gave up. The word was \" + secretWord + \".\");\n            } else {\n                System.out.println(\"Out of guesses. The word was \" + secretWord + \".\");\n            }\n\n            gamesPlayed++;\n            if (won) {\n                gamesWon++;\n                winsByGuesses[guessesUsed - 1]++;\n                if (bestScore == 0 || guessesUsed \u003c bestScore) {\n                    bestScore = guessesUsed;\n                }\n            }\n            if (bestScore > 0) {\n                System.out.println(\"Fewest guesses so far: \" + bestScore);\n            }\n\n            keepPlaying = askYesNo(\"Play again? (y/n) \");\n        }\n\n        double winRate = (double) gamesWon / gamesPlayed * 100;\n        System.out.println(\"Thanks for playing, \" + playerName + \"!\");\n        System.out.println(\"You played \" + gamesPlayed + \" and won \" + gamesWon + \".\");\n        System.out.printf(\"That is %.1f%% of your games.%n\", winRate);\n\n        System.out.println(\"Wins by number of guesses:\");\n        for (int row = 0; row \u003c winsByGuesses.length; row++) {\n            System.out.print((row + 1) + \" | \");\n            for (int count = 0; count \u003c winsByGuesses[row]; count++) {\n                System.out.print(\"#\");\n            }\n            System.out.println(\" \" + winsByGuesses[row]);\n        }\n    }\n\n    // True only when every character in the word is a letter.\n    static boolean isAllLetters(String word) {\n        for (char character : word.toCharArray()) {\n            if (!Character.isLetter(character)) {\n                return false;\n            }\n        }\n        return true;\n    }\n\n    // A message for how quickly the word was found.\n    static String winMessage(int guessesUsed) {\n        switch (guessesUsed) {\n            case 1:\n                return \"Unbelievable!\";\n            case 2:\n                return \"Brilliant!\";\n            case 3:\n                return \"Great work!\";\n            case 4:\n                return \"Nice one.\";\n            default:\n                return \"Phew - just made it.\";\n        }\n    }\n\n    // Asks a yes-or-no question until it gets an answer it understands.\n    static boolean askYesNo(String question) {\n        while (true) {\n            System.out.print(question);\n            String answer = input.nextLine().trim().toLowerCase();\n            if (answer.equals(\"y\") || answer.equals(\"yes\")) {\n                return true;\n            }\n            if (answer.equals(\"n\") || answer.equals(\"no\")) {\n                return false;\n            }\n            System.out.println(\"Please answer y or n.\");\n        }\n    }\n}\n"}</script></section><section class="slide"><h2>What you built</h2><p class="sub">Fifteen weeks, one program</p><ul class="pts"><li>Variables, if and switch</li><li>while and for loops</li><li>Strings, arrays and a 2D grid</li><li>Methods, printf and an ArrayList</li><li>About 245 lines, all yours</li></ul></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+// The week this deck is (from its own filename), so the classroom shell knows
+// which week + slide the teacher is on - that is the compare point for the
+// teacher's "Identify problem" (only what the class has reached so far).
+var DECK_WEEK = (function () { var m = location.pathname.match(/week-(\d+)/); return m ? parseInt(m[1], 10) : null; })();
+
+function reportSlide() {
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ utg: 'deck', action: 'slide', week: DECK_WEEK, index: at, total: slides.length }, location.origin); } catch (e) {}
+}
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+  focusTypedLine(slides[at]);
+  reportSlide();
+}
+
+// A code slide can be taller than the screen. The line to type is always the
+// newest (last) line of the block, so when a scrollable code slide opens, jump
+// to the bottom - the line they type and its note land on screen and nobody has
+// to scroll down to find them. Review ("all together") slides have no such line,
+// so they read from the top.
+function focusTypedLine(slide) {
+  if (!slide || !slide.classList.contains('line')) return;
+  var hasTarget = !!slide.querySelector('tr.hi');
+  function go() {
+    // Bail if the class moved on before a late callback (font load) fires.
+    if (slides[at] !== slide || !slide.classList.contains('on')) return;
+    slide.scrollTop = hasTarget ? slide.scrollHeight : 0;
+  }
+  requestAnimationFrame(go);
+  // Rubik/Consolas can load after first paint and make the code taller; without
+  // re-running once fonts are in, the jump uses the pre-font height and stops
+  // short, leaving the line off-screen - exactly the bug this fixes.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+// Full screen and any projector/window resize change the slide height, so
+// re-pin the line-to-type to the bottom of whatever code slide is showing.
+window.addEventListener('resize', function () { focusTypedLine(slides[at]); });
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+
+// Checkpoint slides: download Main.java exactly as it stands at this checkpoint.
+// One file, named Main.java because Java insists the file is named after the
+// public class in it - a student who fell behind saves it and runs it.
+[].slice.call(document.querySelectorAll('.cp-zip')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var files = JSON.parse(document.getElementById('files-' + btn.getAttribute('data-cp')).textContent);
+    var url = URL.createObjectURL(new Blob([files['Main.java']], { type: 'text/plain' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = 'Main.java';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  };
+});
+
+// Checkpoint slides: reveal the sample run so the class can compare consoles.
+[].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var out = document.getElementById('out-' + btn.getAttribute('data-cp'));
+    var opening = out.hasAttribute('hidden');
+    if (opening) out.removeAttribute('hidden'); else out.setAttribute('hidden', '');
+    btn.textContent = opening ? 'Hide the sample run' : '▶ Show a sample run';
+  };
+});
+</script>

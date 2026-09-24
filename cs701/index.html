@@ -1,0 +1,148 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CS701 &amp;middot; AP Computer Science Prep Level 1 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+/* a line that only moved in a level: a cool edge, no fill - nothing to type */
+.snip tr.moved td.ln{color:#6fb6dd;box-shadow:inset 3px 0 #3d8fc0}
+.snip tr.moved td.src{color:#a9cfe3}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors ---- */
+.chapter{scroll-margin-top:74px}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .wk-switch,
+body.embedded .brief,body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+ul.tight li{margin-bottom:5px}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff}
+  header.site,.nav,.snip-head button,.noprint{display:none}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="cs701";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>CS701</strong></header>
+<div class="wrap">
+<p class="eyebrow">15-week course</p>
+<h1>CS701 &amp;middot; AP Computer Science Prep Level 1</h1>
+<p class="lead">Fifteen weeks of Java, one program. You start with a title screen and finish with a complete word-guessing game you wrote line by line - and along the way you meet every idea an AP Computer Science course expects you to walk in with: variables, decisions, loops, strings, arrays, methods and lists.</p>
+<div class="card">
+  <h3 style="margin-top:0">What you are building</h3>
+  <p class="muted">Five Letters: a console word game. The computer picks a secret five-letter word and you have six guesses. Every guess gets a clue - capital letters are in the right place, small letters are in the word but somewhere else - and by the end it has difficulty modes, a live keyboard, colour, a scoreboard and a chart of how you did.</p>
+  <p><a class="pill" href="teacher.html">Teacher curriculum</a>
+     <a class="pill" href="workbook.html">Student homework book</a>
+     <a class="pill" href="../classroom/">Open the code editor</a></p>
+  <p class="muted" style="margin:10px 0 0;font-size:13px">Each week page carries that week&rsquo;s
+  slides and links straight to its lesson plan. In the classroom, opening a week gives the teacher
+  both without leaving the room. Java runs on your own computer or in an online Java editor &mdash;
+  see <em>Before you start</em> below.</p>
+</div>
+<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>
+<p><strong>Java runs on a computer, not in a browser tab.</strong> Everything in this course
+is one file, <code>Main.java</code>, and it runs in any Java code editor that lets you type
+into the console. Your teacher will tell you which one the class uses.</p>
+
+<p><strong>On your own computer.</strong> Install a Java Development Kit (version 17 or newer),
+save the file as <code>Main.java</code>, open a terminal in that folder and type
+<code>java Main.java</code>. That one command compiles and runs it.</p>
+
+<p><strong>Every week's finished file is on the week's page.</strong> If you missed a lesson,
+copy that week's <code>Main.java</code> and carry on from there - you will not be behind.</p>
+</div>
+<h2>The weeks</h2>
+<div class="grid"><a class="wk-card" href="week-01.html"><span class="n">Week 1</span><h3>Hello, console</h3><p>A Java program is a class with a main method, and main is a list of instructions the computer follows from top to bottom. Today you write the title screen of the game you will spend fifteen weeks building.</p></a><a class="wk-card" href="week-02.html"><span class="n">Week 2</span><h3>Numbers and names</h3><p>A variable is a named box that holds a value. Today the game gets its first two numbers - how long the word is and how many guesses you get - and does its first sum.</p></a><a class="wk-card" href="week-03.html"><span class="n">Week 3</span><h3>Your first guess</h3><p>A program that only prints is a poster. Today it reads the keyboard: it asks your name, lets you guess the secret word once, and decides whether you were right.</p></a><a class="wk-card" href="week-04.html"><span class="n">Week 4</span><h3>Choices</h3><p>Real programs make more than one decision. Today the player picks a difficulty with a switch, can give up with a quit command, and the ending has three possibilities instead of two.</p></a><a class="wk-card" href="week-05.html"><span class="n">Week 5</span><h3>Again and again</h3><p>A loop runs the same block again while a condition stays true. Today the single guess becomes six: the guessing code moves inside a while loop, and the game counts.</p></a><a class="wk-card" href="week-06.html"><span class="n">Week 6</span><h3>Reading a word</h3><p>A String is a row of characters you can measure, clean up and take apart one letter at a time. Today the game tidies every guess, refuses ones that are the wrong length, and prints its first real clue.</p></a><a class="wk-card" href="week-07.html"><span class="n">Week 7</span><h3>A list of words</h3><p>An array holds many values under one name, numbered from 0. Today the game gets a list of twelve words and picks one at random, and it keeps a board of every clue so far.</p></a><a class="wk-card" href="week-08.html"><span class="n">Week 8</span><h3>Another round</h3><p>A loop can sit inside another loop. Today the whole round goes inside a play-again loop, the game remembers your scores across rounds, and a loop inside the guessing loop catches repeated guesses.</p></a><a class="wk-card" href="week-09.html"><span class="n">Week 9</span><h3>Methods</h3><p>A method is a named piece of code you can call from anywhere. Today you write two: one that answers a yes-or-no question about a word, and one that turns a number into a message.</p></a><a class="wk-card" href="week-10.html"><span class="n">Week 10</span><h3>A keyboard grid</h3><p>An array can hold arrays: a grid with rows and columns. Today the game shows a keyboard before each guess and blanks out the letters you have ruled out.</p></a><a class="wk-card" href="week-11.html"><span class="n">Week 11</span><h3>Decimals and a goodbye</h3><p>Whole numbers throw fractions away, so a percentage needs a double - and a cast to get one. Today the game says goodbye with your record and your win rate, formatted to one decimal place.</p></a><a class="wk-card" href="week-12.html"><span class="n">Week 12</span><h3>Asking properly</h3><p>Code you write twice is code you will fix twice. Today one method asks every yes-or-no question and keeps asking until it gets a real answer - and the Scanner moves out of main so that method can use it.</p></a><a class="wk-card" href="week-13.html"><span class="n">Week 13</span><h3>Colour</h3><p>A String can carry instructions as well as letters. Today the clue turns green and yellow, using escape codes the console reads as colour changes instead of printing.</p></a><a class="wk-card" href="week-14.html"><span class="n">Week 14</span><h3>A list that grows</h3><p>An array&#x27;s size is fixed; an ArrayList grows and shrinks. Today the game remembers which words it has already used, so you do not get the same word twice until every word has had a turn.</p></a><a class="wk-card" href="week-15.html"><span class="n">Week 15</span><h3>Your scoreboard</h3><p>Everything comes together: an array of counters, a loop inside a loop, and printf. Today the game ends with a chart of how many guesses your wins took - and then you look back at the whole program you wrote.</p></a></div>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
