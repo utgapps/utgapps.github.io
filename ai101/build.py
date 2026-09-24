@@ -689,18 +689,19 @@ TEACHER_CSS = """
 .hour-key i{font-style:normal;display:inline-flex;align-items:center;gap:6px}
 .hour-key i::before{content:"";width:9px;height:9px;border-radius:2px;background:#b6c8d6}
 .hour-key i.type::before{background:var(--brand)}
-.wk-facts{display:grid;gap:20px 40px;grid-template-columns:1fr 1fr;margin:22px 0 30px;
-  padding:19px 0;border-top:1px solid #e3e9f0;border-bottom:1px solid #e3e9f0}
-.wk-facts ul{margin:0;padding-left:18px}
+.wk-facts{margin:22px 0 26px;padding:19px 0;
+  border-top:1px solid #e3e9f0;border-bottom:1px solid #e3e9f0}
+.wk-facts ul{margin:0;padding-left:18px;max-width:78ch}
 .wk-facts li{margin:0 0 5px;font-size:14.5px;line-height:1.55}
 .wk-facts li:last-child{margin-bottom:0}
-/* Everything typed this week. It was a bordered three-column table with an
-   uppercase header row, which is a lot of furniture for nine words of fact. */
-.edits{list-style:none;padding:0}
-.edits li{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px}
-.edits code{font:600 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
-.edits .what{color:#5a6b7b;font-size:13.5px}
-.edits-note{margin:9px 0 0;color:#84919f;font-size:12.5px;line-height:1.5;max-width:60ch}
+/* The week's three files, one tab each, green for what this week adds and
+   struck-through red for what it removes. It is tall, so it scrolls in place
+   rather than pushing the lesson itself off the bottom of the screen. */
+.files-h{margin:0 0 9px}
+.files{margin:0 0 30px}
+.files .tabs{margin:0}
+.files .snip{margin:0;border-radius:0 0 9px 9px}
+.files .snip .code{max-height:390px}
 
 /* ---- the hour, as a run sheet ---- */
 .run{list-style:none;margin:0;padding:0}
@@ -754,18 +755,23 @@ TEACHER_CSS = """
 .tg .bonus p{max-width:70ch}
 
 @media (max-width:720px){
-  .wk-facts,.wk-foot{grid-template-columns:1fr}
+  .wk-foot{grid-template-columns:1fr}
   .run > li{grid-template-columns:46px minmax(0,1fr);gap:16px}
   .run > li::before,.run > li.at::after{display:none}
 }
 @media print{
   /* The bar and the switcher are navigation - on paper the run sheet's own
      times say the same thing and the links go nowhere. */
-  .wk-switch,.hour,.hour-key{display:none}
+  /* The file view is a screen reference: it scrolls, only its open tab is
+     visible, and printing all three files for all fifteen weeks would bury
+     the lesson in a hundred pages of listing. The run sheet below already
+     prints every line the week actually types. */
+  .wk-switch,.hour,.hour-key,.files,.files-h{display:none}
   .brief,.brief .inner{border:0;padding-left:0;padding-right:0}
   .brief > summary{display:none}
   .run > li{break-inside:avoid;page-break-inside:avoid}
   .wk-facts,.wk-foot,.snag li{break-inside:avoid;page-break-inside:avoid}
+  .wk-facts{margin-bottom:22px}
   .tg .chapter + .chapter{margin-top:0}
   /* On screen a long line scrolls sideways. On paper it is simply gone, and
      a teacher cannot scroll a handout - so wrap it instead of losing it. */
@@ -915,26 +921,13 @@ Your project is now {total} lines.</div>
 def build_teacher():
     sections = []
     for week in course.WEEKS:
-        spans = block_spans(week["n"])
-        # Every edit the week makes, straight from the ops. One line each: the
-        # snippet headers in the run sheet below repeat all of this anyway, so
-        # up here it only has to be countable at a glance.
-        typed = "".join(
-            '<li><code>{f}</code><span class="what">{r} &middot; {k}</span></li>'.format(
-                f=esc(filename),
-                r=("line {0}".format(spans[filename][block_id][0])
-                   if spans[filename][block_id][0] == spans[filename][block_id][1]
-                   else "lines {0}&ndash;{1}".format(*spans[filename][block_id])),
-                k="type it in fresh" if kind == "add" else "replace what is there")
-            for kind, filename, block_id, _ in week["ops"]
-        )
-        edits = (
-            f'<ul class="edits">{typed}</ul>'
-            '<p class="edits-note">Line numbers are as the file stands at the END of this '
-            'week, which is what the student sees on the week page. Work top to bottom and '
-            'they will line up.</p>'
-            if typed else '<p class="edits-note">No new code this week.</p>'
-        )
+        # The three files as the class leaves them, one tab each, with this
+        # week's lines green and anything it deletes struck through in red.
+        # This replaced a list of file names and line ranges, which told a
+        # teacher a block landed at "lines 21-31" and nothing whatever about
+        # what was in it. It is the same view the students get on their own
+        # week page, so the room is looking at one picture of the project.
+        files = f'<div class="files">{files_view(week["n"], "tg%d" % week["n"])}</div>'
         errors = "".join(
             f"<li><b>{esc(sym)}</b><span>{esc(fix)}</span></li>" for sym, fix in week["errors"]
         )
@@ -947,10 +940,11 @@ def build_teacher():
 <h2>{esc(week["title"])}</h2>
 <p class="wk-idea">{esc(week["big_idea"])}</p>
 <div class="wk-facts">
-<div><h3>They leave today able to</h3>
-<ul>{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul></div>
-<div><h3>Everything typed this week</h3>{edits}</div>
+<h3>They leave today able to</h3>
+<ul>{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul>
 </div>
+<h3 class="files-h">The project after this week</h3>
+{files}
 {render_flow(week)}
 <div class="wk-foot">
 <div><h3>What will go wrong</h3><ul class="snag">{errors}</ul></div>
