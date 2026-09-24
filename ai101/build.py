@@ -236,11 +236,18 @@ def code_table(filename, start, lines, marks, ident=None, tag="", gone=None):
 
 
 def render_ask(ask):
+    """A call-and-response prompt, rendered the same way a beat's body is.
+
+    Both are prose an author writes with markup in it, and seventeen prompts
+    across ten weeks say things like "why Number(tempBox.value)?" with the
+    name in <code>. Escaping those printed the tags at the teacher, mid
+    sentence, on the one line they are meant to read out loud.
+    """
     if not ask:
         return ""
     question, listening = ask
-    return (f'<div class="say"><b>Ask the room:</b> {esc(question)}'
-            f'<span class="listen">Listening for: {esc(listening)}</span></div>')
+    return (f'<div class="say"><b>Ask the room:</b> {question}'
+            f'<span class="listen">Listening for: {listening}</span></div>')
 
 
 def placement(week_n, filename, block_id, kind):
@@ -252,25 +259,28 @@ def placement(week_n, filename, block_id, kind):
     above it. Line numbers alone do not help there, because they are the
     end-of-week numbers and the file is still growing. Naming the neighbour
     does: "goes just above function explain" is unambiguous at any point.
+
+    Returns (chip, where): a one-word state and the rest of the sentence. They
+    are separate because the guide sets them on one line under the beat's
+    title, where a whole paragraph of placement used to sit above the code.
     """
     if kind == "set":
         start, end = block_spans(week_n)[filename][block_id]
         where = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
-        return (f"Already in <b>{esc(filename)}</b> at {where}. "
-                f"<b>Only the green lines change</b> &mdash; everything else stays exactly as it is.")
+        return ("Edit", f"<b>{esc(filename)}</b> {where} &mdash; only the green lines change, "
+                        f"everything else stays exactly as it is")
 
     ordered = [bid for bid, _ in blocks_at(week_n)[filename]]
     index = ordered.index(block_id)
     if index == 0:
-        return f"New. Goes at the very top of <b>{esc(filename)}</b>, above everything else."
+        return ("New", f"the very top of <b>{esc(filename)}</b>, above everything else")
     if index == len(ordered) - 1:
-        return f"New. Goes at the end of <b>{esc(filename)}</b>."
+        return ("New", f"the end of <b>{esc(filename)}</b>")
     following = dict(blocks_at(week_n)[filename])[ordered[index + 1]]
     anchor = next((line.strip() for line in following if line.strip()), "")
     # Trim on a word boundary so the anchor never ends mid-word.
     trimmed = esc(anchor) if len(anchor) <= 62 else esc(anchor[:62].rsplit(" ", 1)[0]) + "&hellip;"
-    return (f"New. Goes in <b>{esc(filename)}</b>, just above the line "
-            f"<code>{trimmed}</code>")
+    return ("New", f"<b>{esc(filename)}</b>, just above <code>{trimmed}</code>")
 
 
 def render_step(week, beat):
@@ -296,7 +306,9 @@ def render_step(week, beat):
         )
 
     kind = week_ops(week).get((filename, block_id))
-    tag = {"add": "new this week", "set": "replaces what is there"}.get(kind, "already written")
+    # The snippet's own header carries file and line range. What KIND of edit
+    # it is used to sit there too, and again in the placement line above it;
+    # the placement line is the one a teacher reads, so this stays empty.
     pieces, cursor = [], start
     for index, (chunk, note) in enumerate(zip(chunks, notes)):
         last = cursor + len(chunk) - 1
@@ -319,27 +331,99 @@ def render_step(week, beat):
             # nothing in the block goes green - so on the count of changed
             # lines alone this printed "lines 29-38 do not change" for the one
             # block the week is about.
-            pieces.append(code_table(filename, cursor, chunk, marks, tag=tag, gone=here))
+            pieces.append(code_table(filename, cursor, chunk, marks, gone=here))
             pieces.append(f'<p class="chunk-note">{note}</p>')
         cursor += len(chunk)
 
-    at = f'<span class="at">{esc(beat["at"])}</span>' if beat.get("at") else ""
-    lead = f'<p class="step-lead">{placement(week["n"], filename, block_id, kind)}</p>'
-    return (f'<section class="beat step"><h4>{at}{esc(beat["title"])}</h4>{lead}'
-            f'{"".join(pieces)}{render_ask(beat.get("ask"))}</section>')
+    chip, where = placement(week["n"], filename, block_id, kind)
+    lead = (f'<p class="where"><span class="chip {"edit" if kind == "set" else "add"}">{chip}</span>'
+            f'<span>{where}</span></p>')
+    return (f'<div class="beat step"><h4>{esc(beat["title"])}</h4>{lead}'
+            f'{"".join(pieces)}{render_ask(beat.get("ask"))}</div>')
+
+
+# The flow's clock is hours:minutes counted from the start of the lesson, so
+# the last beat of an hour reads 0:58 - fifty-eight minutes in, not fifty-eight
+# seconds.
+HOUR = 60
+
+
+def hour_plan(week):
+    """{beat index: (start minute, length, whether the slot is typing)} per timed beat.
+
+    The clock in course.py is real - a teacher reads these off the wall - so
+    the shape of the hour is already in the data and nothing here invents a
+    number. A beat runs until the next beat that names a time; the last one
+    runs to the end of the hour.
+
+    Only some beats carry a time. The rest belong to whichever timed beat they
+    follow, which is exactly how they are taught - week 1 sets the clock once
+    at 0:20 and then types four blocks under it. So a slot counts as typing if
+    ANYTHING in it is typed, not just its first beat: counting the first alone
+    said week 1 spends two minutes at the keyboard, which is nonsense.
+    """
+    marks = []
+    for index, beat in enumerate(week["flow"]):
+        if not beat.get("at"):
+            continue
+        hours, minutes = (int(part) for part in beat["at"].split(":"))
+        marks.append((index, hours * 60 + minutes))
+    plan = {}
+    for position, (index, start) in enumerate(marks):
+        after = marks[position + 1][0] if position + 1 < len(marks) else len(week["flow"])
+        end = marks[position + 1][1] if position + 1 < len(marks) else HOUR
+        typing = any(beat["kind"] == "step" for beat in week["flow"][index:after])
+        plan[index] = (start, end - start, typing)
+    return plan
+
+
+def hour_bar(week, plan):
+    """One thin bar showing how the hour actually divides between talk and typing.
+
+    Every week's flow carries its own clock but nothing ever drew it, so a
+    teacher had to read forty beats to find out whether they were about to
+    lecture for twenty minutes. Segments are links, so it doubles as the
+    within-week navigation the page had none of.
+    """
+    if not plan:
+        return ""
+    segments = []
+    for index, (_start, length, typing) in sorted(plan.items()):
+        beat = week["flow"][index]
+        segments.append(
+            f'<a class="{"type" if typing else "talk"}" href="#w{week["n"]}b{index}" '
+            f'style="width:{length * 100.0 / HOUR:.4f}%" '
+            f'title="{esc(beat["at"])} &ndash; {esc(beat["title"])}"></a>'
+        )
+    typed = sum(length for _s, length, typing in plan.values() if typing)
+    return (f'<div class="hour" aria-hidden="true">{"".join(segments)}</div>'
+            f'<p class="hour-key"><i class="talk">you talk and demonstrate</i>'
+            f'<i class="type">they type &mdash; {typed} of the {HOUR} minutes</i></p>')
 
 
 def render_flow(week):
-    out = []
-    for beat in week["flow"]:
-        if beat["kind"] == "step":
-            out.append(render_step(week, beat))
+    """The hour as a run sheet: a clock down the left, one beat to a row."""
+    plan = hour_plan(week)
+    rows = []
+    for index, beat in enumerate(week["flow"]):
+        if index in plan:
+            _start, length, _typing = plan[index]
+            tick = (f'<div class="tick"><span class="t">{esc(beat["at"])}</span>'
+                    f'<span class="dur">{length} min</span></div>')
         else:
-            at = f'<span class="at">{esc(beat["at"])}</span>' if beat.get("at") else ""
-            body = "".join(f"<p>{para}</p>" for para in beat["body"])
-            out.append(f'<section class="beat"><h4>{at}{esc(beat["title"])}</h4>'
-                       f'{body}{render_ask(beat.get("ask"))}</section>')
-    return "".join(out)
+            # A beat that shares the previous beat's slot. Left blank rather
+            # than given a made-up time, so the times on the page are only
+            # ever times the author actually set.
+            tick = '<div class="tick cont"></div>'
+        if beat["kind"] == "step":
+            body = render_step(week, beat)
+        else:
+            paragraphs = "".join(f"<p>{para}</p>" for para in beat["body"])
+            body = (f'<div class="beat"><h4>{esc(beat["title"])}</h4>'
+                    f'{paragraphs}{render_ask(beat.get("ask"))}</div>')
+        marks = ("at " if index in plan else "") + ("step" if beat["kind"] == "step" else "")
+        rows.append(f'<li class="{marks.strip()}" id="w{week["n"]}b{index}">{tick}{body}</li>')
+    return f'{hour_bar(week, plan)}<ol class="run">{"".join(rows)}</ol>'
 
 
 def changed_lines(upto):
@@ -534,50 +618,20 @@ h3{font-size:17px;margin:22px 0 8px}
 .pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
 @media print{.teach-row{display:none}}
 
-/* ---- week anchors and the jump bar ---- */
+/* ---- week anchors ---- */
 .chapter{scroll-margin-top:74px}
-.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
-.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
-color:var(--muted);margin-right:4px}
-.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
-background:var(--surface);border:1px solid var(--border);border-radius:7px;
-font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
-.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
 /* Opened inside the classroom the page is already inside a titled panel, so
    the site header, the intro and the print button would only be noise. */
-body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
-body.embedded footer{display:none}
+body.embedded header.site,body.embedded .printbtn,body.embedded .wk-switch,
+body.embedded .brief,body.embedded footer{display:none}
 body.embedded .wrap{padding-top:8px}
-@media print{.jump{display:none}}
-
-/* ---- lesson flow ---- */
-.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
-.beat:hover{border-left-color:#c3d3dd}
-.beat.step{border-left-color:var(--brand)}
-.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
-.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
-  min-width:40px;flex:none;padding-top:2px}
-.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
-.beat p:last-child{margin-bottom:0}
-.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
-.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
-  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
-.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
 .note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
 .muted{color:var(--muted)}
 .nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
 footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
-table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
-table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
-table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
-table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
 ul.tight li{margin-bottom:5px}
-.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
-  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
-.say b{color:#5b3fa0}
-.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
 @media print{
   @page{size:letter;margin:14mm}
   body{background:#fff}
@@ -590,6 +644,134 @@ ul.tight li{margin-bottom:5px}
 }
 html:not(.utg-can-print) .printbtn{display:none}
 @media print{html:not(.utg-can-print) body{display:none}}
+"""
+
+# The teacher guide's own stylesheet. It ships on teacher.html alone, because
+# every rule here answers a problem that only the guide has: it is read
+# standing up, in front of a class, at whichever week today is. So the page is
+# one column of prose with a clock down the left, a week can be reached in one
+# click from anywhere, and nothing is tinted, boxed or bordered unless the box
+# is carrying information. The old page had six accent hues and three stacked
+# panels before the first word of teaching; this has two hues and none.
+TEACHER_CSS = """
+.tg h2{font-size:27px;margin:0}
+.tg h3{font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.11em;text-transform:uppercase;
+  color:#5a6b7b;margin:0 0 8px}
+
+/* The week switcher. Fifteen bare digits could not tell you week 7 from week
+   11, and the page is 200k of scroll, so the titles are the whole point of it. */
+.wk-switch{position:sticky;top:0;z-index:5;display:flex;gap:6px;overflow-x:auto;
+  scrollbar-width:thin;scrollbar-color:#c3cedb transparent;
+  margin:0 -22px 26px;padding:10px 22px;background:rgba(238,242,247,.95);
+  border-bottom:1px solid var(--border)}
+.wk-switch a{flex:none;display:flex;align-items:baseline;gap:7px;padding:6px 11px;
+  border:1px solid var(--border);border-radius:7px;background:var(--surface);
+  color:var(--ink);font-size:12.5px;white-space:nowrap}
+.wk-switch a b{color:var(--brand-ink);font-weight:800}
+.wk-switch a:hover{border-color:var(--brand);background:var(--brand-tint)}
+.brief{background:var(--surface);border:1px solid var(--border);border-radius:9px;margin:0 0 34px}
+.brief > summary{cursor:pointer;padding:13px 18px;font-size:14px;font-weight:700;color:var(--brand-ink)}
+.brief .inner{padding:2px 18px 4px;border-top:1px solid var(--border)}
+.brief .inner h3{font:700 15px Rubik,sans-serif;letter-spacing:0;text-transform:none;
+  color:var(--ink);margin:16px 0 6px}
+.brief .inner p,.brief .inner li{font-size:14.5px;line-height:1.65;max-width:74ch}
+
+/* ---- the week's front matter ---- */
+.tg .chapter + .chapter{margin-top:58px}
+.wk-n{margin:0 0 9px;color:var(--brand);font:800 12px/1 Rubik,sans-serif;
+  letter-spacing:.12em;text-transform:uppercase}
+.wk-idea{margin:9px 0 22px;color:#5a6b7b;font-size:17px;line-height:1.6;max-width:66ch}
+.hour{display:flex;height:9px;margin:0;border-radius:5px;overflow:hidden;background:#dde5ee}
+.hour a{display:block;background:#b6c8d6}
+.hour a.type{background:var(--brand)}
+.hour a:hover{background:var(--brand-dark)}
+.hour-key{display:flex;gap:16px;margin:9px 0 26px;color:#5a6b7b;font-size:12px}
+.hour-key i{font-style:normal;display:inline-flex;align-items:center;gap:6px}
+.hour-key i::before{content:"";width:9px;height:9px;border-radius:2px;background:#b6c8d6}
+.hour-key i.type::before{background:var(--brand)}
+.wk-facts{display:grid;gap:20px 40px;grid-template-columns:1fr 1fr;margin:22px 0 30px;
+  padding:19px 0;border-top:1px solid #e3e9f0;border-bottom:1px solid #e3e9f0}
+.wk-facts ul{margin:0;padding-left:18px}
+.wk-facts li{margin:0 0 5px;font-size:14.5px;line-height:1.55}
+.wk-facts li:last-child{margin-bottom:0}
+/* Everything typed this week. It was a bordered three-column table with an
+   uppercase header row, which is a lot of furniture for nine words of fact. */
+.edits{list-style:none;padding:0}
+.edits li{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px}
+.edits code{font:600 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--brand-ink)}
+.edits .what{color:#5a6b7b;font-size:13.5px}
+.edits-note{margin:9px 0 0;color:#84919f;font-size:12.5px;line-height:1.5;max-width:60ch}
+
+/* ---- the hour, as a run sheet ---- */
+.run{list-style:none;margin:0;padding:0}
+.run > li{position:relative;display:grid;gap:26px;padding:0 0 28px;
+  /* minmax(0,1fr), not 1fr: a track sized "auto" takes its minimum from the
+     widest thing in it, and one long line inside a code block is wider than
+     the page - which put the whole guide into sideways scroll. */
+  grid-template-columns:62px minmax(0,1fr)}
+.run > li::before{content:"";position:absolute;left:75px;top:0;bottom:0;width:1px;background:#e3e9f0}
+.run > li:first-child::before{top:7px}
+.run > li:last-child::before{bottom:auto;height:7px}
+.run > li.at::after{content:"";position:absolute;left:69px;top:3px;width:9px;height:9px;
+  border-radius:50%;background:var(--bg);border:2px solid #b6c8d6}
+.run > li.at.step::after{border-color:var(--brand)}
+.tick{text-align:right}
+.tick .t{display:block;font:800 13px/1.15 Rubik,sans-serif;color:var(--brand-ink)}
+.tick .dur{display:block;margin-top:5px;color:#96a4b2;font-size:11.5px}
+.beat h4{margin:0 0 9px;font-size:17px;line-height:1.35}
+.beat p{margin:0 0 10px;line-height:1.68;max-width:70ch}
+.beat p:last-child{margin-bottom:0}
+/* One line of placement under the title, where three separate texts used to
+   surround every snippet: a sentence above it, the snippet's own header bar,
+   and the note below. */
+.where{margin:0 0 4px;color:#5a6b7b;font-size:13px;line-height:1.85;max-width:70ch}
+.where .chip{display:inline-block;margin-right:8px;font:800 10.5px/1 Rubik,sans-serif;
+  letter-spacing:.1em;text-transform:uppercase;padding:5px 7px;border-radius:5px;
+  background:var(--brand-tint);color:var(--brand-ink)}
+.where .chip.edit{background:#fdf1de;color:#96590f}
+.where code{padding:2px 6px;border-radius:4px;background:#e4eaf1;color:#3f5764;
+  font:600 12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.chunk-note{margin:10px 0 0;color:#42566a;font-size:14.5px;line-height:1.62;max-width:70ch}
+.unchanged{margin:16px 0 0;padding:11px 0 0;border-top:1px dashed #ccd7e1;
+  color:#5a6b7b;font-size:13.5px;line-height:1.55;max-width:70ch}
+.say{margin:15px 0 0;padding:1px 0 1px 15px;border-left:2px solid #c9e6f7;
+  font-size:14.5px;line-height:1.62;max-width:70ch}
+.say b{color:var(--brand-ink);font-weight:800}
+.say .listen{display:block;margin-top:4px;color:#5a6b7b;font-size:13.5px}
+
+/* ---- what will go wrong, and what they take home ---- */
+.wk-foot{display:grid;gap:20px 40px;grid-template-columns:1fr 1fr;
+  margin:6px 0 0;padding:22px 0 0;border-top:1px solid #e3e9f0}
+.wk-foot ul{margin:0;padding-left:18px}
+.wk-foot li{margin:0 0 7px;font-size:14.5px;line-height:1.55}
+.snag{list-style:none;padding:0}
+.snag li{margin:0 0 11px}
+.snag b{display:block;margin-bottom:2px;color:#8c3a2e;
+  font:600 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snag span{color:#5a6b7b}
+.tg .bonus{grid-column:1/-1;margin:16px 0 0;padding:1px 0 1px 15px;border:0;
+  border-left:2px solid var(--gold);border-radius:0;background:none;font-size:14.5px}
+.tg .bonus p{max-width:70ch}
+
+@media (max-width:720px){
+  .wk-facts,.wk-foot{grid-template-columns:1fr}
+  .run > li{grid-template-columns:46px minmax(0,1fr);gap:16px}
+  .run > li::before,.run > li.at::after{display:none}
+}
+@media print{
+  /* The bar and the switcher are navigation - on paper the run sheet's own
+     times say the same thing and the links go nowhere. */
+  .wk-switch,.hour,.hour-key{display:none}
+  .brief,.brief .inner{border:0;padding-left:0;padding-right:0}
+  .brief > summary{display:none}
+  .run > li{break-inside:avoid;page-break-inside:avoid}
+  .wk-facts,.wk-foot,.snag li{break-inside:avoid;page-break-inside:avoid}
+  .tg .chapter + .chapter{margin-top:0}
+  /* On screen a long line scrolls sideways. On paper it is simply gone, and
+     a teacher cannot scroll a handout - so wrap it instead of losing it. */
+  .tg .snip .code{overflow:visible}
+  .tg .snip td.src{white-space:pre-wrap;word-break:break-word}
+}
 """
 
 COPY_JS = """
@@ -617,12 +799,12 @@ document.querySelectorAll('[data-tabs]').forEach(function(group){
 """
 
 
-def page(title, body, extra_js="", tool="ai101"):
+def page(title, body, extra_js="", tool="ai101", extra_css=""):
     return f"""<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} &middot; UTG Academy</title>
 {FONT}
-<style>{CSS}</style>
+<style>{CSS}{extra_css}</style>
 {guard(tool)}
 <header class="site"><a href="../"><img src="{LOGO}" alt="UTG Academy"></a><span class="slash">/</span><strong>AI101</strong></header>
 {body}
@@ -734,74 +916,89 @@ def build_teacher():
     sections = []
     for week in course.WEEKS:
         spans = block_spans(week["n"])
-        # An at-a-glance list of every edit the week makes, straight from the ops.
+        # Every edit the week makes, straight from the ops. One line each: the
+        # snippet headers in the run sheet below repeat all of this anyway, so
+        # up here it only has to be countable at a glance.
         typed = "".join(
-            '<tr><td><b>{f}</b></td><td>{r}</td><td>{k}</td></tr>'.format(
+            '<li><code>{f}</code><span class="what">{r} &middot; {k}</span></li>'.format(
                 f=esc(filename),
                 r=("line {0}".format(spans[filename][block_id][0])
                    if spans[filename][block_id][0] == spans[filename][block_id][1]
                    else "lines {0}&ndash;{1}".format(*spans[filename][block_id])),
-                k="type it in fresh" if kind == "add" else "replace what is already there")
+                k="type it in fresh" if kind == "add" else "replace what is there")
             for kind, filename, block_id, _ in week["ops"]
         )
-        typed_table = (
-            '<div class="card"><strong>Everything typed this week</strong>'
-            '<table class="plan"><tr><th>File</th><th>Where</th><th>What to do</th></tr>'
-            f'{typed}</table>'
-            '<p class="muted" style="margin:8px 0 0;font-size:13px">Line numbers are as the file '
-            'stands at the END of this week, which is what the student sees on the week page. '
-            'Work top to bottom and they will line up.</p></div>'
-            if typed else '<div class="card"><strong>No new code this week.</strong></div>'
+        edits = (
+            f'<ul class="edits">{typed}</ul>'
+            '<p class="edits-note">Line numbers are as the file stands at the END of this '
+            'week, which is what the student sees on the week page. Work top to bottom and '
+            'they will line up.</p>'
+            if typed else '<p class="edits-note">No new code this week.</p>'
         )
         errors = "".join(
-            f"<li><strong>{esc(sym)}</strong> &mdash; {esc(fix)}</li>" for sym, fix in week["errors"]
+            f"<li><b>{esc(sym)}</b><span>{esc(fix)}</span></li>" for sym, fix in week["errors"]
         )
         bonus = ""
         if week.get("bonus"):
             bonus = (f'<div class="bonus"><strong>Bonus for fast finishers: {esc(week["bonus"]["title"])}</strong>'
                      f'<p style="margin:6px 0 0">{esc(week["bonus"]["body"])}</p></div>')
         sections.append(f"""<section class="chapter" id="week-{week["n"]}">
-<h2>Week {week["n"]} &middot; {esc(week["title"])}</h2>
-<p class="lead">{esc(week["big_idea"])}</p>
-<div class="card"><strong>They leave today able to:</strong>
-<ul class="tight">{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul></div>
-{typed_table}
-<h3>How the hour goes</h3>
+<p class="wk-n">Week {week["n"]}</p>
+<h2>{esc(week["title"])}</h2>
+<p class="wk-idea">{esc(week["big_idea"])}</p>
+<div class="wk-facts">
+<div><h3>They leave today able to</h3>
+<ul>{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul></div>
+<div><h3>Everything typed this week</h3>{edits}</div>
+</div>
 {render_flow(week)}
-<h3>What will go wrong</h3>
-<ul class="tight">{errors}</ul>
+<div class="wk-foot">
+<div><h3>What will go wrong</h3><ul class="snag">{errors}</ul></div>
+<div><h3>Homework set today</h3>
+<ul>{"".join(f"<li>{esc(c['task'])}</li>" for c in week["homework"])}</ul></div>
 {bonus}
-<h3>Homework set today</h3>
-<ul class="tight">{"".join(f"<li>{esc(c['task'])}</li>" for c in week["homework"])}</ul>
+</div>
 </section>""")
-    jump = "".join(
-        f'<a href="#week-{week["n"]}">{week["n"]}</a>' for week in course.WEEKS
+    switch = "".join(
+        f'<a href="#week-{week["n"]}"><b>{week["n"]}</b>{esc(week["title"])}</a>'
+        for week in course.WEEKS
     )
-    body = f"""<div class="wrap">
+    body = f"""<div class="wrap tg">
 <p class="eyebrow">Teacher curriculum</p>
 <h1>{esc(course.COURSE_TITLE)}</h1>
 <p class="lead">Fifteen one-hour lessons. Every hour is built so you are talking for well under half of it.</p>
-<nav class="jump" aria-label="Jump to a week"><span>Week</span>{jump}</nav>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
-<div class="warn"><h3 style="margin-top:0">Say this in week 1</h3>{course.DISCLAIMER}</div>
-<div class="card">
-  <h3 style="margin-top:0">How to run this course</h3>
+<nav class="wk-switch" aria-label="Jump to a week">{switch}</nav>
+<details class="brief">
+<summary>Before you teach any of it &mdash; how to run this course, and what to say in week 1</summary>
+<div class="inner">
+  <h3>How to run this course</h3>
   {course.TEACHER_PREAMBLE}
+  <h3>Say this in week 1</h3>
+  {course.DISCLAIMER}
 </div>
+</details>
 {"".join(sections)}
 </div>"""
     # ?embed=1 strips the page furniture. The browser handles #week-N on its
     # own, but only if the element exists when it looks - so nudge it on load
     # too, and again on a hash change, which is how the panel switches weeks
     # without reloading the frame.
+    #
+    # The brief is collapsed on screen so the page opens on teaching rather
+    # than on two screens of preamble, but a printed guide has no way to open
+    # it, so printing expands it first.
     embed_js = (
         "if(new URLSearchParams(location.search).has('embed'))"
         "document.body.classList.add('embedded');"
         "function utgJump(){var id=location.hash.slice(1);if(!id)return;"
         "var el=document.getElementById(id);if(el)el.scrollIntoView();}"
         "addEventListener('load',utgJump);addEventListener('hashchange',utgJump);"
+        "addEventListener('beforeprint',function(){document.querySelectorAll('details')"
+        ".forEach(function(d){d.open=true;});});"
     )
-    write("teacher.html", page("Teacher curriculum", body, extra_js=embed_js))
+    write("teacher.html", page("Teacher curriculum", body,
+                               extra_js=embed_js, extra_css=TEACHER_CSS))
 
 
 def build_workbook():
@@ -2496,6 +2693,20 @@ def build_slide_states():
 
 
 def write(name, text):
+    # Everything here is meant to be 7-bit clean - see esc(). Most of it goes
+    # through esc() and is clean by construction, but flow bodies and
+    # call-and-response prompts are written as markup and pass through raw, so
+    # one smart quote pasted into course.py would ship a page that renders as
+    # mojibake wherever the encoding is guessed wrong. Refuse instead.
+    try:
+        text.encode("ascii")
+    except UnicodeEncodeError as bad:
+        line = text.count("\n", 0, bad.start) + 1
+        raise SystemExit(
+            f"{name}: line {line} is not 7-bit - {text[bad.start:bad.end]!r} in "
+            f"{text[max(0, bad.start - 60):bad.start + 20].splitlines()[-1]!r}. "
+            f"Write it as an HTML entity, or put the text through esc()."
+        )
     with open(os.path.join(HERE, name), "w", encoding="utf-8") as handle:
         handle.write(text)
 
@@ -2534,6 +2745,19 @@ def main():
         ghosts = {ref for ref in cited if ref[0] not in FILES}
         if ghosts:
             raise SystemExit(f"week {week['n']}: flow cites unknown file(s) {sorted(ghosts)}")
+
+        # The guide draws the hour as a run sheet, so the clock has to run
+        # forwards. Week 1 shipped with a beat at 0:56 sitting in front of one
+        # at 0:53 - two beats in the wrong order, which reads as a typo on the
+        # page but was really a lesson that talked about console output before
+        # the class had typed it.
+        clock = [(beat["at"], beat["title"]) for beat in week["flow"] if beat.get("at")]
+        for (earlier, _), (later, title) in zip(clock, clock[1:]):
+            if [int(p) for p in later.split(":")] <= [int(p) for p in earlier.split(":")]:
+                raise SystemExit(
+                    f"week {week['n']}: the flow's clock goes {earlier} then {later} at "
+                    f"\"{title}\" - reorder those beats, or fix the time"
+                )
 
         # A whole hour with nothing to say back is a lecture, not a lesson.
         prompts = sum(1 for beat in week["flow"] if beat.get("ask"))

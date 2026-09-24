@@ -295,16 +295,16 @@ WEEKS = [
   STEP(HTML, "scripttag", "Load your script - at the bottom", notes=[
        "After <code>&lt;/main&gt;</code>, not before it. This is the one placement rule worth memorising, and the next two minutes are about why.",
   ]),
-  TALK("0:56", "Move it to the top and watch it change",
+  STEP(JS, "hello", "Make the page talk to you", at="0:53", notes=[
+       "Press Run and point at the <strong>Console</strong> panel under the preview. The first line is just proof the file ran. The second is the one that matters in a moment: it asks whether the chat box exists yet, and down here the answer is true.",
+  ], ask=("Where did that sentence go? It is not on the page.",
+          "Into the Console. Establish now that the Console is for the programmer and the page is for the user - they will lean on this every week.")),
+  TALK("0:55", "Move it to the top and watch it change",
        "Cut the <code>&lt;script src=\"script.js\"&gt;</code> line and paste it ABOVE <code>&lt;main&gt;</code>. Press Run and read the Console.",
        "The second line flips from <code>true</code> to <code>false</code>. Nothing crashes - it simply cannot see the chat box, because the box has not been made yet. Put it back at the bottom and watch it return to true.",
        "Say plainly what that means for next week: week 2's code does not politely report false, it stops with an error. This is the five minutes that prevents it.",
        ask=("Why does the same line answer differently at the top and at the bottom?",
             "The browser reads top to bottom. At the top the boxes do not exist yet. This one idea prevents a whole category of week-2 confusion.")),
-  STEP(JS, "hello", "Make the page talk to you", at="0:53", notes=[
-       "Press Run and point at the <strong>Console</strong> panel under the preview. The first line is just proof the file ran. The second is the one that matters in a moment: it asks whether the chat box exists yet, and down here the answer is true.",
-  ], ask=("Where did that sentence go? It is not on the page.",
-          "Into the Console. Establish now that the Console is for the programmer and the page is for the user - they will lean on this every week.")),
   TALK("0:56", "Break it on purpose",
        "Everyone deletes one quote mark from that line and presses Run. Read the red error together.",
        "Do this now, deliberately, while nothing is at stake. A student who has seen a red error on purpose is far less likely to freeze when they see one by accident in week 4.",

@@ -99,6 +99,21 @@ CASES = [
     ("a block is missing from the file ordering", "course.py",
      lambda s: sub_once(s, r'JS:   \["hello", ', 'JS:   [', "order"),
      ""),   # any failure will do - the message differs by which block is dropped
+
+    # The teacher guide draws the hour as a run sheet, so a beat timed before
+    # the one in front of it is either a typo or - as in week 1 - two beats in
+    # the wrong order, with the lesson discussing output nobody has typed.
+    ("the lesson's clock runs backwards", "course.py",
+     lambda s: s + "\nfor _b in WEEKS[6]['flow']:\n"
+                   "    if _b.get('at'): _b['at'] = '0:02'\n",
+     "clock goes"),
+
+    # Flow bodies and call-and-response prompts are markup, written raw, so
+    # they are the one way a non-ASCII character can reach a printed page.
+    ("a smart quote reaches a page that is meant to be 7-bit", "course.py",
+     lambda s: s + "\nWEEKS[6]['flow'][0]['body'] = "
+                   "[chr(8220) + 'not ascii' + chr(8221)]\n",
+     "not 7-bit"),
 ]
 
 
