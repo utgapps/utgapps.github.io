@@ -52,9 +52,10 @@ export async function apiClassStudents(token: string, classId: string): Promise<
 /** Put a fresh project into a student's account. Only ever creates - it cannot
  *  overwrite what a student already has. */
 export async function apiSeedProject(token: string, classId: string, accountId: string,
-                                     title: string, files: Record<string, string>): Promise<{ id: string; title: string }> {
+                                     title: string, files: Record<string, string>,
+                                     kind: string = "web"): Promise<{ id: string; title: string }> {
   return (await req(`/class/${encodeURIComponent(classId)}/seed`, {
-    method: "POST", body: JSON.stringify({ accountId, title, files }),
+    method: "POST", body: JSON.stringify({ accountId, title, files, kind }),
   }, token)).project;
 }
 

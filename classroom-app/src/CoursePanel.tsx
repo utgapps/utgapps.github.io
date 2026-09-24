@@ -19,6 +19,13 @@ type Source = { kind: "week"; n: number } | { kind: "mine"; id: string };
    avoids characters that look alike and words that are hard to spell. */
 const WORDS = ["maple", "harbour", "lantern", "copper", "willow", "quartz",
                "beacon", "cedar", "falcon", "meadow", "anchor", "pebble"];
+/* A course's files say what kind of project they are: CS701's Main.java is
+   Java, everything else so far is a web page. Guessing "web" for a Java week
+   would open it in the web editor with a preview that can only ever be blank. */
+function kindOf(files: Record<string, string>): "java" | "web" {
+  return Object.keys(files).some((name) => name.endsWith(".java")) ? "java" : "web";
+}
+
 function suggestPassword() {
   const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)];
   return `${pick()}-${pick()}-${10 + Math.floor(Math.random() * 90)}`;
@@ -64,7 +71,7 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
     try {
       const { files, label } = await filesFor(from);
       const title = from.kind === "week" ? "Caught up to week " + from.n : label;
-      await apiSeedProject(token, classId, who, title, files);
+      await apiSeedProject(token, classId, who, title, files, kindOf(files));
       setNote("Copied " + label + " into " + (chosen ? chosen.name : "them") +
               " as a NEW project. Nothing they already had was touched." +
               (from.kind === "mine" ? " Your API key was not copied across." : ""));
@@ -80,7 +87,7 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
     try {
       const w = weeks?.find((x) => x.n === n);
       if (!w) throw new Error("That week is not published.");
-      await apiCreateProject(token, { title: "Week " + n + " - " + w.title, kind: "web", files: w.files });
+      await apiCreateProject(token, { title: "Week " + n + " - " + w.title, kind: kindOf(w.files), files: w.files });
       setNote("Week " + n + " is now in your own projects. Open it from My projects.");
       refresh();
     } catch (error) { setNote((error as Error).message || "That did not work."); }

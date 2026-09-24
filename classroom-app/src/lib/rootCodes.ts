@@ -43,6 +43,7 @@ export function classroomForId(classId: string) {
     { id: "ai102", courseId: "AI102", className: "AI102 - AI Creative Studio" },
     { id: "ccl", courseId: "CCL", className: "CCL - Canadian Coding League" },
     { id: "wb601", courseId: "WB601", className: "WB601 - Web Development Level 1" },
+    { id: "cs701", courseId: "CS701", className: "CS701 - AP Computer Science Prep Level 1" },
   ];
   return known.find((item) => item.id === classId) || null;
 }

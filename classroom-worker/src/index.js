@@ -6,7 +6,7 @@ const DAY = 86400000;
 const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
-const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102", "pxp101"];
+const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102", "pxp101", "cs701"];
 /* "pixelpad" is the stored value a game project has always carried and sits
    in rows students saved long before the editor was named; it is a column
    value, not a label, so renaming it would be a migration rather than a
@@ -849,7 +849,7 @@ export default {
       if (seedMatch && request.method === "POST") {
         const classId = seedMatch[1];
         if (!classStaff(classId)) throw new HttpError("Not your class.", 403);
-        const { accountId, title, files } = await readJson(request, JSON_LIMIT);
+        const { accountId, title, files, kind } = await readJson(request, JSON_LIMIT);
         const student = await db.prepare(
           "SELECT id FROM accounts WHERE id = ? AND class_id = ? AND role = 'student'"
         ).bind(String(accountId || ""), classId).first();
@@ -871,7 +871,7 @@ export default {
         if ((open?.total || 0) >= PROJECT_LIMIT) throw new HttpError("That student has no room for another project.");
         const id = crypto.randomUUID(), now = Date.now();
         await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)")
-          .bind(id, student.id, projectTitle(title), "web", filesJson, now, now).run();
+          .bind(id, student.id, projectTitle(title), projectKind(kind), filesJson, now, now).run();
         return response(request, env, { project: { id, title: projectTitle(title) } });
       }
 
