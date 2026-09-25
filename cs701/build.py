@@ -1,32 +1,37 @@
 """CS701 course builder - AP Computer Science Prep Level 1.
 
 Everything in this folder is generated. Never hand-edit the HTML - edit
-course.py and re-run this. Same contract as camp-coding-projects/workbooks.py.
+course.py (what is said) and course_ops.py (the code) and re-run this. Same
+contract as camp-coding-projects/workbooks.py.
 
     python build.py
 
 Emits, all derived from the one WEEKS structure in course.py:
 
     index.html          course hub
-    week-01..15.html    the code every student should have by the end of week N
+    week-01..15.html    the programs every student should have by the end of week N
     teacher.html        full teaching curriculum, minute by minute
     workbook.html       15-chapter printable student homework book
     slides/week-NN.pptx one deck per week (needs `pip install python-pptx`)
     slides/week-NN.html the same deck as a web page, for the classroom
-    milestones.json     every week's Main.java, for the classroom's catch-up copy
+    milestones.json     every week's programs, for the classroom's catch-up copy
+    slide-states.json   the programs as they stand at each slide, for the teacher
 
-Copied from ai101/build.py and changed only where Java and a console program
-differ from a web page: one file instead of three, Java's shape for the
-six-line chunks, a checkpoint that is a sample console run instead of a live
-preview, and one new instruction - "select these lines and press Tab" - for
-the weeks that wrap code a student already has inside a new loop.
+Copied from ai101/build.py and changed where the Java Level 1 guide differs
+from a web page. A week is a handful of small console programs, one file
+each, not one page that grows, and the guide changes a program several times
+in one lesson: Task 1-1 prints two names, Task 1-2 moves the same names into
+variables. So the unit here is the OP, not the week. Each op is one typing
+beat and one run of slides, and every diff is taken across exactly one op,
+which is what the student has in front of them at that moment.
 
-Milestones are REPLAYED from the week ops rather than stored, so week N is
+Milestones are REPLAYED from the ops rather than stored, so week N is
 provably week N-1 plus that week's changes - they cannot drift apart, and
 neither can the teacher guide, the homework or the slides.
 """
 
 import difflib
+import functools
 import hashlib
 import html
 import json
@@ -41,54 +46,85 @@ SLIDES_DIR = os.path.join(HERE, "slides")
 
 LOGO = "https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg"
 FONT = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
-FILES = ["Main.java"]
-LINE_BUDGET = 320   # the finished game; a console program has no stylesheet to pad it
-TAB = course.TAB    # a flow beat or slide ref that re-indents rather than types
+FILES = list(course.ORDER)   # every program in the course, in the order ORDER lists them
+TYPED_BUDGET = 130           # lines typed in one hour; past this a lesson is copying, not learning
 
 
 # --------------------------------------------------------------------------
 # replaying the weeks
 # --------------------------------------------------------------------------
 
+# The guide changes a program more than once in a lesson, so everything below
+# counts in OPS rather than weeks. A POINT is how many ops have been applied:
+# point 0 is an empty course, and WEEK_END[n] is the point where week n ends.
+# A typing beat is the diff across one op; a week page is the diff across the
+# whole week.
+TIMELINE = []       # [(week number, op)] - every op in the course, in teaching order
+WEEK_END = {0: 0}   # week number -> the point at which it ends
+for _course_week in course.WEEKS:
+    for _op in _course_week["ops"]:
+        TIMELINE.append((_course_week["n"], _op))
+    WEEK_END[_course_week["n"]] = len(TIMELINE)
+
+
+def week_points(week_number):
+    """The points that end each of a week's ops, in teaching order."""
+    return range(WEEK_END[week_number - 1] + 1, WEEK_END[week_number] + 1)
+
+
+def point_op(point):
+    """(kind, filename, block_id, lines) - the op that takes the course to `point`."""
+    return TIMELINE[point - 1][1]
+
+
+def week_files(week_number):
+    """The programs a week works on, in course order: the ones its ops touch."""
+    touched = {point_op(point)[1] for point in week_points(week_number)}
+    return [name for name in FILES if name in touched]
+
+
+@functools.lru_cache(maxsize=None)
 def blocks_at(upto):
-    """Ordered [(block_id, lines)] per file at the END of week `upto` (1-based)."""
+    """Ordered [(block_id, lines)] per file once `upto` ops have been applied."""
     blocks = {name: [] for name in FILES}
-    for week in course.WEEKS[:upto]:
-        for kind, filename, block_id, lines in week["ops"]:
-            existing = [i for i, (bid, _) in enumerate(blocks[filename]) if bid == block_id]
-            if kind == "add":
-                if existing:
-                    raise SystemExit(f"week {week['n']}: block '{block_id}' already exists in {filename}; use SET")
-                blocks[filename].append((block_id, lines))
-            elif kind == "set":
-                if not existing:
-                    raise SystemExit(f"week {week['n']}: block '{block_id}' not in {filename} yet; use ADD")
-                blocks[filename][existing[0]] = (block_id, lines)
-            else:
-                raise SystemExit(f"week {week['n']}: unknown op '{kind}'")
-    # Sort into reading order, not authoring order. Week 2 teaches the submit
-    # handler and week 3 the config it depends on, but the FILE has to put the
-    # config first or students read a page that uses things it has not defined.
+    for week_number, (kind, filename, block_id, lines) in TIMELINE[:upto]:
+        if filename not in blocks:
+            raise SystemExit(f"week {week_number}: {filename} is not in course.ORDER")
+        existing = [index for index, (bid, _lines) in enumerate(blocks[filename]) if bid == block_id]
+        if kind == "add":
+            if existing:
+                raise SystemExit(f"week {week_number}: block '{block_id}' already exists in {filename}; use SET")
+            blocks[filename].append((block_id, lines))
+        elif kind == "set":
+            if not existing:
+                raise SystemExit(f"week {week_number}: block '{block_id}' not in {filename} yet; use ADD")
+            blocks[filename][existing[0]] = (block_id, lines)
+        else:
+            raise SystemExit(f"week {week_number}: unknown op '{kind}'")
+    # Sort into reading order, not authoring order. A lesson can type the end
+    # of a program before its middle, but the FILE is always read top to bottom.
     out = {}
     for name in FILES:
         order = course.ORDER[name]
-        unknown = [bid for bid, _ in blocks[name] if bid not in order]
+        unknown = [bid for bid, _lines in blocks[name] if bid not in order]
         if unknown:
             raise SystemExit(f"{name}: block(s) {unknown} missing from course.ORDER[{name!r}]")
         out[name] = sorted(blocks[name], key=lambda pair: order.index(pair[0]))
     return out
 
 
+@functools.lru_cache(maxsize=None)
 def state_at(upto):
-    """File contents as they stand at the END of week `upto`."""
-    return {name: "\n".join(line for _, lines in ordered for line in lines)
+    """File contents once `upto` ops have been applied. A file not begun is ""."""
+    return {name: "\n".join(line for _block_id, lines in ordered for line in lines)
             for name, ordered in blocks_at(upto).items()}
 
 
+@functools.lru_cache(maxsize=None)
 def block_spans(upto):
-    """{filename: {block_id: (first_line, last_line)}} at the end of week `upto`.
+    """{filename: {block_id: (first_line, last_line)}} at point `upto`.
 
-    This is what lets the teacher guide say "type into script.js, lines 34-52"
+    This is what lets the teacher guide say "type into Hours.java, lines 4-9"
     and be right. The numbers come out of the same replay that produces the
     milestone pages, so they cannot drift from what students actually see.
     """
@@ -102,9 +138,19 @@ def block_spans(upto):
     return spans
 
 
-def week_ops(week):
-    """{(filename, block_id): 'add' | 'set'} for one week."""
-    return {(filename, block_id): kind for kind, filename, block_id, _ in week["ops"]}
+def week_state(point, week_number):
+    """The week's programs as they stand at `point`, leaving out any not begun."""
+    files = state_at(point)
+    return {name: files[name] for name in week_files(week_number) if files[name]}
+
+
+def flow_points(week):
+    """{flow index: point} - the k-th typing beat of a week types its k-th op.
+
+    One op, one beat: the lesson and the ops list are written in the same
+    order, and main() refuses a week where they name different blocks."""
+    steps = [index for index, beat in enumerate(week["flow"]) if beat["kind"] == "step"]
+    return dict(zip(steps, week_points(week["n"])))
 
 
 MAX_STEP_LINES = 6   # the PixelPad workbooks' rule, and it holds up here too
@@ -206,12 +252,13 @@ def chunk_block(lines, filename=""):
     return merged
 
 
-def block_code(week_n, filename, block_id):
-    """(first_line_number, lines, changed_line_numbers, removals) for one block."""
-    start, end = block_spans(week_n)[filename][block_id]
-    lines = state_at(week_n)[filename].split("\n")[start - 1:end]
-    gone = removed_in_blocks(week_n)[filename].get(block_id, {})
-    return start, lines, changed_lines(week_n)[filename], gone
+def block_code(point, filename, block_id):
+    """(first_line_number, lines, changed_line_numbers, removals) for one block,
+    as the op that reaches `point` leaves it."""
+    start, end = block_spans(point)[filename][block_id]
+    lines = state_at(point)[filename].split("\n")[start - 1:end]
+    gone = removed_in_blocks(point)[filename].get(block_id, {})
+    return start, lines, changed_lines(point)[filename], gone
 
 
 def code_table(filename, start, lines, marks, ident=None, tag="", gone=None, moved=None):
@@ -262,54 +309,89 @@ def render_ask(ask):
             f'<span class="listen">Listening for: {listening}</span></div>')
 
 
-def placement(week_n, filename, block_id, kind):
-    """Where in the file this block goes, said in a way you can act on.
+def placement(point):
+    """Where in the file this op's block goes, said in a way you can act on.
 
-    A teacher works down the guide, but the guide's order is the order things
-    make sense in, not the order they sit in the file - week 9 teaches the
-    isAllLetters call inside the guess loop and only then the method itself,
-    which lives below main. Line numbers alone do not help there, because they are the
-    end-of-week numbers and the file is still growing. Naming the neighbour
-    does: "just above static String winMessage" is unambiguous at any point.
+    A teacher works down the guide, and the guide runs in the order things
+    make sense in, not the order they sit in the file. Line numbers alone do
+    not help there, because the file is still growing. Naming the neighbour
+    does: "just above int totalHours" is unambiguous at any point. Only the
+    blocks that exist at this moment are candidates - one typed later in the
+    lesson is not on anybody's screen yet.
 
     Returns (chip, where): a one-word state and the rest of the sentence. They
     are separate because the guide sets them on one line under the beat's
-    title, where a whole paragraph of placement used to sit above the code.
+    title.
     """
-    if kind == "set":
-        start, end = block_spans(week_n)[filename][block_id]
-        where = f"line {start}" if start == end else f"lines {start}&ndash;{end}"
-        return ("Edit", f"<b>{esc(filename)}</b> {where} &mdash; only the green lines change, "
-                        f"everything else stays exactly as it is")
+    kind, filename, block_id, _lines = point_op(point)
 
-    ordered = [bid for bid, _ in blocks_at(week_n)[filename]]
-    index = ordered.index(block_id)
+    def trimmed(line):
+        # Trim on a word boundary so the anchor never ends mid-word.
+        return esc(line) if len(line) <= 62 else esc(line[:62].rsplit(" ", 1)[0]) + "&hellip;"
+
+    if kind == "set":
+        # A program is one block, so "lines 1-40" says nothing. Name the spot:
+        # the changed lines, and the line just above them that is already there.
+        touched = sorted(set(changed_lines(point)[filename])
+                         | set(removed_in_blocks(point)[filename].get(block_id, {})))
+        runs = []
+        for number in touched:
+            if runs and number <= runs[-1][1] + 1:
+                runs[-1][1] = number
+            else:
+                runs.append([number, number])
+        if len(runs) != 1:
+            return ("Edit", f"<b>{esc(filename)}</b>, in {len(runs)} places &mdash; only the green "
+                            f"lines change, everything between them stays exactly as it is")
+        first, last = runs[0]
+        where = f"line {first}" if first == last else f"lines {first}&ndash;{last}"
+        text = state_at(point)[filename].split("\n")
+        earlier = [line for line in text[:first - 1] if line.strip()]
+        anchor = ", at the very top"
+        if earlier and not any(character.isalnum() for character in earlier[-1]):
+            # Just below a lone brace. "Just below println()" would name the
+            # last line INSIDE the loop that brace closes, and a student would
+            # type the new code in there. Name the block the brace closes.
+            depth = len(earlier[-1]) - len(earlier[-1].lstrip())
+            opener = next((line.strip() for line in reversed(earlier[:-1])
+                           if len(line) - len(line.lstrip()) == depth
+                           and any(character.isalnum() for character in line)), "")
+            anchor = (f", just below the <code>{esc(earlier[-1].strip())}</code> that closes "
+                      f"<code>{trimmed(opener)}</code>")
+        elif earlier:
+            anchor = f", just below <code>{trimmed(earlier[-1].strip())}</code>"
+        pure = not removed_in_blocks(point)[filename].get(block_id)
+        verb = ("add it" if first == last else "add them") if pure else "only the green lines change"
+        return ("Add" if pure else "Edit", f"<b>{esc(filename)}</b> {where}{anchor} &mdash; {verb}")
+
+    ordered = blocks_at(point)[filename]
+    if len(ordered) == 1:
+        return ("New file", f"make a new file called <b>{esc(filename)}</b> in this week&rsquo;s "
+                            f"project &mdash; these are its first lines")
+    index = [bid for bid, _lines in ordered].index(block_id)
     if index == 0:
         return ("New", f"the very top of <b>{esc(filename)}</b>, above everything else")
     if index == len(ordered) - 1:
         return ("New", f"the end of <b>{esc(filename)}</b>")
-    following = dict(blocks_at(week_n)[filename])[ordered[index + 1]]
-    anchor = next((line.strip() for line in following if line.strip()), "")
-    # Trim on a word boundary so the anchor never ends mid-word.
-    trimmed = esc(anchor) if len(anchor) <= 62 else esc(anchor[:62].rsplit(" ", 1)[0]) + "&hellip;"
-    return ("New", f"<b>{esc(filename)}</b>, just above <code>{trimmed}</code>")
+
+    anchor = next((line.strip() for line in ordered[index + 1][1] if line.strip()), "")
+    if any(character.isalnum() for character in anchor):
+        return ("New", f"<b>{esc(filename)}</b>, just above <code>{trimmed(anchor)}</code>")
+    # "just above }" is no use - a program is full of them. Name the line above instead.
+    above = next((line.strip() for line in reversed(ordered[index - 1][1]) if line.strip()), "")
+    return ("New", f"<b>{esc(filename)}</b>, just below <code>{trimmed(above)}</code>")
 
 
-def render_step(week, beat):
+def render_step(week, beat, point):
     """A typing beat, broken into pieces of at most six code lines.
 
     Each piece a student actually types gets its own sentence of explanation,
     so the room stops and talks roughly every half-dozen lines instead of
-    copying twenty in silence.
-
-    One change from AI101: a chunk nobody touches this week needs no note.
-    CS701 is one file, so its blocks are longer and a loop body grows a line
-    or two a week; making the author write a sentence for every untouched
-    stretch, every week, produced filler nobody reads. The skip line still
-    says which lines to leave alone.
+    copying twenty in silence. A piece nobody touches in this op needs no
+    note: the skip line says which lines to leave alone.
     """
-    filename, block_id = beat["file"], beat["block"]
-    start, lines, marks, gone = block_code(week["n"], filename, block_id)
+    kind, filename, block_id, _lines = point_op(point)
+    start, lines, marks, gone = block_code(point, filename, block_id)
     chunks = chunk_block(lines, filename)
     notes = list(beat.get("notes") or [])
 
@@ -328,14 +410,13 @@ def render_step(week, beat):
 
     needed = sum(1 for span in spans if span[3])
     if len(notes) != needed:
-        where = ", ".join(f"{first}-{last}" for first, last, _c, touched, _h in spans if touched)
+        where = ", ".join(f"{first}-{last}" for first, last, _chunk, touched, _here in spans if touched)
         raise SystemExit(
             f"week {week['n']} STEP {filename}:{block_id} has {needed} chunk(s) to type "
             f"(lines {where}), but you wrote {len(notes)} note(s). "
             f"Add one short note per typed chunk."
         )
 
-    kind = week_ops(week).get((filename, block_id))
     pieces = []
     for first, last, chunk, touched, here in spans:
         if not touched:
@@ -348,84 +429,13 @@ def render_step(week, beat):
         pieces.append(code_table(filename, first, chunk, marks, gone=here))
         pieces.append(f'<p class="chunk-note">{notes.pop(0)}</p>')
 
-    chip, where = placement(week["n"], filename, block_id, kind)
-    lead = (f'<p class="where"><span class="chip {"edit" if kind == "set" else "add"}">{chip}</span>'
+    chip, where = placement(point)
+    lead = (f'<p class="where"><span class="chip {"edit" if chip == "Edit" else "add"}">{chip}</span>'
             f'<span>{where}</span></p>')
     return (f'<div class="beat step"><h4>{esc(beat["title"])}</h4>{lead}'
             f'{"".join(pieces)}{render_ask(beat.get("ask"))}</div>')
 
 
-def tab_lines(week_n, ref):
-    """What a TAB beat moves in: (line numbers, first line, last line, the line
-    above the last when the last is only a brace, blocks inside the span).
-
-    `ref` is "first_block..last_block". The lines are the ones that MOVED this
-    week between the start of the first block and the end of the last, plus
-    the blank lines already sitting among them - exactly what is on the
-    student's screen when they make the selection. Lines typed later in the
-    week fall inside the same span at the end of the week but are not there
-    yet, so they are left out.
-    """
-    first_block, last_block = ref.split("..")
-    spans = block_spans(week_n)[FILES[0]]
-    if first_block not in spans or last_block not in spans:
-        raise SystemExit(f"week {week_n}: TAB {ref} names a block that is not in the file")
-    low, high = spans[first_block][0], spans[last_block][1]
-    text = state_at(week_n)[FILES[0]].split("\n")
-    moved = moved_lines(week_n)[FILES[0]]
-    changed = changed_lines(week_n)[FILES[0]]
-    numbers = [n for n in range(low, high + 1)
-               if n in moved or (not text[n - 1].strip() and n not in changed)]
-    while numbers and not text[numbers[0] - 1].strip():
-        numbers.pop(0)
-    while numbers and not text[numbers[-1] - 1].strip():
-        numbers.pop()
-    if not numbers:
-        raise SystemExit(f"week {week_n}: TAB {ref} moves nothing - no line in it changed indentation")
-    first = text[numbers[0] - 1].strip()
-    last = text[numbers[-1] - 1].strip()
-    above = None
-    if not any(ch.isalnum() for ch in last):
-        # "down to }" is no use - there are thirty of them. Name the line above.
-        above = next(text[n - 1].strip() for n in reversed(numbers)
-                     if any(ch.isalnum() for ch in text[n - 1]))
-    order = [bid for bid, _ in blocks_at(week_n)[FILES[0]]]
-    inside = order[order.index(first_block):order.index(last_block) + 1]
-    return numbers, first, last, above, inside
-
-
-def tab_words(first, last, above, markup=True):
-    """"from X down to Y", as HTML for the guide or plain text for a slide."""
-    code = (lambda text: f"<code>{esc(text)}</code>") if markup else (lambda text: text)
-    tail = (f"the {code(last)} just below {code(above)}" if above else code(last))
-    return f"from {code(first)} down to {tail}"
-
-
-def render_tab(week, beat):
-    """A re-indent beat: select these lines and press Tab once.
-
-    Java does not care about indentation, so nothing breaks if a student skips
-    this - which is exactly why it gets its own beat. Code that sits inside a
-    loop without being indented as if it did is the most confusing thing a
-    beginner can be handed back, and this is the moment to stop it.
-    """
-    numbers, first, last, above, _inside = tab_lines(week["n"], beat["block"])
-    text = state_at(week["n"])[FILES[0]].split("\n")
-    rows = "".join(f'<tr class="moved"><td class="ln">&#8677;</td>'
-                   f'<td class="src">{esc(text[n - 1]) or "&nbsp;"}</td></tr>' for n in numbers)
-    snippet = (f'<div class="snip"><div class="snip-head"><span class="file">{esc(FILES[0])}</span>'
-               f'<span class="rng">{len(numbers)} lines move in one level</span></div>'
-               f'<div class="code"><table>{rows}</table></div></div>')
-    lead = (f'<p class="where"><span class="chip tab">Tab</span><span>Select '
-            f'{tab_words(first, last, above)}, then press <b>Tab</b> once</span></p>')
-    notes = "".join(f'<p class="chunk-note">{note}</p>' for note in beat.get("notes") or [])
-    return (f'<div class="beat step"><h4>{esc(beat["title"])}</h4>{lead}{snippet}{notes}'
-            f'{render_ask(beat.get("ask"))}</div>')
-
-
-# The flow's clock is hours:minutes counted from the start of the lesson, so
-# the last beat of an hour reads 0:58 - fifty-eight minutes in, not fifty-eight
-# seconds.
 HOUR = 60
 
 
@@ -453,7 +463,7 @@ def hour_plan(week):
     for position, (index, start) in enumerate(marks):
         after = marks[position + 1][0] if position + 1 < len(marks) else len(week["flow"])
         end = marks[position + 1][1] if position + 1 < len(marks) else HOUR
-        typing = any(beat["kind"] in ("step", "tab") for beat in week["flow"][index:after])
+        typing = any(beat["kind"] == "step" for beat in week["flow"][index:after])
         plan[index] = (start, end - start, typing)
     return plan
 
@@ -485,6 +495,7 @@ def hour_bar(week, plan):
 def render_flow(week):
     """The hour as a run sheet: a clock down the left, one beat to a row."""
     plan = hour_plan(week)
+    points = flow_points(week)
     rows = []
     for index, beat in enumerate(week["flow"]):
         if index in plan:
@@ -497,38 +508,31 @@ def render_flow(week):
             # ever times the author actually set.
             tick = '<div class="tick cont"></div>'
         if beat["kind"] == "step":
-            body = render_step(week, beat)
-        elif beat["kind"] == "tab":
-            body = render_tab(week, beat)
+            body = render_step(week, beat, points[index])
         else:
             paragraphs = "".join(f"<p>{para}</p>" for para in beat["body"])
             body = (f'<div class="beat"><h4>{esc(beat["title"])}</h4>'
                     f'{paragraphs}{render_ask(beat.get("ask"))}</div>')
-        marks = ("at " if index in plan else "") + ("step" if beat["kind"] in ("step", "tab") else "")
+        marks = ("at " if index in plan else "") + ("step" if beat["kind"] == "step" else "")
         rows.append(f'<li class="{marks.strip()}" id="w{week["n"]}b{index}">{tick}{body}</li>')
     return f'{hour_bar(week, plan)}<ol class="run">{"".join(rows)}</ol>'
 
 
-def block_changes(upto):
-    """{filename: (changed, moved)} - line numbers, 1-based, at the end of week `upto`.
+@functools.lru_cache(maxsize=None)
+def block_changes(upto, since=None):
+    """{filename: (changed, moved)} - line numbers, 1-based, at point `upto`,
+    compared with point `since` (by default the point just before: one op).
 
     Diffed per BLOCK and compared by code signature, the two rules AI101 learned
     the hard way. Whole-file, difflib pairs an edit with whatever sits nearby;
     by raw text, a line that only gained four spaces of indentation reads as
-    rewritten. That second one matters far more here than it did in AI101:
-    week 5 wraps the guess code in a loop and week 8 wraps the whole round in
-    another, and marking forty re-indented lines green would ask a student to
-    retype forty lines they already have.
-
-    So a line whose text is the same apart from its leading spaces is MOVED,
-    not changed. The lesson tells them to select it and press Tab (see TAB in
-    course.py), and nothing turns green that they do not actually type.
+    rewritten. A line whose text is the same apart from its leading spaces is
+    MOVED, not changed, and main() refuses one: this course never wraps code
+    a student already has, so a moved line is an authoring slip.
     """
+    since = upto - 1 if since is None else since
     after = blocks_at(upto)
-    if upto > 1:
-        before = {name: dict(pairs) for name, pairs in blocks_at(upto - 1).items()}
-    else:
-        before = {name: {} for name in FILES}
+    before = {name: dict(pairs) for name, pairs in blocks_at(since).items()}
     spans = block_spans(upto)
     out = {}
     for name in FILES:
@@ -541,38 +545,46 @@ def block_changes(upto):
                 continue
             if old_lines == new_lines:
                 continue
-            matcher = difflib.SequenceMatcher(None, [sig_or_text(l) for l in old_lines],
-                                              [sig_or_text(l) for l in new_lines], autojunk=False)
-            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            matcher = difflib.SequenceMatcher(None, [sig_or_text(line) for line in old_lines],
+                                              [sig_or_text(line) for line in new_lines], autojunk=False)
+            for tag, old_first, old_last, new_first, new_last in matcher.get_opcodes():
                 if tag in ("insert", "replace"):
-                    changed.update(first + j for j in range(j1, j2))
+                    changed.update(first + offset for offset in range(new_first, new_last))
                 elif tag == "equal":
-                    for offset in range(i2 - i1):
-                        was, now = old_lines[i1 + offset], new_lines[j1 + offset]
+                    for offset in range(old_last - old_first):
+                        was, now = old_lines[old_first + offset], new_lines[new_first + offset]
                         if was == now:
                             continue
                         # Only leading spaces differ: it moved. Anything else -
                         # even just a comment - is something they type.
-                        (moved if was.strip() == now.strip() else changed).add(first + j1 + offset)
+                        (moved if was.strip() == now.strip() else changed).add(first + new_first + offset)
         out[name] = (changed, moved)
     return out
 
 
-def changed_lines(upto):
-    """Line numbers (1-based, per file) a student types this week."""
-    return {name: pair[0] for name, pair in block_changes(upto).items()}
+def changed_lines(upto, since=None):
+    """Line numbers (1-based, per file) a student types between the two points."""
+    return {name: pair[0] for name, pair in block_changes(upto, since).items()}
 
 
-def moved_lines(upto):
-    """Line numbers (1-based, per file) that only moved in a level this week."""
-    return {name: pair[1] for name, pair in block_changes(upto).items()}
+def moved_lines(upto, since=None):
+    """Line numbers (1-based, per file) that only changed indentation."""
+    return {name: pair[1] for name, pair in block_changes(upto, since).items()}
 
 
 def sig_or_text(line):
     """What two lines are compared on: the code signature, or for a line that is
     all comment, the comment itself - otherwise every comment would match every
-    other comment and a new one would never turn green."""
-    return line_sig(line) or line.strip()
+    other comment and a new one would never turn green.
+
+    A line with no letters or digits - a lone brace - is compared WITH its
+    indentation. Its depth is the only thing that says which block it closes;
+    without it, the brace closing a new if-block matches the one closing main,
+    and the unchanged closing braces below read as re-indented."""
+    signature = line_sig(line)
+    if signature and not re.search(r"\w", signature):
+        return line[:len(line) - len(line.lstrip())] + signature
+    return signature or line.strip()
 
 
 def line_sig(text):
@@ -587,18 +599,17 @@ def line_sig(text):
     return " ".join(text.split())
 
 
-def removed_in_blocks(upto):
+@functools.lru_cache(maxsize=None)
+def removed_in_blocks(upto, since=None):
     """{filename: {block_id: {line_in_new_file: [text, ...]}}} - deletions,
     attributed to the block they were removed FROM.
 
-    Per block and by signature, like block_changes, so re-indenting a block in
-    the same week it loses a line cannot strike out every line that moved.
-    The block id is kept because a line dropped from the END of a block sits at
-    the first line number of whatever follows it.
+    Per block and by signature, like block_changes. The block id is kept
+    because a line dropped from the END of a block sits at the first line
+    number of whatever follows it.
     """
-    if upto <= 1:
-        return {name: {} for name in FILES}
-    before = {name: dict(blocks) for name, blocks in blocks_at(upto - 1).items()}
+    since = upto - 1 if since is None else since
+    before = {name: dict(blocks) for name, blocks in blocks_at(since).items()}
     after = blocks_at(upto)
     spans = block_spans(upto)
     gone = {}
@@ -609,24 +620,24 @@ def removed_in_blocks(upto):
             if old_lines is None or old_lines == new_lines:
                 continue
             block_start = spans[name][block_id][0]
-            matcher = difflib.SequenceMatcher(None, [sig_or_text(l) for l in old_lines],
-                                              [sig_or_text(l) for l in new_lines], autojunk=False)
-            for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
+            matcher = difflib.SequenceMatcher(None, [sig_or_text(line) for line in old_lines],
+                                              [sig_or_text(line) for line in new_lines], autojunk=False)
+            for tag, old_first, old_last, new_first, _new_last in matcher.get_opcodes():
                 if tag not in ("delete", "replace"):
                     continue
-                dropped = [line for line in old_lines[i1:i2] if line.strip()]
+                dropped = [line for line in old_lines[old_first:old_last] if line.strip()]
                 if dropped:
                     per_block.setdefault(block_id, {}).setdefault(
-                        block_start + j1, []).extend(dropped)
+                        block_start + new_first, []).extend(dropped)
         gone[name] = per_block
     return gone
 
 
-def removed_lines(upto):
+def removed_lines(upto, since=None):
     """{filename: {line_in_new_file: [text, ...]}} - the same deletions, keyed
     only by position, for the whole-file views where no block is in play."""
     flat = {}
-    for name, per_block in removed_in_blocks(upto).items():
+    for name, per_block in removed_in_blocks(upto, since).items():
         at = {}
         for positions in per_block.values():
             for position, texts in positions.items():
@@ -928,35 +939,29 @@ def page(title, body, extra_js="", tool="cs701", extra_css=""):
 """
 
 
-def code_block(filename, text, marks, ident, gone=None, moved=None):
+def code_block(filename, text, marks, ident, gone=None):
     """A whole file rendered with line numbers, this week's changes accented."""
-    label = ("green = new" + (", struck through = deleted" if gone else "")
-             + (", blue edge = moved in with Tab" if moved else "") + " this week")
-    return code_table(filename, 1, text.splitlines(), marks,
-                      ident=ident, tag=label, gone=gone, moved=moved)
+    label = ("green = new" + (", struck through = deleted" if gone else "") + " this week")
+    return code_table(filename, 1, text.splitlines(), marks, ident=ident, tag=label, gone=gone)
 
 
-def files_view(upto, ident_prefix):
-    """The three files as clickable tabs, with the current week highlighted."""
-    files = state_at(upto)
-    marks = changed_lines(upto)
-    gone = removed_lines(upto)
-    moved = moved_lines(upto)
+def files_view(week_number, ident_prefix):
+    """The week's programs as clickable tabs, with the week's changes marked."""
+    point, since = WEEK_END[week_number], WEEK_END[week_number - 1]
+    names = week_files(week_number)
+    files = state_at(point)
+    marks = changed_lines(point, since)
+    gone = removed_lines(point, since)
     tabs = "".join(
-        f'<button class="tab{" active" if i == 0 else ""}" data-for="{ident_prefix}-{i}">{esc(name)}</button>'
-        for i, name in enumerate(FILES)
+        f'<button class="tab{" active" if index == 0 else ""}" data-for="{ident_prefix}-{index}">{esc(name)}</button>'
+        for index, name in enumerate(names)
     )
     panes = "".join(
-        f'<div data-pane="{ident_prefix}-{i}"{"" if i == 0 else ' style="display:none"'}>'
-        f'{code_block(name, files[name], marks[name], f"{ident_prefix}-code-{i}", gone[name], moved[name])}</div>'
-        for i, name in enumerate(FILES)
+        f'<div data-pane="{ident_prefix}-{index}"{"" if index == 0 else ' style="display:none"'}>'
+        f'{code_block(name, files[name], marks[name], f"{ident_prefix}-code-{index}", gone[name])}</div>'
+        for index, name in enumerate(names)
     )
     return f'<div class="tabs" data-tabs>{tabs}</div>{panes}'
-
-
-# --------------------------------------------------------------------------
-# the four deliverables
-# --------------------------------------------------------------------------
 
 def build_index():
     cards = "".join(
@@ -992,21 +997,21 @@ def build_weeks():
         prev = f'<a href="week-{n-1:02d}.html">&larr; Week {n-1}</a>' if n > 1 else "<span></span>"
         nxt = f'<a href="week-{n+1:02d}.html">Week {n+1} &rarr;</a>' if n < len(course.WEEKS) else "<span></span>"
         concepts = "".join(f'<span class="pill">{esc(c)}</span>' for c in week["new_concepts"])
-        total = line_count(state_at(n))
-        dropped = sum(len(v) for name in FILES for v in removed_lines(n)[name].values())
-        legend = (f"The green lines are what is new since week {n-1}."
-                  if n > 1 else "Everything here is new - this is week 1.")
+        names = week_files(n)
+        total = line_count({name: state_at(WEEK_END[n])[name] for name in names})
+        dropped = sum(len(texts) for name in names
+                      for texts in removed_lines(WEEK_END[n], WEEK_END[n - 1])[name].values())
+        carried = [name for name in names if state_at(WEEK_END[n - 1])[name]]
+        legend = (f"This week you write {len(names)} program{'s' if len(names) != 1 else ''}, "
+                  f"one file each. The green lines are what you type this week.")
+        if carried:
+            legend += (" " + ", ".join(carried) + (" carries" if len(carried) == 1 else " carry")
+                       + " on from last week, so its other lines are ones you already had.")
         if dropped:
             legend += (" The struck-through line is one you DELETE this week - take it out."
                        if dropped == 1 else
                        f" The {dropped} struck-through lines are ones you DELETE this week"
                        " - take them out.")
-        shifted = len(moved_lines(n)[FILES[0]])
-        if shifted:
-            legend += (f" The {shifted} lines with a blue edge are ones you already had: they"
-                       " only moved in one level, inside a new loop.")
-        if n > 1:
-            legend += " Everything else you already had."
         bonus = ""
         if week.get("bonus"):
             bonus = (
@@ -1025,9 +1030,9 @@ def build_weeks():
    <a class="pill ghost" href="teacher.html#week-{n}">Lesson plan for week {n}</a></p>
 <div class="note"><strong>Where you should be by the end of this week.</strong>
 {legend}
-Your project is now {total} lines.</div>
+Together they are {total} lines.</div>
 {bonus}
-<h2>Your code after week {n}</h2>
+<h2>Your programs after week {n}</h2>
 {files_view(n, f"w{n}")}
 <div class="nav">{prev}{nxt}</div>
 </div>"""
@@ -1037,12 +1042,10 @@ Your project is now {total} lines.</div>
 def build_teacher():
     sections = []
     for week in course.WEEKS:
-        # The three files as the class leaves them, one tab each, with this
-        # week's lines green and anything it deletes struck through in red.
-        # This replaced a list of file names and line ranges, which told a
-        # teacher a block landed at "lines 21-31" and nothing whatever about
-        # what was in it. It is the same view the students get on their own
-        # week page, so the room is looking at one picture of the project.
+        # The week's programs as the class leaves them, one tab each, with
+        # this week's lines green and anything it deletes struck through in
+        # red. It is the same view the students get on their own week page,
+        # so the room is looking at one picture of the week.
         files = f'<div class="files">{files_view(week["n"], "tg%d" % week["n"])}</div>'
         errors = "".join(
             f"<li><b>{esc(sym)}</b><span>{esc(fix)}</span></li>" for sym, fix in week["errors"]
@@ -1059,7 +1062,7 @@ def build_teacher():
 <h3>They leave today able to</h3>
 <ul>{"".join(f"<li>{esc(o)}</li>" for o in week["objectives"])}</ul>
 </div>
-<h3 class="files-h">The project after this week</h3>
+<h3 class="files-h">The programs after this week</h3>
 {files}
 {render_flow(week)}
 <div class="wk-foot">
@@ -1132,13 +1135,13 @@ def build_workbook():
 <h3>Challenges</h3>
 {challenges}
 <h3>Stuck?</h3>
-<p class="muted">Open <a href="week-{week["n"]:02d}.html">week {week["n"]}'s code</a> and compare it with yours line by line.
-The green lines are the ones added that week.</p>
+<p class="muted">Open <a href="week-{week["n"]:02d}.html">week {week["n"]}'s programs</a> and compare them with yours line by line.
+The green lines are the ones typed that week.</p>
 </section>""")
     body = f"""<div class="wrap">
 <p class="eyebrow">Student homework book</p>
 <h1>{esc(course.COURSE_TITLE)}</h1>
-<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<p class="lead">One chapter per week. Each challenge is a program of its own: make a new file for it in that week&rsquo;s project, named after its class.</p>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 <div class="warn"><h3 style="margin-top:0">Read this first</h3>{course.DISCLAIMER}</div>
 {"".join(chapters)}
@@ -1149,51 +1152,21 @@ The green lines are the ones added that week.</p>
 CODE_LINES_PER_SLIDE = 15   # beyond this the type is too small to read from the back
 
 
-def code_chunks(week_n, refs):
-    """[(filename, first_line, lines, changed)] split into slide-sized pieces.
-
-    A thirty-line function will not fit on one readable slide, so it becomes two
-    slides rather than shrinking to eight point. Line numbers keep running, so
-    a student can always match the slide against their own file.
-    """
-    chunks = []
-    for filename, block_id in refs:
-        start, lines, marks, gone = block_code(week_n, filename, block_id)
-        pieces = list(range(0, len(lines), CODE_LINES_PER_SLIDE)) or [0]
-        for offset in pieces:
-            piece = lines[offset:offset + CODE_LINES_PER_SLIDE]
-            first = start + offset
-            last = first + len(piece) - 1
-            # A deletion belongs to the piece holding the line it used to sit
-            # at. The final piece also takes anything past its end, so a block
-            # that ends by removing its last line still says so.
-            final = offset == pieces[-1]
-            here = {at: text for at, text in gone.items()
-                    if first <= at <= (last + 1 if final else last)}
-            chunks.append((filename, first, piece, marks, here))
-    return chunks
-
-
-def notes_for(week_n, filename, block):
-    """Per-line notes for a block, this week. A block that changes across weeks
-    (ask, submit) keeps a (week, file, block) entry so each week's arrangement
-    gets its own notes; blocks that appear once use the plain (file, block) key."""
-    return (course.LINE_NOTES.get((week_n, filename, block))
-            or course.LINE_NOTES.get((filename, block)))
-
-
-def checkpoint_files_json(week_n):
-    """The checkpoint's Main.java exactly as a student types it, for the slide's
-    download button. Every "<" is escaped so no file content can end the
-    <script> block that carries it."""
-    files = {name: text + "\n" for name, text in state_at(week_n).items()}
+def checkpoint_files_json(point, filename):
+    """The checkpoint's program exactly as a student has typed it by then, for
+    the slide's download button. Every "<" is escaped so no file content can
+    end the <script> block that carries it."""
+    files = {filename: state_at(point)[filename] + "\n"}
     return json.dumps(files, ensure_ascii=False).replace("<", "\\u003c")
 
 
 TRANSCRIPT_MARKS = (
     # (pattern on the ESCAPED text, replacement). [[typed]] is what the player
     # types; <<A>> and ((a)) are the green and yellow letters week 13's colour
-    # codes print, so the sample run looks like the console will.
+    # codes print, so the sample run looks like the console will. {{clear}}
+    # is where Wordle's clearConsole() wipes the screen: the console keeps only
+    # what follows it, and a sample run that silently ran on would not match.
+    (r"\{\{clear\}\}", r'<i class="cleared">the screen clears</i>'),
     (r"\[\[(.*?)\]\]", r'<b class="typed">\1</b>'),
     (r"&lt;&lt;(.*?)&gt;&gt;", r'<b class="clue-g">\1</b>'),
     (r"\(\((.*?)\)\)", r'<b class="clue-y">\1</b>'),
@@ -1215,7 +1188,7 @@ def transcript_html(run):
 
 def transcript_text(run):
     """The same run with the markup taken out."""
-    text = run.strip("\n")
+    text = run.strip("\n").replace("{{clear}}", "(the screen clears)")
     for pattern in (r"\[\[(.*?)\]\]", r"<<(.*?)>>", r"\(\((.*?)\)\)"):
         text = re.sub(pattern, r"\1", text)
     return text
@@ -1247,27 +1220,46 @@ def balance_quiz(quiz):
 CONTEXT_LINES = 14   # lines of a block shown above the one being typed
 
 
-def tab_slide(week, ref):
-    """The slide for a TAB beat: the lines to select, and the one key to press."""
-    numbers, first, last, above, inside = tab_lines(week["n"], ref)
-    text = state_at(week["n"])[FILES[0]].split("\n")
-    beat = next((b for b in week["flow"] if b["kind"] == "tab" and b["block"] == ref), {})
-    changes, _moved = block_changes(week["n"])[FILES[0]]
-    gone = removed_in_blocks(week["n"])[FILES[0]]
-    spans = block_spans(week["n"])[FILES[0]]
-    ops = week_ops(week)
-    # A block that ONLY moved is finished the moment Tab is pressed; one that
-    # also gains a line finishes on its own typing slide later.
-    only_moved = [(FILES[0], bid) for bid in inside if (FILES[0], bid) in ops
-                  and bid not in gone
-                  and not any(n in changes for n in range(spans[bid][0], spans[bid][1] + 1))]
-    note = beat.get("say") or ("Select " + tab_words(first, last, above, markup=False)
-                               + " and press Tab once. Nothing on these lines changes - "
-                                 "they just move one level in.")
-    desc = {"file": FILES[0], "lines": [text[n - 1] for n in numbers], "note": note}
-    if only_moved:
-        desc["completes"] = only_moved
-    return desc
+@functools.lru_cache(maxsize=None)
+def line_notes(week_number):
+    """{point: [note or None per line of the block the op leaves]}.
+
+    Notes are written in course.NOTES[week][file][block] against a line's text
+    without its indent, so a note can never land on the wrong line when a block
+    is edited. They are shared out across the week's ops in order: a line takes
+    the next unused note for its text when it is typed. A list gives notes to
+    a text typed more than once. A closing brace or a blank line needs none
+    unless it is given one. A typed line with no note gets "", which main()
+    names; a note no typed line ever took fails here, so a stale note cannot
+    hide either.
+    """
+    pools = {(filename, block): {text: list(note) if isinstance(note, list) else [note]
+                                 for text, note in notes.items()}
+             for filename, blocks in course.NOTES.get(week_number, {}).items()
+             for block, notes in blocks.items()}
+    out = {}
+    for point in week_points(week_number):
+        _kind, filename, block, _lines = point_op(point)
+        start, lines, marks, _gone = block_code(point, filename, block)
+        pool = pools.get((filename, block), {})
+        notes = []
+        for offset, line in enumerate(lines):
+            text = line.strip()
+            if start + offset not in marks:
+                notes.append(None)
+            elif pool.get(text):
+                notes.append(pool[text].pop(0))
+            elif not text or text == "}":
+                notes.append(None)
+            else:
+                notes.append("")
+        out[point] = notes
+    unused = [(filename, block, text) for (filename, block), pool in pools.items()
+              for text, left in pool.items() if left]
+    if unused:
+        raise SystemExit(f"NOTES week {week_number}: no typed line for "
+                         + "; ".join(f"{filename}:{block} {text!r}" for filename, block, text in unused))
+    return out
 
 
 def slide_plan(week, seen):
@@ -1275,36 +1267,65 @@ def slide_plan(week, seen):
     slide). Mutates `seen` - the concept keys already introduced course-wide -
     so a concept is explained only the first time it appears.
 
-    An EXPANDED week gets a short explainer slide before the first line that
-    uses a new Java idea, and one slide per typed line with its note. CS701
-    adds two descriptors to AI101's: "indent" for a TAB beat, and a checkpoint
-    that carries a sample console run instead of a live preview. A line is
-    shown with at most CONTEXT_LINES of its block above it - a round of the
-    game is one long block, and a slide cannot hold fifty lines."""
-    expanded = week["n"] in getattr(course, "EXPANDED_WEEKS", set())
+    A spec is one of four things:
+      {"title", "sub", "bullets", "code": [(file, block), ...]}
+          a concept slide, then the type-along for each op it names: an
+          explainer before the first line that uses a new Java idea, one slide
+          per typed line with its note, and the whole block to check against.
+          The code refs, read down the week, are the week's ops in order.
+      {"board": title, "lines": [...], "output": "...", "note": "..."}
+          an example the teacher shows and nobody types - the guide's
+          instructor demonstrations.
+      {"quiz": [question, ...]}
+          a quick check and its answer, for each question.
+      {"checkpoint": True, "file", "title", "say", "run"}
+          run that program as it stands now and compare the console.
+
+    A line is shown with at most CONTEXT_LINES of its block above it, so a
+    long program never shrinks past reading size.
+    """
+    points = list(week_points(week["n"]))
+    typed = 0                                  # how many of the week's ops have had slides
+    reached = WEEK_END[week["n"] - 1]          # the point the class has finished typing
     out = []
     for spec in week["slides"]:
         if spec.get("checkpoint"):
-            out.append(("checkpoint", {"week": spec.get("checkpoint_week", week["n"]),
+            names = week_files(week["n"])
+            filename = spec.get("file") or (names[0] if len(names) == 1 else None)
+            if filename is None:
+                raise SystemExit(f"week {week['n']}: checkpoint '{spec.get('title')}' must say "
+                                 f"which program it runs - this week has {len(names)}")
+            out.append(("checkpoint", {"point": reached, "file": filename, "week": week["n"],
                                        "title": spec.get("title", "Checkpoint"),
-                                       "say": spec.get("say", ""), "run": spec.get("run", "")}))
+                                       "say": spec.get("say", ""), "run": spec.get("run", ""),
+                                       "seed": spec.get("seed")}))
+            continue
+        if spec.get("quiz"):
+            for quiz in spec["quiz"]:
+                balanced = balance_quiz(quiz)
+                out.append(("quiz", {"quiz": balanced}))
+                out.append(("quizanswer", {"quiz": balanced}))
+            continue
+        if spec.get("board"):
+            out.append(("board", {"title": spec["board"], "lines": spec["lines"],
+                                  "output": spec.get("output", ""), "note": spec.get("note", "")}))
             continue
         out.append(("concept", {"eyebrow": "", "title": spec["title"],
                                  "sub": spec.get("sub", ""), "bullets": spec.get("bullets", [])}))
         for filename, block in spec.get("code") or []:
-            if filename == TAB:
-                out.append(("indent", tab_slide(week, block)))
-                continue
-            if not expanded:
-                chunks = code_chunks(week["n"], [(filename, block)])
-                for index, (name, start, lines, marks, gone) in enumerate(chunks, start=1):
-                    out.append(("chunk", {"file": name, "start": start, "lines": lines,
-                                          "marks": marks, "gone": gone, "part": index,
-                                          "parts": len(chunks)}))
-                out[-1][1].setdefault("completes", []).append((filename, block))
-                continue
-            start, lines, marks, gone = block_code(week["n"], filename, block)
-            notes = notes_for(week["n"], filename, block)
+            if typed >= len(points):
+                raise SystemExit(f"week {week['n']}: slide '{spec['title']}' shows {filename}:{block}, "
+                                 f"but the week has only {len(points)} op(s)")
+            point = points[typed]
+            typed += 1
+            _kind, op_file, op_block, _lines = point_op(point)
+            if (op_file, op_block) != (filename, block):
+                raise SystemExit(
+                    f"week {week['n']}: slide '{spec['title']}' shows {filename}:{block}, but op "
+                    f"{typed} of the week types {op_file}:{op_block} - the slides must follow "
+                    f"the typing order")
+            start, lines, marks, gone = block_code(point, filename, block)
+            notes = line_notes(week["n"])[point]
             shown = 0
 
             def emit_deletes(at, index):
@@ -1325,17 +1346,17 @@ def slide_plan(week, seen):
                     default = ("Delete these lines - take them out." if many
                                else "Delete this line - take it out.")
                 low = max(0, index - CONTEXT_LINES)
+                note = (course.DELETE_NOTES.get((week["n"], filename, block))
+                        or course.DELETE_NOTES.get((filename, block)) or default)
                 out.append(("delete", {"file": filename, "start": start + low,
                                        "lines": lines[low:index], "dropped": group, "at": at,
-                                       "replacing": replacing,
-                                       "note": getattr(course, "DELETE_NOTES", {}).get(
-                                           (filename, block), default)}))
+                                       "replacing": replacing, "note": note}))
                 shown += 1
 
-            for i, line in enumerate(lines):
-                lineno = start + i
-                emit_deletes(lineno, i)
-                if not line.strip() or lineno not in marks:
+            for index, line in enumerate(lines):
+                number = start + index
+                emit_deletes(number, index)
+                if not line.strip() or number not in marks:
                     continue
                 for key in course.line_concepts(filename, line):
                     concept = course.CONCEPTS.get(key)
@@ -1345,13 +1366,13 @@ def slide_plan(week, seen):
                         example = concept[3] if len(concept) > 3 else ""
                         out.append(("concept", {"eyebrow": {"java": "Java"}[kind], "title": title,
                                                 "sub": example, "bullets": bullets,
-                                                "vis": getattr(course, "VISUALS", {}).get(key)}))
-                note = notes[i] if notes and i < len(notes) else ""
+                                                "vis": course.VISUALS.get(key)}))
+                note = notes[index]
                 if note is None:
-                    continue  # a line deliberately folded into its neighbour
-                low = max(0, i + 1 - CONTEXT_LINES)
+                    continue  # a closing brace, folded into the line that opened it
+                low = max(0, index + 1 - CONTEXT_LINES)
                 out.append(("linectx", {"file": filename, "start": start + low,
-                                        "lines": lines[low:i + 1], "hi": i - low,
+                                        "lines": lines[low:index + 1], "hi": index - low,
                                         "note": note, "marks": marks}))
                 shown += 1
             emit_deletes(start + len(lines), len(lines))
@@ -1361,21 +1382,21 @@ def slide_plan(week, seen):
                 # around them: the rest is on their screen already.
                 low, high = 0, len(lines)
                 if len(lines) > CONTEXT_LINES + 4:
-                    typed = [j for j in range(len(lines) + 1)
-                             if start + j in marks or start + j in gone]
-                    low, high = max(0, min(typed) - 2), min(len(lines), max(typed) + 3)
+                    changed = [offset for offset in range(len(lines) + 1)
+                               if start + offset in marks or start + offset in gone]
+                    low, high = max(0, min(changed) - 2), min(len(lines), max(changed) + 3)
                 whole = lines[low:high]
                 while whole and not whole[-1].strip():
                     whole.pop()
                 out.append(("block", {"file": filename, "start": start + low,
                                       "lines": whole, "marks": marks, "block": block}))
-            # The block is fully typed as of the last slide it produced; the
+            # The op is fully typed as of the last slide it produced; the
             # teacher's per-slide snapshot counts it done from there.
-            out[-1][1].setdefault("completes", []).append((filename, block))
-            for quiz in getattr(course, "QUIZZES", {}).get((week["n"], filename, block), []):
-                q = balance_quiz(quiz)
-                out.append(("quiz", {"quiz": q}))
-                out.append(("quizanswer", {"quiz": q}))
+            out[-1][1]["completes"] = point
+            reached = point
+    if typed != len(points):
+        raise SystemExit(f"week {week['n']}: the slides show {typed} of the week's "
+                         f"{len(points)} ops - every op needs a slide that shows it")
     return out
 
 
@@ -1885,13 +1906,15 @@ def deck_render_html(desc):
         pts = '<ul class="pts">{0}</ul>'.format(pts) if pts else ""
         return '<section class="slide">{0}<h2>{1}</h2>{2}{3}</section>'.format(
             eyebrow, esc(d["title"]), sub, pts)
-    if kind == "indent":
-        rows = "".join('<tr class="moved"><td class="ln">&#8677;</td><td>{0}</td></tr>'.format(
-            esc(line) or "&nbsp;") for line in d["lines"])
-        return ('<section class="slide dark line indent">'
-                '<p class="filebar">In {0} <span class="part">move {1} lines in one level</span></p>'
-                '<table class="code">{2}</table><p class="linenote">{3}</p></section>').format(
-                    esc(d["file"]), len(d["lines"]), rows, esc(d["note"]))
+    if kind == "board":
+        output = ""
+        if d.get("output"):
+            output = ('<div class="board-out"><p>It prints</p><pre>{0}</pre></div>'
+                      .format(esc(d["output"].strip("\n"))))
+        return ('<section class="slide dark line board">'
+                '<p class="filebar">On the board <span class="part">{0} &middot; watch, nothing to type</span></p>'
+                '{1}{2}<p class="linenote">{3}</p></section>').format(
+                    esc(d["title"]), _code_table_html(1, d["lines"], None, set()), output, esc(d["note"]))
     if kind == "checkpoint":
         _VIS_SEQ[0] += 1
         cid = "cp%d" % _VIS_SEQ[0]
@@ -1900,12 +1923,13 @@ def deck_render_html(desc):
                 '<h2>{0}</h2><p class="cp-say">{1}</p>'
                 '<div class="cp-actions">'
                 '<button class="cp-run" data-cp="{2}">&#9654; Show a sample run</button>'
-                '<button class="cp-zip" data-cp="{2}">&#8595; Download Main.java</button>'
+                '<button class="cp-zip" data-cp="{2}">&#8595; Download {5}</button>'
                 '</div>'
                 '<div class="cp-out" id="out-{2}" hidden>{3}</div>'
                 '<script type="application/json" id="files-{2}">{4}</script>'
                 '</section>').format(esc(d["title"]), esc(d["say"]), cid,
-                                     transcript_html(d["run"]), checkpoint_files_json(d["week"]))
+                                     transcript_html(d["run"]),
+                                     checkpoint_files_json(d["point"], d["file"]), esc(d["file"]))
     if kind in ("quiz", "quizanswer"):
         q = d["quiz"]
         answered = kind == "quizanswer"
@@ -1920,9 +1944,6 @@ def deck_render_html(desc):
                 '<h2>{2}</h2><ol class="opts">{3}</ol>{4}</section>').format(
                     " answered" if answered else "", "Answer" if answered else "Quick check",
                     esc(q["q"]), opts, tail)
-    if kind == "chunk":
-        return deck_code_slide(d["file"], d["start"], d["lines"], d["marks"], d["gone"],
-                               d["part"], d["parts"])
     if kind == "block":
         return ('<section class="slide dark line whole">'
                 '<p class="filebar">All together in {0}</p>{1}'
@@ -1996,79 +2017,32 @@ def build_slides():
             para.runs[0].font.color.rgb = INK if is_bullet else BRAND
             para.space_after = Pt(14)
 
-    def indent_slide(deck, d):
-        """The lines to select and move in one level - the .pptx twin of the
-        web deck's indent slide. No line numbers: the selection is made by what
-        the lines say, since more lines arrive inside the span later on."""
-        MOVED = RGBColor(0x8F, 0xD0, 0xFF)
+    def board_slide(deck, d):
+        """An example the teacher shows and nobody types - the .pptx twin of
+        the web deck's board slide. Code in the plain colour, what it prints
+        in green below it."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
         head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
-        head.text_frame.text = f"In {d['file']}   -   move {len(d['lines'])} lines in one level (Tab)"
+        head.text_frame.text = f"On the board   -   {d['title']}   (watch, nothing to type)"
         hr = head.text_frame.paragraphs[0].runs[0]
         hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
+        output = d["output"].strip("\n").split("\n") if d.get("output") else []
+        rows = [(line, PAPER) for line in d["lines"]]
+        if output:
+            rows += [(" ", PAPER), ("It prints:", GUTTER)] + [(line, NEW) for line in output]
         box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
         frame = box.text_frame; frame.word_wrap = False
-        size = Pt(16) if len(d["lines"]) <= 12 else Pt(11) if len(d["lines"]) <= 24 else Pt(8)
-        for j, line in enumerate(d["lines"]):
-            para = frame.paragraphs[0] if j == 0 else frame.add_paragraph()
+        size = Pt(18) if len(rows) <= 10 else Pt(13) if len(rows) <= 18 else Pt(10)
+        for index, (line, colour) in enumerate(rows):
+            para = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
             para.space_after = Pt(0)
-            gut = para.add_run(); gut.text = "  >>  "
-            gut.font.name, gut.font.size, gut.font.color.rgb = "Consolas", size, GUTTER
             code = para.add_run(); code.text = line if line.strip() else " "
-            code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, MOVED
+            code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, colour
         nb = slide.shapes.add_textbox(Inches(0.6), Inches(6.15), Inches(12.1), Inches(1.15))
         nf = nb.text_frame; nf.word_wrap = True
-        nf.paragraphs[0].text = d["note"]
+        nf.paragraphs[0].text = d["note"] or " "
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
-
-    def code_slide(deck, filename, start, lines, marks, gone, part, parts):
-        """A dark, monospaced 'type this now' slide, matching the editor."""
-        slide = deck.slides.add_slide(deck.slide_layouts[6])   # blank
-        bg = slide.background.fill
-        bg.solid()
-        bg.fore_color.rgb = DARK
-
-        head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.8))
-        label = f"Type this into {filename}"
-        if parts > 1:
-            label += f"  ({part} of {parts})"
-        head.text_frame.text = label
-        run = head.text_frame.paragraphs[0].runs[0]
-        run.font.size, run.font.bold, run.font.color.rgb = Pt(26), True, BRAND
-
-        box = slide.shapes.add_textbox(Inches(0.55), Inches(1.15), Inches(12.2), Inches(5.9))
-        frame = box.text_frame
-        frame.word_wrap = False
-        total = len(lines) + sum(len(v) for v in gone.values())
-        size = Pt(17) if total <= 11 else Pt(14)
-        first = [True]   # the first paragraph already exists; the rest are added
-
-        def row(text, colour, gutter_text, struck=False):
-            para = frame.paragraphs[0] if first[0] else frame.add_paragraph()
-            first[0] = False
-            para.space_after = Pt(0)
-            edge = para.add_run()
-            edge.text = gutter_text
-            edge.font.name, edge.font.size, edge.font.color.rgb = "Consolas", size, GUTTER
-            code = para.add_run()
-            code.text = text if text.strip() else " "
-            code.font.name, code.font.size, code.font.color.rgb = "Consolas", size, colour
-            if struck:
-                # python-pptx has no strikethrough property, so set the
-                # attribute the OOXML run properties element already supports.
-                code.font._rPr.set("strike", "sngStrike")
-
-        for i, line in enumerate(lines + [None]):
-            number = start + i
-            # Anything removed from this position is drawn back in where it
-            # used to be. Green alone cannot show a week that deletes a line.
-            for dropped in gone.get(number, []):
-                row(dropped, DROP, "   -  ", struck=True)
-            if line is None:
-                break
-            # green = new this week, matching the workbook and the week pages
-            row(line, NEW if number in marks else PAPER, f"{number:>4}  ")
 
     def ctx_slide(deck, filename, start, lines, hi, note):
         """The block written so far, with line `hi` highlighted (or every line
@@ -2138,16 +2112,14 @@ def build_slides():
         for kind, d in slide_plan(week, seen):
             if kind == "concept":
                 concept_slide(deck, {"title": d["title"], "sub": d["sub"], "bullets": d["bullets"]}, eyebrow=d.get("eyebrow", ""))
-            elif kind == "indent":
-                indent_slide(deck, d)
+            elif kind == "board":
+                board_slide(deck, d)
             elif kind == "checkpoint":
                 # PowerPoint cannot reveal the run on a click, so it says where it is.
                 concept_slide(deck, {"title": d["title"], "sub": d["say"],
                                      "bullets": ["Press Run in the classroom editor, or Ctrl+Enter.",
                                                  "Press Show a sample run in the web deck to compare."]},
                               eyebrow="Checkpoint - run it")
-            elif kind == "chunk":
-                code_slide(deck, d["file"], d["start"], d["lines"], d["marks"], d["gone"], d["part"], d["parts"])
             elif kind == "block":
                 ctx_slide(deck, d["file"], d["start"], d["lines"], None,
                           "That is the whole piece. Check yours looks the same before moving on.")
@@ -2256,8 +2228,13 @@ padding:.45em 1em;font-size:clamp(14px,1.6vw,19px);cursor:pointer}
 .typed{color:#9fd8ee;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .clue-g{color:#7fe0a0;font-weight:800}
 .clue-y{color:#f4c869;font-weight:800}
-.code .moved td:last-child{color:#8fd0ff}
-.code .moved .ln{color:#5fa8d3}
+.cleared{display:block;color:#9fb9c2;font-style:italic;border-top:1px dashed #4d6a74;margin:.3em 0}
+.slide.board .filebar{color:#ffd633}
+.board-out{margin:0 0 .8em}
+.board-out p{margin:0 0 .3em;color:#8fa9b3;font-size:clamp(13px,1.5vw,20px);font-weight:700;
+letter-spacing:.05em;text-transform:uppercase}
+.board-out pre{margin:0;padding:.5em .8em;border-radius:8px;background:#0b171c;color:#7fe0a0;
+font:clamp(13px,1.8vw,24px)/1.45 Consolas,"SF Mono",Menlo,monospace;white-space:pre-wrap}
 .cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
 .cp-console-head{padding:6px 12px;background:#16303a;color:#cfe3e8;font-size:13px;font-weight:700;
 letter-spacing:.03em}
@@ -2374,16 +2351,17 @@ document.addEventListener('keydown', function (event) {
 window.addEventListener('load', function () { window.focus(); });
 document.addEventListener('click', function () { window.focus(); });
 
-// Checkpoint slides: download Main.java exactly as it stands at this checkpoint.
-// One file, named Main.java because Java insists the file is named after the
-// public class in it - a student who fell behind saves it and runs it.
+// Checkpoint slides: download the program exactly as it stands at this
+// checkpoint, under its own name - Java insists the file is named after the
+// public class in it. A student who fell behind saves it and runs it.
 [].slice.call(document.querySelectorAll('.cp-zip')).forEach(function (btn) {
   btn.onclick = function (e) {
     e.stopPropagation();
     var files = JSON.parse(document.getElementById('files-' + btn.getAttribute('data-cp')).textContent);
-    var url = URL.createObjectURL(new Blob([files['Main.java']], { type: 'text/plain' }));
+    var name = Object.keys(files)[0];
+    var url = URL.createObjectURL(new Blob([files[name]], { type: 'text/plain' }));
     var a = document.createElement('a');
-    a.href = url; a.download = 'Main.java';
+    a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   };
@@ -2402,41 +2380,11 @@ document.addEventListener('click', function () { window.focus(); });
 """
 
 
-def deck_code_slide(filename, start, lines, marks, gone, part, parts):
-    """One dark 'type this now' slide, matching the editor and the pptx."""
-    rows = []
-    for index, line in enumerate(lines + [None]):
-        number = start + index
-        for dropped in gone.get(number, []):
-            rows.append('<tr class="gone"><td class="ln">{0}</td><td>{1}</td></tr>'
-                        .format(number, esc(dropped) or "&nbsp;"))
-        if line is None:
-            break
-        rows.append('<tr class="{0}"><td class="ln">{1}</td><td>{2}</td></tr>'.format(
-            "new" if number in marks else "", number, esc(line) or "&nbsp;"))
-    part_label = ('<span class="part">{0} of {1}</span>'.format(part, parts)) if parts > 1 else ""
-    return ('<section class="slide dark">'
-            '<p class="filebar">Type this into {0} {1}</p>'
-            '<table class="code">{2}</table></section>').format(esc(filename), part_label, "".join(rows))
-
-
-def deck_concept_slide(spec):
-    sub = ""
-    if spec.get("sub"):
-        # A sub-heading that is really a line of code should look like one.
-        code_ish = any(mark in spec["sub"] for mark in ("(", "{", "[", "=", ".", "/", ":", ";", "<"))
-        sub = '<p class="sub{0}">{1}</p>'.format(" mono" if code_ish else "", esc(spec["sub"]))
-    points = "".join("<li>{0}</li>".format(esc(point)) for point in spec.get("bullets", []))
-    return ('<section class="slide"><h2>{0}</h2>{1}{2}</section>'.format(
-        esc(spec["title"]), sub,
-        '<ul class="pts">{0}</ul>'.format(points) if points else ""))
-
-
 def build_html_decks():
     """The same deck as a web page, so it can be presented from the classroom.
 
-    Built from the same week["slides"] and the same code_chunks() as the .pptx,
-    slide for slide, and main() fails the build if the two ever disagree. The
+    Built from the same slide_plan() as the .pptx, slide for slide, and
+    main() fails the build if the two ever disagree. The
     .pptx stays for Google Slides; this is what the teacher screen embeds.
     """
     os.makedirs(SLIDES_DIR, exist_ok=True)
@@ -2484,18 +2432,18 @@ def pptx_slide_counts():
     return counts
 
 def build_milestones():
-    """Emit every week's file set as JSON, for the classroom editor to read.
+    """Emit every week's programs as JSON, for the classroom editor to read.
 
     This is what lets an instructor catch up a student who missed a week: the
-    editor fetches this and seeds week N's canonical code into their account.
-    Public on purpose - it is the same code already printed on the week pages,
-    and it contains no key, only the placeholder every student replaces.
+    editor fetches this and seeds week N's programs into their account as one
+    project. Public on purpose - it is the same code already printed on the
+    week pages.
     """
     payload = {
         "course": "cs701",
         "title": course.COURSE_TITLE,
         "weeks": [
-            {"n": week["n"], "title": week["title"], "files": state_at(week["n"])}
+            {"n": week["n"], "title": week["title"], "files": week_state(WEEK_END[week["n"]], week["n"])}
             for week in course.WEEKS
         ],
     }
@@ -2508,68 +2456,51 @@ def build_milestones():
 
 
 def build_slide_states():
-    """Per-slide expected file snapshots, so a teacher's "Identify problem" can
+    """Per-slide expected programs, so a teacher's "Identify problem" can
     compare a student against ONLY what the class has reached, not the whole week.
 
-    Block-level resolution: a snapshot at every "all together" slide and every
-    checkpoint, holding the files as they should stand by that deck slide (a
-    half-typed block does not count until its all-together slide). Slide 0 is the
-    previous week's finished code; the last entry is the week's full final state.
+    A snapshot at the last slide of every op and at every checkpoint, holding
+    the week's programs as they should stand by that deck slide (a half-typed
+    block does not count until its all-together slide). Slide 0 is the week
+    before anything is typed; the last entry is the week's finished programs.
     Loaded lazily by the teacher tools, so it lives in its own file rather than
     bloating the milestones every student fetches.
     """
-    def state_with(prior, week, done):
-        blocks = {name: list(pairs) for name, pairs in prior.items()}
-        for kind, filename, block_id, lines in week["ops"]:
-            if (filename, block_id) not in done:
-                continue
-            existing = [i for i, (bid, _) in enumerate(blocks[filename]) if bid == block_id]
-            if existing:
-                blocks[filename][existing[0]] = (block_id, lines)
-            else:
-                blocks[filename].append((block_id, lines))
-        out = {}
-        for name in FILES:
-            order = course.ORDER[name]
-            ordered = sorted(blocks[name], key=lambda pair: order.index(pair[0]))
-            out[name] = "\n".join(line for _, lines in ordered for line in lines)
-        return out
-
     seen = set()
     weeks_out = []
     for week in course.WEEKS:
         n = week["n"]
-        prior = blocks_at(n - 1) if n > 1 else {name: [] for name in FILES}
         plan = slide_plan(week, seen)   # advances `seen` exactly like the deck build
-        done = set()
-        snaps = [{"slide": 0, "files": state_with(prior, week, done)}]  # floor: prior weeks
-        for pos, (kind, d) in enumerate(plan):
-            idx = pos + 1               # deck index; slide 0 is the week-title slide
+        snaps = [{"slide": 0, "files": week_state(WEEK_END[n - 1], n)}]
+        for position, (kind, d) in enumerate(plan):
+            index = position + 1        # deck index; slide 0 is the week-title slide
             if d.get("completes"):
-                done.update(d["completes"])
-                snaps.append({"slide": idx, "files": state_with(prior, week, done)})
+                snaps.append({"slide": index, "files": week_state(d["completes"], n)})
             elif kind == "checkpoint":
-                # The checkpoint runs (and exports) state_at(its week). That must
-                # be exactly what the class has typed by this slide, or the
-                # output shows code they have not written yet.
-                here = state_with(prior, week, done)
-                if here != state_at(d["week"]):
-                    off = [name for name in FILES if here[name] != state_at(d["week"])[name]]
-                    raise SystemExit(
-                        f"week {n}: checkpoint '{d['title']}' (slide {idx}) runs code that "
-                        f"does not match the slides before it ({', '.join(off)}). Move it "
-                        f"after the week's last code slide.")
-                snaps.append({"slide": idx, "files": here})
-        snaps.append({"slide": len(plan), "files": state_at(n)})   # week final, last slide
+                snaps.append({"slide": index, "files": week_state(d["point"], n)})
+        snaps.append({"slide": len(plan), "files": week_state(WEEK_END[n], n)})
         by_index = {snap["slide"]: snap for snap in snaps}          # last write per index
-        weeks_out.append({"n": n, "states": [by_index[k] for k in sorted(by_index)]})
-    for w in weeks_out:
-        for snap in w["states"]:
+        weeks_out.append({"n": n, "states": [by_index[key] for key in sorted(by_index)]})
+    for week_out in weeks_out:
+        for snap in week_out["states"]:
             for name, text in snap["files"].items():
                 if "sk-class-" in text and "put-your-own-key-here" not in text:
-                    raise SystemExit(f"week {w['n']} slide-state {name} carries a real-looking key")
+                    raise SystemExit(f"week {week_out['n']} slide-state {name} carries a real-looking key")
     write("slide-states.json", json.dumps({"course": "cs701", "weeks": weeks_out}, separators=(",", ":")))
     return len(weeks_out)
+
+
+def checkpoint_list():
+    """Every checkpoint slide with the exact program it runs - for the tests
+    that run each one and compare the console with the slide."""
+    seen, found = set(), []
+    for week in course.WEEKS:
+        for kind, d in slide_plan(week, seen):
+            if kind == "checkpoint":
+                found.append({"week": week["n"], "title": d["title"], "file": d["file"],
+                              "source": state_at(d["point"])[d["file"]] + "\n",
+                              "seed": d["seed"], "run": d["run"].strip("\n")})
+    return found
 
 
 def write(name, text):
@@ -2593,147 +2524,128 @@ def write(name, text):
 
 # --------------------------------------------------------------------------
 
+def check_quiz(week_number, quiz):
+    """A quiz with a bad answer index marks no option correct, silently - refuse."""
+    options = quiz.get("options") or []
+    if not quiz.get("q") or len(options) < 2 or not quiz.get("why"):
+        raise SystemExit(f"week {week_number} quiz: needs q, why, and 2+ options - {quiz.get('q')!r}")
+    if not isinstance(quiz.get("answer"), int) or not (0 <= quiz["answer"] < len(options)):
+        raise SystemExit(f"week {week_number} quiz: answer index out of range - {quiz.get('q')!r}")
+
+
 def main():
     if len(course.WEEKS) != 15:
         raise SystemExit(f"expected 15 weeks, found {len(course.WEEKS)}")
-    for i, week in enumerate(course.WEEKS, start=1):
-        if week["n"] != i:
-            raise SystemExit(f"weeks are out of order at position {i}")
+    for position, week in enumerate(course.WEEKS, start=1):
+        if week["n"] != position:
+            raise SystemExit(f"weeks are out of order at position {position}")
 
-    final = state_at(15)
-    total = line_count(final)
-    print(f"CS701 - final project is {total} lines "
-          f"({', '.join(f'{n}: {len(final[n].splitlines())}' for n in FILES)})")
-    if total > LINE_BUDGET:
-        raise SystemExit(f"OVER BUDGET: {total} lines > {LINE_BUDGET}. Move something to a bonus module.")
+    final = state_at(WEEK_END[15])
+    print(f"CS701 - {len(FILES)} programs, {line_count(final)} lines in all")
+    unused = [name for name in FILES if not final[name]]
+    if unused:
+        raise SystemExit(f"course.ORDER lists {unused} but no week ever writes them")
 
-    # A week that adds nothing is almost always an authoring slip.
     for week in course.WEEKS:
-        if not week["ops"] and not week.get("no_code_ok"):
-            raise SystemExit(f"week {week['n']} changes no code; set no_code_ok=True if that is deliberate")
+        n = week["n"]
+        points = list(week_points(n))
+        # A week that types nothing is almost always an authoring slip.
+        if not points and not week.get("no_code_ok"):
+            raise SystemExit(f"week {n} changes no code; set no_code_ok=True if that is deliberate")
 
-        # Every edit must be pinned to a moment in the lesson, or the teacher is
-        # left guessing when in the hour it happens. An edit is a block with a
-        # line to type or to delete; a block whose lines only moved in a level
-        # is a TAB beat's job, checked below.
-        changes, moved = block_changes(week["n"])[FILES[0]]
-        gone = removed_in_blocks(week["n"])[FILES[0]]
-        spans = block_spans(week["n"])[FILES[0]]
-        touched = {(filename, block_id) for _, filename, block_id, _ in week["ops"]
-                   if block_id in gone or any(n in changes for n in
-                                              range(spans[block_id][0], spans[block_id][1] + 1))}
-        cited = {(beat["file"], beat["block"]) for beat in week["flow"] if beat["kind"] == "step"}
-        orphans = touched - cited
-        if orphans:
-            raise SystemExit(
-                f"week {week['n']}: no STEP in the flow types "
-                + ", ".join(f"{f}:{b}" for f, b in sorted(orphans))
-            )
-        idle = cited - touched
-        if idle:
-            raise SystemExit(
-                f"week {week['n']}: a STEP types "
-                + ", ".join(f"{f}:{b}" for f, b in sorted(idle))
-                + " but nothing in it changes this week"
-            )
-        # A line that only moved has to be moved by a TAB beat, or the week page
-        # hands back a file whose indentation lies about what is inside what.
-        tabbed = set()
-        for beat in week["flow"]:
-            if beat["kind"] == "tab":
-                tabbed.update(tab_lines(week["n"], beat["block"])[0])
-        loose = sorted(moved - tabbed)
-        if loose:
-            raise SystemExit(
-                f"week {week['n']}: line(s) {loose} move in a level but no TAB beat "
-                f"tells anyone to select them and press Tab"
-            )
-        tab_refs = {(TAB, beat["block"]) for beat in week["flow"] if beat["kind"] == "tab"}
-        ghosts = {ref for ref in cited if ref[0] not in FILES}  # a TAB is not a STEP
-        if ghosts:
-            raise SystemExit(f"week {week['n']}: flow cites unknown file(s) {sorted(ghosts)}")
+        # Every op is one typing beat, in the same order, so the teacher knows
+        # when in the hour each change happens and the slides can follow along.
+        steps = [beat for beat in week["flow"] if beat["kind"] == "step"]
+        for index, point in enumerate(points):
+            _kind, filename, block, _lines = point_op(point)
+            if index >= len(steps):
+                raise SystemExit(f"week {n}: no STEP in the flow types {filename}:{block} "
+                                 f"(op {index + 1} of {len(points)})")
+            cited = (steps[index]["file"], steps[index]["block"])
+            if cited != (filename, block):
+                raise SystemExit(f"week {n}: STEP {index + 1} \"{steps[index]['title']}\" types "
+                                 f"{cited[0]}:{cited[1]}, but op {index + 1} is {filename}:{block} - "
+                                 f"the flow and the ops must run in the same order")
+            typed = changed_lines(point)[filename]
+            if not typed and not removed_in_blocks(point)[filename]:
+                raise SystemExit(f"week {n}: op {index + 1} ({filename}:{block}) changes nothing")
+            # This course never re-indents code a student already has; a line
+            # whose only change is its leading spaces is an authoring slip, and
+            # nothing in the guide would tell anyone to move it.
+            moved = moved_lines(point)[filename]
+            if moved:
+                raise SystemExit(f"week {n}: op {index + 1} ({filename}:{block}) only re-indents "
+                                 f"line(s) {sorted(moved)} - keep the indentation the class typed")
+        if len(steps) > len(points):
+            extra = ", ".join(f"{beat['file']}:{beat['block']}" for beat in steps[len(points):])
+            raise SystemExit(f"week {n}: a STEP types {extra} but nothing in it changes this week")
 
         # The guide draws the hour as a run sheet, so the clock has to run
-        # forwards. Week 1 shipped with a beat at 0:56 sitting in front of one
-        # at 0:53 - two beats in the wrong order, which reads as a typo on the
-        # page but was really a lesson that talked about console output before
-        # the class had typed it.
+        # forwards. A beat at 0:56 in front of one at 0:53 reads as a typo but
+        # is really a lesson talking about output before the class typed it.
         clock = [(beat["at"], beat["title"]) for beat in week["flow"] if beat.get("at")]
-        for (earlier, _), (later, title) in zip(clock, clock[1:]):
-            if [int(p) for p in later.split(":")] <= [int(p) for p in earlier.split(":")]:
+        for (earlier, _title), (later, title) in zip(clock, clock[1:]):
+            if [int(part) for part in later.split(":")] <= [int(part) for part in earlier.split(":")]:
                 raise SystemExit(
-                    f"week {week['n']}: the flow's clock goes {earlier} then {later} at "
-                    f"\"{title}\" - reorder those beats, or fix the time"
-                )
+                    f"week {n}: the flow's clock goes {earlier} then {later} at "
+                    f"\"{title}\" - reorder those beats, or fix the time")
 
         # A whole hour with nothing to say back is a lecture, not a lesson.
         prompts = sum(1 for beat in week["flow"] if beat.get("ask"))
         if prompts < 3:
-            raise SystemExit(
-                f"week {week['n']}: only {prompts} call-and-response prompt(s) in the flow; "
-                f"aim for at least 3 spread through the hour"
-            )
+            raise SystemExit(f"week {n}: only {prompts} call-and-response prompt(s) in the flow; "
+                             f"aim for at least 3 spread through the hour")
 
-        # The deck is what is on the projector while students type, so every
-        # edit has to be on a slide too - not only in the teacher's own notes.
-        on_slides = {ref for spec in week["slides"] for ref in spec.get("code", [])}
-        unshown = (touched | tab_refs) - on_slides
-        if unshown:
-            raise SystemExit(
-                f"week {week['n']}: no slide shows "
-                + ", ".join(f"{f}:{b}" for f, b in sorted(unshown))
-                + " - add a \"code\" key to one of that week's slides"
-            )
+        # The deck is the type-along, so its code must follow the typing order
+        # exactly - every op, once, in turn. slide_plan() refuses a slide that
+        # names the wrong op; this catches one no slide names at all.
+        shown = [tuple(ref) for spec in week["slides"] for ref in (spec.get("code") or [])]
+        expected = [(point_op(point)[1], point_op(point)[2]) for point in points]
+        if shown != expected:
+            raise SystemExit(f"week {n}: the slides show {shown} but the lesson types {expected} - "
+                             f"one \"code\" entry per op, in the order they are typed")
 
-        # An expanded deck IS the type-along, so its code must appear in the
-        # order the lesson types it - not the author's concept order. Otherwise
-        # a slide says "type line 24" before "line 9".
-        if week["n"] in getattr(course, "EXPANDED_WEEKS", set()):
-            slide_blocks = [ref for spec in week["slides"] for ref in spec.get("code", [])]
-            flow_blocks = [(beat["file"], beat["block"]) for beat in week["flow"]
-                           if beat["kind"] in ("step", "tab")]
-            if slide_blocks != flow_blocks:
-                raise SystemExit(
-                    f"week {week['n']} is expanded but its slide code order "
-                    f"{slide_blocks} does not match the typing order {flow_blocks} - "
-                    f"reorder that week's slides so the type-along follows the lesson"
-                )
+        # Every typed line gets a slide, and a blank explanation slide is worse
+        # than none - so every typed line needs its note.
+        notes = line_notes(n)
+        for point in points:
+            _kind, filename, block, _lines = point_op(point)
+            start, lines, _marks, _gone = block_code(point, filename, block)
+            for offset, note in enumerate(notes[point]):
+                if note == "":
+                    raise SystemExit(f"week {n}: {filename}:{block} line {start + offset} "
+                                     f"{lines[offset].strip()!r} has no NOTES entry")
 
-        # An expanded week teaches line by line, so every code line it shows on
-        # a slide needs a note. A blank explanation slide is worse than none, so
-        # refuse to ship one - this is the guard that keeps the roll-out honest.
-        if week["n"] in getattr(course, "EXPANDED_WEEKS", set()):
-            for spec in week["slides"]:
-                for filename, block in (spec.get("code") or []):
-                    if filename == TAB:
-                        continue
-                    start, lines, marks, _gone = block_code(week["n"], filename, block)
-                    notes = notes_for(week["n"], filename, block)
-                    for i, line in enumerate(lines):
-                        # Only a changed/new line gets a slide, so only it needs a
-                        # note; a carried-over line just shows as context.
-                        if not line.strip() or (start + i) not in marks:
-                            continue
-                        note = notes[i] if notes and i < len(notes) else ""
-                        if note is None:
-                            continue
-                        if not note:
-                            raise SystemExit(
-                                f"week {week['n']} is expanded but {filename}:{block} "
-                                f"line {start + i} has no LINE_NOTES entry"
-                            )
+        # A checkpoint runs a program the class has typed THIS week - never
+        # code they have not reached, and never a program left over from last
+        # week that nobody has touched since.
+        seen_quiz = 0
+        for spec in week["slides"]:
+            for quiz in spec.get("quiz") or []:
+                check_quiz(n, quiz)
+                seen_quiz += 1
+        for kind, descriptor in slide_plan(week, set()):
+            if kind != "checkpoint":
+                continue
+            filename, point = descriptor["file"], descriptor["point"]
+            if filename not in FILES:
+                raise SystemExit(f"week {n}: checkpoint '{descriptor['title']}' runs unknown file {filename}")
+            if not state_at(point)[filename]:
+                raise SystemExit(f"week {n}: checkpoint '{descriptor['title']}' runs {filename} "
+                                 f"before the class has typed any of it")
+            if not (changed_lines(point, WEEK_END[n - 1])[filename]
+                    or any(removed_in_blocks(point, WEEK_END[n - 1])[filename].values())):
+                raise SystemExit(f"week {n}: checkpoint '{descriptor['title']}' runs {filename}, "
+                                 f"but nothing in it has been typed yet this week")
+            if not descriptor["run"].strip():
+                raise SystemExit(f"week {n}: checkpoint '{descriptor['title']}' has no transcript")
 
-        grew = line_count(state_at(week["n"])) - (line_count(state_at(week["n"] - 1)) if week["n"] > 1 else 0)
-        print(f"  week {week['n']:2d}  +{grew:3d} lines  {week['title']}")
-
-    # A quiz with a bad answer index marks no option correct, silently - refuse.
-    for key, quiz_set in getattr(course, "QUIZZES", {}).items():
-        for q in quiz_set:
-            opts = q.get("options") or []
-            if not q.get("q") or len(opts) < 2 or not q.get("why"):
-                raise SystemExit(f"quiz {key}: needs q, why, and 2+ options - {q.get('q')!r}")
-            if not isinstance(q.get("answer"), int) or not (0 <= q["answer"] < len(opts)):
-                raise SystemExit(f"quiz {key}: answer index out of range - {q.get('q')!r}")
+        typed = sum(len(changed_lines(point)[point_op(point)[1]]) for point in points)
+        if typed > TYPED_BUDGET:
+            raise SystemExit(f"OVER BUDGET: week {n} types {typed} lines > {TYPED_BUDGET} in one hour. "
+                             f"Move a program to homework.")
+        print(f"  week {n:2d}  +{typed:3d} typed  {len(week_files(n))} program(s)  "
+              f"{seen_quiz} quiz  {week['title']}")
 
     build_index()
     build_weeks()

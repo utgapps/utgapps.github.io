@@ -6,9 +6,11 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-// Runs Main with scripted keyboard input, one line at a time, and writes each
+// Runs a program with scripted keyboard input, one line at a time, and writes each
 // line into the output at the moment the program asks for it, as [[line]].
 // The result reads exactly like a person at the console typed it.
+//
+//     java Harness typed.txt ClassName
 public class Harness {
     public static void main(String[] args) throws Exception {
         Deque<String> typed = new ArrayDeque<>(Files.readAllLines(Path.of(args[0])));
@@ -50,6 +52,6 @@ public class Harness {
                 return count;
             }
         });
-        Class.forName("Main").getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        Class.forName(args[1]).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
     }
 }

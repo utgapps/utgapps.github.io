@@ -1,4 +1,4 @@
-"""Hold every week's Main.java to the course's two code rules.
+"""Hold every program, after every op, to the course's two code rules.
 
 1. Whole-word names. No one-letter variable, parameter or loop counter - not
    even i. A student reads `for (int row = 0; ...)` as a sentence; `i` is a
@@ -7,8 +7,8 @@
    point at the same object, compiles without a word, and works just often
    enough in a test to ship. It is the classic AP mistake.
 
-Checks the replayed state of every week, so a rule broken in week 4 and fixed
-in week 9 is still caught in week 4.
+Checks the replayed state after every op, so a rule broken in week 4 and
+fixed in week 9 is still caught in week 4.
 
     python check_style.py
 """
@@ -56,11 +56,18 @@ def problems(source):
 
 def main():
     total = 0
-    for week in build.course.WEEKS:
-        for filename, source in build.state_at(week["n"]).items():
+    reported = set()
+    # Every point, not just each week's end: the guide changes a program
+    # several times in a lesson, and each version is one the class typed.
+    for point in range(1, len(build.TIMELINE) + 1):
+        week_number = build.TIMELINE[point - 1][0]
+        for filename, source in build.state_at(point).items():
             for number, what, line in problems(source):
+                if (filename, what, line.strip()) in reported:
+                    continue
+                reported.add((filename, what, line.strip()))
                 total += 1
-                print(f"  week {week['n']:2d}  {filename}:{number}  {what}\n            {line}")
+                print(f"  week {week_number:2d}  {filename}:{number}  {what}\n            {line}")
     # The rules are only worth something if they can fire. Prove both on
     # lines that break them, so a regex that has quietly stopped matching
     # cannot pass the whole course.
@@ -74,7 +81,7 @@ def main():
     if len(control) != 3:
         print(f"CONTROL FAILED - the checks found {len(control)} of 3 planted problems")
         return 1
-    print(f"{len(build.course.WEEKS)} weeks checked, {total} style problem(s)")
+    print(f"{len(build.TIMELINE)} ops across {len(build.course.WEEKS)} weeks checked, {total} style problem(s)")
     return 1 if total else 0
 
 

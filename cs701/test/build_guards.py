@@ -38,8 +38,8 @@ def sub_once(text, pattern, replacement, label):
     return out
 
 
-# Week 7 (WEEKS[6]) is the default victim: an ordinary expanded week with a
-# checkpoint, several blocks and a seeded Random.
+# Week 7 (WEEKS[6]) is the default victim: one program, ShoppingList.java,
+# that the guide changes six times, with checkpoints along the way.
 CASES = [
     ("a week is missing", "course.py",
      lambda s: s + "\nWEEKS = WEEKS[:-1]\n",
@@ -49,8 +49,9 @@ CASES = [
      lambda s: s + "\nWEEKS[3], WEEKS[4] = WEEKS[4], WEEKS[3]\n",
      "out of order"),
 
-    ("the project goes over the line budget", "build.py",
-     lambda s: sub_once(s, r"LINE_BUDGET = 320", "LINE_BUDGET = 200", "budget"),
+    # Week 4 types 119 lines, the most of any week.
+    ("a week types more than an hour allows", "build.py",
+     lambda s: sub_once(s, r"TYPED_BUDGET = 130", "TYPED_BUDGET = 100", "budget"),
      "OVER BUDGET"),
 
     # The last week: emptying an earlier one breaks the replay of the weeks
@@ -63,11 +64,13 @@ CASES = [
      lambda s: s + "\nWEEKS[6]['flow'] = [b for b in WEEKS[6]['flow'] if b['kind'] != 'step']\n",
      "no STEP in the flow types"),
 
-    # Week 5 wraps the guess in a while loop, so read..check move in a level.
-    # Without the TAB beat nobody is told to select them and press Tab.
-    ("a re-indent has no TAB beat", "course.py",
-     lambda s: s + "\nWEEKS[4]['flow'] = [b for b in WEEKS[4]['flow'] if b['kind'] != 'tab']\n",
-     "TAB beat"),
+    # Nothing in the guide tells a student to re-indent a line they already
+    # have, so an op that only moves one is an authoring slip. The array line
+    # is typed in week 7's first op and unchanged by its last.
+    ("an op re-indents a line the class already typed", "course.py",
+     lambda s: s + "\n_lines = WEEKS[6]['ops'][-1][3]\n"
+                   "_lines[2] = '    ' + _lines[2]\n",
+     "only re-indents"),
 
     # With one file, the "types a block that does not change" guard sees an
     # unknown file first. Either refusal will do; both name the file.
@@ -91,29 +94,37 @@ CASES = [
 
     # Every week is expanded, so every typed line owes the class a sentence.
     ("a typed line has no line note", "course.py",
-     lambda s: s + "\ndel LINE_NOTES[next(_k for _k in LINE_NOTES if _k[0] == 7)]\n",
-     "no LINE_NOTES entry"),
+     lambda s: s + "\n_notes = NOTES[7]['ShoppingList.java'][BLOCK]\n"
+                   "del _notes['public class ShoppingList {']\n",
+     "has no NOTES entry"),
 
-    # Slides follow typing order, not concept order.
+    # Slides follow typing order, not concept order. Week 9, because it types
+    # four programs: in a one-program week every slide shows the same file.
     ("the slides teach in a different order from the lesson", "course.py",
-     lambda s: s + "\n_coded = [_i for _i, _s in enumerate(WEEKS[6]['slides']) if _s.get('code')]\n"
-                   "_sl = WEEKS[6]['slides']\n"
+     lambda s: s + "\n_coded = [_i for _i, _s in enumerate(WEEKS[8]['slides']) if _s.get('code')]\n"
+                   "_sl = WEEKS[8]['slides']\n"
                    "_sl[_coded[0]], _sl[_coded[-1]] = _sl[_coded[-1]], _sl[_coded[0]]\n",
-     "does not match the typing order"),
+     "in the order they are typed"),
 
     ("a checkpoint runs code the class has not typed yet", "course.py",
      lambda s: s + "\n_sl = WEEKS[6]['slides']\n"
                    "_sl.insert(0, _sl.pop(next(_i for _i, _s in enumerate(_sl) if _s.get('checkpoint'))))\n",
-     "does not match the slides before it"),
+     "before the class has typed any of it"),
 
-    # Patched into the ops after course.py has aligned its line notes, so the
-    # note guard does not refuse the changed line before the key guard sees it.
-    # Every week's ops, because a later week that re-SETs the block would
-    # otherwise look like it changed the line back.
+    # The notes are keyed by the line's text, so they are renamed with it -
+    # otherwise the note guard refuses the changed line before the key guard
+    # sees it. Every week's ops, because a later week that re-SETs the
+    # program would otherwise look like it changed the line back.
     ("a real API key is about to be published", "course.py",
-     lambda s: s + "\nfor _op in [_o for _w in WEEKS for _o in _w['ops']]:\n"
+     lambda s: s + "\n_key = 'sk-class-a-real-looking-key-9f2b'\n"
+                   "for _op in [_o for _w in WEEKS for _o in _w['ops']]:\n"
                    "    for _i, _line in enumerate(_op[3] or []):\n"
-                   "        _op[3][_i] = _line.replace('apple', 'sk-class-a-real-looking-key-9f2b')\n",
+                   "        _op[3][_i] = _line.replace('Milk', _key)\n"
+                   "for _files in NOTES.values():\n"
+                   "    for _blocks in _files.values():\n"
+                   "        for _block, _notes in list(_blocks.items()):\n"
+                   "            _blocks[_block] = {_text.replace('Milk', _key): _note\n"
+                   "                               for _text, _note in _notes.items()}\n",
      "real-looking key"),
 
     ("the lesson's clock runs backwards", "course.py",
