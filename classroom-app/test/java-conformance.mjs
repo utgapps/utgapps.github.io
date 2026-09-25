@@ -25,7 +25,7 @@ export async function consoleFor(caseFolder) {
   const files = readdirSync(caseFolder).filter((name) => name.endsWith(".java")).sort()
     .map((name) => ({ name, source: readFileSync(join(caseFolder, name), "utf8") }));
   const inputFile = join(caseFolder, "input.txt");
-  const typed = existsSync(inputFile) ? readFileSync(inputFile, "utf8").replace(/\n$/, "").split("\n") : [];
+  const typed = existsSync(inputFile) ? readFileSync(inputFile, "utf8").replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n") : [];
   const compiled = java.compileJava(files);
   if (!compiled.ok) return compiled.text.replace(/\n*$/, "\n") + "[did not compile]\n";
   const run = await runJava(java, compiled.code, typed, { maxSteps: 1000 });
