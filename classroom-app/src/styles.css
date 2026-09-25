@@ -517,6 +517,7 @@ body.running-full { overflow: hidden; }
 /* ---- the Java console ---- */
 /* A terminal fills the whole panel: there is no page to preview, only text. */
 .java-panel { grid-template-rows: auto minmax(0, 1fr); }
+.java-file { font: 600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #0a6299; }
 .java-status { font-size: 12px; color: #52707a; }
 .java-status.waiting { color: #0a7fb5; font-weight: 700; }
 .java-status.failed, .java-status.uncompiled { color: #b3321f; }

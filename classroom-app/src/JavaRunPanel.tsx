@@ -21,13 +21,37 @@ function javaFiles(files: Record<string, string>) {
     .map((name) => ({ name, source: files[name] }));
 }
 
-function sameJava(first: Record<string, string>, second: Record<string, string>) {
-  const firstFiles = javaFiles(first), secondFiles = javaFiles(second);
-  return firstFiles.length === secondFiles.length
-    && firstFiles.every((file, index) => file.name === secondFiles[index].name && file.source === secondFiles[index].source);
+const TYPE_DECLARATION = /\b(?:class|interface|enum|record)\s+([A-Za-z_$][\w$]*)/g;
+
+/** What a run compiles: the open .java file first, then every other .java file
+    whose class it names, and the ones those name in turn. A CS701 week is one
+    project holding several separate programs, each with its own main. Compiling
+    all of them would let one half-typed program stop the finished one beside it
+    from running, and would start whichever file happened to sort first. With no
+    .java file open, the run starts at Main.java, as `java Main` would. */
+export function runnableFiles(files: Record<string, string>, active?: string) {
+  const all = javaFiles(files);
+  const start = all.find((file) => file.name === active) ?? all[0];
+  if (!start) return [];
+  const declared = all.map((file) => ({ file, types: [...file.source.matchAll(TYPE_DECLARATION)].map((match) => match[1]) }));
+  const chosen = [start];
+  for (let index = 0; index < chosen.length; index++) {
+    const source = chosen[index].source;
+    for (const { file, types } of declared) {
+      if (chosen.includes(file)) continue;
+      if (types.some((type) => new RegExp(`\\b${type.replace(/\$/g, "\\$")}\\b`).test(source))) chosen.push(file);
+    }
+  }
+  return chosen;
 }
 
-export function JavaRunPanel({ files }: { files: Record<string, string> }) {
+function sameSources(first: { name: string; source: string }[], second: { name: string; source: string }[]) {
+  return first.length === second.length
+    && first.every((file, index) => file.name === second[index].name && file.source === second[index].source);
+}
+
+/** `active` is the file open in the editor: Run starts there. */
+export function JavaRunPanel({ files, active }: { files: Record<string, string>; active?: string }) {
   const workerRef = useRef<Worker | null>(null);
   const segmentsRef = useRef<Segment[]>([]);
   const lengthRef = useRef(0);
@@ -35,12 +59,16 @@ export function JavaRunPanel({ files }: { files: Record<string, string> }) {
   const [, setVersion] = useState(0);
   const [status, setStatus] = useState<Status>("idle");
   const [exitStatus, setExitStatus] = useState(0);
-  const [ranFiles, setRanFiles] = useState<Record<string, string> | null>(null);
+  const [ranFiles, setRanFiles] = useState<{ name: string; source: string }[] | null>(null);
   const [typed, setTyped] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const live = status === "running" || status === "waiting";
-  const stale = ranFiles !== null && !sameJava(ranFiles, files);
+  const sources = runnableFiles(files, active);
+  const startName = sources.length ? sources[0].name : "Main.java";
+  // Switching to another program is not "your code changed": that one has not run yet.
+  const ranThis = ranFiles !== null && ranFiles.length > 0 && ranFiles[0].name === startName;
+  const stale = ranThis && !sameSources(ranFiles!, sources);
 
   /** Redraw at most once a frame, however fast the program prints. */
   function redraw() {
@@ -75,8 +103,7 @@ export function JavaRunPanel({ files }: { files: Record<string, string> }) {
     stopWorker();
     clear();
     setTyped("");
-    setRanFiles({ ...files });
-    const sources = javaFiles(files);
+    setRanFiles(sources);
     if (!sources.length) {
       append("err", "There is no .java file in this project to run.\n");
       setStatus("failed");
@@ -158,10 +185,11 @@ export function JavaRunPanel({ files }: { files: Record<string, string> }) {
   return <section className="preview-panel java-panel">
     <div className="preview-top">
       <strong>Java console</strong>
+      {sources.length > 0 && <span className="java-file" title="Run starts this file">{startName}</span>}
       {stale && <span className="stale-hint">Your code changed since you last ran it</span>}
       {statusText && <span className={`java-status ${status}`}>{statusText}</span>}
-      <button className={stale || !ranFiles || !live ? "primary compact" : "text-button"} onClick={run}
-              title="Ctrl+Enter">{ranFiles ? "Run again" : "▶ Run"}</button>
+      <button className={stale || !ranThis || !live ? "primary compact" : "text-button"} onClick={run}
+              title={`Run ${startName} (Ctrl+Enter)`}>{ranThis ? "Run again" : "▶ Run"}</button>
       {live && <button className="text-button" onClick={stop}>Stop</button>}
       {!live && segments.length > 0 && <button className="text-button" onClick={clear}>Clear</button>}
     </div>
@@ -169,7 +197,7 @@ export function JavaRunPanel({ files }: { files: Record<string, string> }) {
          onMouseUp={() => { if (live && !window.getSelection()?.toString()) inputRef.current?.focus({ preventScroll: true }); }}>
       {!ranFiles && segments.length === 0
         ? <div className="java-idle">
-            <p>Press <strong>{"▶"} Run</strong> (or Ctrl+Enter) to compile and run <code>Main.java</code>.</p>
+            <p>Press <strong>{"▶"} Run</strong> (or Ctrl+Enter) to compile and run <code>{startName}</code>, the file open in the editor.</p>
             <p className="muted">Anything your program prints appears here. When it reads from a <code>Scanner</code>, type your answer here and press Enter.</p>
           </div>
         : <pre className="java-output">

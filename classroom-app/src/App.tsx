@@ -1216,7 +1216,7 @@ function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; 
       <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
     </section>
     {kind === "java"
-      ? <JavaRunPanel files={files} />
+      ? <JavaRunPanel files={files} active={file} />
       : <RunPanel files={files} kind={kind} />}
   </div>;
 }

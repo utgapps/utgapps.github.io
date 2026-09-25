@@ -19,7 +19,7 @@ type Source = { kind: "week"; n: number } | { kind: "mine"; id: string };
    avoids characters that look alike and words that are hard to spell. */
 const WORDS = ["maple", "harbour", "lantern", "copper", "willow", "quartz",
                "beacon", "cedar", "falcon", "meadow", "anchor", "pebble"];
-/* A course's files say what kind of project they are: CS701's Main.java is
+/* A course's files say what kind of project they are: CS701's .java files are
    Java, everything else so far is a web page. Guessing "web" for a Java week
    would open it in the web editor with a preview that can only ever be blank. */
 function kindOf(files: Record<string, string>): "java" | "web" {
