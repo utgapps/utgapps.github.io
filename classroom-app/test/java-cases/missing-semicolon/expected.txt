@@ -1,0 +1,6 @@
+Main.java:3: error: ';' expected
+        System.out.println("hi")
+                                ^
+  → Every statement ends with a semicolon: add the missing one where the caret points.
+1 error
+[did not compile]

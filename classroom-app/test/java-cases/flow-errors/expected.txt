@@ -1,0 +1,10 @@
+Main.java:6: error: variable x might not have been initialized
+        System.out.println(x);
+                           ^
+  → Give the variable a starting value where you declare it, or make sure every path assigns it before this line.
+Main.java:11: error: missing return statement
+    }
+    ^
+  → Every path through this method must reach a return, including the path where no if matches.
+2 errors
+[did not compile]

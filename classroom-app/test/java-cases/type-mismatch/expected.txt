@@ -1,0 +1,26 @@
+Main.java:3: error: incompatible types: possible lossy conversion from double to int
+        int half = 7 / 2.0;
+                     ^
+  → A double can hold a fraction and an int cannot. If you mean to drop the fraction, cast it: (int) value.
+Main.java:4: error: incompatible types: int cannot be converted to String
+        String label = 42;
+                       ^
+  → To turn a number into text, use String.valueOf(number), or "" + number.
+Main.java:5: error: incompatible types: String cannot be converted to int
+        int total = "12";
+                    ^
+  → To turn text into a number, use Integer.parseInt(text).
+Main.java:7: error: cannot find symbol
+        System.out.println(undefinedName);
+                           ^
+  symbol:   variable undefinedName
+  location: class Main
+  → Check the spelling and capitals of undefinedName, and that you declared it inside the braces you are using it in.
+Main.java:8: error: method printScore in class Main cannot be applied to given types;
+        printScore(1, 2);
+        ^
+  required: int
+  found:    int,int
+  reason: actual and formal argument lists differ in length
+5 errors
+[did not compile]

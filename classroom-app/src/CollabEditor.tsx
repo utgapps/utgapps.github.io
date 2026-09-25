@@ -11,6 +11,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { javaLanguage } from "./lib/java-mode";
 import { tags } from "@lezer/highlight";
 import { yCollab } from "y-codemirror.next";
 import { fileText } from "./lib/collab";
@@ -56,6 +57,7 @@ const PPE_TOKENS = HighlightStyle.define([
 function langFor(file: string) {
   if (file.endsWith(".css")) return css();
   if (file.endsWith(".js")) return javascript();
+  if (file.endsWith(".java")) return javaLanguage;
   // Game panels are Python, and indentation is the one thing that breaks a
   // game at this age - so it gets a mode that indents rather than plain text.
   if (file.endsWith(".py")) {

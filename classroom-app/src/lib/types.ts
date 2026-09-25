@@ -101,9 +101,10 @@ const javaStarter = (): Record<string, string> => ({
     "# Java notes\n\n" +
     "Write your Java here. It saves and syncs exactly like a web project, and your\n" +
     "teacher can see it live.\n\n" +
-    "Running Java in the browser is not built yet, so there is no preview on this\n" +
-    "kind of project. Use it for writing practice and for work you will run\n" +
-    "somewhere else.\n",
+    "Press Run (or Ctrl+Enter) and your program compiles and runs in the console\n" +
+    "beside the editor. When it reads from a Scanner, type into the console and\n" +
+    "press Enter. Stop ends a program that runs forever.\n\n" +
+    "Java starts at public static void main(String[] args) in Main.java.\n",
 });
 
 /* A new game is empty - no code, no pictures, nothing in game.txt.

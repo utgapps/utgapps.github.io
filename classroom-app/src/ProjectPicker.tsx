@@ -152,11 +152,9 @@ function NewProjectDialog({ suggested, onCreate, onCancel, canCancel }: {
           <strong>Python game</strong>
           <span>Python games that run right here. You get a monster on the screen the moment you press Run.</span>
         </button>
-        {/* Deliberately secondary, and honest about it. A chooser whose second
-            option quietly does nothing reads as broken software to a 12-year-old. */}
-        <button className={kind === "java" ? "kind-card secondary selected" : "kind-card secondary"} onClick={() => setKind("java")}>
-          <strong>Java <em>· writing only</em></strong>
-          <span>Write and save Java. Running it in the browser is not built yet.</span>
+        <button className={kind === "java" ? "kind-card selected" : "kind-card"} onClick={() => setKind("java")}>
+          <strong>Java</strong>
+          <span>Java programs that run right here, in a console you can type into.</span>
         </button>
       </div>
       <div className="dialog-actions">

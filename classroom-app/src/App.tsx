@@ -15,6 +15,7 @@ import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/
 import { buildPreview, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
 import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/game-project";
 import { RunPanel } from "./RunPanel";
+import { JavaRunPanel } from "./JavaRunPanel";
 import { GameEditor } from "./GameEditor";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
@@ -741,7 +742,7 @@ function StaticPreview({ files, kind }: { files: Record<string, string>; kind: P
      no origin the server would answer. A teacher watching hears what the
      student hears. */
   const audio = useGameAudio(files);
-  if (kind === "java") return <div className="not-runnable"><p className="muted">Java projects do not run in the browser yet.</p></div>;
+  if (kind === "java") return <JavaRunPanel files={files} />;
   return nonce
     ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
               srcDoc={kind === GAME_KIND ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce)} />
@@ -1174,7 +1175,7 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly,
 function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
   // Where a run starts: the page for a web project, the first panel for a game.
-  const entry = kind === GAME_KIND ? GAME_ENTRY : ENTRY_FILE;
+  const entry = kind === GAME_KIND ? GAME_ENTRY : kind === "java" ? "Main.java" : ENTRY_FILE;
   const [file, setFile] = useState(names.includes(entry) ? entry : (names[0] || entry));
   useEffect(() => { if (names.length && !names.includes(file)) setFile(names[0]); }, [names, file]);
 
@@ -1215,11 +1216,7 @@ function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; 
       <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
     </section>
     {kind === "java"
-      ? <section className="preview-panel"><div className="preview-top"><strong>Java</strong></div><div className="not-runnable">
-          <h3>This is a Java project</h3>
-          <p>Your code saves as you type, syncs to your account, and your teacher can see it live — everything works except running it here.</p>
-          <p className="muted">Running Java in the browser is not built yet. Use this for writing practice and for code you will run somewhere else.</p>
-        </div></section>
+      ? <JavaRunPanel files={files} />
       : <RunPanel files={files} kind={kind} />}
   </div>;
 }

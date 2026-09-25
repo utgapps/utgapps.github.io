@@ -1,0 +1,26 @@
+Main#1(none) Main#2(x) Main#3(x) true false 3
+0 6 int long double Object int
+-126 4464  a 1.5 -0.0 true
+java
+java1010trueQ81
+null null 1
+012
+Main
+fell through to C
+12
+Index 10 out of bounds for length 2
+begin 2, end 1, length 3
+For input string: ""
+30 63 0.6832234717598454 false -1068554554583376509
+Numbers until 0: [[1 2 x 3 0]]
+skipping x
+Name: [[  Ada  ]]
+total 6 for Ada!
+slept true
+to stderr
+finally before the crash
+Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 2
+	at Main.level3(Main.java:38)
+	at Main.level2(Main.java:39)
+	at Main.main(Main.java:111)
+[exit 1]

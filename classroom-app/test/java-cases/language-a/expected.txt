@@ -1,0 +1,36 @@
+-2147483648 3 -3 -1 3.5
+1099511627776 0 9223372036854775807
+c 100 d
+0.30000000000000004
+Infinity NaN 100.0 1.0E7 1.0E-5 1.23456789E8
+0.1 6.28
+   42|42   |00042|1,234,567|ff|2.718|     -3.14|hi|true|z|1.234568e+04
+2.68 1 0.1
+true false true false true
+true false true
+4 [a, b, c] [x, y]
+eel2HELLOheLLo
+4,3,2,1,0 9
+[1, 3, 5, 9] 4 3
+[[0, 0, 0], [0, 0, 7]]
+[Square(2.25), Circle(3.14), Square(9.00)]
+Square(9.00) 3 Square
+[8, 16, 23, 42] sum=89 true 2
+6765 10 3
+00 01 10 11 3
+bad: 12x / java.lang.NumberFormatException: For input string: "12x"
+java.lang.ArrayIndexOutOfBoundsException: Index 2 out of bounds for length 2
+Cannot invoke "String.length()" because "n" is null
+SO java.lang.StackOverflowError
+class java.lang.String cannot be cast to class java.lang.Integer (java.lang.String and java.lang.Integer are in module java.base of loader 'bootstrap')
+java.lang.ArithmeticException: / by zero
+finally
+7 2.5 3 -2 1.4142135623730951 1024.0 3 -3
+square 1.5
+false
+null concat: null
+Exception in thread "main" java.lang.IllegalStateException: done
+	at Main.main(Main.java:117)
+Caused by: java.lang.RuntimeException: inner
+	... 1 more
+[exit 1]

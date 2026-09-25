@@ -1,0 +1,7 @@
+Pet name: [[Rex]]
+Feed how many times? [[3]]
+Rex (hunger 0)
+Exception in thread "main" java.lang.IllegalStateException: Rex is full
+	at Pet.feed(Pet.java:11)
+	at Main.main(Main.java:14)
+[exit 1]

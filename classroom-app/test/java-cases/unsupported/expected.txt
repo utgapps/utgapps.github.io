@@ -1,0 +1,6 @@
+Your Java is fine – the classroom runner just can't run this yet:
+  Main.java:4: enums (enum Suit)
+  Main.java:9: the List.forEach() method
+  Main.java:9: lambda expressions (->)
+To run it as written, use a computer with Java 17 or newer: javac *.java && java Main
+[did not compile]

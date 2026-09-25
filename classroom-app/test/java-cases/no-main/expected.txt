@@ -1,0 +1,8 @@
+error: can't find main(String[]) method in class: Main
+
+  Java starts a program at a method written exactly like this, inside class Main:
+
+      public static void main(String[] args) {
+          ...
+      }
+[did not compile]

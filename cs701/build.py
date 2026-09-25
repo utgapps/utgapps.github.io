@@ -976,8 +976,8 @@ def build_index():
      <a class="pill" href="../classroom/">Open the code editor</a></p>
   <p class="muted" style="margin:10px 0 0;font-size:13px">Each week page carries that week&rsquo;s
   slides and links straight to its lesson plan. In the classroom, opening a week gives the teacher
-  both without leaving the room. Java runs on your own computer or in an online Java editor &mdash;
-  see <em>Before you start</em> below.</p>
+  both without leaving the room. Java runs right in the code editor &mdash; see <em>Before you
+  start</em> below.</p>
 </div>
 <div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>{course.DISCLAIMER}</div>
 <h2>The weeks</h2>
@@ -2143,7 +2143,7 @@ def build_slides():
             elif kind == "checkpoint":
                 # PowerPoint cannot reveal the run on a click, so it says where it is.
                 concept_slide(deck, {"title": d["title"], "sub": d["say"],
-                                     "bullets": ["Run it: java Main.java, or Run in your online Java editor.",
+                                     "bullets": ["Press Run in the classroom editor, or Ctrl+Enter.",
                                                  "Press Show a sample run in the web deck to compare."]},
                               eyebrow="Checkpoint - run it")
             elif kind == "chunk":

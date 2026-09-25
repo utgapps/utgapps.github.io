@@ -39,9 +39,11 @@ PROJECT_BLURB = (
 )
 
 DISCLAIMER = """
-<p><strong>Java runs on a computer, not in a browser tab.</strong> Everything in this course
-is one file, <code>Main.java</code>, and it runs in any Java code editor that lets you type
-into the console. Your teacher will tell you which one the class uses.</p>
+<p><strong>Run it in the classroom editor.</strong> Everything in this course is one file,
+<code>Main.java</code>, in a <em>Java</em> project in the classroom editor. Press
+<strong>Run</strong> (or Ctrl+Enter) and your program runs in the console beside your code. When
+it asks you something, click the console, type and press Enter. <strong>Stop</strong> ends a
+program that will not finish.</p>
 
 <p><strong>On your own computer.</strong> Install a Java Development Kit (version 17 or newer),
 save the file as <code>Main.java</code>, open a terminal in that folder and type
@@ -57,13 +59,15 @@ TEACHER_PREAMBLE = """
 <a href="../classroom/">/classroom/</a> - they sign in with the class student code and create
 a <em>Java</em> project, which starts as <code>Main.java</code> - so their work is saved and you
 can see it.</p>
-<p><strong>The classroom editor cannot run Java yet.</strong> To run it, students need a Java
-code editor that runs a console program and lets them type into it while it runs (the game reads
-the keyboard from week 3), or a computer with a JDK 17+ installed, where
-<code>java Main.java</code> compiles and runs the single file in one step. Decide which before
-week 1 and test it on a student machine: a runner that cannot read keyboard input will look
-fine for two weeks and then break in week 3. The original guide used an online editor with its
-built-in AI assistant switched off - do the same with whatever you choose.</p>
+<p><strong>Java runs in the classroom editor.</strong> <strong>Run</strong> compiles
+<code>Main.java</code> in the browser and runs it in a console the student types into, so the
+keyboard input from week 3 on works as it would in a terminal. Compile errors come out in javac's
+own format, with a plain-English hint under each. Every week's finished file has been run through
+it, and each checkpoint slide's transcript is what it prints. It covers the Java this course uses
+and a good deal more, but not all of Java: enums, records, lambdas and generic classes a student
+writes are reported as "can't run here yet", never as mistakes. A student who goes past the
+course can run the same file with a JDK 17+, where <code>java Main.java</code> compiles and runs
+it in one step.</p>
 <p><strong>One project, not fourteen.</strong> The original Java Level 1 guide wrote a new
 small program every lesson. Here every lesson adds to one game, <em>Five Letters</em>, and the
 guide's exercises became the homework. The concepts still arrive in the guide's order, so
