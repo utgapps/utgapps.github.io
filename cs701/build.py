@@ -667,6 +667,27 @@ def esc(text):
     return html.escape(str(text)).encode("ascii", "xmlcharrefreplace").decode("ascii")
 
 
+def file_label(slide):
+    """The program a slide works in. Its first slide this week says where the
+    file comes from - a student cannot type into a file that is not there -
+    and every later slide just names it."""
+    name = f"<b>{esc(slide['file'])}</b>"
+    return {"new": f"a new file, {name}",
+            "carried": f"last week&rsquo;s {name}"}.get(slide.get("origin"), esc(slide["file"]))
+
+
+def typing_label(slide):
+    """The heading of a slide that types one line."""
+    if slide.get("origin") == "new":
+        return f"Make {file_label(slide)}, and type this in"
+    return f"Type this into {file_label(slide)}"
+
+
+def plain(markup):
+    """A heading's text for PowerPoint, which takes no markup."""
+    return html.unescape(re.sub(r"<[^>]+>", "", markup))
+
+
 def guard(tool="cs701", up="../"):
     """The site access gate. `up` is the path back to the site root - the slide
     decks sit one folder deeper than everything else this builder writes."""
@@ -1002,11 +1023,17 @@ def build_weeks():
         dropped = sum(len(texts) for name in names
                       for texts in removed_lines(WEEK_END[n], WEEK_END[n - 1])[name].values())
         carried = [name for name in names if state_at(WEEK_END[n - 1])[name]]
-        legend = (f"This week you write {len(names)} program{'s' if len(names) != 1 else ''}, "
-                  f"one file each. The green lines are what you type this week.")
+        started = len(names) - len(carried)
+        legend = ""
+        if started == 1:
+            legend = "This week you start one new program, in a new file named after its class. "
+        elif started:
+            legend = (f"This week you start {started} new programs, each in a new file named "
+                      f"after its class. ")
         if carried:
-            legend += (" " + ", ".join(carried) + (" carries" if len(carried) == 1 else " carry")
-                       + " on from last week, so its other lines are ones you already had.")
+            legend += (", ".join(carried) + (" carries" if len(carried) == 1 else " carry")
+                       + " on from last week, so its other lines are ones you already had. ")
+        legend += "The green lines are what you type this week."
         if dropped:
             legend += (" The struck-through line is one you DELETE this week - take it out."
                        if dropped == 1 else
@@ -1288,6 +1315,7 @@ def slide_plan(week, seen):
     typed = 0                                  # how many of the week's ops have had slides
     reached = WEEK_END[week["n"] - 1]          # the point the class has finished typing
     out = []
+    opened = set()                             # programs that have had their first slide
     for spec in week["slides"]:
         if spec.get("checkpoint"):
             names = week_files(week["n"])
@@ -1318,7 +1346,7 @@ def slide_plan(week, seen):
                                  f"but the week has only {len(points)} op(s)")
             point = points[typed]
             typed += 1
-            _kind, op_file, op_block, _lines = point_op(point)
+            op_kind, op_file, op_block, _lines = point_op(point)
             if (op_file, op_block) != (filename, block):
                 raise SystemExit(
                     f"week {week['n']}: slide '{spec['title']}' shows {filename}:{block}, but op "
@@ -1327,6 +1355,16 @@ def slide_plan(week, seen):
             start, lines, marks, gone = block_code(point, filename, block)
             notes = line_notes(week["n"])[point]
             shown = 0
+            # The first slide of a program says where its file comes from, once:
+            # a new file to make, or last week's to bring along. Every slide
+            # after it just says "Type this into".
+            origin = None
+            if filename not in opened:
+                opened.add(filename)
+                if op_kind == "add":
+                    origin = "new"
+                elif state_at(WEEK_END[week["n"] - 1]).get(filename):
+                    origin = "carried"
 
             def emit_deletes(at, index):
                 nonlocal shown
@@ -1350,7 +1388,8 @@ def slide_plan(week, seen):
                         or course.DELETE_NOTES.get((filename, block)) or default)
                 out.append(("delete", {"file": filename, "start": start + low,
                                        "lines": lines[low:index], "dropped": group, "at": at,
-                                       "replacing": replacing, "note": note}))
+                                       "replacing": replacing, "note": note,
+                                       "origin": origin if not shown else None}))
                 shown += 1
 
             for index, line in enumerate(lines):
@@ -1373,7 +1412,8 @@ def slide_plan(week, seen):
                 low = max(0, index + 1 - CONTEXT_LINES)
                 out.append(("linectx", {"file": filename, "start": start + low,
                                         "lines": lines[low:index + 1], "hi": index - low,
-                                        "note": note, "marks": marks}))
+                                        "note": note, "marks": marks,
+                                        "origin": origin if not shown else None}))
                 shown += 1
             emit_deletes(start + len(lines), len(lines))
             if shown > 1:
@@ -1963,14 +2003,14 @@ def deck_render_html(desc):
         what = "a line" if count == 1 else "%d lines" % count
         label = ("replace " if d.get("replacing") else "delete ") + what
         return ('<section class="slide dark line del">'
-                '<p class="filebar">In {0} <span class="part">{1}</span></p>'
+                '<p class="filebar"><span>In {0}</span> <span class="part">{1}</span></p>'
                 '<table class="code">{2}</table><p class="linenote">{3}</p></section>').format(
-                    esc(d["file"]), label, "".join(rows), esc(d["note"]))
+                    file_label(d), label, "".join(rows), esc(d["note"]))
     # a single line in context, with its explanation
     return ('<section class="slide dark line">'
-            '<p class="filebar">Type this into {0} <span class="part">line {1}</span></p>'
+            '<p class="filebar"><span>{0}</span> <span class="part">line {1}</span></p>'
             '{2}<p class="linenote">{3}</p></section>').format(
-                esc(d["file"]), d["start"] + d["hi"],
+                typing_label(d), d["start"] + d["hi"],
                 _code_table_html(d["start"], d["lines"], d["hi"], d["marks"]),
                 esc(d["note"]))
 
@@ -2044,13 +2084,13 @@ def build_slides():
         nf.paragraphs[0].text = d["note"] or " "
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
-    def ctx_slide(deck, filename, start, lines, hi, note):
+    def ctx_slide(deck, filename, start, lines, hi, note, heading=None):
         """The block written so far, with line `hi` highlighted (or every line
         green when hi is None, for the whole-chunk slide), and a note below."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
         head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
-        head.text_frame.text = (f"Type this into {filename}   -   line {start + hi}"
+        head.text_frame.text = (f"{heading}   -   line {start + hi}"
                                 if hi is not None else f"All together in {filename}")
         hr = head.text_frame.paragraphs[0].runs[0]
         hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
@@ -2072,13 +2112,13 @@ def build_slides():
         nf.paragraphs[0].text = note
         nr = nf.paragraphs[0].runs[0]; nr.font.size, nr.font.color.rgb = Pt(20), PAPER
 
-    def del_slide(deck, filename, start, context, dropped, note, replacing=False):
+    def del_slide(deck, heading, start, context, dropped, note, replacing=False):
         """The block with the run of lines to remove struck through together."""
         slide = deck.slides.add_slide(deck.slide_layouts[6])
         bg = slide.background.fill; bg.solid(); bg.fore_color.rgb = DARK
         head = slide.shapes.add_textbox(Inches(0.55), Inches(0.3), Inches(12.2), Inches(0.6))
         what = "a line" if len(dropped) == 1 else f"{len(dropped)} lines"
-        head.text_frame.text = f"In {filename}   -   {'replace' if replacing else 'delete'} {what}"
+        head.text_frame.text = f"In {heading}   -   {'replace' if replacing else 'delete'} {what}"
         hr = head.text_frame.paragraphs[0].runs[0]
         hr.font.size, hr.font.bold, hr.font.color.rgb = Pt(22), True, BRAND
         box = slide.shapes.add_textbox(Inches(0.55), Inches(1.05), Inches(12.2), Inches(4.7))
@@ -2124,7 +2164,7 @@ def build_slides():
                 ctx_slide(deck, d["file"], d["start"], d["lines"], None,
                           "That is the whole piece. Check yours looks the same before moving on.")
             elif kind == "delete":
-                del_slide(deck, d["file"], d["start"], d["lines"], d["dropped"], d["note"],
+                del_slide(deck, plain(file_label(d)), d["start"], d["lines"], d["dropped"], d["note"],
                           d.get("replacing", False))
             elif kind in ("quiz", "quizanswer"):
                 q = d["quiz"]
@@ -2136,7 +2176,8 @@ def build_slides():
                 concept_slide(deck, {"title": q["q"], "sub": "", "bullets": bullets},
                               eyebrow="Answer" if answered else "Quick check")
             else:  # linectx
-                ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"])
+                ctx_slide(deck, d["file"], d["start"], d["lines"], d["hi"], d["note"],
+                          heading=plain(typing_label(d)))
         deck.save(os.path.join(SLIDES_DIR, f"week-{week['n']:02d}.pptx"))
         made += 1
     return made

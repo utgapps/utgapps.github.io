@@ -145,9 +145,12 @@ def notes_for(week, filename, notes):
     NOTES.setdefault(week, {})[filename] = {BLOCK: notes}
 
 
-CLASS_NOTE = ("Opens the class. Its name must be the file's name without .java - "
-              "{name} lives in {name}.java - and every other line goes "
-              "inside its braces.")
+# The whole rule once, on the first program; after that the slide heading has
+# already said "make a new file", so the note only ties the two names together.
+FIRST_CLASS_NOTE = ("Opens the class. Its name must be the file's name without .java - "
+                    "HelloWorld lives in HelloWorld.java - and every other line goes "
+                    "inside its braces.")
+CLASS_NOTE = "Opens the class: {name}, the file's name without .java."
 MAIN_NOTE = "The main method: where the program starts. Same line as always - copy it exactly."
 SCANNER_IMPORT_NOTE = ("At the very top, above the class: borrow Scanner from Java's "
                        "library so the program can read the keyboard.")
@@ -164,7 +167,7 @@ def class_note(name):
 # concatenation, the primitive types.
 
 notes_for(1, "HelloWorld.java", {
-    "public class HelloWorld {": class_note("HelloWorld"),
+    "public class HelloWorld {": FIRST_CLASS_NOTE,
     "public static void main(String[] args) {": "The main method. Java starts running your program here. Nobody memorises this line today - copy it exactly, every word matters.",
     'System.out.println("Hello world!");': "One statement: print what is in the brackets, then move to a new line. The text in double quotes is a string literal, printed exactly as written. It ends with a semicolon, like every statement.",
 })
@@ -210,14 +213,14 @@ WEEK_1 = {
  "ops": OPS[1],
  "flow": [
   TALK("0:00", "Get everyone into a project",
-       "Everyone opens <a href=\"../classroom/\">the classroom editor</a>, signs in with the student code and makes a new <strong>Java</strong> project called <em>Week 1</em>. Every program today is a new file in that one project.",
+       "Everyone opens <a href=\"../classroom/\">the classroom editor</a>, signs in with the student code and makes a new <strong>Java</strong> project called <em>Week 1</em>. It opens with a <b>Main.java</b> already in it; leave that alone. Every program today is a new file in this one project: press the <strong>+</strong> in the file list and give it exactly the name on the slide, capitals and all.",
        "Show the three parts of the screen: the file list on the left, the code in the middle, the console where output appears. Walk the room until every screen has a project open."),
   TALK("0:05", "What programming is, and why Java",
        "A program is a list of instructions written in a language the computer understands. Java's trick is that it compiles to <em>bytecode</em>, which any Java Virtual Machine can run - like a universal remote that works on every TV. Write once, run anywhere.",
        ask=("Why would a universal remote be handy for a programmer?",
             "You write the program once and it runs on Windows, Mac, Linux, phones - you never rewrite it for each machine.")),
   TYPE("HelloWorld.java", "Hello world", at="0:09", notes=[
-       "Add a file called <b>HelloWorld.java</b>. Five lines: the class, the main method inside it, one statement inside that, and a closing brace for each. Every <code>{</code> needs its <code>}</code>.",
+       "Five lines: the class, the main method inside it, one statement inside that, and a closing brace for each. Every <code>{</code> needs its <code>}</code>.",
   ]),
   TALK("0:14", "Run it, then read it",
        "Run it. <em>Hello world!</em> appears in the console. Now name the parts: the <em>class</em> is the blueprint the code lives in; <em>main</em> is where Java starts; the line in the middle is a <em>statement</em>, and statements end with a semicolon.",
@@ -225,7 +228,7 @@ WEEK_1 = {
        ask=("Delete the semicolon and run it. What happens?",
             "It will not compile: ';' expected, with a caret under the spot. Put it back. Reading an error on purpose now means nobody freezes on one later.")),
   TYPE("MyName.java", "Your name and a friend's", at="0:19", notes=[
-       "Student Task 1-1, in a new file <b>MyName.java</b>: two separate println statements. Give the room three minutes, then show this.",
+       "Student Task 1-1: two separate println statements. Give the room three minutes, then show this.",
   ], ask=("Why do the two sentences come out on two lines?",
           "println moves to a new line after printing. That is the ln.")),
   TALK("0:24", "print and println",
@@ -249,7 +252,7 @@ WEEK_1 = {
        ask=("What does System.out.println(5 + 5 + \"5\") print?",
             "105. 5 + 5 is 10 first, because both are numbers; then 10 joins \"5\".")),
   TYPE("Primitives.java", "Four primitive types", at="0:43", notes=[
-       "A new file, <b>Primitives.java</b>. Four variables of four types - Instructor Example 1C, typed this time. Java has eight primitive types; these are the four you will use most.",
+       "Four variables of four types - Instructor Example 1C, typed this time. Java has eight primitive types; these are the four you will use most.",
        "Print each one. The value, not the name, is what appears.",
   ]),
   TYPE("Primitives.java", "Change a value", at="0:50", notes=[
@@ -393,7 +396,7 @@ WEEK_2 = {
        ask=("What are the four parts of int age = 15;?",
             "The type (int), the name (age), the assignment operator (=) and the value (15).")),
   TYPE("HoursInDay.java", "Hours in a day, as text", at="0:03", notes=[
-       "A new file, <b>HoursInDay.java</b>. Student Task 1-3a: one println with only a string literal.",
+       "Student Task 1-3a: one println with only a string literal.",
   ]),
   TYPE("HoursInDay.java", "Hours in a day, in a variable", at="0:06", notes=[
        "Task 1-3b: the old println goes; a variable and a println that uses it come in.",
@@ -411,18 +414,18 @@ WEEK_2 = {
        "Some values never change: there will always be 24 hours in a day. <code>final</code> is a shield around a variable - try to change it and Java refuses to compile. Constants are named in CAPITALS_WITH_UNDERSCORES so they stand out.",
        "Show the final board: <code>PI_VALUE</code> and <code>EARTH_RADIUS</code>, then the error you get assigning to one."),
   TYPE("HoursInWeek.java", "Constants", at="0:24", notes=[
-       "A new file, <b>HoursInWeek.java</b>. Student Task 1-4: two constants, a variable for their product, and a println. Five minutes, then show this.",
+       "Student Task 1-4: two constants, a variable for their product, and a println. Five minutes, then show this.",
   ], ask=("Add HOURS_IN_DAY = 25; under the constants. What does Java say?",
           "cannot assign a value to final variable HOURS_IN_DAY. That is the shield working. Take it out.")),
   TYPE("MysteryNumber.java", "The mystery number", at="0:31", notes=[
-       "A new file, <b>MysteryNumber.java</b>. Everyone writes down a prediction before running it.",
+       "Everyone writes down a prediction before running it.",
   ]),
   TALK("0:34", "Precedence",
        "Order of operations, like in maths: brackets first, then <code>* / %</code>, then <code>+ -</code>. Operators of the same rank go left to right. Assignment happens last of all, which is why the right-hand side is always finished before anything is stored.",
        ask=("What is 3 + 5 * 3? And (3 + 5) * 3?",
             "18, then 24. The brackets change which operation goes first.")),
   TYPE("Counter.java", "Counting", at="0:39", notes=[
-       "A new file, <b>Counter.java</b>. Start at 0 and print. Add one the long way, then with <code>+=</code>.",
+       "Start at 0 and print. Add one the long way, then with <code>+=</code>.",
        "Then with <code>++</code>, and take one away with <code>--</code>. Print after each. Predict the five numbers before running.",
   ]),
   TALK("0:46", "Predict, don't run",
@@ -594,7 +597,7 @@ WEEK_3 = {
        ask=("Which quotes make a String, and which make a char?",
             "Double quotes for a String, \"like this\". Single quotes for exactly one char, like 'A'.")),
   TYPE("Scores.java", "Three scores and their average", at="0:04", notes=[
-       "Student Task 2-1, in a new file <b>Scores.java</b>. Five minutes, then show this. Three doubles, and a println for the first.",
+       "Student Task 2-1. Five minutes, then show this. Three doubles, and a println for the first.",
        "Print the other two, then work out the average and print it.",
   ]),
   TALK("0:10", "Casting",
@@ -615,7 +618,7 @@ WEEK_3 = {
        ask=("In the if / else if / else chain, can two of the blocks ever run?",
             "No. Java takes the first branch whose condition is true and skips the rest; else only runs if none was.")),
   TYPE("LegalAge.java", "Read an age", at="0:28", notes=[
-       "Exercise 2 in a new file, <b>LegalAge.java</b>. The keyboard needs a Scanner, and Scanner lives in Java's library, so the file starts with an import.",
+       "Exercise 2. The keyboard needs a Scanner, and Scanner lives in Java's library, so the file starts with an import.",
        "Read the age into an int. Run it: it waits for you to type.",
   ]),
   TYPE("LegalAge.java", "Legal age", at="0:32", notes=[
@@ -631,13 +634,13 @@ WEEK_3 = {
        "And the message for legal age mentions the card too.",
   ]),
   TYPE("StudentGrading.java", "The grading system", at="0:43", notes=[
-       "Student Task 2-5 in a new file, <b>StudentGrading.java</b>. Five minutes. Ask for the mark.",
+       "Student Task 2-5. Five minutes. Ask for the mark.",
        "One else if per band. Each needs both ends, joined with &amp;&amp;: at least the bottom and less than the top.",
        "Print the grade.",
   ], ask=("What grade does 100 get? And -5?",
           "A, because the top band uses <code>&lt;= 100</code>. -5 fits no band, so grade keeps its first value and prints Not a correct mark.")),
   TYPE("Registration.java", "The registration system", at="0:50", notes=[
-       "Student Tasks 2-6 to 2-8, in a new file, <b>Registration.java</b>. Read the mark.",
+       "Student Tasks 2-6 to 2-8. Read the mark.",
        "The tuition question goes inside the if, because only students with the mark need to answer it.",
   ], ask=("An if inside an if is a nested if. When does the inner code run?",
           "Only when both conditions are true - the outer one lets you in, the inner one decides. We finish this next week.")),
@@ -878,7 +881,7 @@ WEEK_4 = {
   ], ask=("Count the braces around the tuition answer. Why does this feel hard to read?",
           "An if / else if / else inside another if / else. It works, but nesting gets messy fast - by the end of the lesson there is a flatter way.")),
   TYPE("DayOfWeek.java", "The day of the week", at="0:16", notes=[
-       "Student Task 3-1 in a new file, <b>DayOfWeek.java</b>. Ten minutes. Ask for a number.",
+       "Student Task 3-1. Ten minutes. Ask for a number.",
        "One branch per day.",
        "Print the answer. Test it with 5 - then with 0.",
   ]),
@@ -891,7 +894,7 @@ WEEK_4 = {
        ask=("What happens if you forget the break at the end of a case?",
             "Java falls through and runs the next case's lines as well, until it reaches a break.")),
   TYPE("MonthName.java", "The name of the month", at="0:33", notes=[
-       "Student Task 3-2 in a new file, <b>MonthName.java</b>. Ask for a month number.",
+       "Student Task 3-2. Ask for a month number.",
        "The switch. Every case is a value, a colon, what to do, and a break.",
        "Cases 3 and 4.", "Cases 5 and 6.", "Cases 7 and 8.", "Cases 9 and 10.", "Cases 11 and 12.",
        "The default, then print the answer - both ends of the range checked from the start.",
@@ -902,7 +905,7 @@ WEEK_4 = {
        ask=("A student says: our Registration.java could be flatter. How?",
             "Keep a boolean for each requirement and set it from its own if, then check both at the end with one condition. No nesting.")),
   TYPE("BetterRegistration.java", "A better registration system", at="0:45", notes=[
-       "A new file, <b>BetterRegistration.java</b>. The same first question.",
+       "The same first question.",
        "A boolean for each requirement, each starting false.",
        "Switch the second on for y or Y, then one flat if at the end decides.",
   ]),
@@ -1125,7 +1128,7 @@ WEEK_5 = {
        ask=("If the condition is false the very first time, how many times does the block run?",
             "None. while checks before it runs anything.")),
   TYPE("MultiplicationTable.java", "A times table", at="0:07", notes=[
-       "Student Task 4-1 in a new file, <b>MultiplicationTable.java</b>. Five minutes. Ask which table.",
+       "Student Task 4-1. Five minutes. Ask which table.",
        "A counter from 1 to 10, one line of the table each time round.",
   ]),
   TALK("0:13", "Loops that never end, and Random",
@@ -1134,7 +1137,7 @@ WEEK_5 = {
        ask=("What range does random.nextInt(20) give?",
             "0 to 19. Twenty numbers, starting at zero.")),
   TYPE("RandomNumbers.java", "Five random numbers", at="0:16", notes=[
-       "Student Task 4-2 in a new file, <b>RandomNumbers.java</b>. Two or three minutes.",
+       "Student Task 4-2. Two or three minutes.",
        "Print five of them, one per line.",
   ], ask=("Run it a few times. Could it ever print 100? Could it print 0?",
           "Never 100, but 0 is possible: nextInt(100) is 0 to 99.")),
@@ -1142,7 +1145,7 @@ WEEK_5 = {
        "Only this line changes.",
   ]),
   TYPE("GuessingGame.java", "A guessing game", at="0:22", notes=[
-       "Student Task 4-3 in a new file, <b>GuessingGame.java</b>. Ten minutes. It needs both imports.",
+       "Student Task 4-3. Ten minutes. It needs both imports.",
        "Pick the secret, read the first guess, and loop while it is wrong - with a hint each time.",
        "Ask again inside the loop, and congratulate after it.",
   ], ask=("What would happen if userGuess = input.nextInt(); were missing from inside the loop?",
@@ -1152,7 +1155,7 @@ WEEK_5 = {
        ask=("What do you change to count down from 200 to 0 in fives?",
             "Start at 200, keep going while <code>number &gt;= 0</code>, and update with <code>number -= 5</code>.")),
   TYPE("NumberSeriesPrinter.java", "A number series", at="0:40", notes=[
-       "Student Task 4-4 in a new file, <b>NumberSeriesPrinter.java</b>. Ten minutes. A title, then the first question.",
+       "Student Task 4-4. Ten minutes. A title, then the first question.",
        "The other two questions: where to stop and how big a step.",
        "The for loop does the rest.",
   ]),
@@ -1356,7 +1359,7 @@ WEEK_6 = {
        ask=("Indexes start at 0. What index is the last character of a 5-letter word?",
             "4. The last index is always length() - 1.")),
   TYPE("StringMethods.java", "String methods", at="0:10", notes=[
-       "A new file, <b>StringMethods.java</b>. One String and the first three methods. Count the characters before you run it.",
+       "One String and the first three methods. Count the characters before you run it.",
        "The rest of the table.",
   ]),
   TALK("0:16", "An algorithm",
@@ -1364,12 +1367,12 @@ WEEK_6 = {
        ask=("Why do we only need to go halfway?",
             "Every comparison checks two letters, one from each end. By the middle, every letter has been checked.")),
   TYPE("Palindrome.java", "A palindrome checker", at="0:20", notes=[
-       "A new file, <b>Palindrome.java</b>. Read a word.",
+       "Read a word.",
        "Assume it is a palindrome, then walk to the middle comparing partners.",
        "One mismatch makes it false and stops the loop. Print the verdict.",
   ]),
   TYPE("VowelsAndConsonants.java", "Counting vowels", at="0:32", notes=[
-       "Student Task 5-1 in a new file, <b>VowelsAndConsonants.java</b>. Ten minutes. Say what it does and read a phrase.",
+       "Student Task 5-1. Ten minutes. Say what it does and read a phrase.",
        "Two counters, and a loop that looks at every character with a switch.",
        "Print the counts after the loop.",
   ], ask=("Run it with Hello World. Why are there 0 consonants?",
@@ -1540,7 +1543,7 @@ WEEK_7 = {
        ask=("An array has 4 items. What is the index of the last one?",
             "3. The last index is always length - 1.")),
   TYPE("ShoppingList.java", "An empty list", at="0:08", notes=[
-       "Student Task 6-1 in a new file, <b>ShoppingList.java</b>. Three minutes. Make room for five items and put Milk in the first slot.",
+       "Student Task 6-1. Three minutes. Make room for five items and put Milk in the first slot.",
   ]),
   TYPE("ShoppingList.java", "Fill it", at="0:11", notes=[
        "Student Task 6-2. Just below Milk, the next two items.",
@@ -1735,7 +1738,7 @@ WEEK_8 = {
        ask=("Why start with the first element and not with 0?",
             "If every value is bigger than 0, the minimum would stay 0 - a number that is not even in the list.")),
   TYPE("FindMinimum.java", "A random list", at="0:08", notes=[
-       "A new file, <b>FindMinimum.java</b>. A list of random length, from 2 to 20.",
+       "A list of random length, from 2 to 20.",
        "Fill every slot with its own random number.",
        "Print the list with for-each.",
   ], ask=("What would the list look like if the random number were picked once, before the loop?",
@@ -1749,7 +1752,7 @@ WEEK_8 = {
        ask=("If the inner loop started at 0, what would happen?",
             "Every element would be compared with itself, and match - so every list would seem to have duplicates. (The guide's version started at 1 and has the same problem.)")),
   TYPE("FindingDuplicates.java", "Finding duplicates", at="0:29", notes=[
-       "A new file, <b>FindingDuplicates.java</b>. A small list, and two loops, one inside the other.",
+       "A small list, and two loops, one inside the other.",
        "Print the answer after both loops.",
   ]),
   TALK("0:36", "How many comparisons?",
@@ -1937,7 +1940,7 @@ WEEK_9 = {
        ask=("Name three methods you have used that you did not write.",
             "<code>println</code>, <code>nextInt</code>, <code>length</code>, <code>charAt</code>, <code>equals</code>...")),
   TYPE("FirstMethod.java", "Two lines and a method", at="0:07", notes=[
-       "A new file, <b>FirstMethod.java</b>. main prints two lines; below it, a method of its own.",
+       "main prints two lines; below it, a method of its own.",
   ], ask=("Predict: does <em>Now myFirstMethod is executing</em> print?",
           "No. A method only runs when it is called, and nothing calls it yet.")),
   TALK("0:12", "Flow of control",
@@ -1952,7 +1955,7 @@ WEEK_9 = {
        ask=("What is the signature of that method?",
             "<code>addNumbers(int firstNumber, int secondNumber)</code> - its name and its parameters.")),
   TYPE("AddNumbers.java", "A method that adds", at="0:22", notes=[
-       "A new file, <b>AddNumbers.java</b>. Student Task 8-1: main has two numbers.",
+       "Student Task 8-1: main has two numbers.",
        "Below main, a method that adds them and returns the sum. Type the header first and the editor complains until <code>return</code> is there - an int method must hand back an int.",
   ], ask=("Predict: what does it print?",
           "Only the first line. The method is written but never called.")),
@@ -1969,11 +1972,11 @@ WEEK_9 = {
        ask=("A method checks whether a password is long enough. What is a good name for it?",
             "<code>isLongEnough</code>, <code>hasEnoughCharacters</code> - anything that reads as a yes-or-no question.")),
   TYPE("StringsEqual.java", "Are they equal?", at="0:37", notes=[
-       "A new file, <b>StringsEqual.java</b>. Two words, and the method's answer printed directly.",
+       "Two words, and the method's answer printed directly.",
        "Below main, the boolean method.",
   ]),
   TYPE("ArithmeticOperation.java", "A calculator", at="0:42", notes=[
-       "A new file, <b>ArithmeticOperation.java</b>. Student Task 8-2: ask for an operator.",
+       "Student Task 8-2: ask for an operator.",
        "Then two numbers, and hand all three to a method.",
        "Print the result. Below main, the method: its answer starts at 0, and a switch picks the operation.",
        "Subtraction, and multiplication with <code>*</code>.",
@@ -2158,7 +2161,7 @@ WEEK_10 = {
        ask=("How many elements does <code>new int[3][4]</code> have, and what are they?",
             "Twelve, and all of them 0.")),
   TYPE("Matrix.java", "A 2D array", at="0:09", notes=[
-       "A new file, <b>Matrix.java</b>. A table of three rows, and its last element. Then change two elements of the first row.",
+       "A table of three rows, and its last element. Then change two elements of the first row.",
        "One more change, then print the whole table with a loop inside a loop.",
   ]),
   TALK("0:17", "Practice",
@@ -2170,7 +2173,7 @@ WEEK_10 = {
        ask=("The outer loop runs 2 times and the inner loop 3. How many times does the inner body run?",
             "Six: three for each of the two rows.")),
   TYPE("MultiplicationTableGenerator.java", "The times tables", at="0:25", notes=[
-       "A new file, <b>MultiplicationTableGenerator.java</b>. Ten rows of ten, each cell the row times the column.",
+       "Ten rows of ten, each cell the row times the column.",
   ], ask=("Run it. What went wrong?",
           "Every number is jammed together on one line: no spaces, and no new rows.")),
   TYPE("MultiplicationTableGenerator.java", "Spaces and rows", at="0:29", notes=[
@@ -2185,7 +2188,7 @@ WEEK_10 = {
        "Change the print to printf.",
   ]),
   TYPE("NestedLoop.java", "A block of stars", at="0:42", notes=[
-       "A new file, <b>NestedLoop.java</b>. Student Task 9-1: three rows of four stars.",
+       "Student Task 9-1: three rows of four stars.",
        "End each row after the inner loop.",
   ], ask=("How would you make it five rows of two?",
           "<code>row &lt;= 4</code> and <code>column &lt;= 1</code>.")),
@@ -2348,7 +2351,7 @@ WEEK_11 = {
        ask=("What prints, and why does it not crash?",
             "Statement 2. <code>n != 0</code> is false, so <code>&amp;&amp;</code> stops there and <code>x / n</code> never runs.")),
   TYPE("ReviewCheck.java", "Division and precedence", at="0:12", notes=[
-       "A new file, <b>ReviewCheck.java</b>. Questions 4 and 5: write your predictions down before you run it.",
+       "Questions 4 and 5: write your predictions down before you run it.",
   ], ask=("Before running: what is <code>13 / 5</code> stored in a double?",
           "2.0. Two ints divide as whole numbers first; the double only gets the 2.")),
   TYPE("ReviewCheck.java", "And, or, not", at="0:20", notes=[
@@ -2537,7 +2540,7 @@ WEEK_12 = {
        ask=("Why does the screen have to clear after player 1 types?",
             "Otherwise player 2 can read the secret word.")),
   TYPE("Wordle.java", "The welcome", at="0:07", notes=[
-       "A new file, <b>Wordle.java</b>. A Scanner and a banner.",
+       "A Scanner and a banner.",
        "Then ask player 1 for the secret word.",
   ]),
   TALK("0:13", "Helper methods",
