@@ -95,14 +95,18 @@ A; the day-of-week check only tested <code>&lt;= 7</code> and let 0 and negative
 (week 4 keeps that bug for one step, on purpose, and fixes it); "payed" is "paid"; the
 duplicates exercise started its inner loop at 1 instead of one past the outer index, so every
 value "duplicated" itself; a 2D-array answer said <code>[2][3]</code> where the element is at
-<code>[2][2]</code>; one loop compared against the wrong variable (<code>i &lt; userGuesses</code>);
+<code>[2][2]</code>; the Day 9 text set an element to 50 where its screenshot sets it to 10 (we
+follow the screenshot); the review's answer for <code>charAt</code> described
+<code>indexOf</code>; one loop compared against the wrong variable (<code>i &lt; userGuesses</code>);
 Wordle read the secret word before printing the question that asks for it, kept going after a
 win because nothing returned, only replayed on a capital <code>P</code>, never cleared its lists
 between games, never told the loser the word, named its letters-only check the opposite of what
 it returned (and once spelled it <code>sWordHasNonLetters</code>), wrote <code>While</code> with a
 capital W, read <code>String answer input.next()</code> with no <code>=</code>, and read
-<code>userGuessChar</code> outside the loop that needs it. The code here is the corrected
-version.</p>
+<code>userGuessChar</code> outside the loop that needs it. Its last version named the two halves
+of the validation condition as booleans but never worked them out again inside the loop, so one
+bad guess made it ask for ever; week 15 updates both after each new guess, and says why. The
+code here is the corrected version.</p>
 <p><strong>Pacing.</strong> The line counts per week are the pacing model. If a week runs long,
 the bonus is the thing to drop - nothing later depends on any of them.</p>
 """
