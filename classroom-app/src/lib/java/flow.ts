@@ -501,14 +501,17 @@ class FlowAnalyzer {
   // ---- expressions -----------------------------------------------------------------------------
   /** The two outcomes of a boolean expression. */
   private condition(expression: Ast.Expression, state: FlowState): { whenTrue: Assigned; whenFalse: Assigned } {
-    if (expression.constant === true) {
-      const after = this.expression(expression, state);
-      return { whenTrue: after.assigned, whenFalse: null };
-    }
-    if (expression.constant === false) {
-      const after = this.expression(expression, state);
-      return { whenTrue: null, whenFalse: after.assigned };
-    }
+    // A constant condition only ever takes one side; the other is vacuous.
+    // Worked out from the parts, not by handing the whole thing to
+    // expression(): that hands every && and || straight back here, and
+    // println((5 > 3) && (8 < 10)) overflowed the stack.
+    const outcome = this.conditionParts(expression, state);
+    if (expression.constant === true) return { whenTrue: outcome.whenTrue, whenFalse: null };
+    if (expression.constant === false) return { whenTrue: null, whenFalse: outcome.whenFalse };
+    return outcome;
+  }
+
+  private conditionParts(expression: Ast.Expression, state: FlowState): { whenTrue: Assigned; whenFalse: Assigned } {
     if (expression.kind === "Binary" && (expression.operator === "&&" || expression.operator === "||")) {
       const left = this.condition(expression.left, state);
       if (expression.operator === "&&") {
