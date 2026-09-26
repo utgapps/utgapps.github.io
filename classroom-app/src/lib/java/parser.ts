@@ -1,10 +1,16 @@
 /* The Java parser: tokens in, a CompilationUnit out.
 
-   Recursive descent, one method per grammar rule. The first syntax error stops
-   it, the way a beginner should read javac's output anyway: fix the first
-   complaint, compile again. Error wording and caret positions follow javac -
-   "';' expected" points just past the token before the gap, not at whatever
-   happens to come next.
+   Recursive descent, one method per grammar rule. Error wording and caret
+   positions follow javac - "';' expected" points just past the token before
+   the gap, not at whatever happens to come next.
+
+   After a mistake it carries on the way javac's parser does, so a file with
+   three missing semicolons gets three errors, not one run per semicolon:
+   a missing token is reported and taken as read (javac's accept()), a damaged
+   statement or member is skipped to where the next one can start (skip()),
+   and nothing is reported at or before the place of the last complaint.
+   Mistakes javac recovers from in some cleverer way stop the file instead,
+   so what is printed is always the start of javac's own list.
 
    Things real Java allows that the classroom cannot run yet (lambdas, generics
    declarations, anonymous classes...) still PARSE, into an Unsupported node, so
@@ -21,19 +27,88 @@ const BINARY_PRECEDENCE: Record<string, number> = {
   "<": 7, ">": 7, "<=": 7, ">=": 7, instanceof: 7, "<<": 8, ">>": 8, ">>>": 8,
   "+": 9, "-": 9, "*": 10, "/": 10, "%": 10,
 };
+/** Where javac points at a whole expression: its operator, dot or bracket, else its start. */
+function operatorOf(expression: Ast.Expression): Ast.Position {
+  switch (expression.kind) {
+    case "Binary": case "Assign": case "InstanceOf": return expression.operatorPosition;
+    case "FieldAccess": return expression.dotPosition;
+    case "ArrayAccess": return expression.bracketPosition;
+    case "Conditional": return expression.questionPosition;
+    default: return expression.position;
+  }
+}
+
+// The expression javac's illegal() gives back: the one that ends the expression at once.
+const ILLEGAL_START = "an illegal start of expression";
+// What javac takes for a statement, even where only members belong.
+const DEFINITE_STATEMENT_STARTS = new Set(["if", "while", "do", "switch", "return", "try", "for", "assert", "break", "continue", "throw"]);
+// The tokens javac's skip() stops at, by what it is looking for.
+const SKIP_ALWAYS_STOPS_AT = new Set(["public", "final", "abstract", "@", "class", "interface", "enum"]);
+const SKIP_MEMBER_STARTS = new Set(["{", "}", "private", "protected", "static", "transient", "native", "volatile",
+  "synchronized", "strictfp", "<", "byte", "short", "char", "int", "long", "float", "double", "boolean", "void"]);
+const SKIP_STATEMENT_STARTS = new Set(["case", "default", "if", "for", "while", "do", "try", "switch", "return",
+  "throw", "break", "continue", "else", "finally", "catch", "this", "super", "new", "assert"]);
 const MODIFIERS = new Set(["public", "private", "protected", "static", "final", "abstract", "native",
   "synchronized", "transient", "volatile", "strictfp", "default", "sealed", "non-sealed"]);
 
+/** Every syntax error in one file, in the order javac prints them. */
+export class JavaSyntaxErrors extends Error {
+  constructor(readonly errors: JavaSyntaxError[]) {
+    super(errors[0].message);
+  }
+}
+
+/** Thrown to abandon a file after a mistake the parser does not step past. */
+class ParseStopped extends Error {}
+
 export function parse(source: string, file: string): Ast.CompilationUnit {
-  return new Parser(tokenize(source), file).compilationUnit();
+  const parser = new Parser(tokenize(source), file);
+  let unit: Ast.CompilationUnit | null = null;
+  try {
+    unit = parser.compilationUnit();
+  } catch (error) {
+    if (!(error instanceof ParseStopped)) throw error;
+  }
+  if (parser.errors.length) {
+    // javac's log shows only the first error at any one place.
+    const places = new Set<string>();
+    const errors = parser.errors.filter((error) => {
+      const place = `${error.line}:${error.column}`;
+      if (places.has(place)) return false;
+      places.add(place);
+      return true;
+    });
+    throw new JavaSyntaxErrors(errors);
+  }
+  if (!unit) throw new Error("the Java parser stopped without saying why");
+  return unit;
 }
 
 class Parser {
   private index = 0;
+  readonly errors: JavaSyntaxError[] = [];
+  /** javac's errPos: nothing is reported at or before the last complaint's place. */
+  private lastErrorOffset = -1;
+  /** javac's errorEndPos: the token a complaint was made in front of. A statement or
+      member that stops at or before it was damaged, and what follows is skipped. */
+  private errorEndOffset = -1;
+  private stuckIndex = -1;
+  private stuckCount = 0;
+  private reportedMalformed = new Set<number>();
   constructor(private tokens: Token[], private file: string) {}
 
   // ---- token helpers -----------------------------------------------------
-  private get token(): Token { return this.tokens[this.index]; }
+  private get token(): Token {
+    const token = this.tokens[this.index];
+    if (token.kind === "error" && !this.reportedMalformed.has(this.index)) {
+      // A malformed token (an unclosed string...) is reported as the parser reaches it, as javac's scanner does.
+      this.reportedMalformed.add(this.index);
+      this.errors.push(token.error!);
+      this.lastErrorOffset = Math.max(this.lastErrorOffset, token.offset);
+      if (token.fatal) throw new ParseStopped();
+    }
+    return token;
+  }
   private lookAhead(distance: number): Token { return this.tokens[Math.min(this.index + distance, this.tokens.length - 1)]; }
   private get previous(): Token { return this.tokens[Math.max(0, this.index - 1)]; }
   private is(text: string, token: Token = this.token): boolean {
@@ -53,14 +128,44 @@ class Parser {
     const before = this.previous;
     return { line: before.endLine, column: before.endColumn, offset: before.endOffset };
   }
-  private fail(message: string, at: Ast.Position, code: string): never {
-    throw new JavaSyntaxError(message, at.line, at.column, code);
+  /** javac's reportSyntaxError: one complaint per place, none at or before the last one. */
+  private report(message: string, at: Ast.Position, code: string) {
+    // Recovery that keeps complaining without moving on has nothing more to say.
+    if (this.index === this.stuckIndex) {
+      if (++this.stuckCount > 20) throw new ParseStopped();
+    } else {
+      this.stuckIndex = this.index;
+      this.stuckCount = 0;
+    }
+    if (at.offset > this.lastErrorOffset) {
+      const atEnd = this.tokens[this.index].kind === "end";
+      this.errors.push(atEnd ? new JavaSyntaxError("reached end of file while parsing", at.line, at.column, "end-of-file")
+                             : new JavaSyntaxError(message, at.line, at.column, code));
+    }
+    // Even a quieter, earlier complaint moves the place back, as javac's errPos does.
+    this.lastErrorOffset = at.offset;
+    if (this.errors.length >= 100) throw new ParseStopped();
   }
-  /** javac's "X expected" sits just after the last token that was fine. */
+  /** javac's syntaxError(): a complaint about the current place, which what follows is skipped past. */
+  private complain(message: string, at: Ast.Position, code: string) {
+    this.errorEndOffset = Math.max(this.errorEndOffset, at.offset);
+    this.report(message, at, code);
+  }
+  /** A mistake this parser does not step past: report it and stop the file. */
+  private fail(message: string, at: Ast.Position, code: string): never {
+    this.report(message, at, code);
+    throw new ParseStopped();
+  }
+  /** javac's accept(): say what is missing, just after the last token that was fine, then carry on as if it were there. */
+  private missing(message: string, code: string) {
+    this.errorEndOffset = Math.max(this.errorEndOffset, this.token.offset);
+    this.report(message, this.endOfPrevious(), code);
+  }
   private expect(text: string): Token {
     if (this.is(text)) return this.tokens[this.index++];
     if (this.atEnd()) this.endOfFile();
-    return this.fail(`'${text}' expected`, this.endOfPrevious(), text === ";" ? "semicolon-expected" : "token-expected");
+    this.missing(`'${text}' expected`, text === ";" ? "semicolon-expected" : "token-expected");
+    return this.previous;
   }
   private endOfFile(): never {
     return this.fail("reached end of file while parsing", this.endOfPrevious(), "end-of-file");
@@ -68,10 +173,32 @@ class Parser {
   private identifier(): Token {
     if (this.isIdentifier()) return this.tokens[this.index++];
     if (this.atEnd()) this.endOfFile();
-    return this.fail("<identifier> expected", this.endOfPrevious(), "identifier-expected");
+    this.missing("<identifier> expected", "identifier-expected");
+    return { ...this.previous, kind: "identifier", text: "<error>" };
   }
-  /** A `>` that closes type arguments may be the first half of `>>`. */
-  private closeAngle() {
+  /** Recovery that stays in one place would loop for ever: stop the file instead. */
+  private madeProgress(before: number) {
+    if (this.index === before) throw new ParseStopped();
+  }
+  /** javac's skip(): step over a damaged stretch to a token something can start again at. */
+  private skip(stopAt: { imports?: boolean; members?: boolean; identifiers?: boolean; statements?: boolean }) {
+    while (true) {
+      const token = this.token;
+      if (token.kind === "end") return;
+      if (token.kind === "identifier") {
+        if (stopAt.identifiers) return;
+      } else if (token.kind === "operator" || token.kind === "keyword") {
+        if (token.text === ";") { this.index++; return; }
+        if (SKIP_ALWAYS_STOPS_AT.has(token.text)) return;
+        if (token.text === "import" && stopAt.imports) return;
+        if (SKIP_MEMBER_STARTS.has(token.text) && stopAt.members) return;
+        if (SKIP_STATEMENT_STARTS.has(token.text) && stopAt.statements) return;
+      }
+      this.index++;
+    }
+  }
+  /** The ">" that ends type arguments, or (listEnd false) type parameters, as javac asks for each. */
+  private closeAngle(listEnd: boolean) {
     const current = this.token;
     if (this.is(">")) { this.index++; return; }
     const rest: Record<string, string> = { ">>": ">", ">>>": ">>", ">=": "=", ">>=": ">=", ">>>=": ">>=" };
@@ -79,7 +206,9 @@ class Parser {
       this.tokens[this.index] = { ...current, text: rest[current.text], offset: current.offset + 1, column: current.column + 1 };
       return;
     }
-    this.fail("'>' expected", this.endOfPrevious(), "token-expected");
+    // javac says so and reads on as if the ">" were there.
+    if (listEnd) this.complain("> or ',' expected", this.position(), "token-expected");
+    else this.missing("> expected", "token-expected");
   }
 
   // ---- compilation unit ---------------------------------------------------
@@ -94,20 +223,32 @@ class Parser {
       const at = this.position();
       this.index++;
       const isStatic = this.accept("static");
+      // javac points at the dot before the last name: java.util<.>Scanner, or for java.util.*, java<.>util.
+      let namePosition = this.position(), packagePosition = namePosition;
       let name = this.identifier().text;
       let star = false;
-      while (this.accept(".")) {
+      while (this.is(".")) {
+        packagePosition = namePosition;
+        namePosition = this.position();
+        this.index++;
         if (this.accept("*")) { star = true; break; }
         name += "." + this.identifier().text;
       }
       this.expect(";");
-      unit.imports.push({ name, star, isStatic, position: at });
+      unit.imports.push({ name, star, isStatic, position: at, namePosition: star ? packagePosition : namePosition });
+      if (this.token.offset <= this.errorEndOffset) this.skip({ imports: true });
     }
     while (this.token.kind !== "end") {
+      const before = this.index;
+      if (this.token.offset <= this.errorEndOffset) {
+        this.skip({});
+        if (this.atEnd()) break;
+      }
       if (this.accept(";")) continue;
       const modifiers = this.modifiers();
       if (this.is("class") || this.is("interface") || this.is("enum") || this.isContextual("record")) {
         unit.types.push(this.classDeclaration(modifiers));
+        this.madeProgress(before);
         continue;
       }
       if (this.is("import")) this.fail("class, interface, enum, or record expected", this.position(), "import-order");
@@ -192,10 +333,19 @@ class Parser {
     }
     if (this.isContextual("permits")) { this.index++; do this.type(); while (this.accept(",")); }
     this.expect("{");
+    if (this.token.offset <= this.errorEndOffset) {
+      // A damaged header: the body starts at the next "{", or there is none.
+      if (keyword === "enum") throw new ParseStopped();
+      this.skip({ members: true });
+      if (!this.accept("{")) return declaration;
+    }
     if (keyword === "enum") this.enumConstants(declaration);
     while (!this.is("}")) {
       if (this.atEnd()) this.endOfFile();
+      const before = this.index;
       this.member(declaration);
+      if (this.token.offset <= this.errorEndOffset) this.skip({ members: true, identifiers: true });
+      this.madeProgress(before);
     }
     declaration.closePosition = this.position();
     this.index++;
@@ -210,7 +360,7 @@ class Parser {
       names.push(this.identifier().text);
       if (this.accept("extends")) { this.type(); while (this.accept("&")) this.type(); }
     } while (this.accept(","));
-    this.closeAngle();
+    this.closeAngle(false);
     return names;
   }
 
@@ -240,6 +390,13 @@ class Parser {
       owner.members.push(this.classDeclaration(modifiers));
       return;
     }
+    // A statement where a member belongs: javac reads it as one, then says so.
+    if (this.token.kind === "keyword" && DEFINITE_STATEMENT_STARTS.has(this.token.text)) {
+      const at = this.position();
+      this.blockStatement();
+      this.complain("statements not expected outside of methods and initializers", at, "statement-outside-method");
+      return;
+    }
     const typeParameters = this.is("<") ? this.typeParameters() : [];
     // Constructor: the class's own name, then "(".
     if (this.isIdentifier() && this.token.text === owner.name && this.is("(", this.lookAhead(1))) {
@@ -249,22 +406,30 @@ class Parser {
       owner.members.push(this.constructorBody(modifiers, start, nameToken, parameters, throwsTypes));
       return;
     }
-    if (this.isIdentifier() && this.is("(", this.lookAhead(1))) {
-      this.fail("invalid method declaration; return type required", this.position(), "return-type-required");
-    }
     let returnType: Ast.TypeNode;
-    if (this.is("void")) {
-      returnType = { kind: "Type", position: this.position(), name: "void", typeArguments: null, dimensions: 0 };
-      this.index++;
+    let nameToken: Token;
+    if (this.isIdentifier() && this.is("(", this.lookAhead(1))) {
+      // javac says so at the name, always, and reads on as if it were a constructor.
+      const at = this.position();
+      this.errors.push(new JavaSyntaxError("invalid method declaration; return type required", at.line, at.column, "return-type-required"));
+      returnType = { kind: "Type", position: at, name: "void", typeArguments: null, dimensions: 0 };
+      nameToken = this.tokens[this.index++];
     } else {
-      if (!this.startsType()) {
-        if (this.atEnd()) this.endOfFile();
-        this.fail(this.is("}") ? "class, interface, enum, or record expected" : "<identifier> expected",
-                  this.is("}") ? this.position() : this.endOfPrevious(), "identifier-expected");
+      if (this.is("void")) {
+        returnType = { kind: "Type", position: this.position(), name: "void", typeArguments: null, dimensions: 0 };
+        this.index++;
+      } else {
+        if (!this.startsType()) {
+          if (this.atEnd()) this.endOfFile();
+          // javac then looks for a name it cannot find, quietly, and reads on as a field.
+          returnType = { kind: "Type", position: this.position(), name: "<error>", typeArguments: null, dimensions: 0 };
+          this.complain("illegal start of type", this.position(), "illegal-start-of-type");
+        } else {
+          returnType = this.type();
+        }
       }
-      returnType = this.type();
+      nameToken = this.identifier();
     }
-    const nameToken = this.identifier();
     if (this.is("(")) {
       const parameters = this.parameters();
       while (this.is("[")) { this.index++; this.expect("]"); returnType = { ...returnType, dimensions: returnType.dimensions + 1 }; }
@@ -272,14 +437,26 @@ class Parser {
       let body: Ast.Block | null = null;
       if (this.is("{")) body = this.block();
       else if (this.is("default")) { this.index++; this.expression(); this.expect(";"); }
-      else this.expect(";");
+      else {
+        if (!this.accept(";")) {
+          if (this.atEnd()) this.endOfFile();
+          this.missing("'{' or ';' expected", "token-expected");
+        }
+        // javac guesses here whether the "{" was forgotten; this parser does not guess.
+        if (this.token.offset <= this.errorEndOffset) throw new ParseStopped();
+      }
       owner.members.push({
         kind: "Method", position: start, namePosition: this.position(nameToken), modifiers, typeParameters,
         returnType, name: nameToken.text, parameters, throwsTypes, body,
       });
       return;
     }
-    if (returnType.name === "void") this.fail("'(' expected", this.endOfPrevious(), "token-expected");
+    if (returnType.name === "void") {
+      // javac points at what came instead of the "(", and skips on to the next member.
+      this.errorEndOffset = Math.max(this.errorEndOffset, this.token.offset);
+      this.report("'(' expected", this.position(), "token-expected");
+      return;
+    }
     const declarators = this.declaratorsAfterFirstName(nameToken);
     this.expect(";");
     owner.members.push({ kind: "Field", position: start, modifiers, typeNode: returnType, declarators });
@@ -298,11 +475,7 @@ class Parser {
       this.expect(";");
       explicitCall = { kind, args, position: at };
     }
-    const statements: Ast.Statement[] = [];
-    while (!this.is("}")) {
-      if (this.atEnd()) this.endOfFile();
-      statements.push(this.blockStatement());
-    }
+    const statements = this.blockStatements(() => this.is("}"));
     const closePosition = this.position();
     this.index++;
     return {
@@ -318,7 +491,7 @@ class Parser {
     if (!this.is(")")) {
       do {
         const modifiers = this.modifiers();
-        if (!this.startsType()) this.fail("<identifier> expected", this.endOfPrevious(), "identifier-expected");
+        if (!this.startsType()) this.fail("illegal start of type", this.position(), "illegal-start-of-type");
         let typeNode = this.type();
         const varargs = this.accept("...");
         const nameToken = this.identifier();
@@ -329,7 +502,10 @@ class Parser {
         parameters.push({ typeNode, name: nameToken.text, position: this.position(nameToken), isFinal: modifiers.names.has("final"), varargs });
       } while (this.accept(","));
     }
-    this.expect(")");
+    if (!this.accept(")")) {
+      if (this.atEnd()) this.endOfFile();
+      this.missing("',', ')', or '[' expected", "token-expected");
+    }
     return parameters;
   }
 
@@ -366,11 +542,10 @@ class Parser {
       elements.push(this.variableInitializer());
       if (!this.accept(",")) break;
     }
-    if (!this.is("}")) {
+    if (!this.accept("}")) {
       if (this.atEnd()) this.endOfFile();
-      this.fail("'}' expected", this.endOfPrevious(), "token-expected");
+      this.missing("'}' expected", "token-expected");
     }
-    this.index++;
     return { kind: "ArrayInit", position: at, elements };
   }
 
@@ -398,7 +573,15 @@ class Parser {
 
   private dimensions(): number {
     let count = 0;
-    while (this.is("[") && this.is("]", this.lookAhead(1))) { this.index += 2; count++; }
+    while (this.is("[")) {
+      this.index++;
+      // Where only a type can be, "[" makes an array type whatever follows, as javac reads it.
+      if (!this.accept("]")) {
+        if (this.atEnd()) this.endOfFile();
+        this.missing("']' expected", "token-expected");
+      }
+      count++;
+    }
     return count;
   }
 
@@ -419,7 +602,7 @@ class Parser {
         list.push(this.type());
       }
     } while (this.accept(","));
-    this.closeAngle();
+    this.closeAngle(true);
     return list;
   }
 
@@ -434,8 +617,8 @@ class Parser {
       const after = this.lookAhead(1);
       if (this.is("=", after) || this.is(";", after) || this.is(",", after) || this.is("[", after)
           || (allowColon && this.is(":", after))) return true;
-      // "String name" then something unexpected: still a declaration, missing its ';'.
-      return this.token.line === this.lookAhead(1).line ? !this.is("(", after) && !this.is(".", after) : true;
+      // "String name" then anything else is still a declaration, missing its ';', as javac reads it.
+      return true;
     } finally {
       this.index = saved;
     }
@@ -472,7 +655,8 @@ class Parser {
       if (this.is(">")) { this.index++; return true; }
       if (this.is(">>")) { this.index++; this.pendingCloses = 1; return true; }
       if (this.is(">>>")) { this.index++; this.pendingCloses = 2; return true; }
-      return false;
+      // "List<String names": javac misses the ">" and still reads a declaration.
+      return this.isIdentifier();
     }
   }
 
@@ -480,21 +664,36 @@ class Parser {
   block(): Ast.Block {
     const at = this.position();
     this.expect("{");
-    const statements: Ast.Statement[] = [];
-    while (!this.is("}")) {
-      if (this.atEnd()) this.endOfFile();
-      statements.push(this.blockStatement());
-    }
+    const statements = this.blockStatements(() => this.is("}"));
     const closePosition = this.position();
     this.index++;
     return { kind: "Block", position: at, statements, closePosition };
+  }
+
+  /** javac's blockStatements(): statements until `done`, skipping past any that were damaged. */
+  private blockStatements(done: () => boolean): Ast.Statement[] {
+    const statements: Ast.Statement[] = [];
+    let skippedTo = -1;
+    while (!done()) {
+      if (this.atEnd()) this.endOfFile();
+      const before = this.index;
+      statements.push(this.blockStatement());
+      this.madeProgress(before);
+      // Where javac gives up on the block and leaves the rest to its caller.
+      if (this.token.offset === skippedTo) throw new ParseStopped();
+      if (this.token.offset <= this.errorEndOffset) {
+        this.skip({ members: true, identifiers: true, statements: true });
+        skippedTo = this.token.offset;
+      }
+    }
+    return statements;
   }
 
   private blockStatement(): Ast.Statement {
     const at = this.position();
     if (this.is("final") || this.is("@")) {
       const modifiers = this.modifiers();
-      if (this.is("class") || this.is("interface") || this.is("enum")) return this.localClass(at);
+      if (this.is("class") || this.is("interface") || this.is("enum")) return this.localClass(at, modifiers);
       return this.localVariable(at, modifiers.names.has("final"));
     }
     if (this.is("class") || this.is("interface") || this.is("enum") || this.is("abstract")
@@ -522,10 +721,9 @@ class Parser {
       || this.is("--", next) || this.is("(", next) || ASSIGNMENT_OPERATORS.has(next.text) && next.kind === "operator";
   }
 
-  private localClass(at: Ast.Position): Ast.Statement {
-    // Skip to the class body and past it.
-    while (!this.is("{")) { if (this.atEnd()) this.endOfFile(); this.index++; }
-    this.skipBalanced("{", "}");
+  private localClass(at: Ast.Position, modifiers = this.modifiers()): Ast.Statement {
+    // Read like any class, so a mistake in it is found as javac finds it; the runner cannot run it yet.
+    this.classDeclaration(modifiers);
     return { kind: "UnsupportedStmt", position: at, feature: "a class declared inside a method" };
   }
 
@@ -552,8 +750,17 @@ class Parser {
           const elseBranch = this.accept("else") ? this.embeddedStatement() : null;
           return { kind: "If", position: at, condition, thenBranch, elseBranch };
         }
-        case "else":
-          return this.fail("'else' without 'if'", at, "else-without-if");
+        case "else": {
+          // javac reads the statement after the else first, then complains at the else,
+          // and takes its place back there, the way its doRecover() does.
+          this.index++;
+          const lastComplaint = this.lastErrorOffset;
+          const body = this.embeddedStatement();
+          if (at.offset > lastComplaint) this.errors.push(new JavaSyntaxError("'else' without 'if'", at.line, at.column, "else-without-if"));
+          this.lastErrorOffset = at.offset;
+          this.errorEndOffset = Math.max(this.errorEndOffset, at.offset);
+          return body;
+        }
         case "while": {
           this.index++;
           const condition = this.parenthesized();
@@ -562,8 +769,7 @@ class Parser {
         case "do": {
           this.index++;
           const body = this.embeddedStatement();
-          if (!this.is("while")) this.fail("'while' expected", this.endOfPrevious(), "token-expected");
-          this.index++;
+          this.expect("while");
           const condition = this.parenthesized();
           this.expect(";");
           return { kind: "Do", position: at, body, condition };
@@ -618,20 +824,81 @@ class Parser {
       this.index++;
       return { kind: "Labeled", position: at, label, body: this.statement() };
     }
-    const expression = this.expression();
-    if (!["Assign", "Call", "New", "Unsupported"].includes(expression.kind)
-        && !((expression.kind === "Unary" && (expression.operator === "++" || expression.operator === "--")) || expression.kind === "Postfix")) {
-      this.fail("not a statement", expression.position, "not-a-statement");
-    }
+    const expression = this.statementExpression();
     this.expect(";");
     return { kind: "ExprStmt", position: at, expression };
+  }
+
+  /** An expression that has to do something: a call, an assignment, ++ or --, new. */
+  private statementExpression(typeAllowed = true): Ast.Expression {
+    // javac reads the start of a statement as a type or an expression, whichever fits,
+    // except in a for loop's last part, which can only be an expression.
+    const at = this.position();
+    if (!typeAllowed) return this.checkedStatement(this.expression());
+    let afterType = this.index + 1;
+    while (this.is("[", this.tokens[afterType]) || this.is("]", this.tokens[afterType])) afterType++;
+    if (this.token.kind === "keyword" && PRIMITIVES.has(this.token.text) && !this.is(".", this.tokens[afterType])) {
+      // "int" standing alone is a type, which is not a statement; "int." goes on to ask for .class.
+      this.type();
+      this.errors.push(new JavaSyntaxError("not a statement", at.line, at.column, "not-a-statement"));
+      return { kind: "Unsupported", position: at, feature: "a type where a statement belongs" };
+    }
+    const misread = this.misreadTypeArguments();
+    if (misread) {
+      this.errors.push(new JavaSyntaxError("not a statement", misread.position.line, misread.position.column, "not-a-statement"));
+      return misread;
+    }
+    return this.checkedStatement(this.expression());
+  }
+
+  /** javac's checkExprStat: only some expressions can stand as a statement. */
+  private checkedStatement(expression: Ast.Expression): Ast.Expression {
+    const neverAStatement = expression.kind === "Unsupported"
+      && (expression.feature === "class literals (.class)" || expression.feature === "lambda expressions (->)");
+    if (neverAStatement || !["Assign", "Call", "New", "Unsupported"].includes(expression.kind)
+        && !((expression.kind === "Unary" && (expression.operator === "++" || expression.operator === "--")) || expression.kind === "Postfix")) {
+      // javac logs this one directly: it is always shown, and moves nothing on.
+      const place = operatorOf(expression);
+      this.errors.push(new JavaSyntaxError("not a statement", place.line, place.column, "not-a-statement"));
+    }
+    return expression;
+  }
+
+  /** `a < b;` starts like the type List<String>, and javac reads it that way until it cannot. */
+  private misreadTypeArguments(): Ast.Expression | null {
+    if (!this.isIdentifier()) return null;
+    let look = this.index + 1;
+    while (this.is(".", this.tokens[look]) && this.isIdentifier(this.tokens[look + 1])) look += 2;
+    if (!this.is("<", this.tokens[look])) return null;
+    const saved = this.index;
+    this.index = look;
+    const at = this.position();
+    this.index++;
+    do {
+      if (!this.startsType()) {
+        if (this.is("?") || this.atEnd()) { this.index = saved; return null; }
+        this.complain("illegal start of type", this.position(), "illegal-start-of-type");
+        break;
+      }
+      this.type();
+    } while (this.accept(","));
+    if ([">", ">>", ">>>", ">=", ">>=", ">>>="].some((closing) => this.is(closing))) {
+      // A whole type argument list after all: read it as the expression it must be.
+      this.index = saved;
+      return null;
+    }
+    this.complain("> or ',' expected", this.position(), "token-expected");
+    return { kind: "Unsupported", position: at, feature: "a misread type" };
   }
 
   /** The body of an if/while/for: a declaration is not allowed on its own there. */
   private embeddedStatement(): Ast.Statement {
     if (this.looksLikeDeclaration(false) && !this.isContextual("var")) {
-      const at = this.position();
-      this.fail("variable declaration not allowed here", at, "declaration-not-allowed");
+      // javac reads the whole declaration first, then says so at its name.
+      const declaration = this.localVariable(this.position(), false);
+      const name = declaration.declarators[0].position;
+      this.errors.push(new JavaSyntaxError("variable declaration not allowed here", name.line, name.column, "declaration-not-allowed"));
+      return declaration;
     }
     return this.statement();
   }
@@ -668,7 +935,7 @@ class Parser {
     if (!this.is(";")) {
       do {
         const expressionAt = this.position();
-        init.push({ kind: "ExprStmt", position: expressionAt, expression: this.expression() });
+        init.push({ kind: "ExprStmt", position: expressionAt, expression: this.statementExpression() });
       } while (this.accept(","));
     }
     return this.forRest(at, init);
@@ -679,7 +946,7 @@ class Parser {
     const condition = this.is(";") ? null : this.expression();
     this.expect(";");
     const update: Ast.Expression[] = [];
-    if (!this.is(")")) do update.push(this.expression()); while (this.accept(","));
+    if (!this.is(")")) do update.push(this.statementExpression(false)); while (this.accept(","));
     this.expect(")");
     return { kind: "For", position: at, init, condition, update, body: this.embeddedStatement() };
   }
@@ -724,11 +991,7 @@ class Parser {
           switchCase.body = [{ kind: "ExprStmt", position: bodyAt, expression }];
         }
       } else {
-        while (!this.is("case") && !this.is("default") && !this.is("}")) {
-          if (this.atEnd()) this.endOfFile();
-          // "default" can also start a statement? No - only a label here.
-          switchCase.body.push(this.blockStatement());
-        }
+        switchCase.body = this.blockStatements(() => this.is("case") || this.is("default") || this.is("}"));
       }
       cases.push(switchCase);
     }
@@ -794,6 +1057,21 @@ class Parser {
         scan++;
       } while (depth > 0);
       if (this.is("->", this.tokens[scan])) { this.index = scan + 1; isLambda = true; }
+      else if ((this.isIdentifier(this.lookAhead(1)) || PRIMITIVES.has(this.lookAhead(1).text) && this.lookAhead(1).kind === "keyword")
+               && this.isIdentifier(this.lookAhead(2))) {
+        // "(int index" can only begin a lambda's parameters to javac.
+        this.index++;
+        do { this.type(); this.identifier(); } while (this.accept(","));
+        if (!this.accept(")")) this.missing("',', ')', or '[' expected", "token-expected");
+        if (!this.accept("->")) this.missing("-> expected", "token-expected");
+        isLambda = true;
+      }
+      else if (this.is(")", this.lookAhead(1))) {
+        // "()" can only begin a lambda, so javac asks for its arrow, and reads on.
+        this.index += 2;
+        this.missing("-> expected", "token-expected");
+        isLambda = true;
+      }
     }
     if (!isLambda) return null;
     if (this.is("{")) this.skipBalanced("{", "}");
@@ -804,11 +1082,12 @@ class Parser {
   private ternary(): Ast.Expression {
     const condition = this.binary(1);
     if (!this.is("?")) return condition;
+    const questionPosition = this.position();
     this.index++;
     const whenTrue = this.lambdaAhead() ?? this.expression();
     this.expect(":");
     const whenFalse = this.lambdaAhead() ?? this.ternary();
-    return { kind: "Conditional", position: condition.position, condition, whenTrue, whenFalse };
+    return { kind: "Conditional", position: condition.position, condition, whenTrue, whenFalse, questionPosition };
   }
 
   private binary(minimum: number): Ast.Expression {
@@ -892,7 +1171,10 @@ class Parser {
   }
 
   private postfix(): Ast.Expression {
-    return this.postfixSelectors(this.primary());
+    const start = this.primary();
+    // javac's illegal() leaves term3 at once: nothing after it is read as part of this expression.
+    if (start.kind === "Unsupported" && start.feature === ILLEGAL_START) return start;
+    return this.postfixSelectors(start);
   }
 
   private postfixSelectors(start: Ast.Expression): Ast.Expression {
@@ -913,8 +1195,13 @@ class Parser {
         if (this.is("new") || this.is("class") || this.is("this") || this.is("<") || this.is("super")) {
           const feature = this.is("new") ? "creating an inner class from an object (outer.new Inner())"
             : this.is("class") ? "class literals (.class)" : this.is("<") ? "explicit generic method calls" : "qualified this / super";
-          const isCreation = this.is("new");
+          const isCreation = this.is("new"), isClassLiteral = this.is("class");
           this.index++;
+          if (isClassLiteral) {
+            // Where javac points at a class literal: the dot before "class".
+            expression = { kind: "Unsupported", position: dotPosition, feature };
+            continue;
+          }
           if (isCreation) {
             // outer.new Inner<T>(args) { body }: step over all of it.
             this.type();
@@ -936,13 +1223,34 @@ class Parser {
       }
       if (this.is("[")) {
         if (this.is("]", this.lookAhead(1))) {
-          // String[].class and the like
-          this.fail("illegal start of expression", this.position(), "illegal-start-of-expression");
+          // String[] names a type, which only String[].class can make a value of.
+          if (expression.kind !== "Name" && expression.kind !== "FieldAccess") {
+            // javac reads an index there, finds none before the "]", and reads on.
+            this.complain("illegal start of expression", this.position(this.lookAhead(1)), "illegal-start-of-expression");
+            this.index += 2;
+            expression = { kind: "Unsupported", position: expression.position, feature: "an index that is missing" };
+            continue;
+          }
+          const at = expression.position;
+          while (this.is("[") && this.is("]", this.lookAhead(1))) this.index += 2;
+          if (this.is("::")) { expression = { kind: "Unsupported", position: at, feature: "method references (::)" }; continue; }
+          if (!this.is(".")) {
+            this.complain("'.class' expected", this.position(), "class-expected");
+            return { kind: "Unsupported", position: at, feature: "a type where a value belongs" };
+          }
+          const dotPosition = this.position();
+          this.index++;
+          if (this.accept("class")) { expression = { kind: "Unsupported", position: dotPosition, feature: "class literals (.class)" }; continue; }
+          // javac asks for "class", and takes a name written in its place as part of the mistake.
+          this.missing("class expected", "class-expected");
+          if (this.isIdentifier()) this.index++;
+          return { kind: "Unsupported", position: at, feature: "a type where a value belongs" };
         }
+        const bracketPosition = this.position();
         this.index++;
         const index = this.expression();
         this.expect("]");
-        expression = { kind: "ArrayAccess", position: expression.position, array: expression, index };
+        expression = { kind: "ArrayAccess", position: expression.position, array: expression, index, bracketPosition };
         continue;
       }
       if (this.is("::")) {
@@ -961,11 +1269,11 @@ class Parser {
     if (!this.is(")")) {
       do args.push(this.expression()); while (this.accept(","));
     }
-    if (!this.is(")")) {
+    if (!this.accept(")")) {
       if (this.atEnd()) this.endOfFile();
-      this.fail("')' expected", this.endOfPrevious(), "token-expected");
+      // Java 21's wording; 17 said only "')' expected".
+      this.missing("')' or ',' expected", "token-expected");
     }
-    this.index++;
     return args;
   }
 
@@ -996,6 +1304,12 @@ class Parser {
       }
       case "end":
         return this.endOfFile();
+      case "error":
+        // javac's illegal(): nothing new to say at the malformed token, and nothing is consumed.
+        this.errorEndOffset = Math.max(this.errorEndOffset, token.offset);
+        this.report("illegal start of expression", at, "illegal-start-of-expression");
+        // Unsupported is the one node the statement rules accept as it is, like javac's Erroneous.
+        return { kind: "Unsupported", position: at, feature: ILLEGAL_START };
     }
     if (token.kind === "keyword") {
       switch (token.text) {
@@ -1031,14 +1345,45 @@ class Parser {
           return { kind: "SwitchExpr", position: at, selector, cases };
         }
       }
-      if (PRIMITIVES.has(token.text) || token.text === "void") {
+      if (token.text === "void") {
+        this.index++;
+        if (this.is(".") && this.is("class", this.lookAhead(1))) {
+          this.index += 2;
+          return { kind: "Unsupported", position: at, feature: "class literals (.class)" };
+        }
+        // javac's illegal(): the void is read, and the expression ends there.
+        this.complain("illegal start of expression", at, "illegal-start-of-expression");
+        return { kind: "Unsupported", position: at, feature: ILLEGAL_START };
+      }
+      if (PRIMITIVES.has(token.text)) {
         // int.class, int[]::new ...
         this.index++;
         while (this.is("[") || this.is("]")) this.index++;
-        if (this.accept(".") && this.accept("class")) return { kind: "Unsupported", position: at, feature: "class literals (.class)" };
+        if (this.accept(".")) {
+          if (this.accept("class")) return { kind: "Unsupported", position: at, feature: "class literals (.class)" };
+          // javac asks for "class", and takes a name written in its place as part of the mistake.
+          this.missing("class expected", "class-expected");
+          if (this.isIdentifier()) this.index++;
+          return { kind: "Unsupported", position: at, feature: "a type where a value belongs" };
+        }
         if (this.accept("::")) { this.accept("new"); return { kind: "Unsupported", position: at, feature: "method references (::)" }; }
-        this.fail("'.class' expected", this.endOfPrevious(), "class-expected");
+        // javac points at what follows the type, and reads on.
+        this.complain("'.class' expected", this.position(), "class-expected");
+        return { kind: "Unsupported", position: at, feature: "a type where a value belongs" };
       }
+    }
+    if (this.is("<")) {
+      // javac starts every term by reading type arguments, as for <String>of(): after "a < < b" it wants a ">".
+      this.index++;
+      do {
+        if (!this.startsType()) { this.complain("illegal start of type", this.position(), "illegal-start-of-type"); break; }
+        this.type();
+      } while (this.accept(","));
+      if (!this.is(">")) {
+        this.complain("> or ',' expected", this.position(), "token-expected");
+        return { kind: "Unsupported", position: at, feature: ILLEGAL_START };
+      }
+      this.fail("illegal start of expression", at, "illegal-start-of-expression");
     }
     if (this.is("(")) {
       this.index++;
@@ -1046,7 +1391,9 @@ class Parser {
       this.expect(")");
       return inner;
     }
-    return this.fail("illegal start of expression", at, "illegal-start-of-expression");
+    // javac's illegal(): said once, nothing consumed, and the expression ends here.
+    this.complain("illegal start of expression", at, "illegal-start-of-expression");
+    return { kind: "Unsupported", position: at, feature: ILLEGAL_START };
   }
 
   private creator(): Ast.Expression {
@@ -1092,7 +1439,11 @@ class Parser {
       const created: Ast.NewArray = { kind: "NewArray", position: at, elementType: typeNode, dimensionExpressions, extraDimensions, initializer };
       return initializer ? this.selectors(created) : created;
     }
-    if (!this.is("(")) this.fail("'(' or '[' expected", this.endOfPrevious(), "token-expected");
+    if (!this.is("(")) {
+      // javac points at what follows the class name, and reads on.
+      this.complain("'(' or '[' expected", this.position(), "token-expected");
+      return { kind: "Unsupported", position: at, feature: "a malformed creation" };
+    }
     const args = this.arguments();
     let hasBody = false;
     if (this.is("{")) { hasBody = true; this.skipBalanced("{", "}"); }

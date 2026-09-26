@@ -83,6 +83,8 @@ export type MethodInfo = {
   runtimeMethod?: boolean;
   blocking: boolean;            // may wait for keyboard input or sleep
   isPublic?: boolean;
+  /** A library method the real class has and the classroom cannot run yet. */
+  unsupported?: boolean;
   /** For a student's method: every method and constructor its body calls. */
   callees?: Set<MethodInfo>;
 };

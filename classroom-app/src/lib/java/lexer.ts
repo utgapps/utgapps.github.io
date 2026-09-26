@@ -7,7 +7,7 @@
 
 export type TokenKind =
   | "identifier" | "keyword" | "int" | "long" | "float" | "double"
-  | "char" | "string" | "operator" | "end";
+  | "char" | "string" | "operator" | "error" | "end";
 
 export type Token = {
   kind: TokenKind;
@@ -19,6 +19,8 @@ export type Token = {
   endOffset: number;
   endLine: number;
   endColumn: number;
+  error?: JavaSyntaxError;  // only on an "error" token
+  fatal?: boolean;          // an "error" token the tokenizer could not read past
 };
 
 export class JavaSyntaxError extends Error {
@@ -88,103 +90,133 @@ export function tokenize(source: string): Token[] {
     return fail("illegal escape character", line, column, "illegal-escape");
   }
 
-  while (offset < source.length) {
-    const character = peek();
-    // Whitespace
-    if (character === " " || character === "\t" || character === "\n" || character === "\r" || character === "\f") { advance(); continue; }
-    // Comments
-    if (character === "/" && peek(1) === "/") {
-      while (offset < source.length && peek() !== "\n") advance();
-      continue;
-    }
-    if (character === "/" && peek(1) === "*") {
-      const startLine = line, startColumn = column;
-      advance(2);
-      while (offset < source.length && !(peek() === "*" && peek(1) === "/")) advance();
-      if (offset >= source.length) fail("unclosed comment", startLine, startColumn, "unclosed-comment");
-      advance(2);
-      continue;
-    }
+  // javac reports a malformed token when the parser reaches it, after the
+  // mistakes before it; the parser does the same with an "error" token. The
+  // malformed tokens beginners make carry on past themselves, as javac's
+  // scanner does; any other stops the tokens there.
+  try {
+    while (offset < source.length) {
+      const character = peek();
+      // Whitespace
+      if (character === " " || character === "\t" || character === "\n" || character === "\r" || character === "\f") { advance(); continue; }
+      // Comments
+      if (character === "/" && peek(1) === "/") {
+        while (offset < source.length && peek() !== "\n") advance();
+        continue;
+      }
+      if (character === "/" && peek(1) === "*") {
+        const startLine = line, startColumn = column;
+        advance(2);
+        while (offset < source.length && !(peek() === "*" && peek(1) === "/")) advance();
+        if (offset >= source.length) fail("unclosed comment", startLine, startColumn, "unclosed-comment");
+        advance(2);
+        continue;
+      }
 
-    const start = { offset, line, column };
-    const push = (kind: TokenKind, text: string, value?: string | number | bigint) => {
-      tokens.push({ kind, text, value, line: start.line, column: start.column, offset: start.offset,
-                    endOffset: offset, endLine: line, endColumn: column });
-    };
+      const start = { offset, line, column };
+      const push = (kind: TokenKind, text: string, value?: string | number | bigint) => {
+        tokens.push({ kind, text, value, line: start.line, column: start.column, offset: start.offset,
+                      endOffset: offset, endLine: line, endColumn: column });
+      };
+      const malformed = (message: string, code: string) => {
+        tokens.push({ kind: "error", text: source.slice(start.offset, offset), error: new JavaSyntaxError(message, start.line, start.column, code),
+                      line: start.line, column: start.column, offset: start.offset, endOffset: offset, endLine: line, endColumn: column });
+      };
 
-    // Identifiers and keywords
-    if (isIdentifierStart(character)) {
-      while (offset < source.length && isIdentifierPart(peek())) advance();
-      const word = source.slice(start.offset, offset);
-      push(KEYWORDS.has(word) ? "keyword" : "identifier", word);
-      continue;
-    }
+      // Identifiers and keywords
+      if (isIdentifierStart(character)) {
+        while (offset < source.length && isIdentifierPart(peek())) advance();
+        const word = source.slice(start.offset, offset);
+        push(KEYWORDS.has(word) ? "keyword" : "identifier", word);
+        continue;
+      }
 
-    // Numbers
-    if (/[0-9]/.test(character) || (character === "." && /[0-9]/.test(peek(1)))) {
-      readNumber(start, push);
-      continue;
-    }
+      // Numbers
+      if (/[0-9]/.test(character) || (character === "." && /[0-9]/.test(peek(1)))) {
+        readNumber(start, push);
+        continue;
+      }
 
-    // Text blocks, then strings
-    if (character === '"' && peek(1) === '"' && peek(2) === '"') {
-      advance(3);
-      while (peek() === " " || peek() === "\t" || peek() === "\f") advance();
-      if (peek() === "\r") advance();
-      if (peek() !== "\n") fail("illegal text block open delimiter sequence, missing line terminator", line, column, "text-block-open");
-      advance();
-      const rawLines: string[] = [];
-      let current = "";
-      let closed = false;
-      while (offset < source.length) {
-        if (peek() === '"' && peek(1) === '"' && peek(2) === '"') { advance(3); closed = true; break; }
-        if (peek() === "\\") {
-          // Escapes are processed after indentation is stripped; keep them marked.
-          if (peek(1) === "\n") { advance(2); current += "\u0000JOIN"; continue; }
-          current += "\u0000ESC" + source.slice(offset, offset + 2); advance(2); continue;
+      // Text blocks, then strings
+      if (character === '"' && peek(1) === '"' && peek(2) === '"') {
+        advance(3);
+        while (peek() === " " || peek() === "\t" || peek() === "\f") advance();
+        if (peek() === "\r") advance();
+        if (peek() !== "\n") fail("illegal text block open delimiter sequence, missing line terminator", line, column, "text-block-open");
+        advance();
+        const rawLines: string[] = [];
+        let current = "";
+        let closed = false;
+        while (offset < source.length) {
+          if (peek() === '"' && peek(1) === '"' && peek(2) === '"') { advance(3); closed = true; break; }
+          if (peek() === "\\") {
+            // Escapes are processed after indentation is stripped; keep them marked.
+            if (peek(1) === "\n") { advance(2); current += "\u0000JOIN"; continue; }
+            current += "\u0000ESC" + source.slice(offset, offset + 2); advance(2); continue;
+          }
+          if (peek() === "\n") { rawLines.push(current); current = ""; advance(); continue; }
+          if (peek() === "\r") { advance(); continue; }
+          current += peek(); advance();
         }
-        if (peek() === "\n") { rawLines.push(current); current = ""; advance(); continue; }
-        if (peek() === "\r") { advance(); continue; }
-        current += peek(); advance();
+        if (!closed) fail("unclosed text block", start.line, start.column, "unclosed-text-block");
+        rawLines.push(current);
+        push("string", source.slice(start.offset, offset), textBlockValue(rawLines));
+        continue;
       }
-      if (!closed) fail("unclosed text block", start.line, start.column, "unclosed-text-block");
-      rawLines.push(current);
-      push("string", source.slice(start.offset, offset), textBlockValue(rawLines));
-      continue;
-    }
-    if (character === '"') {
-      advance();
-      let value = "";
-      while (true) {
-        const next = peek();
-        if (next === "" || next === "\n" || next === "\r") fail("unclosed string literal", start.line, start.column, "unclosed-string");
-        if (next === '"') { advance(); break; }
-        if (next === "\\") { value += readEscape(); continue; }
-        value += next; advance();
+      if (character === '"') {
+        advance();
+        let value = "";
+        let closed = false;
+        while (true) {
+          const next = peek();
+          // The rest of the line is the broken string; the next line is read as usual.
+          if (next === "" || next === "\n" || next === "\r") break;
+          if (next === '"') { advance(); closed = true; break; }
+          if (next === "\\") { value += readEscape(); continue; }
+          value += next; advance();
+        }
+        if (closed) push("string", source.slice(start.offset, offset), value);
+        else malformed("unclosed string literal", "unclosed-string");
+        continue;
       }
-      push("string", source.slice(start.offset, offset), value);
-      continue;
-    }
-    if (character === "'") {
-      advance();
-      if (peek() === "'") fail("empty character literal", start.line, start.column, "empty-char");
-      if (peek() === "\n" || peek() === "") fail("illegal line end in character literal", start.line, start.column, "unclosed-char");
-      const value = peek() === "\\" ? readEscape() : (() => { const single = peek(); advance(); return single; })();
-      if (peek() !== "'") fail("unclosed character literal", start.line, start.column, "unclosed-char");
-      advance();
-      push("char", source.slice(start.offset, offset), value.charCodeAt(0));
-      continue;
-    }
+      if (character === "'") {
+        advance();
+        if (peek() === "'") { advance(); malformed("empty character literal", "empty-char"); continue; }
+        if (peek() === "\n" || peek() === "") fail("illegal line end in character literal", start.line, start.column, "unclosed-char");
+        const value = peek() === "\\" ? readEscape() : (() => { const single = peek(); advance(); return single; })();
+        // 'hello' is one broken literal, 'h, then the identifier ello, as javac reads it.
+        if (peek() !== "'") { malformed("unclosed character literal", "unclosed-char"); continue; }
+        advance();
+        push("char", source.slice(start.offset, offset), value.charCodeAt(0));
+        continue;
+      }
 
-    // Operators
-    const operator = OPERATORS.find((candidate) => source.startsWith(candidate, offset));
-    if (operator) {
-      advance(operator.length);
-      push("operator", operator);
-      continue;
+      // Two dots are one broken token to javac, which points at the second.
+      if (source.startsWith("..", offset) && !source.startsWith("...", offset)) {
+        advance(2);
+        tokens.push({ kind: "error", text: "..", error: new JavaSyntaxError("illegal '.'", start.line, start.column + 1, "illegal-dot"),
+                      line: start.line, column: start.column, offset: start.offset, endOffset: offset, endLine: line, endColumn: column });
+        continue;
+      }
+
+      // Operators
+      const operator = OPERATORS.find((candidate) => source.startsWith(candidate, offset));
+      if (operator) {
+        advance(operator.length);
+        push("operator", operator);
+        continue;
+      }
+      // javac reads \u001b as the character it stands for, wherever it is written.
+      const escape = /^\\u+([0-9a-fA-F]{4})/.exec(source.slice(offset, offset + 12));
+      const meant = escape ? String.fromCharCode(parseInt(escape[1], 16)) : character;
+      const shown = /[\s\p{Cc}]/u.test(meant) ? `\\u${meant.charCodeAt(0).toString(16).padStart(4, "0")}` : meant;
+      advance(escape ? escape[0].length : 1);
+      malformed(`illegal character: '${shown}'`, "illegal-character");
     }
-    const shown = character === "#" || character === "`" || /\S/.test(character) ? character : `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
-    fail(`illegal character: '${shown}'`, line, column, "illegal-character");
+  } catch (error) {
+    if (!(error instanceof JavaSyntaxError)) throw error;
+    tokens.push({ kind: "error", text: "", error, fatal: true, line: error.line, column: error.column, offset,
+                  endOffset: offset, endLine: error.line, endColumn: error.column });
   }
   tokens.push({ kind: "end", text: "<EOF>", line, column, offset, endOffset: offset, endLine: line, endColumn: column });
   return tokens;
@@ -244,7 +276,6 @@ export function tokenize(source: string): Token[] {
     finishInteger(octal ? BigInt("0o" + whole.slice(1)) : BigInt(whole), isLong, octal);
 
     function finishInteger(value: bigint, isLong: boolean, unsigned: boolean) {
-      if (isIdentifierPart(peek())) fail("';' expected", line, column, "semicolon-expected");
       const text = source.slice(start.offset, offset);
       if (isLong) {
         const limit = unsigned ? (1n << 64n) - 1n : 1n << 63n;

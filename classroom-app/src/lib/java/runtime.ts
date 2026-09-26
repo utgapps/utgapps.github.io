@@ -559,12 +559,17 @@ function javaReplacement(replacement: string): (match: string[], groups: Record<
   }).join("");
 }
 
+// What Java says when a null reaches these inside the JDK.
+const NULL_PATTERN = 'Cannot invoke "String.isEmpty()" because "this.pattern" is null';
+const NULL_REPLACEMENT = 'Cannot invoke "String.length()" because "replacement" is null';
+const NULL_COLLECTION = 'Cannot invoke "java.util.Collection.toArray()" because "c" is null';
+
 // ---- parsing numbers ------------------------------------------------------------------------------------
 function forInputString(value: string, radix = 10): JThrowable {
   return exception("NumberFormatException", `For input string: "${value}"${radix === 10 ? "" : ` under radix ${radix}`}`);
 }
 function parseInteger(input: JString | null, radix: number, minimum: bigint, maximum: bigint): bigint {
-  if (input === null) throw exception("NumberFormatException", "Cannot parse null string: null");
+  if (input === null) throw exception("NumberFormatException", "Cannot parse null string");
   if (radix < 2) throw exception("NumberFormatException", `radix ${radix} less than Character.MIN_RADIX`);
   if (radix > 36) throw exception("NumberFormatException", `radix ${radix} greater than Character.MAX_RADIX`);
   const value = text(input);
@@ -591,7 +596,7 @@ function digitValue(code: number, radix: number): number {
 }
 const DOUBLE_TEXT = /^[+-]?(NaN|Infinity|((\d+\.?\d*|\.\d+)([eE][+-]?\d+)?)[fFdD]?)$/;
 function parseDoubleText(input: JString | null): number {
-  if (input === null) throw exception("NullPointerException");
+  if (input === null) throw exception("NullPointerException", 'Cannot invoke "String.length()" because "in" is null');
   const value = text(input).replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "");
   if (!value.length) throw exception("NumberFormatException", "empty String");
   if (!DOUBLE_TEXT.test(value)) throw forInputString(text(input));
@@ -701,8 +706,8 @@ export class JavaRuntime {
   bC(value: number) { return value < 128 ? characterCache[value] : new JCharacter(value); }
   bS(value: number) { return value >= -128 && value <= 127 ? shortCache[value + 128] : new JShort(value); }
   bB(value: number) { return byteCache[value + 128]; }
-  ub(box: any) {
-    if (box === null || box === undefined) throw exception("NullPointerException");
+  ub(box: any, message?: string) {
+    if (box === null || box === undefined) throw exception("NullPointerException", message ?? null);
     return box.v;
   }
   ubx(box: any) { return this.ub(box); }
@@ -758,13 +763,13 @@ export class JavaRuntime {
     };
     return build(0, descriptor);
   }
-  aget(array: any[], index: number) {
-    if (array === null) throw exception("NullPointerException", `Cannot load from ${arrayTypeName("[").replace("[]", "") || "an"} array`.replace("object array", "array"));
+  aget(array: any[], index: number, message?: string) {
+    if (array === null) throw exception("NullPointerException", message ?? "Cannot load from array");
     if (index < 0 || index >= array.length) throw exception("ArrayIndexOutOfBoundsException", `Index ${index} out of bounds for length ${array.length}`);
     return array[index];
   }
-  ast(array: any[], index: number, value: any) {
-    if (array === null) throw exception("NullPointerException", "Cannot store to array");
+  ast(array: any[], index: number, value: any, message?: string) {
+    if (array === null) throw exception("NullPointerException", message ?? "Cannot store to array");
     if (index < 0 || index >= array.length) throw exception("ArrayIndexOutOfBoundsException", `Index ${index} out of bounds for length ${array.length}`);
     return (array[index] = value);
   }
@@ -802,11 +807,11 @@ export class JavaRuntime {
   // ---- String ----
   String_new_() { return S(""); }
   String_new_String(value: JString) { return S(text(this.nn(value))); }
-  String_new_AC(chars: number[]) { return S(String.fromCharCode(...this.nn(chars))); }
+  String_new_AC(chars: number[]) { return S(String.fromCharCode(...this.nn(chars, 'Cannot read the array length because "value" is null'))); }
   String_new_ACII(chars: number[], offset: number, count: number) {
     this.nn(chars);
     if (offset < 0 || count < 0 || offset > chars.length - count) {
-      throw exception("StringIndexOutOfBoundsException", `offset ${offset}, count ${count}, length ${chars.length}`);
+      throw exception("StringIndexOutOfBoundsException", `Range [${offset}, ${offset} + ${count}) out of bounds for length ${chars.length}`);
     }
     return S(String.fromCharCode(...chars.slice(offset, offset + count)));
   }
@@ -822,35 +827,37 @@ export class JavaRuntime {
   String_substring_II(value: JString, begin: number, end: number) {
     const length = value.length;
     if (begin < 0 || begin > end || end > length) {
-      throw exception("StringIndexOutOfBoundsException", `begin ${begin}, end ${end}, length ${length}`);
+      throw exception("StringIndexOutOfBoundsException", `Range [${begin}, ${end}) out of bounds for length ${length}`);
     }
     if (begin === 0 && end === length) return value;
     return S(text(value).slice(begin, end));
   }
   String_indexOf_I(value: JString, character: number) { return text(value).indexOf(String.fromCodePoint(character)); }
-  String_indexOf_String(value: JString, target: JString) { return text(value).indexOf(text(this.nn(target))); }
+  String_indexOf_String(value: JString, target: JString) { return text(value).indexOf(text(this.nn(target, 'Cannot invoke "String.coder()" because "str" is null'))); }
   String_indexOf_II(value: JString, character: number, from: number) { return text(value).indexOf(String.fromCodePoint(character), Math.max(from, 0)); }
   String_indexOf_StringI(value: JString, target: JString, from: number) {
-    const found = text(value).indexOf(text(this.nn(target)), Math.max(from, 0));
+    const found = text(value).indexOf(text(this.nn(target, 'Cannot invoke "String.length()" because "tgtStr" is null')), Math.max(from, 0));
     return found;
   }
   String_lastIndexOf_I(value: JString, character: number) { return text(value).lastIndexOf(String.fromCodePoint(character)); }
-  String_lastIndexOf_String(value: JString, target: JString) { return text(value).lastIndexOf(text(this.nn(target))); }
+  String_lastIndexOf_String(value: JString, target: JString) { return text(value).lastIndexOf(text(this.nn(target, 'Cannot read field "value" because "tgtStr" is null'))); }
   String_lastIndexOf_II(value: JString, character: number, from: number) {
     return from < 0 ? -1 : text(value).lastIndexOf(String.fromCodePoint(character), from);
   }
   String_lastIndexOf_StringI(value: JString, target: JString, from: number) {
-    return from < 0 ? -1 : text(value).lastIndexOf(text(this.nn(target)), from);
+    this.nn(target, 'Cannot read field "value" because "tgtStr" is null');
+    return from < 0 ? -1 : text(value).lastIndexOf(text(target), from);
   }
-  String_contains(value: JString, target: any) { return text(value).includes(this.seq(target)); }
+  String_contains(value: JString, target: any) { return text(value).includes(this.seq(this.nn(target, 'Cannot invoke "java.lang.CharSequence.toString()" because "s" is null'))); }
+  String_contentEquals(value: JString, other: any) { return text(value) === this.seq(this.nn(other, 'Cannot invoke "java.lang.CharSequence.length()" because "cs" is null')); }
   String_equals(value: JString, other: any) { return isStr(other) && text(value) === text(other); }
   String_equalsIgnoreCase(value: JString, other: JString | null) {
     if (other === null || other.length !== value.length) return false;
     return this.String_compareToIgnoreCase(value, other) === 0;
   }
-  String_compareTo(value: JString, other: JString) { return compareStrings(text(value), text(this.nn(other))); }
+  String_compareTo(value: JString, other: JString) { return compareStrings(text(value), text(this.nn(other, 'Cannot read field "value" because "anotherString" is null'))); }
   String_compareToIgnoreCase(value: JString, other: JString) {
-    const first = text(value), second = text(this.nn(other));
+    const first = text(value), second = text(this.nn(other, 'Cannot read field "value" because "s2" is null'));
     const length = Math.min(first.length, second.length);
     for (let index = 0; index < length; index++) {
       let a = first.charCodeAt(index), b = second.charCodeAt(index);
@@ -875,27 +882,29 @@ export class JavaRuntime {
   String_strip(value: JString) { return this.sameOrNew(value, this.stripEnds(text(value), true, true)); }
   String_stripLeading(value: JString) { return this.sameOrNew(value, this.stripEnds(text(value), true, false)); }
   String_stripTrailing(value: JString) { return this.sameOrNew(value, this.stripEnds(text(value), false, true)); }
-  String_startsWith_String(value: JString, prefix: JString) { return text(value).startsWith(text(this.nn(prefix))); }
+  String_startsWith_String(value: JString, prefix: JString) { return this.String_startsWith_StringI(value, prefix, 0); }
   String_startsWith_StringI(value: JString, prefix: JString, offset: number) {
+    this.nn(prefix, 'Cannot invoke "String.length()" because "prefix" is null');
     if (offset < 0 || offset > value.length) return false;
-    return text(value).startsWith(text(this.nn(prefix)), offset);
+    return text(value).startsWith(text(prefix), offset);
   }
-  String_endsWith(value: JString, suffix: JString) { return text(value).endsWith(text(this.nn(suffix))); }
+  String_endsWith(value: JString, suffix: JString) { return text(value).endsWith(text(this.nn(suffix, 'Cannot invoke "String.length()" because "suffix" is null'))); }
   String_replace_CC(value: JString, from: number, to: number) {
     return this.sameOrNew(value, text(value).split(String.fromCharCode(from)).join(String.fromCharCode(to)));
   }
   String_replace_CharSequenceCharSequence(value: JString, target: any, replacement: any) {
-    const from = this.seq(target), to = this.seq(replacement);
+    const from = this.seq(this.nn(target, 'Cannot invoke "java.lang.CharSequence.toString()" because "target" is null'));
+    const to = this.seq(this.nn(replacement, 'Cannot invoke "java.lang.CharSequence.toString()" because "replacement" is null'));
     return this.sameOrNew(value, text(value).split(from).join(to));
   }
   String_replaceAll(value: JString, regex: JString, replacement: JString) {
-    const pattern = javaRegex(text(this.nn(regex)), "g");
-    const build = javaReplacement(text(this.nn(replacement)));
+    const pattern = javaRegex(text(this.nn(regex, NULL_PATTERN)), "g");
+    const build = javaReplacement(text(this.nn(replacement, NULL_REPLACEMENT)));
     return S(text(value).replace(pattern, (...args: any[]) => this.replacementFor(args, build)));
   }
   String_replaceFirst(value: JString, regex: JString, replacement: JString) {
-    const pattern = javaRegex(text(this.nn(regex)));
-    const build = javaReplacement(text(this.nn(replacement)));
+    const pattern = javaRegex(text(this.nn(regex, NULL_PATTERN)));
+    const build = javaReplacement(text(this.nn(replacement, NULL_REPLACEMENT)));
     return S(text(value).replace(pattern, (...args: any[]) => this.replacementFor(args, build)));
   }
   private replacementFor(args: any[], build: ReturnType<typeof javaReplacement>) {
@@ -907,7 +916,7 @@ export class JavaRuntime {
   String_split_String(value: JString, regex: JString) { return this.String_split_StringI(value, regex, 0); }
   String_split_StringI(value: JString, regex: JString, limit: number) {
     const input = text(value);
-    const pattern = javaRegex(text(this.nn(regex)), "g");
+    const pattern = javaRegex(text(this.nn(regex, 'Cannot invoke "String.length()" because "regex" is null')), "g");
     const pieces: string[] = [];
     let index = 0;
     const limited = limit > 0;
@@ -937,7 +946,7 @@ export class JavaRuntime {
     return this.arr("[C", chars);
   }
   String_concat(value: JString, other: JString) {
-    const addition = text(this.nn(other));
+    const addition = text(this.nn(other, 'Cannot invoke "String.isEmpty()" because "str" is null'));
     return addition.length ? S(text(value) + addition) : value;
   }
   String_repeat(value: JString, count: number) {
@@ -946,7 +955,7 @@ export class JavaRuntime {
     return S(text(value).repeat(count));
   }
   String_matches(value: JString, regex: JString) {
-    const pattern = javaRegex(`^(?:${text(this.nn(regex))})$`);
+    const pattern = javaRegex(`^(?:${text(this.nn(regex, NULL_PATTERN))})$`);
     return pattern.test(text(value));
   }
   String_hashCode(value: JString) { return stringHash(text(value)); }
@@ -959,12 +968,12 @@ export class JavaRuntime {
   String_valueOf_F(value: number) { return S(javaFloatToString(value)); }
   String_valueOf_C(value: number) { return S(String.fromCharCode(value)); }
   String_valueOf_Z(value: boolean) { return value ? "true" : "false"; }
-  String_valueOf_AC(chars: number[]) { return S(String.fromCharCode(...this.nn(chars))); }
+  String_valueOf_AC(chars: number[]) { return S(String.fromCharCode(...this.nn(chars, 'Cannot read the array length because "value" is null'))); }
   String_valueOf_Object(value: any) { return this.str(value); }
-  String_format(format: JString, args: any[]) { return S(this.format(text(this.nn(format)), args)); }
+  String_format(format: JString, args: any[]) { return S(this.format(text(this.nn(format, 'Cannot invoke "String.length()" because "s" is null')), args)); }
   String_join_array(delimiter: any, elements: any[]) {
     const separator = this.seq(delimiter);
-    return S(this.nn(elements).map((element) => (element === null ? "null" : this.seq(element))).join(separator));
+    return S(this.nn(elements, 'Cannot read the array length because "elements" is null').map((element) => (element === null ? "null" : this.seq(element))).join(separator));
   }
   String_join_iterable(delimiter: any, elements: JList) {
     const separator = this.seq(delimiter);
@@ -973,7 +982,7 @@ export class JavaRuntime {
 
   // ---- StringBuilder ----
   StringBuilder_new_() { return new JStringBuilder(""); }
-  StringBuilder_new_String(value: any) { return new JStringBuilder(this.seq(value)); }
+  StringBuilder_new_String(value: any) { return new JStringBuilder(this.seq(this.nn(value, 'Cannot invoke "String.length()" because "str" is null'))); }
   StringBuilder_new_I(capacity: number) {
     if (capacity < 0) throw exception("NegativeArraySizeException", String(capacity));
     return new JStringBuilder("", capacity);
@@ -989,10 +998,12 @@ export class JavaRuntime {
   StringBuilder_append_D(builder: JStringBuilder, value: number) { return this.appended(builder, javaDoubleToString(value)); }
   StringBuilder_append_F(builder: JStringBuilder, value: number) { return this.appended(builder, javaFloatToString(value)); }
   StringBuilder_append_Z(builder: JStringBuilder, value: boolean) { return this.appended(builder, String(value)); }
-  StringBuilder_append_AC(builder: JStringBuilder, chars: number[]) { return this.appended(builder, String.fromCharCode(...this.nn(chars))); }
+  StringBuilder_append_AC(builder: JStringBuilder, chars: number[]) {
+    return this.appended(builder, String.fromCharCode(...this.nn(chars, 'Cannot read the array length because "str" is null')));
+  }
   private inserted(builder: JStringBuilder, offset: number, addition: string) {
     if (offset < 0 || offset > builder.value.length) {
-      throw exception("StringIndexOutOfBoundsException", `offset ${offset}, length ${builder.value.length}`);
+      throw exception("StringIndexOutOfBoundsException", `Range [${offset}, ${builder.value.length}) out of bounds for length ${builder.value.length}`);
     }
     builder.value = builder.value.slice(0, offset) + addition + builder.value.slice(offset);
     builder.grow();
@@ -1007,7 +1018,7 @@ export class JavaRuntime {
   StringBuilder_length(builder: JStringBuilder) { return builder.value.length; }
   private builderIndex(builder: JStringBuilder, index: number) {
     if (index < 0 || index >= builder.value.length) {
-      throw exception("StringIndexOutOfBoundsException", `index ${index},length ${builder.value.length}`);
+      throw exception("StringIndexOutOfBoundsException", `Index ${index} out of bounds for length ${builder.value.length}`);
     }
   }
   StringBuilder_charAt(builder: JStringBuilder, index: number) { this.builderIndex(builder, index); return builder.value.charCodeAt(index); }
@@ -1025,25 +1036,27 @@ export class JavaRuntime {
   StringBuilder_delete(builder: JStringBuilder, start: number, end: number) {
     const length = builder.value.length;
     if (end > length) end = length;
-    if (start < 0 || start > end) throw exception("StringIndexOutOfBoundsException", `start ${start}, end ${end}, length ${length}`);
+    if (start < 0 || start > end) throw exception("StringIndexOutOfBoundsException", `Range [${start}, ${end}) out of bounds for length ${length}`);
     builder.value = builder.value.slice(0, start) + builder.value.slice(end);
     return builder;
   }
   StringBuilder_replace(builder: JStringBuilder, start: number, end: number, replacement: JString) {
     const length = builder.value.length;
-    if (start < 0 || start > length || start > end) throw exception("StringIndexOutOfBoundsException", `start ${start}, end ${end}, length ${length}`);
     if (end > length) end = length;
-    builder.value = builder.value.slice(0, start) + text(this.nn(replacement)) + builder.value.slice(end);
+    if (start < 0 || start > end) throw exception("StringIndexOutOfBoundsException", `Range [${start}, ${end}) out of bounds for length ${length}`);
+    builder.value = builder.value.slice(0, start) + text(this.nn(replacement, 'Cannot invoke "String.length()" because "str" is null')) + builder.value.slice(end);
     builder.grow();
     return builder;
   }
-  StringBuilder_indexOf_String(builder: JStringBuilder, target: JString) { return builder.value.indexOf(text(this.nn(target))); }
-  StringBuilder_indexOf_StringI(builder: JStringBuilder, target: JString, from: number) { return builder.value.indexOf(text(this.nn(target)), Math.max(0, from)); }
-  StringBuilder_lastIndexOf(builder: JStringBuilder, target: JString) { return builder.value.lastIndexOf(text(this.nn(target))); }
+  StringBuilder_indexOf_String(builder: JStringBuilder, target: JString) { return this.StringBuilder_indexOf_StringI(builder, target, 0); }
+  StringBuilder_indexOf_StringI(builder: JStringBuilder, target: JString, from: number) {
+    return builder.value.indexOf(text(this.nn(target, 'Cannot invoke "String.length()" because "tgtStr" is null')), Math.max(0, from));
+  }
+  StringBuilder_lastIndexOf(builder: JStringBuilder, target: JString) { return builder.value.lastIndexOf(text(this.nn(target, 'Cannot read field "value" because "tgtStr" is null'))); }
   StringBuilder_substring_I(builder: JStringBuilder, start: number) { return this.StringBuilder_substring_II(builder, start, builder.value.length); }
   StringBuilder_substring_II(builder: JStringBuilder, start: number, end: number) {
     const length = builder.value.length;
-    if (start < 0 || start > end || end > length) throw exception("StringIndexOutOfBoundsException", `start ${start}, end ${end}, length ${length}`);
+    if (start < 0 || start > end || end > length) throw exception("StringIndexOutOfBoundsException", `Range [${start}, ${end}) out of bounds for length ${length}`);
     return S(builder.value.slice(start, end));
   }
   StringBuilder_setLength(builder: JStringBuilder, length: number) {
@@ -1052,7 +1065,7 @@ export class JavaRuntime {
     builder.grow();
   }
   StringBuilder_capacity(builder: JStringBuilder) { return builder.capacity; }
-  StringBuilder_compareTo(builder: JStringBuilder, other: JStringBuilder) { return compareStrings(builder.value, this.nn(other).value); }
+  StringBuilder_compareTo(builder: JStringBuilder, other: JStringBuilder) { return compareStrings(builder.value, this.nn(other, 'Cannot read field "value" because "another" is null').value); }
 
   // ---- Number and the boxes ----
   Number_intValue(box: any) { return box instanceof JLong ? Number(BigInt.asIntN(32, box.v)) : box instanceof JDouble || box instanceof JFloat ? this.d2i(box.v) : box.v; }
@@ -1545,7 +1558,7 @@ export class JavaRuntime {
     list.modCount++;
   }
   Collection_addAll(list: JList, other: JList) {
-    const additions = this.nn(other).items.slice();
+    const additions = this.nn(other, NULL_COLLECTION).items.slice();
     list.modifiable();
     list.items.push(...additions);
     list.modCount++;
@@ -1616,7 +1629,7 @@ export class JavaRuntime {
     if (capacity < 0) throw exception("IllegalArgumentException", "Illegal Capacity: " + capacity);
     return new JList([]);
   }
-  ArrayList_new_Collection(collection: JList) { return new JList(this.nn(collection).items.slice()); }
+  ArrayList_new_Collection(collection: JList) { return new JList(this.nn(collection, NULL_COLLECTION).items.slice()); }
   ArrayList_ensureCapacity(_list: JList, _capacity: number) {}
   ArrayList_trimToSize(list: JList) { list.modCount++; }
 
@@ -1662,7 +1675,7 @@ export class JavaRuntime {
     for (let index = 0; index < sorted.length; index++) array[from + index] = sorted[index];
   }
   Arrays_sort_numbers(array: any[], from?: number, to?: number) {
-    this.nn(array);
+    this.nn(array, 'Cannot read the array length because "a" is null');
     const isLong = (array as any).$d === "[J";
     const compare = isLong
       ? (first: bigint, second: bigint) => (first < second ? -1 : first > second ? 1 : 0)
@@ -1679,7 +1692,7 @@ export class JavaRuntime {
     array.fill(value, from, to);
   }
   Arrays_copyOf(array: any[], length: number) {
-    this.nn(array);
+    this.nn(array, 'Cannot read the array length because "original" is null');
     if (length < 0) throw exception("NegativeArraySizeException", String(length));
     const descriptor: string = (array as any).$d;
     const copy = array.slice(0, length);
@@ -1687,7 +1700,7 @@ export class JavaRuntime {
     return this.arr(descriptor, copy);
   }
   Arrays_copyOfRange(array: any[], from: number, to: number) {
-    this.nn(array);
+    this.nn(array, 'Cannot read the array length because "original" is null');
     if (from > to) throw exception("IllegalArgumentException", `${from} > ${to}`);
     const descriptor: string = (array as any).$d;
     const copy = this.newArr(descriptor, [to - from]);
@@ -1739,7 +1752,7 @@ export class JavaRuntime {
 
   // ---- Collections ----
   Collections_sort(list: JList) {
-    list.settable();
+    this.nn(list, 'Cannot invoke "java.util.List.sort(java.util.Comparator)" because "list" is null').settable();
     const sorted = list.items.slice().sort(compareNatural);
     for (let index = 0; index < sorted.length; index++) list.items[index] = sorted[index];
     list.modCount++;

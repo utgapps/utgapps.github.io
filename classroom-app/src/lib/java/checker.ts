@@ -28,7 +28,24 @@ export type Diagnostic = {
   code: string;
   /** Correct Java the classroom runner cannot run yet - not the student's mistake. */
   unsupported?: boolean;
+  /** Which of javac's passes finds it: all of one pass is reported before any of the next. */
+  phase?: CheckPhase;
+  /** For a mistake in a body: the top-level class javac was attributing when it found it. */
+  topLevel?: string;
+  /** javac shortened it, and says so once in a note before the count. */
+  compressed?: boolean;
 };
+
+/** javac's order: imports (as written), class headers, member signatures, then method bodies. */
+export const CheckPhase = { Imports: 0, Headers: 1, Members: 2, Bodies: 3 } as const;
+export type CheckPhase = (typeof CheckPhase)[keyof typeof CheckPhase];
+
+/** The top-level class a class is written inside, or the class itself. */
+export function outermost(info: ClassInfo): ClassInfo {
+  let walker = info;
+  while (walker.outer) walker = walker.outer;
+  return walker;
+}
 
 export type SourceFile = { name: string; source: string; unit: Ast.CompilationUnit };
 
@@ -56,6 +73,8 @@ export function preferredPosition(expression: Ast.Expression): Ast.Position {
     default: return expression.position;
   }
 }
+
+type Mismatch = { reason: string; wrongLength: boolean; cause?: string; argument?: number; lossy?: boolean };
 
 function describeKind(info: ClassInfo): string {
   return `${info.kind === "interface" ? "interface" : "class"} ${info.isUser ? info.qualifiedName : info.name}`;
@@ -158,6 +177,7 @@ let nextVariableId = 1;
 
 class Checker {
   diagnostics: Diagnostic[] = [];
+  private phase: CheckPhase = CheckPhase.Imports;
   userClasses: ClassInfo[] = [];
   private lib = library();
   private topLevel = new Map<string, ClassInfo>();
@@ -175,10 +195,12 @@ class Checker {
   constructor(private sources: SourceFile[]) {}
 
   // ---- diagnostics ----------------------------------------------------------
-  private report(at: Ast.Position, message: string, code: string, details: string[] = [], unsupported = false) {
+  private report(at: Ast.Position, message: string, code: string, details: string[] = [], unsupported = false, compressed = false) {
     if (this.diagnostics.some((existing) => existing.file === this.file.name && existing.line === at.line
         && existing.column === at.column && existing.message === message)) return;
-    this.diagnostics.push({ file: this.file.name, line: at.line, column: at.column, message, details, code, unsupported });
+    const topLevel = this.phase === CheckPhase.Bodies && this.currentClass ? outermost(this.currentClass).qualifiedName : undefined;
+    this.diagnostics.push({ file: this.file.name, line: at.line, column: at.column, message, details, code, unsupported, phase: this.phase, topLevel,
+                            ...(compressed ? { compressed } : {}) });
   }
   private unsupported(at: Ast.Position, feature: string) {
     this.report(at, feature, "unsupported", [], true);
@@ -191,11 +213,15 @@ class Checker {
       this.file = context;
       for (const declaration of source.unit.types) this.enterClass(declaration, context, undefined);
     }
+    this.phase = CheckPhase.Imports;
     for (const context of this.files) { this.file = context; this.resolveImports(context); }
+    this.phase = CheckPhase.Headers;
     for (const info of this.userClasses) this.withClass(info, () => this.resolveHeader(info));
     for (const info of this.userClasses) this.withClass(info, () => this.checkCycles(info));
     for (const info of this.userClasses) this.markThrowable(info);
+    this.phase = CheckPhase.Members;
     for (const info of this.userClasses) this.withClass(info, () => this.enterMembers(info));
+    this.phase = CheckPhase.Bodies;
     for (const info of this.userClasses) this.withClass(info, () => this.checkClassRules(info));
     for (const info of this.userClasses) this.withClass(info, () => this.attributeClass(info));
   }
@@ -266,6 +292,8 @@ class Checker {
   }
 
   private resolveImports(context: FileContext) {
+    // javac finds a missing package of a star import only after every single-class import.
+    const missingPackages: Ast.ImportDeclaration[] = [];
     for (const declaration of context.unit.imports) {
       if (declaration.isStatic) {
         const className = declaration.star ? declaration.name : declaration.name.slice(0, declaration.name.lastIndexOf("."));
@@ -277,19 +305,21 @@ class Checker {
         continue;
       }
       if (declaration.star) {
-        if (!this.lib.packages.has(declaration.name) && !this.lib.lookup(declaration.name)) {
-          this.report(declaration.position, `package ${declaration.name} does not exist`, "package-missing");
-        } else context.starImports.push(declaration.name);
+        if (!this.lib.packages.has(declaration.name) && !this.lib.lookup(declaration.name)) missingPackages.push(declaration);
+        else context.starImports.push(declaration.name);
         continue;
       }
       const info = this.lib.lookup(declaration.name) ?? (declaration.name.includes(".") ? undefined : this.topLevel.get(declaration.name));
-      if (!info) { this.reportMissingImport(declaration.position, declaration.name); continue; }
+      if (!info) { this.reportMissingImport(declaration.namePosition, declaration.name); continue; }
       const simple = declaration.name.slice(declaration.name.lastIndexOf(".") + 1);
       const clash = this.topLevel.get(simple);
       if (clash && clash !== info && this.fileOf.get(clash) === context) {
         this.report(declaration.position, `${simple} is already defined in this compilation unit`, "import-clash");
       }
       context.singleImports.set(simple, info);
+    }
+    for (const declaration of missingPackages) {
+      this.report(declaration.namePosition, `package ${declaration.name} does not exist`, "package-missing");
     }
   }
 
@@ -1348,7 +1378,7 @@ class Checker {
   }
 
   /** What a bare name means here: a variable, a class, or the start of a package name. */
-  private nameQualifier(expression: Ast.NameExpression, allowTypes: boolean): Qualifier {
+  private nameQualifier(expression: Ast.NameExpression, allowTypes: boolean, allowPackages = false): Qualifier {
     const name = expression.name;
     const local = this.findLocal(name);
     if (local) {
@@ -1375,15 +1405,16 @@ class Checker {
       expression.resolution = { to: "class", classInfo: info };
       return { kind: "class", classInfo: info };
     }
-    if (allowTypes && this.lib.packages.has(name)) {
-      expression.resolution = { to: "package", name };
-      return { kind: "package", name };
-    }
     const staticImport = this.staticImportedField(name);
     if (staticImport) {
       expression.resolution = { to: "field", field: staticImport, implicitThis: false };
       this.foldField(expression, staticImport);
       return { kind: "value", type: staticImport.type };
+    }
+    if (allowPackages) {
+      // Any name will do as a package here: javac finds out it does not exist only when it looks inside.
+      expression.resolution = { to: "package", name };
+      return { kind: "package", name };
     }
     this.report(expression.position, "cannot find symbol", allowTypes ? "cant-resolve-location" : "cant-resolve-variable",
                 [`symbol:   ${allowTypes ? "variable" : "variable"} ${name}`, `location: ${this.locationText()}`]);
@@ -1454,8 +1485,8 @@ class Checker {
     return undefined;
   }
 
-  private fieldAccessQualifier(expression: Ast.FieldAccess, allowTypes: boolean): Qualifier {
-    const target = this.qualifier(expression.target, true);
+  private fieldAccessQualifier(expression: Ast.FieldAccess, allowTypes: boolean, allowPackages = false): Qualifier {
+    const target = this.qualifier(expression.target, true, allowTypes);
     const name = expression.name;
     if (target.kind === "package") {
       const qualifiedName = `${target.name}.${name}`;
@@ -1465,14 +1496,14 @@ class Checker {
         expression.resolution = { to: "class", classInfo: info };
         return { kind: "class", classInfo: info };
       }
-      if (this.lib.packages.has(qualifiedName) && allowTypes) {
+      if (allowPackages) {
         expression.resolution = { to: "package", name: qualifiedName };
         return { kind: "package", name: qualifiedName };
       }
       if (this.lib.packages.has(target.name) || info) {
         this.report(expression.dotPosition, "cannot find symbol", "cant-resolve-class", [`symbol:   class ${name}`, `location: package ${target.name}`]);
       } else {
-        this.report(expression.target.position, `package ${target.name} does not exist`, "package-missing");
+        this.report(expression.dotPosition, `package ${target.name} does not exist`, "package-missing");
       }
       return { kind: "value", type: ERROR_TYPE };
     }
@@ -1544,16 +1575,19 @@ class Checker {
     return `class ${typeName(type)}`;
   }
 
-  /** The target of a `.`: may be a class or a package as well as a value. */
-  private qualifier(expression: Ast.Expression, allowTypes: boolean): Qualifier {
+  /**
+   * The target of a `.`: may be a class or a package as well as a value. Like javac, a package is
+   * only looked for where a class could follow it - in `a.b.c`, not in `a.b` or `a.b()`.
+   */
+  private qualifier(expression: Ast.Expression, allowTypes: boolean, allowPackages = false): Qualifier {
     if (expression.kind === "Name") {
       if (expression.name === "super") return { kind: "value", type: this.body?.classInfo.superclass ?? ERROR_TYPE };
-      const result = this.nameQualifier(expression, allowTypes);
+      const result = this.nameQualifier(expression, allowTypes, allowPackages);
       if (result.kind === "value") expression.type = result.type;
       return result;
     }
     if (expression.kind === "FieldAccess") {
-      const result = this.fieldAccessQualifier(expression, allowTypes);
+      const result = this.fieldAccessQualifier(expression, allowTypes, allowPackages);
       if (result.kind === "value") expression.type = result.type;
       return result;
     }
@@ -1795,6 +1829,10 @@ class Checker {
       this.report(at, `${methodSignatureText(selection.method)} has private access in ${simpleClassName(info)}`, "private-access");
       return null;
     }
+    if (selection?.method.unsupported) {
+      this.unsupported(at, `creating a ${info.name} from ${selection.parameters.map(typeName).join(" and ")}`);
+      return null;
+    }
     return selection;
   }
 
@@ -1828,27 +1866,38 @@ class Checker {
     }
     // Nothing applies: say why, the way javac does, unless the class is one the runner could not build.
     if (candidates.some((candidate) => this.brokenClasses.has(candidate.method.owner))) return null;
-    if (candidates.length === 1) {
-      const method = candidates[0].method;
-      const parameters = method.parameters.map((parameter) => this.substituteLenient(parameter, candidates[0].substitution));
+    const failures = candidates.map((candidate) => {
+      const parameters = candidate.method.parameters.map((parameter) => this.substituteLenient(parameter, candidate.substitution));
+      return { method: candidate.method, parameters, mismatch: this.mismatch(candidate.method, parameters, argumentTypes) };
+    });
+    // javac leaves out the candidates that take a different number of arguments, when that leaves any.
+    const sameLength = failures.filter((failure) => !failure.mismatch.wrongLength);
+    const shown = sameLength.length ? sameLength : failures;
+    const truncated = shown.length !== failures.length;
+    if (shown.length === 1) {
+      const { method, parameters, mismatch } = shown[0];
+      if (mismatch.cause && mismatch.argument !== undefined) {
+        // One method, one argument of the wrong type: javac says just that, at the argument.
+        this.report(preferredPosition(args[mismatch.argument]), `incompatible types: ${mismatch.cause}`, mismatch.lossy ? "lossy" : "incompatible", [], false, true);
+        return null;
+      }
       const head = constructor
         ? `constructor ${method.owner.name} in ${describeKind(method.owner)} cannot be applied to given types;`
         : `method ${method.name} in ${describeKind(method.owner)} cannot be applied to given types;`;
       this.report(at, head, "cant-apply", [
         `required: ${parameters.length ? parameterText(method, parameters) : "no arguments"}`,
         `found:    ${argumentTypesText(argumentTypes)}`,
-        `reason: ${this.mismatchReason(method, parameters, args, argumentTypes)}`,
-      ]);
+        `reason: ${mismatch.reason}`,
+      ], false, truncated);
       return null;
     }
     const details: string[] = [];
-    for (const candidate of candidates) {
-      const method = candidate.method;
-      const parameters = method.parameters.map((parameter) => this.substituteLenient(parameter, candidate.substitution));
+    for (const { method, parameters, mismatch } of shown) {
       details.push(`    ${constructor ? "constructor" : "method"} ${simpleClassName(method.owner)}.${constructor ? method.owner.name : method.name}(${parameterText(method, parameters)}) is not applicable`);
-      details.push(`      (${this.mismatchReason(method, parameters, args, argumentTypes)})`);
+      details.push(`      (${mismatch.reason})`);
     }
-    this.report(at, `no suitable ${constructor ? "constructor" : "method"} found for ${name}(${argumentTypes.map(typeName).join(",")})`, "no-suitable", details.map((line) => line.slice(2)));
+    this.report(at, `no suitable ${constructor ? "constructor" : "method"} found for ${name}(${argumentTypesText(argumentTypes)})`, "no-suitable",
+                details.map((line) => line.slice(2)), false, truncated);
     return null;
   }
 
@@ -1856,10 +1905,11 @@ class Checker {
     return `${method.isConstructor ? "constructor" : "method"} ${methodSignatureText(method)} in ${simpleClassName(method.owner)}`;
   }
 
-  private mismatchReason(method: MethodInfo, parameters: JavaType[], args: Ast.Expression[], argumentTypes: JavaType[]): string {
+  /** Why a method cannot take these arguments, and which argument is to blame. */
+  private mismatch(method: MethodInfo, parameters: JavaType[], argumentTypes: JavaType[]): Mismatch {
     const fixed = method.varargs ? parameters.length - 1 : parameters.length;
     if (method.varargs ? argumentTypes.length < fixed : argumentTypes.length !== parameters.length) {
-      return "actual and formal argument lists differ in length";
+      return { reason: "actual and formal argument lists differ in length", wrongLength: true };
     }
     for (let index = 0; index < argumentTypes.length; index++) {
       let parameter = parameters[Math.min(index, parameters.length - 1)];
@@ -1867,13 +1917,13 @@ class Checker {
       if (parameter.tag === "typeVariable") continue;
       const result = assignmentConversion(argumentTypes[index], parameter, undefined);
       if (result !== true) {
-        return result === "lossy"
-          ? `argument mismatch; possible lossy conversion from ${typeName(argumentTypes[index])} to ${typeName(parameter)}`
-          : `argument mismatch; ${typeName(argumentTypes[index])} cannot be converted to ${typeName(parameter)}`;
+        const cause = result === "lossy"
+          ? `possible lossy conversion from ${typeName(argumentTypes[index])} to ${typeName(parameter)}`
+          : `${typeName(argumentTypes[index])} cannot be converted to ${typeName(parameter)}`;
+        return { reason: `argument mismatch; ${cause}`, wrongLength: false, cause, argument: index, lossy: result === "lossy" };
       }
-      void args;
     }
-    return "argument mismatch";
+    return { reason: "argument mismatch", wrongLength: false };
   }
 
   /** Can this candidate take these arguments in this phase? (1: no boxing, 2: boxing, 3: varargs) */

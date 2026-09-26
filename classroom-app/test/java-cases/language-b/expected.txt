@@ -9,7 +9,7 @@ Main
 fell through to C
 12
 Index 10 out of bounds for length 2
-begin 2, end 1, length 3
+Range [2, 1) out of bounds for length 3
 For input string: ""
 30 63 0.6832234717598454 false -1068554554583376509
 Numbers until 0: [[1 2 x 3 0]]

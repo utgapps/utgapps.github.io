@@ -9,6 +9,5 @@ Main.java:3: error: cannot find symbol
                             ^
   symbol:   class Scanner
   location: class Main
-  → Scanner lives in java.util: add "import java.util.Scanner;" at the very top of the file.
 2 errors
 [did not compile]

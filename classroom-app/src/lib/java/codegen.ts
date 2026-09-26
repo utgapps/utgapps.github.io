@@ -525,7 +525,8 @@ class Generator {
     return [
       `${collection} = $r.iter($r.nn(${this.expression(iterable)}, ${this.nullMessage(`Cannot invoke "${typeName(iterable.type!)}.iterator()"`, iterable)}));`,
       `${prefix}while (${collection}.hasNext()) {`,
-      `  ${variable.jsName} = ${this.coerce(`${collection}.next()`, elementType, variable.type)};`,
+      `  ${this.lineMarker(statement)}`,
+      `  ${variable.jsName} = ${this.coerce(`${collection}.next()`, elementType, variable.type, 'the return value of "java.util.Iterator.next()"')};`,
       ...this.body(statement.body),
       `}`,
     ];
@@ -535,7 +536,7 @@ class Generator {
     const type = selector.type!;
     if (isString(type)) return `String($r.nn(${this.expression(selector)}, ${this.nullMessage(`Cannot invoke "String.hashCode()"`, selector)}))`;
     const plain = primitiveOf(type);
-    return this.coerce(this.expression(selector), type, plain ?? type);
+    return this.coerce(this.expression(selector), type, plain ?? type, selector);
   }
 
   private caseLabels(switchCase: Ast.SwitchCase): string[] {
@@ -588,7 +589,7 @@ class Generator {
   }
 
   private converted(expression: Ast.Expression, type: JavaType): string {
-    return this.coerce(this.expression(expression), expression.type!, type);
+    return this.coerce(this.expression(expression), expression.type!, type, expression);
   }
 
   private condition(expression: Ast.Expression): string {
@@ -596,7 +597,7 @@ class Generator {
   }
 
   /** Java's conversions between primitives, and boxing and unboxing. */
-  coerce(code: string, from: JavaType | undefined, to: JavaType | undefined): string {
+  coerce(code: string, from: JavaType | undefined, to: JavaType | undefined, source?: Ast.Expression | string): string {
     if (!from || !to || from.tag === "error" || to.tag === "error" || from.tag === "void" || to.tag === "void") return code;
     if (from.tag === "primitive" && to.tag === "primitive") return this.primitiveConversion(code, from.name, to.name);
     if (from.tag === "primitive") {
@@ -606,9 +607,11 @@ class Generator {
       return `$r.b${LETTER[primitiveName]}(${this.primitiveConversion(code, from.name, primitiveName)})`;
     }
     if (to.tag === "primitive") {
-      const source = unboxed(from);
-      if (!source || source.tag !== "primitive") return this.primitiveConversion(`$r.ubx(${code})`, to.name, to.name);
-      return this.primitiveConversion(`$r.ub(${code})`, source.name, to.name);
+      const plain = unboxed(from);
+      if (!plain || plain.tag !== "primitive") return this.primitiveConversion(`$r.ubx(${code})`, to.name, to.name);
+      const box = from.tag === "class" ? from.classInfo.qualifiedName : "java.lang.Object";
+      const message = this.nullMessage(`Cannot invoke "${box}.${plain.name}Value()"`, source);
+      return this.primitiveConversion(`$r.ub(${code}, ${message})`, plain.name, to.name);
     }
     return code;
   }
@@ -649,7 +652,7 @@ class Generator {
       case "Name": return this.name(expression);
       case "FieldAccess": return this.fieldAccess(expression);
       case "ArrayAccess":
-        return `$r.aget(${this.expression(expression.array)}, ${this.converted(expression.index, INT)})`;
+        return `$r.aget(${this.expression(expression.array)}, ${this.converted(expression.index, INT)}, ${this.arrayNullMessage("load from", expression.array)})`;
       case "Call": return this.call(expression);
       case "New": return this.newObject(expression);
       case "NewArray": return this.newArray(expression);
@@ -712,9 +715,17 @@ class Generator {
   }
 
   /** "Cannot invoke ..." + because "name" is null - what Java's helpful NullPointerException says. */
-  private nullMessage(action: string, target: Ast.Expression): string {
-    const description = this.describe(target);
+  private nullMessage(action: string, target: Ast.Expression | string | undefined): string {
+    const description = typeof target === "string" ? target : target && this.describe(target);
     return JSON.stringify(description ? `${action} because ${description} is null` : action);
+  }
+
+  /** The JVM names the kind of array by its load or store instruction: baload serves byte and boolean both. */
+  private arrayNullMessage(action: "load from" | "store to", array: Ast.Expression): string {
+    const element = array.type?.tag === "array" ? array.type.element : undefined;
+    const kind = element?.tag !== "primitive" ? "object"
+      : element.name === "byte" || element.name === "boolean" ? "byte/boolean" : element.name;
+    return this.nullMessage(`Cannot ${action} ${kind} array`, array);
   }
 
   private describe(target: Ast.Expression): string | null {
@@ -734,19 +745,27 @@ class Generator {
       }
       case "ArrayAccess": {
         const inner = this.describe(target.array);
-        return inner ? `"${inner.slice(1, -1)}[...]"` : null;
+        const index = target.index;
+        const shown = index.kind === "Literal" && typeof index.value === "number" ? String(index.value)
+          : index.kind === "Name" && index.resolution?.to === "local" ? index.name : "...";
+        return inner && !inner.startsWith("the ") ? `"${inner.slice(1, -1)}[${shown}]"` : null;
       }
+      case "Cast": return this.describe(target.operand);
+      case "Literal": return target.literalType === "null" ? `"null"` : null;
       case "Call": {
         const method = target.method;
         if (!method) return null;
-        return `the return value of "${this.methodDescription(method)}"`;
+        return `the return value of "${this.methodDescription(method, target.receiverType)}"`;
       }
       default: return null;
     }
   }
 
-  private methodDescription(method: MethodInfo): string {
-    const owner = method.owner.isUser ? binaryName(method.owner) : method.owner.packageName === "java.lang" ? method.owner.name : method.owner.qualifiedName;
+  /** A method as the JVM names it: by the class it was called through, as javac compiles the call
+      (list.get on an ArrayList is "java.util.ArrayList.get(int)"), except that Object's own methods stay Object's. */
+  private methodDescription(method: MethodInfo, receiverType?: JavaType): string {
+    const through = receiverType?.tag === "class" && method.owner.qualifiedName !== "java.lang.Object" ? receiverType.classInfo : method.owner;
+    const owner = through.isUser ? binaryName(through) : through.packageName === "java.lang" ? through.name : through.qualifiedName;
     return `${owner}.${method.name}(${method.parameters.map((parameter) => typeName(parameter)).join(", ")})`;
   }
 
@@ -807,10 +826,7 @@ class Generator {
     if (!target || target.kind === "This") return "this";
     const code = this.expression(target);
     if (this.neverNull(target)) return code;
-    const description = method.owner.isUser ? binaryName(method.owner)
-      : method.owner.packageName === "java.lang" ? method.owner.name : method.owner.qualifiedName;
-    const signature = `${description}.${method.name}(${method.parameters.map((parameter) => typeName(parameter)).join(", ")})`;
-    return `$r.nn(${code}, ${this.nullMessage(`Cannot invoke "${signature}"`, target)})`;
+    return `$r.nn(${code}, ${this.nullMessage(`Cannot invoke "${this.methodDescription(method, call.receiverType)}"`, target)})`;
   }
 
   private neverNull(expression: Ast.Expression): boolean {
@@ -936,7 +952,7 @@ class Generator {
     const operandType = expression.operandType!;
     if (operator === "<<" || operator === ">>" || operator === ">>>") {
       const rightType = expression.right.type!;
-      const right = this.coerce(this.expression(expression.right), rightType, primitiveOf(rightType) ?? rightType);
+      const right = this.coerce(this.expression(expression.right), rightType, primitiveOf(rightType) ?? rightType, expression.right);
       return this.shift(operator, this.converted(expression.left, operandType), right, rightType, operandType);
     }
     if (operator === "==" || operator === "!=") {
@@ -1029,7 +1045,7 @@ class Generator {
     if (target.kind === "ArrayAccess") {
       const array = this.temp(), index = this.temp();
       const setup = [`${array} = ${this.expression(target.array)}`, `${index} = ${this.converted(target.index, INT)}`];
-      return { setup, read: `$r.aget(${array}, ${index})`, write: (value) => `$r.ast(${array}, ${index}, ${value})` };
+      return { setup, read: `$r.aget(${array}, ${index}, ${this.arrayNullMessage("load from", target.array)})`, write: (value) => `$r.ast(${array}, ${index}, ${value})` };
     }
     return { setup: [], read: "undefined", write: (value) => value };
   }
@@ -1046,7 +1062,7 @@ class Generator {
       if (target.kind === "ArrayAccess") {
         const array = this.expression(target.array);
         const index = this.converted(target.index, INT);
-        return `$r.ast(${array}, ${index}, ${this.converted(expression.value, targetType)})`;
+        return `$r.ast(${array}, ${index}, ${this.converted(expression.value, targetType)}, ${this.arrayNullMessage("store to", target.array)})`;
       }
       if (target.kind === "FieldAccess" && target.resolution?.to === "field" && !target.resolution.field.isStatic && target.target.kind !== "This") {
         const field = target.resolution.field;
@@ -1066,10 +1082,10 @@ class Generator {
       combined = `$r.S("" + ${this.stringPiece(place.read, targetType)} + ${piece})`;
     } else {
       const operandType = expression.operandType!;
-      const current = this.coerce(place.read, targetType, operandType);
+      const current = this.coerce(place.read, targetType, operandType, expression.target);
       if (operator === "<<" || operator === ">>" || operator === ">>>") {
         const valueType = expression.value.type!;
-        const distance = this.coerce(this.expression(expression.value), valueType, primitiveOf(valueType) ?? valueType);
+        const distance = this.coerce(this.expression(expression.value), valueType, primitiveOf(valueType) ?? valueType, expression.value);
         combined = this.coerce(this.shift(operator, current, distance, valueType, operandType), operandType, targetType);
       } else {
         const value = this.converted(expression.value, operandType);
@@ -1086,7 +1102,7 @@ class Generator {
     const one = plain.tag === "primitive" && plain.name === "long" ? "1n" : "1";
     const promoted = plain.tag === "primitive" && (plain.name === "long" || plain.name === "double" || plain.name === "float") ? plain : INT;
     const next = (current: string) =>
-      this.coerce(this.arithmetic(operator === "++" ? "+" : "-", this.coerce(current, type, promoted), one, promoted), promoted, type);
+      this.coerce(this.arithmetic(operator === "++" ? "+" : "-", this.coerce(current, type, promoted, operand), one, promoted), promoted, type);
     if (!postfix || discard) return this.sequence([...place.setup, `(${place.write(next(place.read))})`]);
     const old = this.temp();
     return `(${[...place.setup, `${old} = ${place.read}`, place.write(next(old)), old].join(", ")})`;
@@ -1099,7 +1115,7 @@ class Generator {
     if (target.tag === "primitive") {
       if (operandType.tag === "primitive") return this.primitiveConversion(operand, operandType.name, target.name);
       const box = unboxed(operandType);
-      if (box) return this.coerce(operand, operandType, target);
+      if (box) return this.coerce(operand, operandType, target, expression.operand);
       // (int) someObject: check it is an Integer, then unbox.
       const boxType = this.lib.lookup("java.lang." + { int: "Integer", long: "Long", double: "Double", float: "Float", boolean: "Boolean", char: "Character", byte: "Byte", short: "Short" }[target.name])!;
       return this.coerce(this.checkedCast(operand, classType(boxType)), classType(boxType), target);

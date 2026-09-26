@@ -13,7 +13,7 @@
    - an uncaught exception's trace lists only the student's frames, never the
      JDK's own (java.base/java.util.Scanner.throwFor and the like). */
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadJava, runJava } from "./java-load.mjs";
 
@@ -32,27 +32,32 @@ export async function consoleFor(caseFolder) {
   return run.output + (run.output.endsWith("\n") || !run.output ? "" : "\n") + `[exit ${run.status}]\n`;
 }
 
-let failures = 0;
-const cases = readdirSync(casesFolder, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-for (const name of cases) {
-  const folder = join(casesFolder, name);
-  const actual = await consoleFor(folder);
-  const expectedFile = join(folder, "expected.txt");
-  if (update) {
-    writeFileSync(expectedFile, actual);
-    console.log(`  wrote  ${name}`);
-    continue;
+// Imported by java-vs-jdk.mjs for consoleFor(); the suite runs only when this file is run.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) await checkEveryCase();
+
+async function checkEveryCase() {
+  let failures = 0;
+  const cases = readdirSync(casesFolder, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  for (const name of cases) {
+    const folder = join(casesFolder, name);
+    const actual = await consoleFor(folder);
+    const expectedFile = join(folder, "expected.txt");
+    if (update) {
+      writeFileSync(expectedFile, actual);
+      console.log(`  wrote  ${name}`);
+      continue;
+    }
+    const expected = existsSync(expectedFile) ? readFileSync(expectedFile, "utf8").replace(/\r\n/g, "\n") : null;
+    if (expected === actual) { console.log(`  ok     ${name}`); continue; }
+    failures++;
+    console.log(`  WRONG  ${name}`);
+    const expectedLines = (expected ?? "").split("\n"), actualLines = actual.split("\n");
+    for (let line = 0, shown = 0; line < Math.max(expectedLines.length, actualLines.length) && shown < 6; line++) {
+      if (expectedLines[line] === actualLines[line]) continue;
+      shown++;
+      console.log(`         line ${line + 1}\n           expected ${JSON.stringify(expectedLines[line])}\n           actual   ${JSON.stringify(actualLines[line])}`);
+    }
   }
-  const expected = existsSync(expectedFile) ? readFileSync(expectedFile, "utf8").replace(/\r\n/g, "\n") : null;
-  if (expected === actual) { console.log(`  ok     ${name}`); continue; }
-  failures++;
-  console.log(`  WRONG  ${name}`);
-  const expectedLines = (expected ?? "").split("\n"), actualLines = actual.split("\n");
-  for (let line = 0, shown = 0; line < Math.max(expectedLines.length, actualLines.length) && shown < 6; line++) {
-    if (expectedLines[line] === actualLines[line]) continue;
-    shown++;
-    console.log(`         line ${line + 1}\n           expected ${JSON.stringify(expectedLines[line])}\n           actual   ${JSON.stringify(actualLines[line])}`);
-  }
+  if (!update) console.log(failures ? `${failures} of ${cases.length} cases differ` : `all ${cases.length} cases match`);
+  process.exit(failures ? 1 : 0);
 }
-if (!update) console.log(failures ? `${failures} of ${cases.length} cases differ` : `all ${cases.length} cases match`);
-process.exit(failures ? 1 : 0);

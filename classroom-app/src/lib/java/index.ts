@@ -13,9 +13,8 @@
 
    Correct Java this runner cannot run yet (enums, generic classes...) is kept
    apart and said plainly: it is not the student's mistake. */
-import { JavaSyntaxError } from "./lexer";
-import { parse } from "./parser";
-import { check, type Diagnostic, type SourceFile } from "./checker";
+import { parse, JavaSyntaxErrors } from "./parser";
+import { check, outermost, CheckPhase, type Diagnostic, type SourceFile } from "./checker";
 import { analyzeFlow } from "./flow";
 import { generate } from "./codegen";
 import { erasedDescriptor, type ClassInfo } from "./types";
@@ -34,7 +33,7 @@ export function compileJava(files: JavaFile[]): CompileResult {
   if (!javaFiles.length) return { ok: false, text: "error: no .java files to compile\n", onlyUnsupported: false };
   const sources = new Map(javaFiles.map((file) => [baseName(file.name), file.source]));
 
-  // Parse every file first: a syntax error stops that file, as it does javac.
+  // Parse every file first. Any syntax error stops the compile before types are checked, as it does javac.
   const parsed: SourceFile[] = [];
   const syntaxErrors: Diagnostic[] = [];
   for (const file of javaFiles) {
@@ -42,16 +41,18 @@ export function compileJava(files: JavaFile[]): CompileResult {
     try {
       parsed.push({ name, source: file.source, unit: parse(file.source, name) });
     } catch (error) {
-      if (!(error instanceof JavaSyntaxError)) throw error;
-      syntaxErrors.push({ file: name, line: error.line, column: error.column, message: error.message, details: [], code: error.code });
+      if (!(error instanceof JavaSyntaxErrors)) throw error;
+      for (const found of error.errors) {
+        syntaxErrors.push({ file: name, line: found.line, column: found.column, message: found.message, details: [], code: found.code });
+      }
     }
   }
-  if (syntaxErrors.length) return failure(syntaxErrors, sources);
+  // In the order javac found them, which is not always left to right.
+  if (syntaxErrors.length) return failure(syntaxErrors, sources, { sorted: false });
 
   const checked = check(parsed);
-  if (checked.diagnostics.length) return failure(checked.diagnostics, sources);
-  const flowProblems = analyzeFlow(checked.classes);
-  if (flowProblems.length) return failure(flowProblems, sources);
+  const mistakes = inJavacOrder(checked.classes, checked.diagnostics, sources);
+  if (mistakes.length) return failure(mistakes, sources, { sorted: false });
 
   const entry = findEntry(checked.classes, parsed);
   if (typeof entry === "string") return { ok: false, text: entry, onlyUnsupported: false };
@@ -81,20 +82,54 @@ function findEntry(classes: ClassInfo[], parsed: SourceFile[]): ClassInfo | stri
     + `      public static void main(String[] args) {\n          ...\n      }\n`;
 }
 
-function failure(diagnostics: Diagnostic[], sources: Map<string, string>): CompileResult {
+/** javac enters every class, then takes one top-level class at a time: its bodies, and then,
+    only while nothing at all has been found wrong, its flow. So a second class's flow
+    mistakes wait until the first class's are fixed, as they do with javac. */
+function inJavacOrder(classes: ClassInfo[], diagnostics: Diagnostic[], sources: Map<string, string>): Diagnostic[] {
+  const order = [...sources.keys()];
+  const byPosition = (first: Diagnostic, second: Diagnostic) =>
+    order.indexOf(first.file) - order.indexOf(second.file) || first.line - second.line || first.column - second.column;
+  // Imports in the order javac checks them; each later pass by place.
+  const byPhase = (first: Diagnostic, second: Diagnostic) => (first.phase ?? 0) - (second.phase ?? 0)
+    || (first.phase === CheckPhase.Imports ? 0 : byPosition(first, second));
+  const topLevels = classes.filter((info) => !info.outer);
+  const attributing = (diagnostic: Diagnostic) => topLevels.some((info) => info.qualifiedName === diagnostic.topLevel);
+  const ordered = diagnostics.filter((diagnostic) => !attributing(diagnostic)).sort(byPhase);
+  // Code the classroom cannot run yet is never checked for flow: the runner would stop there anyway.
+  const canFlow = !diagnostics.some((diagnostic) => diagnostic.unsupported);
+  let found = ordered.filter((diagnostic) => !diagnostic.unsupported).length;
+  for (const topLevel of topLevels) {
+    const inBodies = diagnostics.filter((diagnostic) => diagnostic.topLevel === topLevel.qualifiedName).sort(byPosition);
+    ordered.push(...inBodies);
+    found += inBodies.filter((diagnostic) => !diagnostic.unsupported).length;
+    if (found || !canFlow) continue;
+    const flowMistakes = analyzeFlow(classes.filter((info) => outermost(info) === topLevel));
+    ordered.push(...flowMistakes);
+    found += flowMistakes.length;
+  }
+  return ordered;
+}
+
+function failure(diagnostics: Diagnostic[], sources: Map<string, string>, { sorted = true } = {}): CompileResult {
   const mistakes = diagnostics.filter((diagnostic) => !diagnostic.unsupported);
   const unsupported = diagnostics.filter((diagnostic) => diagnostic.unsupported);
   const order = [...sources.keys()];
   const byPosition = (first: Diagnostic, second: Diagnostic) =>
     order.indexOf(first.file) - order.indexOf(second.file) || first.line - second.line || first.column - second.column;
-  mistakes.sort(byPosition);
+  if (sorted) mistakes.sort(byPosition);
   unsupported.sort(byPosition);
 
   const out: string[] = [];
+  const hinted = new Set<string>();
   for (const diagnostic of mistakes.slice(0, MAX_REPORTED)) {
     out.push(formatDiagnostic(diagnostic, sources));
+    // Once is enough: three missing semicolons need one explanation.
     const hint = hintFor(diagnostic);
-    if (hint) out.push(`  \u2192 ${hint}`);
+    if (hint && !hinted.has(hint)) out.push(`  \u2192 ${hint}`);
+    if (hint) hinted.add(hint);
+  }
+  if (mistakes.some((diagnostic) => diagnostic.compressed)) {
+    out.push("Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output");
   }
   if (mistakes.length) out.push(mistakes.length === 1 ? "1 error" : `${mistakes.length} errors`);
   if (unsupported.length) {
@@ -136,6 +171,12 @@ function hintFor(diagnostic: Diagnostic): string | null {
     if (symbol.startsWith("class ")) return `Java is case-sensitive: check the capitals in ${symbol.slice(6)}.`;
     return null;
   }
+  const guessedPackage = /^package (\w+) does not exist$/.exec(message);
+  if (guessedPackage && diagnostic.phase !== CheckPhase.Imports) {
+    // javac calls an unknown name a package when a dot follows it twice: system.out.println.
+    return `No variable or class is named ${guessedPackage[1]}, so Java guessed it was a package. Check its spelling and capitals${
+      guessedPackage[1].toLowerCase() === "system" ? ": System starts with a capital S" : ""}.`;
+  }
   if (message === "';' expected") return "Every statement ends with a semicolon: add the missing one where the caret points.";
   if (message === "missing return statement") return "Every path through this method must reach a return, including the path where no if matches.";
   if (/might not have been initialized/.test(message)) return "Give the variable a starting value where you declare it, or make sure every path assigns it before this line.";
@@ -144,6 +185,7 @@ function hintFor(diagnostic: Diagnostic): string | null {
   if (/int cannot be converted to String/.test(message)) return "To turn a number into text, use String.valueOf(number), or \"\" + number.";
   if (message === "unreachable statement") return "Nothing after a return, break, continue or throw in the same block can ever run: move or remove it.";
   if (/^class, interface, enum, or record expected$/.test(message)) return "There is probably an extra closing brace } above this line, so this code has fallen outside the class.";
+  if (message === "statements not expected outside of methods and initializers") return "This line is outside every method. Look for a closing brace } above it that ends the method too early.";
   if (message === "reached end of file while parsing") return "An opening brace { has no matching closing brace }. Count them in the method above.";
   if (/^incomparable types: String and/.test(message) || /^bad operand types for binary operator/.test(message)) return null;
   if (/non-static (variable|method) .* cannot be referenced from a static context/.test(message)) {

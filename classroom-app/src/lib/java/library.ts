@@ -10,6 +10,8 @@
        [static] [<T>] ReturnType name(Parameters) [throws X] [!] [=> runtimeName]
 
    `!` marks a method that can wait - for the keyboard, or Thread.sleep.
+   A trailing `~` marks one the real class has but the classroom cannot run:
+   it is there so a wrong call lists what javac lists, in javac's order.
 
    A `~` line lists methods the real class has that the classroom cannot run
    yet. Calling one is reported as "not supported here", never as a mistake:
@@ -67,7 +69,7 @@ final class java.lang.String implements Comparable<String>, CharSequence
   boolean contains(CharSequence)
   boolean equals(Object)
   boolean equalsIgnoreCase(String)
-  boolean contentEquals(CharSequence) => String_equals
+  boolean contentEquals(CharSequence)
   int compareTo(String)
   int compareToIgnoreCase(String)
   String toUpperCase()
@@ -110,8 +112,8 @@ final class java.lang.String implements Comparable<String>, CharSequence
 
 final class java.lang.StringBuilder implements CharSequence, Comparable<StringBuilder>
   new () => StringBuilder_new_
-  new (String) => StringBuilder_new_String
   new (int) => StringBuilder_new_I
+  new (String) => StringBuilder_new_String
   new (CharSequence) => StringBuilder_new_String
   StringBuilder append(String) => StringBuilder_append_Object
   StringBuilder append(char) => StringBuilder_append_C
@@ -423,8 +425,22 @@ final class java.lang.Thread
   ~ currentThread start join run interrupt yield onSpinWait
 
 final class java.util.Scanner
+  private new (Readable, Pattern) ~
+  new (Readable) ~
   new (InputStream) => Scanner_new_InputStream
+  new (InputStream, String) ~
+  new (InputStream, Charset) ~
+  new (File) ~
+  new (File, String) ~
+  new (File, Charset) ~
+  private new (File, CharsetDecoder) ~
+  new (Path) ~
+  new (Path, String) ~
+  new (Path, Charset) ~
   new (String) => Scanner_new_String
+  new (ReadableByteChannel) ~
+  new (ReadableByteChannel, String) ~
+  new (ReadableByteChannel, Charset) ~
   String nextLine() !
   String next() !
   int nextInt() !
@@ -643,6 +659,7 @@ const REAL_BUT_UNSUPPORTED = [
   "java.util.function.Predicate", "java.util.function.BiFunction",
   "java.util.stream.Stream", "java.util.stream.IntStream", "java.util.stream.Collectors",
   "java.nio.file.Files", "java.nio.file.Path", "java.nio.file.Paths",
+  "java.util.regex.Pattern", "java.nio.charset.Charset", "java.nio.charset.CharsetDecoder", "java.nio.channels.ReadableByteChannel",
 ];
 
 // Annotations are accepted and (except @Override) ignored.
@@ -711,6 +728,7 @@ export function library(): Library {
       unsupported: `the ${simpleName} class`,
     };
     classes.set(qualifiedName, info);
+    if (!bySimpleName.has(simpleName)) bySimpleName.set(simpleName, info);
     addPackages(qualifiedName);
   }
 
@@ -768,9 +786,10 @@ export function library(): Library {
         info.fields.set(name, field);
         continue;
       }
+      const listedOnly = /~\s*$/.test(signature);
       const blocking = /!\s*$/.test(signature);
-      const cleaned = signature.replace(/!\s*$/, "").trim();
-      const methodMatch = cleaned.match(/^((?:static |abstract )*)(?:<(\w+)> )?(?:([\w<>\[\]?, ]+?) )?(\w+|new) ?\(([^)]*)\)(?: throws ([\w, ]+))?$/);
+      const cleaned = signature.replace(/[!~]\s*$/, "").trim();
+      const methodMatch = cleaned.match(/^((?:static |abstract |private )*)(?:<(\w+)> )?(?:([\w<>\[\]?, ]+?) )?(\w+|new) ?\(([^)]*)\)(?: throws ([\w, ]+))?$/);
       if (!methodMatch) throw new Error("library: bad method line " + line);
       const [, modifiers, methodTypeParameter, returnText, name, parameterText, throwsText] = methodMatch;
       const methodTypeParameters = methodTypeParameter ? [methodTypeParameter] : [];
@@ -784,11 +803,12 @@ export function library(): Library {
         parameterNames: parameters.map((_parameter, index) => "arg" + index),
         varargs: parameterTexts.some((text) => text.trim().endsWith("...")),
         returnType: isConstructor ? classType(info) : parseType(returnText, inScope),
-        isStatic: modifiers.includes("static"), isAbstract: modifiers.includes("abstract"), isPrivate: false,
+        isStatic: modifiers.includes("static"), isAbstract: modifiers.includes("abstract"), isPrivate: modifiers.includes("private"),
         isConstructor, typeParameters: methodTypeParameters,
         throws: throwsText ? throwsText.split(",").map((text) => parseType(text, [])) : [],
         jsName: "", blocking,
-        runtime: runtimeName ?? (isConstructor
+        ...(listedOnly ? { unsupported: true } : {}),
+        runtime: listedOnly ? undefined : runtimeName ?? (isConstructor
           ? `${info.name}_new_${descriptor}`
           : (nameCounts.get(name) ?? 0) > 1 ? `${info.name}_${name}_${descriptor}` : `${info.name}_${name}`),
       };

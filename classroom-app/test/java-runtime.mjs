@@ -36,6 +36,8 @@ for (const info of table.classes.values()) {
     }
   }
   for (const method of [...info.methods, ...info.constructors]) {
+    // Listed so a wrong call reads as javac's does; the checker never lets one through to run.
+    if (method.unsupported) continue;
     checked++;
     if (method.runtime) {
       if (typeof runtime[method.runtime] !== "function") problems.push(`${info.name}.${method.name}(): runtime.${method.runtime} is missing`);

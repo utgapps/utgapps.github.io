@@ -18,7 +18,9 @@ import { type Diagnostic, callParenPosition } from "./checker";
 import { library } from "./library";
 
 type Assigned = Set<string> | null;
-type FlowState = { alive: boolean; assigned: Assigned };
+/** `recovering`: alive only because javac carries on after an unreachable statement, which
+    it will not then call a missing return (javac's Liveness.RECOVERY). */
+type FlowState = { alive: boolean; assigned: Assigned; recovering?: boolean };
 
 type JumpTarget = {
   kind: "loop" | "switch" | "label" | "switchExpression";
@@ -59,13 +61,23 @@ function join(states: FlowState[]): FlowState {
   if (!live.length) return { alive: false, assigned: null };
   let assigned: Assigned = null;
   for (const state of live) assigned = intersect(assigned, state.assigned);
-  return { alive: true, assigned };
+  // Any path that is really alive makes the join alive; only recovering paths keep it recovering.
+  return live.every((state) => state.recovering) ? { alive: true, assigned, recovering: true } : { alive: true, assigned };
 }
 const DEAD: FlowState = { alive: false, assigned: null };
 
 const localKey = (id: number) => "L" + id;
 const fieldKey = (field: FieldInfo) => "F" + field.name;
 
+/** javac runs its analyzers one after another over a whole class: liveness first, then
+    definite assignment, then exceptions. Each diagnostic code belongs to one of them. */
+const ANALYZER_ORDER: Record<string, number> = {
+  "unreachable": 0, "missing-return": 0, "initializer-complete": 0, "switch-rule-no-value": 0, "switch-no-value": 0,
+  "var-might-not-have-been-initialized": 1, "var-might-already-be-assigned": 1,
+  "unreported-exception": 2, "already-caught": 2, "never-thrown": 2,
+};
+
+/** The flow mistakes in these classes (one top-level class and those inside it), in javac's order. */
 export function analyzeFlow(classes: ClassInfo[]): Diagnostic[] {
   const analyzer = new FlowAnalyzer();
   for (const info of classes) {
@@ -75,7 +87,9 @@ export function analyzeFlow(classes: ClassInfo[]): Diagnostic[] {
       if (!analyzer.diagnostics.length) throw error;
     }
   }
-  return analyzer.diagnostics;
+  // A stable sort: within one analyzer, the order it found them in.
+  const rank = (diagnostic: Diagnostic) => ANALYZER_ORDER[diagnostic.code] ?? 3;
+  return analyzer.diagnostics.sort((first, second) => rank(first) - rank(second));
 }
 
 class FlowAnalyzer {
@@ -181,7 +195,7 @@ class FlowAnalyzer {
     this.resetBody(info.throws);
     const start = this.declareParameters(member.parameters, { alive: true, assigned: new Set() });
     const end = this.block(member.body!, start);
-    if (end.alive && info.returnType.tag !== "void") {
+    if (end.alive && !end.recovering && info.returnType.tag !== "void") {
       this.report(member.body!.closePosition, "missing return statement", "missing-return");
     }
   }
@@ -250,7 +264,7 @@ class FlowAnalyzer {
           reportedUnreachable = true;
         }
         // Carry on as if it could run, so one mistake does not cascade.
-        state = { alive: true, assigned: null };
+        state = { alive: true, assigned: null, recovering: true };
       }
       state = this.statement(statement, state);
     }

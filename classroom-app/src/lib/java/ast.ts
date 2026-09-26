@@ -47,7 +47,7 @@ export type FieldAccess = Checked & {
     | { to: "class"; classInfo: ClassInfo }
     | { to: "package"; name: string };
 };
-export type ArrayAccess = Checked & { kind: "ArrayAccess"; array: Expression; index: Expression };
+export type ArrayAccess = Checked & { kind: "ArrayAccess"; array: Expression; index: Expression; bracketPosition: Position };
 export type MethodCall = Checked & {
   kind: "Call"; target: Expression | null; name: string; args: Expression[];
   namePosition: Position; dotPosition?: Position;
@@ -76,7 +76,7 @@ export type Assignment = Checked & {
   kind: "Assign"; operator: string; target: Expression; value: Expression; operatorPosition: Position;
   operandType?: JavaType;
 };
-export type Conditional = Checked & { kind: "Conditional"; condition: Expression; whenTrue: Expression; whenFalse: Expression };
+export type Conditional = Checked & { kind: "Conditional"; condition: Expression; whenTrue: Expression; whenFalse: Expression; questionPosition: Position };
 export type Cast = Checked & { kind: "Cast"; typeNode: TypeNode; operand: Expression };
 export type InstanceOf = Checked & { kind: "InstanceOf"; operand: Expression; typeNode: TypeNode; binding: string | null; operatorPosition: Position };
 export type This = Checked & { kind: "This" };
@@ -167,7 +167,10 @@ export type ClassDeclaration = {
 
 export type Member = FieldDeclaration | MethodDeclaration | ConstructorDeclaration | InitializerBlock | ClassDeclaration;
 
-export type ImportDeclaration = { name: string; star: boolean; isStatic: boolean; position: Position };
+export type ImportDeclaration = {
+  name: string; star: boolean; isStatic: boolean; position: Position;
+  namePosition: Position;   // where javac points when the name is wrong
+};
 
 export type CompilationUnit = {
   file: string;
