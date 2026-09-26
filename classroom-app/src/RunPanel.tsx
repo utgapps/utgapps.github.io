@@ -3,6 +3,7 @@ import { GAME_KIND } from "./lib/types";
 import type { ProjectKind } from "./lib/types";
 import { buildPreview, isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { buildGamePreview, useGameAudio } from "./lib/game-project";
+import { usePreviewPages } from "./lib/usePreviewPages";
 
 function sameFiles(a: Record<string, string>, b: Record<string, string>) {
   const keys = Object.keys(a);
@@ -34,6 +35,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
      purple squares only when they ask for it. The frame is told again on every
      load: pressing Run builds a new document, which knows nothing. */
   const [debug, setDebug] = useState(false);
+  const pages = usePreviewPages();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const tailRef = useRef<HTMLDivElement | null>(null);
   const stale = runFiles !== null && !sameFiles(runFiles, files);
@@ -42,6 +44,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
   function run() {
     const next = crypto.randomUUID();
     setLog([]); setNonce(next); setRunFiles({ ...files }); setRunId((id) => id + 1);
+    pages.keep(files);
     if (!game) setFull(true);
   }
   function tellFrameDebug(on: boolean) {
@@ -50,7 +53,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
   function stop() {
     // Unmounting is the only reliable way to stop a page's timers, listeners
     // and in-flight requests. Clearing srcDoc would leave them running.
-    setRunFiles(null); setNonce(""); setFull(false);
+    setRunFiles(null); setNonce(""); setFull(false); pages.reset();
     setLog((prev) => [...prev, { __utg: "", kind: "system", text: "Stopped.", at: Date.now() }]);
   }
 
@@ -58,11 +61,14 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
     function onMessage(event: MessageEvent) {
       const msg = isPreviewMessage(event, frameRef.current, nonce);
       if (!msg) return; // includes stale output from a previous run, dropped by nonce
-      setLog((prev) => (prev.length >= 300 ? [...prev.slice(-299), msg] : [...prev, msg]));
+      // A link asking for another page is acted on, and logged as what it did.
+      const line = msg.kind === "navigate" || msg.kind === "open" ? (runFiles && pages.follow(msg, runFiles)) : msg;
+      if (!line) return;
+      setLog((prev) => (prev.length >= 300 ? [...prev.slice(-299), line] : [...prev, line]));
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [nonce]);
+  });
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -92,6 +98,10 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
       <strong>{game ? "Game" : "Preview"}</strong>
       {stale && <span className="stale-hint">Your code changed since you last ran it</span>}
       <button className={stale || !runFiles ? "primary compact" : "text-button"} onClick={run}>{runFiles ? "Run again" : "▶ Run"}</button>
+      {runFiles && !game && pages.canGoBack && <>
+        <span className="preview-page">{pages.page.split("#")[0]}</span>
+        <button className="text-button" onClick={pages.back}>&larr; Back</button>
+      </>}
       {runFiles && !game && <button className="text-button" onClick={() => setFull(true)}>Full screen</button>}
       {runFiles && game && <button className={debug ? "text-button pressed" : "text-button"} title="Show the game's own debug bar"
                                    onClick={() => { setDebug(!debug); tellFrameDebug(!debug); }}>Debug</button>}
@@ -102,6 +112,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
         where the exit went. The console is hidden while full screen, so an
         error says so here rather than waiting silently underneath. */}
     {full && <div className="preview-exit">
+      {pages.canGoBack && <button className="secondary" onClick={pages.back}>&larr; Back</button>}
       <button className="secondary" onClick={() => setFull(false)}>✕ Exit full screen</button>
       {errorCount > 0 && <button className="exit-errors" onClick={() => setFull(false)}>
         {errorCount === 1 ? "1 error — exit to read it" : `${errorCount} errors — exit to read them`}
@@ -110,7 +121,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
     {runFiles
       ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
                 onLoad={() => { if (game && debug) tellFrameDebug(true); }}
-                srcDoc={game ? buildGamePreview(runFiles, nonce, audio) : buildPreview(runFiles, nonce)} />
+                srcDoc={game ? buildGamePreview(runFiles, nonce, audio) : buildPreview(runFiles, nonce, pages.page)} />
       : <div className="preview-idle">
           <p>Press <strong>▶ Run</strong> to {game ? "play your game" : "see your project"}.</p>
           <p className="muted">{game

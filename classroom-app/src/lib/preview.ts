@@ -7,7 +7,9 @@
 // reach the classroom app's own storage - and it is why the console panel needs
 // a shim rather than just reading the frame's console.
 
-export type PreviewMessageKind = "log" | "warn" | "error" | "net" | "info" | "system";
+/* "navigate" and "open" are requests, not output: a link in the page asking
+   the parent to show another page of the project, or a site outside it. */
+export type PreviewMessageKind = "log" | "warn" | "error" | "net" | "info" | "system" | "navigate" | "open";
 export type PreviewMessage = { __utg: string; kind: PreviewMessageKind; text: string; at: number };
 
 const MAX_MESSAGES = 500;
@@ -117,10 +119,16 @@ function inlineAssets(source: string, files: Record<string, string>, fromDir: st
   return { html, missing };
 }
 
+/** JSON for inside a <script>: a #fragment comes from the student's own href,
+ *  and a </script> in it must not end the shim early. */
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
 /* The shim is injected as the FIRST script so it captures errors thrown by the
    student's own code further down the document. Everything is inside one
    try/catch: a broken shim must never stop the project from running. */
-function shim(nonce: string, ranges: FileRange[]): string {
+function shim(nonce: string, ranges: FileRange[], page: string, hash: string, names: string[]): string {
   return `
 try {
   var __utgNonce = ${JSON.stringify(nonce)};
@@ -233,7 +241,77 @@ try {
     };
   }
 
-  window.addEventListener("load", function () { __utgPost("system", "Running."); });
+  /* Links. The preview is a srcdoc document, and a srcdoc document takes its
+     base URL from the page AROUND it - so href="about.html" meant
+     utgapps.github.io/classroom/about.html, and clicking it loaded the
+     classroom app, or a 404, inside the preview. href="#menu" did the same.
+     Every link is settled here instead, on the way out of the page, so the
+     student's own click handlers run first and a preventDefault in them still
+     wins. A project page is opened by the parent, which has the files; a
+     site outside the project opens in a new tab, which the sandbox will not. */
+  var __utgPage = ${scriptJson(page)};
+  var __utgNames = ${scriptJson(names)};
+  var __utgOutside = /^([a-z][a-z0-9+.-]*:|\\/\\/)/i;
+  function __utgResolve(reference) {
+    var raw = reference.split("#")[0].split("?")[0].replace(/\\\\/g, "/");
+    var out = raw.charAt(0) === "/" ? [] : __utgPage.split("/").slice(0, -1);
+    var parts = raw.split("/");
+    for (var i = 0; i < parts.length; i++) {
+      if (!parts[i] || parts[i] === ".") continue;
+      if (parts[i] === "..") { out.pop(); continue; }
+      out.push(parts[i]);
+    }
+    return out.join("/") || __utgPage;
+  }
+  function __utgScrollTo(hash) {
+    var id = hash.slice(1);
+    try { id = decodeURIComponent(id); } catch (e) {}
+    if (!id || id.toLowerCase() === "top") { window.scrollTo(0, 0); return; }
+    var target = document.getElementById(id) || document.getElementsByName(id)[0];
+    if (target) target.scrollIntoView();
+  }
+  /* Where a link or a form sends the page: another page of this project, or
+     nowhere, with the reason in the console. */
+  function __utgOpenPage(reference, what) {
+    var name = __utgResolve(reference);
+    var cut = reference.indexOf("#");
+    if (__utgNames.indexOf(name) === -1) {
+      __utgPost("error", __utgPage + " " + what + ' "' + reference + '", but this project has no file at that path.');
+    } else if (!/\\.html?$/i.test(name)) {
+      __utgPost("error", __utgPage + " " + what + ' "' + reference + '", which is not a page - the preview opens only .html files.');
+    } else {
+      __utgPost("navigate", name + (cut === -1 ? "" : reference.slice(cut)));
+    }
+  }
+  window.addEventListener("click", function (event) {
+    if (event.defaultPrevented || event.button !== 0) return;
+    var link = event.target && event.target.closest ? event.target.closest("a[href], area[href]") : null;
+    if (!link) return;
+    var href = (link.getAttribute("href") || "").trim();
+    if (/^javascript:/i.test(href)) return;
+    event.preventDefault();
+    if (href.charAt(0) === "#") __utgScrollTo(href);
+    else if (__utgOutside.test(href)) __utgPost("open", href);
+    else __utgOpenPage(href, "links to");
+  });
+  /* A form with no preventDefault in its submit handler loads its page again -
+     or its action - exactly as on the real web. Left to the browser, it
+     loaded the classroom app into the preview instead. */
+  window.addEventListener("submit", function (event) {
+    if (event.defaultPrevented) return;
+    var form = event.target;
+    var action = ((form && form.getAttribute && form.getAttribute("action")) || "").trim();
+    if (__utgOutside.test(action)) return;       // a real server: let it go there
+    event.preventDefault();
+    __utgPost("info", "The form was sent, so the page loaded again. To stay on the page, call event.preventDefault() in its submit handler.");
+    __utgOpenPage(action || __utgPage, "sends its form to");
+  });
+
+  window.addEventListener("load", function () {
+    __utgPost("system", "Running.");
+    var hash = ${scriptJson(hash)};
+    if (hash) __utgScrollTo(hash);
+  });
 } catch (e) {}
 `.trim();
 }
@@ -271,22 +349,28 @@ function fileRanges(before: string, html: string): FileRange[] {
   return ranges;
 }
 
-export function buildPreview(files: Record<string, string>, nonce: string): string {
-  const source = files[ENTRY_FILE];
+/** `page` is the project file to show, with any #fragment a link asked for:
+ *  index.html unless a link in the running page opened another one. */
+export function buildPreview(files: Record<string, string>, nonce: string, page: string = ENTRY_FILE): string {
+  const cut = page.indexOf("#");
+  const name = cut === -1 ? page : page.slice(0, cut);
+  const hash = cut === -1 ? "" : page.slice(cut);
+  const names = Object.keys(files);
+  const source = files[name];
   if (source === undefined) {
-    return `<script>${shim(nonce, [])}<\/script>` +
+    return `<script>${shim(nonce, [], name, "", names)}<\/script>` +
       `<main style="font:16px/1.6 system-ui;padding:2rem;color:#5b7178">` +
       `<h1 style="font-size:20px;color:#1f2a37">No ${ENTRY_FILE} yet</h1>` +
       `<p>The preview shows <b>${ENTRY_FILE}</b>. Make a file with that exact name and press Run again.</p>` +
       `</main>`;
   }
-  const { html, missing } = inlineAssets(source, files, dirOf(ENTRY_FILE));
+  const { html, missing } = inlineAssets(source, files, dirOf(name));
   // Reported through the console panel, because a stylesheet that silently
   // does nothing is the single most baffling thing that can happen to a
   // beginner. Naming the file turns it into a two-second fix.
   const warn = missing.length
-    ? `<script>${missing.map((name) =>
-        `console.error(${JSON.stringify(`${ENTRY_FILE} asks for "${name}", but this project has no file at that path.`)});`
+    ? `<script>${missing.map((missingName) =>
+        `console.error(${JSON.stringify(`${name} asks for "${missingName}", but this project has no file at that path.`)});`
       ).join("")}<\/script>`
     : "";
   // Two passes: the shim needs the ranges, and the ranges depend on how many
@@ -294,12 +378,24 @@ export function buildPreview(files: Record<string, string>, nonce: string): stri
   // JSON.stringify puts the map on one line, so the shift is normally zero -
   // this just refuses to depend on that staying true.
   const countLines = (text: string) => text.split(/\r?\n/).length;
-  const probe = `<script>${shim(nonce, [])}<\/script>${warn}`;
+  const probe = `<script>${shim(nonce, [], name, hash, names)}<\/script>${warn}`;
   const ranges = fileRanges(probe, html);
-  const real = `<script>${shim(nonce, ranges)}<\/script>${warn}`;
+  const real = `<script>${shim(nonce, ranges, name, hash, names)}<\/script>${warn}`;
   const shift = countLines(real) - countLines(probe);
   const fixed = shift ? ranges.map((r) => ({ ...r, from: r.from + shift, to: r.to + shift })) : ranges;
-  return `<script>${shim(nonce, fixed)}<\/script>${warn}${html}`;
+  return `<script>${shim(nonce, fixed, name, hash, names)}<\/script>${warn}${html}`;
+}
+
+/** Opens a link from the preview in a new tab - the sandbox has no
+ *  allow-popups, so the page cannot. Only the kinds of address a link is
+ *  for, nothing that runs code. The click in the frame counts as a click
+ *  here too, so the browser allows the tab. Returns false when it did not
+ *  open, so the console can say so. */
+export function openOutside(url: string): boolean {
+  if (!/^(https?:|mailto:)/i.test(url)) return false;
+  const opened = window.open(url, "_blank");
+  if (opened) opened.opener = null;
+  return !!opened;
 }
 
 /** True when the message really came from the running preview.

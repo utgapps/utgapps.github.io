@@ -12,7 +12,8 @@ import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
 import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
-import { buildPreview, ENTRY_FILE, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
+import { buildPreview, ENTRY_FILE, isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
+import { usePreviewPages } from "./lib/usePreviewPages";
 import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/game-project";
 import { RunPanel } from "./RunPanel";
 import { JavaRunPanel } from "./JavaRunPanel";
@@ -738,14 +739,30 @@ function GearMenu({ items }: { items: { label: string; onClick: () => void; dang
 
 function StaticPreview({ files, kind }: { files: Record<string, string>; kind: ProjectKind }) {
   const [nonce, setNonce] = useState("");
+  /* The student's links work here too: the teacher is looking at the site
+     they built, not only its first page. There is no console to report in,
+     so only the requests are listened for. */
+  const pages = usePreviewPages();
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      const message = isPreviewMessage(event, frameRef.current, nonce);
+      if (message) pages.follow(message, files);
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  });
   /* A game's sounds, fetched by this page: the frame is sandboxed, so it has
      no origin the server would answer. A teacher watching hears what the
      student hears. */
   const audio = useGameAudio(files);
   if (kind === "java") return <JavaRunPanel files={files} />;
   return nonce
-    ? <iframe title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
-              srcDoc={kind === GAME_KIND ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce)} />
+    ? <>
+        {pages.canGoBack && <button className="text-button" onClick={pages.back}>&larr; Back from {pages.page.split("#")[0]}</button>}
+        <iframe ref={frameRef} title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
+                srcDoc={kind === GAME_KIND ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce, pages.page)} />
+      </>
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;
 }
 
