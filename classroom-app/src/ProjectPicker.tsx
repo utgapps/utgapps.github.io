@@ -49,7 +49,15 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
            leave a session is an obstacle, not a shortcut. */
         if (list.length === 0 && !offeredFirstProject) { offeredFirstProject = true; setCreating(true); }
       })
-      .catch(() => { setProjects([]); setNote("Your projects could not be loaded. Check your connection and refresh."); });
+      /* The hub trusts the sign-in it saved, and a session does expire - so
+         a card can open onto a token the API no longer knows. Say that,
+         rather than blaming the connection. */
+      .catch((error) => {
+        setProjects([]);
+        setNote(/not signed in/i.test((error as Error).message || "")
+          ? "You have been signed out. Log out on the start page and sign in again."
+          : "Your projects could not be loaded. Check your connection and refresh.");
+      });
   }, [token]);
 
   async function create(title: string, kind: ProjectKind) {

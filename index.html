@@ -125,6 +125,12 @@
     <p class="sub">Pick a resource to start.</p>
 
     <div class="cards">
+      <a class="card" data-projects-card href="./classroom/?projects=1">
+        <div class="ico">&#128187;</div>
+        <h3>My Projects</h3>
+        <span>Start a web page, a game or a Java program of your own, and pick up any project you have saved.</span>
+        <div class="go">Open my projects &rarr;</div>
+      </a>
       <a class="card" data-tool-card="pixel-art" href="./pixel-art-maker/">
         <div class="ico">🎨</div>
         <h3>Pixel Art Maker</h3>
@@ -188,7 +194,7 @@
       <a class="card" data-classroom-card="student" href="./classroom/">
         <div class="ico">🎓</div>
         <h3>My Classwork</h3>
-        <span>Open your saved projects and join your teacher's live class from any device.</span>
+        <span>Join your teacher's live class and work where they can see your code and help.</span>
         <div class="go">Open →</div>
       </a>
       <a class="card" data-classroom-card="teacher" href="./classroom/?instructor=1">
@@ -231,6 +237,9 @@
         if (deepLink && role === "instructor") teacherCard.href = deepLink;
         if (entry.classroomHref && role === "student") studentCard.href = entry.classroomHref;
         if (entry.classroomHref && role === "instructor") teacherCard.href = entry.classroomHref;
+        // Projects live in an account, so only an account gets the card. A
+        // class code on its own has nowhere to keep them.
+        document.querySelector("[data-projects-card]").style.display = entry.hasAccount ? "" : "none";
         $("adminBtn").classList.toggle("hidden", !entry.isAdmin);
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
       }
@@ -244,7 +253,8 @@
           tools: acct.role === "student" ? [] : "all",
           classroomRole: acct.role === "student" ? "student" : "instructor",
           classroomHref: acct.role === "student" ? "./classroom/" : "./classroom/?instructor=1",
-          isAdmin: isAdmin
+          isAdmin: isAdmin,
+          hasAccount: true
         });
       }
       function showGate(msg) {

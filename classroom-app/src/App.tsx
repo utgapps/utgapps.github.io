@@ -79,7 +79,11 @@ function App() {
   // straight back to the student join screen and they could not reach their own
   // room at all. Explicit instructor intent wins over a saved student session.
   const wantsInstructor = rootRole === "instructor" || rootParams.has("instructor");
+  /* The hub's My Projects card. Any account, student or teacher, straight to
+     its own projects: no class to pick first and no teacher to wait for. */
+  const wantsProjects = rootParams.has("projects");
   const [mode, setMode] = useState<Mode>(() => {
+    if (wantsProjects && savedAccount()) return "projects";
     if (rootStudentCode || rootStudentGrant) return "student";
     if (wantsInstructor) return "home";   // the instructor entry, never the pupil's stale session
     return savedAccount()?.account.role === "student" ? "student" : "home";
@@ -145,9 +149,13 @@ function App() {
                    initialInstructorCode={rootInstructorCode} initialInstructorGrant={rootInstructorGrant} />;
     }
     /* Keyed on the sign-in: a different account must not inherit the last
-       one's open project, unsaved edits and share code. */
-    return <SoloWorkspace key={signedIn} token={account.token} who={account.account.name || "Teacher"}
-                          exitLabel="Back to the start" onExit={() => setMode("home")}>
+       one's open project, unsaved edits and share code. Arriving from the
+       hub, leaving goes back to the hub - for a student there is no teacher
+       start screen to go back to. */
+    const fallbackName = account.account.role === "student" ? "Student" : "Teacher";
+    return <SoloWorkspace key={signedIn} token={account.token} who={account.account.name || fallbackName}
+                          exitLabel={wantsProjects ? "Back to resources" : "Back to the start"}
+                          onExit={wantsProjects ? () => { window.location.href = "../"; } : () => setMode("home")}>
       {(props) => <CollabWorkspace {...props} token={account.token} />}
     </SoloWorkspace>;
   }
