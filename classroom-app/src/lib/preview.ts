@@ -268,7 +268,8 @@ try {
     try { id = decodeURIComponent(id); } catch (e) {}
     if (!id || id.toLowerCase() === "top") { window.scrollTo(0, 0); return; }
     var target = document.getElementById(id) || document.getElementsByName(id)[0];
-    if (target) target.scrollIntoView();
+    // scrollIntoView would scroll the classroom around the preview too.
+    if (target) window.scrollTo(0, target.getBoundingClientRect().top + window.pageYOffset);
   }
   /* Where a link or a form sends the page: another page of this project, or
      nowhere, with the reason in the console. */

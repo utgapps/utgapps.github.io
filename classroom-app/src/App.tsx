@@ -760,7 +760,7 @@ function StaticPreview({ files, kind }: { files: Record<string, string>; kind: P
   return nonce
     ? <>
         {pages.canGoBack && <button className="text-button" onClick={pages.back}>&larr; Back from {pages.page.split("#")[0]}</button>}
-        <iframe ref={frameRef} title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
+        <iframe key={pages.page} ref={frameRef} title="Last saved preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
                 srcDoc={kind === GAME_KIND ? buildGamePreview(files, nonce, audio) : buildPreview(files, nonce, pages.page)} />
       </>
     : <button className="secondary" onClick={() => setNonce(crypto.randomUUID())}>▶ Run this student's last save</button>;

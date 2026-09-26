@@ -119,7 +119,7 @@ export function RunPanel({ files, kind = "web" }: { files: Record<string, string
       </button>}
     </div>}
     {runFiles
-      ? <iframe key={runId} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
+      ? <iframe key={`${runId} ${pages.page}`} ref={frameRef} title="Project preview" sandbox={PREVIEW_SANDBOX} allow={PREVIEW_ALLOW}
                 onLoad={() => { if (game && debug) tellFrameDebug(true); }}
                 srcDoc={game ? buildGamePreview(runFiles, nonce, audio) : buildPreview(runFiles, nonce, pages.page)} />
       : <div className="preview-idle">
