@@ -18,7 +18,7 @@ it can be found and removed; nothing else in the database matches.
 - **api.mjs** - the route surface, boundary cases first. A teacher from another
   class, a student reaching for the roster, a guessed project id, a hostile
   path, the project and size caps, and a teacher reading and editing a student's
-  saved work (their own class only; keys scrubbed on write). 77 checks.
+  saved work (their own class only; keys scrubbed on write), and every page of a shared site. 84 checks.
 - **throttle.mjs** - sign-in throttling from the classroom's point of view: a
   class of twelve signing in from one address must all get in, and one student
   fumbling their password must not lock out the rest. 11 checks.

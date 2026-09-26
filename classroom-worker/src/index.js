@@ -146,29 +146,44 @@ function sharedAttr(tagText, name) {
   return match ? (match[2] ?? match[3] ?? match[4] ?? null) : null;
 }
 
-function assembleSharedPage(files) {
-  const source = files["index.html"];
+/* `safe` is every file of the project, keys already redacted. `page` is the
+   one to render; its stylesheets and scripts resolve from its own folder, so
+   pages/menu.html can say href="../style.css". */
+function assembleSharedPage(safe, page) {
+  const source = safe[page];
   if (source === undefined) return null;
-  const safe = {};
-  for (const name of Object.keys(files)) safe[name] = redactKeys(files[name]);
+  const fromDir = page.split("/").slice(0, -1).join("/");
 
-  let html = safe["index.html"].replace(/<link\b[^>]*>/gi, (tag) => {
+  let html = source.replace(/<link\b[^>]*>/gi, (tag) => {
     const rel = (sharedAttr(tag, "rel") || "").toLowerCase();
     if (!rel.split(/\s+/).includes("stylesheet")) return tag;
     const href = sharedAttr(tag, "href");
     if (href === null) return tag;
-    const name = resolveSharedPath(href, "");
+    const name = resolveSharedPath(href, fromDir);
     if (!name || !(name in safe)) return tag;
     return `<style>${safe[name].replaceAll("</style", "<\\/style")}</style>`;
   });
   html = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (tag, attrs) => {
     const src = sharedAttr(`<script${attrs}>`, "src");
     if (src === null) return tag;
-    const name = resolveSharedPath(src, "");
+    const name = resolveSharedPath(src, fromDir);
     if (!name || !(name in safe)) return tag;
     return `<script>${safe[name].replaceAll("</script", "<\\/script")}<\/script>`;
   });
   return html;
+}
+
+/* Every page of a shared project, so a link from one to another works: the
+   share page follows it without asking again. A project is a handful of small
+   files, and a stranger clicking through it should not wait on the network. */
+function assembleSharedSite(files) {
+  const safe = {};
+  for (const name of Object.keys(files)) safe[name] = redactKeys(files[name]);
+  const pages = {};
+  for (const name of Object.keys(safe)) {
+    if (/\.html?$/i.test(name)) pages[name] = assembleSharedPage(safe, name);
+  }
+  return pages;
 }
 
 function projectTitle(value) { return String(value || "My project").trim().slice(0, 80) || "My project"; }
@@ -666,9 +681,12 @@ export default {
         const row = await db.prepare("SELECT title, kind, files, updated_at FROM projects WHERE share_slug = ? AND deleted_at IS NULL").bind(sharedMatch[1]).first();
         if (!row) throw new HttpError("That shared project is not there any more.", 404);
         if (row.kind !== "web") throw new HttpError("Only web projects can be shared.", 404);
-        const html = assembleSharedPage(JSON.parse(row.files));
-        if (html === null) throw new HttpError("That project has no index.html to show.", 404);
-        return response(request, env, { title: row.title, html, updatedAt: row.updated_at });
+        const pages = assembleSharedSite(JSON.parse(row.files));
+        if (!("index.html" in pages)) throw new HttpError("That project has no index.html to show.", 404);
+        /* html is index.html on its own, for a share page still cached from
+           before pages existed. files names every file, so a link to a picture
+           or a stylesheet can be told apart from a link to nothing. */
+        return response(request, env, { title: row.title, html: pages["index.html"], pages, files: Object.keys(JSON.parse(row.files)), updatedAt: row.updated_at });
       }
 
       const me = await accountFromRequest(db, request);

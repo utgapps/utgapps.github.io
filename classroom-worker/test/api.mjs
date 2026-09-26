@@ -233,6 +233,14 @@ check("a session left open elsewhere is dead", (await call("/me", { token: S1 })
 
 // ----------------------------------------------------------------- sharing
 section("Sharing a project");
+/* A site of more than one page, one of them in a folder: a stranger clicking
+   through a shared link needs every page, each with its own stylesheet. */
+check("save a site with two pages", (await call("/projects/" + PID, { method: "PUT", token: T1,
+      body: { title: "ZZ Suite Project", files: {
+        "index.html": '<a href="pages/about.html">About</a><script src="script.js"></script>',
+        "pages/about.html": '<link rel="stylesheet" href="../style.css"><h1>About</h1>',
+        "style.css": "h1 { color: teal; }",
+        "script.js": 'const API_KEY = "sk-zz-shared-page-key-123456";' } } })).status === 200);
 const share = await call(`/projects/${PID}/share`, { method: "POST", token: T1 });
 check("turn sharing on", share.status === 200 && !!share.data?.slug, share);
 const slug = share.data?.slug;
@@ -241,6 +249,15 @@ const shared = await call("/shared/" + slug);
 check("anyone can read the shared copy", shared.status === 200 && !!shared.data, shared.status);
 check("the shared copy carries no account id",
       !JSON.stringify(shared.data || {}).includes("zz-t101"));
+check("every page of the site is in the shared copy",
+      Object.keys(shared.data?.pages || {}).sort().join() === "index.html,pages/about.html", shared.data?.pages);
+check("a page in a folder gets the stylesheet from the folder above",
+      (shared.data?.pages?.["pages/about.html"] || "").includes("<style>h1 { color: teal; }</style>"), shared.data?.pages);
+check("html is still index.html, for a share page cached from before pages",
+      !!shared.data?.html && shared.data.html === shared.data.pages?.["index.html"]);
+check("files names every file, so a link to a picture is not a link to nothing",
+      (shared.data?.files || []).slice().sort().join() === "index.html,pages/about.html,script.js,style.css", shared.data?.files);
+check("the key is gone from every page", !JSON.stringify(shared.data || {}).includes("sk-zz-shared"));
 check("another account cannot share your project",
       (await call(`/projects/${PID}/share`, { method: "POST", token: T2 })).status === 404);
 check("revoke really revokes", (await call(`/projects/${PID}/share`, { method: "DELETE", token: T1 })).status === 200);
