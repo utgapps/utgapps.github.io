@@ -1,0 +1,8 @@
+Main.java:5: error: variable declaration not allowed here
+            int bonus = 10;
+                ^
+Main.java:7: error: class, interface or enum declaration not allowed here
+            class Counter { }
+            ^
+2 errors
+[did not compile]

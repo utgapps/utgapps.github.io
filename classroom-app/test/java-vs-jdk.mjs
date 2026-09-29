@@ -16,9 +16,13 @@
      node test/java-vs-jdk.mjs <jdk folder>     or set JAVA_HOME
      node test/java-vs-jdk.mjs <jdk folder> <folder of cases to try>
 
-   Run it against both 17 and 21: students are told "Java 17 or newer", and a
-   few library messages changed between them. A message that differs between
-   the two JDKs is reported as such rather than as a mistake. */
+   The target is JDK 25, the IDE the class uses: its compile and runtime
+   messages are the ones the classroom prints. Run it against 17 and 21 too:
+   students are told "Java 17 or newer", and a message that differs between
+   JDKs is reported as such rather than as a mistake. One difference is
+   chosen: once code falls outside a class, the classroom keeps the 17/21
+   "class, interface, enum, or record expected" and stops there, where 25
+   reads the stray code as the start of an implicit class. */
 import { readdirSync, readFileSync, existsSync, mkdtempSync, cpSync, rmSync, openSync, closeSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

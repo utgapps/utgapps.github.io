@@ -1,0 +1,5 @@
+Main.java:2: error: '{' or ';' expected
+    static int twice(int number)
+                                ^
+1 error
+[did not compile]

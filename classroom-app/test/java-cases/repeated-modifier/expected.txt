@@ -1,0 +1,8 @@
+Main.java:2: error: repeated modifier
+    public static static void greet() {
+                  ^
+Main.java:3: error: repeated modifier
+        final final String name = "Ada";
+              ^
+2 errors
+[did not compile]

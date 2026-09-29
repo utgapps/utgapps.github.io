@@ -1,0 +1,11 @@
+Main.java:2: error: illegal start of type
+    public static void main([] args) {
+                            ^
+Main.java:2: error: ',', ')', or '[' expected
+    public static void main([] args) {
+                              ^
+Main.java:3: error: ']' expected
+        int[ numbers = {1, 2, 3};
+            ^
+3 errors
+[did not compile]
