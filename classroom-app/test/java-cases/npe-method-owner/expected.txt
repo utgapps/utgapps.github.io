@@ -1,0 +1,17 @@
+Cannot invoke "java.util.ArrayList.hashCode()" because "a" is null
+Cannot invoke "java.util.ArrayList.toString()" because "a" is null
+Cannot invoke "java.util.List.toString()" because "l" is null
+Cannot invoke "java.util.List.equals(Object)" because "l" is null
+Cannot invoke "String.hashCode()" because "s" is null
+Cannot invoke "java.lang.Integer.toString()" because "i" is null
+Cannot invoke "java.lang.Integer.compareTo(java.lang.Integer)" because "i" is null
+Cannot invoke "java.lang.StringBuilder.toString()" because "b" is null
+Cannot invoke "Object.hashCode()" because "b" is null
+Cannot invoke "Object.toString()" because "r" is null
+Cannot invoke "Object.toString()" because "o" is null
+Cannot invoke "java.util.Scanner.toString()" because "sc" is null
+Cannot invoke "java.lang.Double.equals(Object)" because "d" is null
+Cannot invoke "java.util.ArrayList.iterator()" because "a" is null
+Cannot invoke "java.util.List.iterator()" because "l" is null
+Cannot invoke "java.util.ArrayList.add(Object)" because "a" is null
+[exit 0]

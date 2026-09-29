@@ -1,0 +1,32 @@
+Main.java:4: error: cannot find symbol
+        missing(nothing);
+                ^
+  symbol:   variable nothing
+  location: class Main
+  → Check the spelling and capitals of nothing, and that you declared it inside the braces you are using it in.
+Main.java:5: error: cannot find symbol
+        System.out.printx(nothing2);
+                          ^
+  symbol:   variable nothing2
+  location: class Main
+  → Check the spelling and capitals of nothing2, and that you declared it inside the braces you are using it in.
+Main.java:6: error: cannot find symbol
+        known(nothing3, 4);
+              ^
+  symbol:   variable nothing3
+  location: class Main
+  → Check the spelling and capitals of nothing3, and that you declared it inside the braces you are using it in.
+Main.java:7: error: cannot find symbol
+        "text".lengthx(nothing4);
+                       ^
+  symbol:   variable nothing4
+  location: class Main
+  → Check the spelling and capitals of nothing4, and that you declared it inside the braces you are using it in.
+Main.java:8: error: cannot find symbol
+        known("a", nothing5);
+                   ^
+  symbol:   variable nothing5
+  location: class Main
+  → Check the spelling and capitals of nothing5, and that you declared it inside the braces you are using it in.
+5 errors
+[did not compile]

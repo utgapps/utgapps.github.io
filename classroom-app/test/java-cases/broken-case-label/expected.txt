@@ -1,0 +1,14 @@
+Main.java:6: error: illegal start of expression
+            case case "+":
+                 ^
+Main.java:9: error: unclosed string literal
+            case "*:
+                 ^
+Main.java:10: error: illegal start of expression
+                result = 2 * 3;
+                       ^
+Main.java:10: error: : or -> expected
+                result = 2 * 3;
+                              ^
+4 errors
+[did not compile]

@@ -1,0 +1,25 @@
+Main.java:3: error: Out has private access in System
+        System.Out.println("a");
+              ^
+  → Java is case-sensitive: it is System.out, with a small o.
+Main.java:4: error: In has private access in System
+        int n = System.In.read();
+                      ^
+  → Java is case-sensitive: it is System.in, with a small i.
+Main.java:5: error: Out has private access in System
+        System.Out.printf("%d%n", 3);
+              ^
+Main.java:6: error: cannot find symbol
+        System.Err.println("b");
+              ^
+  symbol:   variable Err
+  location: class System
+  → Check the spelling and capitals of Err, and that you declared it inside the braces you are using it in.
+Main.java:7: error: cannot find symbol
+        Object o = System.Out;
+                         ^
+  symbol:   variable Out
+  location: class System
+  → Check the spelling and capitals of Out, and that you declared it inside the braces you are using it in.
+5 errors
+[did not compile]

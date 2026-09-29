@@ -72,7 +72,7 @@ const fieldKey = (field: FieldInfo) => "F" + field.name;
 /** javac runs its analyzers one after another over a whole class: liveness first, then
     definite assignment, then exceptions. Each diagnostic code belongs to one of them. */
 const ANALYZER_ORDER: Record<string, number> = {
-  "unreachable": 0, "missing-return": 0, "initializer-complete": 0, "switch-rule-no-value": 0, "switch-no-value": 0,
+  "unreachable": 0, "missing-return": 0, "initializer-complete": 0, "switch-rule-no-value": 0, "switch-no-value": 0, "switch-not-exhaustive": 0,
   "var-might-not-have-been-initialized": 1, "var-might-already-be-assigned": 1,
   "unreported-exception": 2, "already-caught": 2, "never-thrown": 2,
 };
@@ -716,11 +716,15 @@ class FlowAnalyzer {
           running = this.statements(switchCase.body, entry);
         }
         if (running.alive) {
-          this.report(expression.position, "switch expression completes without providing a value", "switch-no-value",
+          this.report(expression.closePosition, "switch expression completes without providing a value", "switch-no-value",
                       ["(switch expressions must either provide a value or throw for all possible input values)"]);
         }
       }
     } finally { this.targets.pop(); }
+    // javac's AliveAnalyzer, not Attr, asks for a default: so only a class with no other mistakes hears it.
+    if (!expression.cases.some((switchCase) => switchCase.isDefault)) {
+      this.report(expression.position, "the switch expression does not cover all possible input values", "switch-not-exhaustive");
+    }
     let assigned: Assigned = null;
     for (const result of [...results, ...target.yields]) assigned = intersect(assigned, result);
     return { alive: state.alive, assigned };

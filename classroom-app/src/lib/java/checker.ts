@@ -51,6 +51,10 @@ export type SourceFile = { name: string; source: string; unit: Ast.CompilationUn
 
 export type CheckResult = { classes: ClassInfo[]; diagnostics: Diagnostic[] };
 
+/** Private nested classes of JDK classes, which javac reports as private rather than missing.
+    Only JDK 25 has System's; JDK 17 and 21 say "cannot find symbol". */
+const JDK_PRIVATE_MEMBER_CLASSES: Record<string, string[]> = { "java.lang.System": ["In", "Out"] };
+
 export function check(files: SourceFile[]): CheckResult {
   const checker = new Checker(files);
   checker.run();
@@ -67,7 +71,7 @@ export function callParenPosition(call: Ast.MethodCall): Ast.Position {
 /** Where javac puts the caret for a problem with this expression's value. */
 export function preferredPosition(expression: Ast.Expression): Ast.Position {
   switch (expression.kind) {
-    case "Binary": case "Assign": case "InstanceOf": return expression.operatorPosition;
+    case "Binary": case "Assign": case "InstanceOf": case "Postfix": return expression.operatorPosition;
     case "Call": return callParenPosition(expression);
     case "FieldAccess": return expression.dotPosition;
     default: return expression.position;
@@ -1174,10 +1178,11 @@ class Checker {
     return ERROR_TYPE;
   }
 
-  private switchLabels(cases: Ast.SwitchCase[], selectorType: JavaType) {
+  /** Checks each case's labels when called with it, so they are checked just before its body, as javac's Attr does. */
+  private switchLabels(selectorType: JavaType): (switchCase: Ast.SwitchCase) => void {
     const seen = new Set<string>();
     let sawDefault = false;
-    for (const switchCase of cases) {
+    return (switchCase) => {
       if (switchCase.isDefault) {
         if (sawDefault) this.report(switchCase.position, "duplicate default label", "duplicate-default");
         sawDefault = true;
@@ -1198,7 +1203,7 @@ class Checker {
         if (result !== true) {
           this.report(preferredPosition(label), result === "lossy"
             ? `incompatible types: possible lossy conversion from ${typeName(type)} to ${typeName(selectorType)}`
-            : `constant label of type ${typeName(type)} is not compatible with switch selector type ${typeName(selectorType)}`, "incompatible");
+            : `incompatible types: ${typeName(type)} cannot be converted to ${typeName(selectorType)}`, "incompatible");
           continue;
         }
         const converted = convertConstant(label.constant, type, selectorType.tag === "primitive" ? selectorType : type);
@@ -1207,18 +1212,18 @@ class Checker {
         seen.add(key);
         label.constant = converted;
       }
-    }
-    return sawDefault;
+    };
   }
 
   private switchStatement(statement: Ast.SwitchStatement) {
     const body = this.body!;
     const selectorType = this.switchSelector(statement.selector);
-    this.switchLabels(statement.cases, selectorType);
+    const checkLabels = this.switchLabels(selectorType);
     body.jumps.push({ kind: "switch" });
     try {
       if (statement.cases.some((switchCase) => switchCase.arrow)) {
         for (const switchCase of statement.cases) {
+          checkLabels(switchCase);
           this.inScope(() => {
             const only = switchCase.body[0];
             if (switchCase.arrowExpression) {
@@ -1233,7 +1238,10 @@ class Checker {
         }
       } else {
         this.inScope(() => {
-          for (const switchCase of statement.cases) for (const inner of switchCase.body) this.statement(inner);
+          for (const switchCase of statement.cases) {
+            checkLabels(switchCase);
+            for (const inner of switchCase.body) this.statement(inner);
+          }
         });
       }
     } finally { body.jumps.pop(); }
@@ -1242,14 +1250,14 @@ class Checker {
   private switchExpression(expression: Ast.SwitchExpression, expected: JavaType | undefined): JavaType {
     const body = this.body!;
     const selectorType = this.switchSelector(expression.selector);
-    const hasDefault = this.switchLabels(expression.cases, selectorType);
-    if (!hasDefault) this.report(expression.position, "the switch expression does not cover all possible input values", "switch-not-exhaustive");
+    const checkLabels = this.switchLabels(selectorType);
     const context: SwitchExpressionContext = { results: [] };
     body.switchExpressions.push(context);
     body.jumps.push({ kind: "switchExpression" });
     try {
       if (expression.cases.some((switchCase) => switchCase.arrow)) {
         for (const switchCase of expression.cases) {
+          checkLabels(switchCase);
           this.inScope(() => {
             if (switchCase.arrowExpression) {
               this.expression(switchCase.arrowExpression, expected);
@@ -1259,7 +1267,10 @@ class Checker {
         }
       } else {
         this.inScope(() => {
-          for (const switchCase of expression.cases) for (const inner of switchCase.body) this.statement(inner);
+          for (const switchCase of expression.cases) {
+            checkLabels(switchCase);
+            for (const inner of switchCase.body) this.statement(inner);
+          }
         });
       }
     } finally {
@@ -1528,6 +1539,11 @@ class Checker {
         expression.resolution = { to: "class", classInfo: member };
         return { kind: "class", classInfo: member };
       }
+      if (allowTypes && !info.isUser && JDK_PRIVATE_MEMBER_CLASSES[info.qualifiedName]?.includes(name)) {
+        // System.Out.println: JDK 25's System has private classes In and Out, which javac finds first.
+        this.report(expression.dotPosition, `${name} has private access in ${info.name}`, "private-access");
+        return { kind: "value", type: ERROR_TYPE };
+      }
       if (name === "length" && false) return { kind: "value", type: INT };
       if (!info.isUser && this.lib.unsupportedMethods.get(info)?.has(name)) {
         this.unsupported(expression.dotPosition, `${info.name}.${name}`);
@@ -1634,6 +1650,7 @@ class Checker {
         return ERROR_TYPE;
       }
     }
+    const argumentsBroken = argumentTypes.some((type) => type.tag === "error");
     let receiverType: JavaType;
     let candidates: Candidate[];
     let staticOnly = false;
@@ -1653,6 +1670,8 @@ class Checker {
           staticOnly = true;
           receiverType = classType(imported[0].method.owner);
         } else {
+          // javac's Resolve says nothing about a method whose arguments were already reported.
+          if (argumentsBroken) return ERROR_TYPE;
           this.report(call.namePosition, "cannot find symbol", "cant-resolve-method",
                       [`symbol:   method ${call.name}(${argumentTypes.map(typeName).join(",")})`, `location: ${locationText}`]);
           return ERROR_TYPE;
@@ -1702,6 +1721,7 @@ class Checker {
         return ERROR_TYPE;
       }
       if (owner && this.brokenClasses.has(owner)) return ERROR_TYPE;
+      if (argumentsBroken) return ERROR_TYPE;
       this.report(namePosition, "cannot find symbol", "cant-resolve-method",
                   [`symbol:   method ${call.name}(${argumentTypes.map(typeName).join(",")})`, `location: ${locationText!}`]);
       return ERROR_TYPE;
@@ -2219,7 +2239,7 @@ class Checker {
     if (!this.assignable(operand, operator)) return ERROR_TYPE;
     const plain = primitiveOf(type);
     if (!plain || !isNumericPrimitive(plain)) {
-      this.report(expression.position, `bad operand type ${typeName(type)} for unary operator '${operator}'`, "bad-operand");
+      this.report(preferredPosition(expression), `bad operand type ${typeName(type)} for unary operator '${operator}'`, "bad-operand");
       return ERROR_TYPE;
     }
     this.checkFinalAssignment(operand);
@@ -2287,6 +2307,10 @@ class Checker {
             expression.operandType = binaryNumericPromotion(leftPlain, rightPlain);
           } else if (leftPlain && rightPlain && isPrimitive(leftPlain, "boolean") && isPrimitive(rightPlain, "boolean")) {
             expression.operandType = BOOLEAN;
+          } else if (leftPlain && rightPlain) {
+            // A number against a boolean: javac finds the operator but not a way to compare them.
+            this.report(expression.operatorPosition, `incomparable types: ${typeName(leftType)} and ${typeName(rightType)}`, "incomparable");
+            return ERROR_TYPE;
           } else return bad();
           if (bothConstant && leftType.tag === "primitive" && rightType.tag === "primitive") {
             const operandType = expression.operandType;

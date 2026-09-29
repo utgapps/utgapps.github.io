@@ -1,0 +1,48 @@
+Main.java:5: error: incomparable types: int and boolean
+        System.out.println(number == flag);
+                                  ^
+Main.java:6: error: bad operand types for binary operator '=='
+        System.out.println(number == text);
+                                  ^
+  first type:  int
+  second type: String
+Main.java:7: error: bad operand types for binary operator '=='
+        System.out.println(flag == text);
+                                ^
+  first type:  boolean
+  second type: String
+Main.java:8: error: incomparable types: double and boolean
+        System.out.println(real != flag);
+                                ^
+Main.java:9: error: incomparable types: char and boolean
+        System.out.println(letter == flag);
+                                  ^
+Main.java:10: error: incomparable types: Integer and boolean
+        System.out.println(boxed == flag);
+                                 ^
+Main.java:11: error: incomparable types: Boolean and int
+        System.out.println(boxedFlag == number);
+                                     ^
+Main.java:12: error: incomparable types: String and StringBuilder
+        System.out.println(text == builder);
+                                ^
+Main.java:13: error: incomparable types: Integer and String
+        System.out.println(boxed == text);
+                                 ^
+Main.java:14: error: bad operand types for binary operator '=='
+        System.out.println(thing == number);
+                                 ^
+  first type:  Object
+  second type: int
+Main.java:16: error: bad operand types for binary operator '=='
+        System.out.println(flag == null);
+                                ^
+  first type:  boolean
+  second type: <null>
+Main.java:17: error: bad operand types for binary operator '=='
+        System.out.println(number == null);
+                                  ^
+  first type:  int
+  second type: <null>
+12 errors
+[did not compile]

@@ -1,0 +1,8 @@
+Main.java:5: error: cannot find symbol
+            case 1 -> "one" + missingOne;
+                              ^
+  symbol:   variable missingOne
+  location: class Main
+  → Check the spelling and capitals of missingOne, and that you declared it inside the braces you are using it in.
+1 error
+[did not compile]

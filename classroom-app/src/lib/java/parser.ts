@@ -355,6 +355,12 @@ class Parser {
       if (!this.accept("{")) return declaration;
     }
     if (keyword === "enum") this.enumConstants(declaration);
+    this.classBody(declaration);
+    return declaration;
+  }
+
+  /** The members up to and including the closing brace; the opening one is already read. */
+  private classBody(declaration: Ast.ClassDeclaration) {
     while (!this.is("}")) {
       if (this.atEnd()) this.endOfFile();
       const before = this.index;
@@ -364,7 +370,6 @@ class Parser {
     }
     declaration.closePosition = this.position();
     this.index++;
-    return declaration;
   }
 
   private typeParameters(): string[] {
@@ -1082,7 +1087,11 @@ class Parser {
       } else if (this.accept("case")) {
         do {
           if (this.accept("default")) { switchCase.isDefault = true; continue; }
-          const label = this.ternary();
+          // javac reads a label's modifiers first, and its modifiersOpt() steps over a malformed
+          // token (case "*: with the quote unclosed) and then the token after it too.
+          if (this.token.kind === "error") this.index = Math.min(this.index + 2, this.tokens.length - 1);
+          // A constant label is javac's term(EXPR | NOLAMBDA): an assignment, never a lambda.
+          const label = this.assignment(true);
           if (this.isIdentifier() || (this.is("(") && label.kind === "Name")) {
             // case Integer number -> ...   (a type pattern, Java 21)
             while (!this.is("->") && !this.is(":")) { if (this.atEnd()) this.endOfFile(); this.index++; }
@@ -1093,7 +1102,7 @@ class Parser {
         this.fail("orphaned " + (this.atEnd() ? "end" : this.token.text), at, "case-expected");
       }
       if (this.accept("->")) switchCase.arrow = true;
-      else if (!this.accept(":")) this.fail("':' or '->' expected", this.endOfPrevious(), "token-expected");
+      else if (!this.accept(":")) this.missing(": or -> expected", "token-expected");
       if (arrowKind !== null && arrowKind !== switchCase.arrow) {
         this.fail("different case kinds used in the switch", at, "mixed-case-kinds");
       }
@@ -1147,8 +1156,8 @@ class Parser {
     return this.assignment();
   }
 
-  private assignment(): Ast.Expression {
-    const lambda = this.lambdaAhead();
+  private assignment(noLambda = false): Ast.Expression {
+    const lambda = noLambda ? null : this.lambdaAhead();
     if (lambda) return lambda;
     const target = this.ternary();
     if (this.token.kind === "operator" && ASSIGNMENT_OPERATORS.has(this.token.text)) {
@@ -1182,12 +1191,6 @@ class Parser {
         do { this.type(); this.identifier(); } while (this.accept(","));
         if (!this.accept(")")) this.missing("',', ')', or '[' expected", "token-expected");
         if (!this.accept("->")) this.missing("-> expected", "token-expected");
-        isLambda = true;
-      }
-      else if (this.is(")", this.lookAhead(1))) {
-        // "()" can only begin a lambda, so javac asks for its arrow, and reads on.
-        this.index += 2;
-        this.missing("-> expected", "token-expected");
         isLambda = true;
       }
     }
@@ -1298,8 +1301,9 @@ class Parser {
   private postfixSelectors(start: Ast.Expression): Ast.Expression {
     let expression = this.selectors(start);
     while (this.is("++") || this.is("--")) {
+      const operatorPosition = this.position();
       const operator = this.tokens[this.index++].text as "++" | "--";
-      expression = { kind: "Postfix", position: expression.position, operator, operand: expression };
+      expression = { kind: "Postfix", position: expression.position, operator, operand: expression, operatorPosition };
     }
     return expression;
   }
@@ -1459,8 +1463,8 @@ class Parser {
         case "switch": {
           this.index++;
           const selector = this.parenthesized();
-          const { cases } = this.switchBody();
-          return { kind: "SwitchExpr", position: at, selector, cases };
+          const { cases, closePosition } = this.switchBody();
+          return { kind: "SwitchExpr", position: at, selector, cases, closePosition };
         }
       }
       if (token.text === "void") {
@@ -1502,6 +1506,15 @@ class Parser {
         return { kind: "Unsupported", position: at, feature: ILLEGAL_START };
       }
       this.fail("illegal start of expression", at, "illegal-start-of-expression");
+    }
+    if (this.is("(") && this.is(")", this.lookAhead(1))) {
+      // "()" can only begin a lambda, so javac asks for its arrow and reads on. Like javac's term3,
+      // what follows the lambda (".charAt(0) == 'p'" when its body was missing) is read onto it.
+      this.index += 2;
+      this.missing("-> expected", "token-expected");
+      if (this.is("{")) this.skipBalanced("{", "}");
+      else this.expression();
+      return { kind: "Unsupported", position: at, feature: "lambda expressions (->)" };
     }
     if (this.is("(")) {
       this.index++;
@@ -1561,7 +1574,17 @@ class Parser {
     }
     const args = this.arguments();
     let hasBody = false;
-    if (this.is("{")) { hasBody = true; this.skipBalanced("{", "}"); }
+    if (this.is("{")) {
+      // An anonymous class body is read like any class, as javac reads it, and thrown away: the runner cannot run it.
+      hasBody = true;
+      const bodyAt = this.position();
+      this.index++;
+      this.classBody({
+        kind: "Class", position: bodyAt, namePosition: bodyAt, modifiers: { names: new Set(), annotations: [], position: bodyAt },
+        declarationKind: "class", name: "", typeParameters: [], superclass: null, interfaces: [], members: [],
+        enumConstants: [], closePosition: bodyAt, file: this.file,
+      });
+    }
     return { kind: "New", position: at, typeNode, args, hasBody };
   }
 }

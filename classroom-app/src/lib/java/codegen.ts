@@ -27,6 +27,26 @@ type Constant = string | number | boolean | bigint;
 /** Where a value of this primitive type lives: the letter used for boxing and array descriptors. */
 const LETTER: Record<PrimitiveName, string> = { int: "I", long: "J", double: "D", float: "F", boolean: "Z", char: "C", byte: "B", short: "S" };
 
+/** How the JVM's helpful NullPointerException names a class: in full, except Object and String. */
+function jvmClassName(info: ClassInfo): string {
+  if (info.isUser) return binaryName(info);
+  return info.qualifiedName === "java.lang.Object" || info.qualifiedName === "java.lang.String" ? info.name : info.qualifiedName;
+}
+/** A type as it appears, erased, in the JVM's name for a method. */
+function jvmTypeName(type: JavaType): string {
+  if (type.tag === "array") return jvmTypeName(type.element) + "[]";
+  if (type.tag === "class") return jvmClassName(type.classInfo);
+  if (type.tag === "typeVariable") return "Object";
+  return typeName(type);
+}
+/** Whether a JDK class inherits a real override of Object's toString, equals or hashCode. */
+function jdkOverridesObjectMethod(qualifiedName: string, method: string): boolean {
+  const valueClass = /^java\.lang\.(String|Integer|Long|Double|Float|Short|Byte|Character|Boolean)$|^java\.math\.|^java\.time\.|^java\.io\.File$|^java\.util\.\w*(List|Set|Map)$/.test(qualifiedName);
+  if (method === "equals" || method === "hashCode") return valueClass;
+  if (method === "toString") return valueClass || !/^java\.lang\.Object$|^java\.util\.Random$|^java\.io\.(?!File$)/.test(qualifiedName);
+  return false;
+}
+
 export function binaryName(info: ClassInfo): string {
   return info.isUser ? info.qualifiedName.replace(/\./g, "$") : info.qualifiedName;
 }
@@ -523,7 +543,7 @@ class Generator {
       ];
     }
     return [
-      `${collection} = $r.iter($r.nn(${this.expression(iterable)}, ${this.nullMessage(`Cannot invoke "${typeName(iterable.type!)}.iterator()"`, iterable)}));`,
+      `${collection} = $r.iter($r.nn(${this.expression(iterable)}, ${this.nullMessage(`Cannot invoke "${jvmTypeName(iterable.type!)}.iterator()"`, iterable)}));`,
       `${prefix}while (${collection}.hasNext()) {`,
       `  ${this.lineMarker(statement)}`,
       `  ${variable.jsName} = ${this.coerce(`${collection}.next()`, elementType, variable.type, 'the return value of "java.util.Iterator.next()"')};`,
@@ -762,11 +782,17 @@ class Generator {
   }
 
   /** A method as the JVM names it: by the class it was called through, as javac compiles the call
-      (list.get on an ArrayList is "java.util.ArrayList.get(int)"), except that Object's own methods stay Object's. */
+      (list.get on an ArrayList is "java.util.ArrayList.get(int)"). A method only Object declares stays
+      Object's (new Random().hashCode() is "Object.hashCode()"), unless it is called through an
+      interface or through a JDK class that overrides it, as ArrayList does hashCode. */
   private methodDescription(method: MethodInfo, receiverType?: JavaType): string {
-    const through = receiverType?.tag === "class" && method.owner.qualifiedName !== "java.lang.Object" ? receiverType.classInfo : method.owner;
-    const owner = through.isUser ? binaryName(through) : through.packageName === "java.lang" ? through.name : through.qualifiedName;
-    return `${owner}.${method.name}(${method.parameters.map((parameter) => typeName(parameter)).join(", ")})`;
+    let through = method.owner;
+    if (receiverType?.tag === "class") {
+      const receiver = receiverType.classInfo;
+      if (method.owner.qualifiedName !== "java.lang.Object" || receiver.kind === "interface"
+          || (!receiver.isUser && jdkOverridesObjectMethod(receiver.qualifiedName, method.name))) through = receiver;
+    }
+    return `${jvmClassName(through)}.${method.name}(${method.parameters.map(jvmTypeName).join(", ")})`;
   }
 
   // ---- calls --------------------------------------------------------------------------------------

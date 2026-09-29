@@ -99,7 +99,7 @@ function inJavacOrder(classes: ClassInfo[], diagnostics: Diagnostic[], sources: 
   const canFlow = !diagnostics.some((diagnostic) => diagnostic.unsupported);
   let found = ordered.filter((diagnostic) => !diagnostic.unsupported).length;
   for (const topLevel of topLevels) {
-    const inBodies = diagnostics.filter((diagnostic) => diagnostic.topLevel === topLevel.qualifiedName).sort(byPosition);
+    const inBodies = diagnostics.filter((diagnostic) => diagnostic.topLevel === topLevel.qualifiedName);
     ordered.push(...inBodies);
     found += inBodies.filter((diagnostic) => !diagnostic.unsupported).length;
     if (found || !canFlow) continue;
@@ -183,6 +183,8 @@ function hintFor(diagnostic: Diagnostic, sources: Map<string, string>): string |
     return `No variable or class is named ${guessedPackage[1]}, so Java guessed it was a package. Check its spelling and capitals${
       guessedPackage[1].toLowerCase() === "system" ? ": System starts with a capital S" : ""}.`;
   }
+  const privateSystemClass = /^(Out|In) has private access in System$/.exec(message);
+  if (privateSystemClass) return `Java is case-sensitive: it is System.${privateSystemClass[1].toLowerCase()}, with a small ${privateSystemClass[1][0].toLowerCase()}.`;
   if (message === "';' expected") return "Every statement ends with a semicolon: add the missing one where the caret points.";
   if (message === "missing return statement") return "Every path through this method must reach a return, including the path where no if matches.";
   if (/might not have been initialized/.test(message)) return "Give the variable a starting value where you declare it, or make sure every path assigns it before this line.";

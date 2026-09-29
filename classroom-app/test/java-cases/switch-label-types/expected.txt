@@ -1,0 +1,23 @@
+Main.java:6: error: incompatible types: String cannot be converted to int
+            case "one": word = 'c'; break;
+                 ^
+  → To turn text into a number, use Integer.parseInt(text).
+Main.java:6: error: incompatible types: char cannot be converted to String
+            case "one": word = 'c'; break;
+                               ^
+Main.java:7: error: incompatible types: possible lossy conversion from double to int
+            case 2.5: break;
+                 ^
+  → A double can hold a fraction and an int cannot. If you mean to drop the fraction, cast it: (int) value.
+Main.java:11: error: incompatible types: int cannot be converted to String
+            case 1: number = "t"; break;
+                 ^
+  → To turn a number into text, use String.valueOf(number), or "" + number.
+Main.java:11: error: incompatible types: String cannot be converted to int
+            case 1: number = "t"; break;
+                             ^
+Main.java:12: error: incompatible types: char cannot be converted to String
+            case 'c': break;
+                 ^
+6 errors
+[did not compile]

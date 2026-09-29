@@ -67,7 +67,7 @@ export type NewArray = Checked & {
 };
 export type ArrayInitializer = Checked & { kind: "ArrayInit"; elements: Expression[] };
 export type Unary = Checked & { kind: "Unary"; operator: "+" | "-" | "!" | "~" | "++" | "--"; operand: Expression };
-export type Postfix = Checked & { kind: "Postfix"; operator: "++" | "--"; operand: Expression };
+export type Postfix = Checked & { kind: "Postfix"; operator: "++" | "--"; operand: Expression; operatorPosition: Position };
 export type Binary = Checked & {
   kind: "Binary"; operator: string; left: Expression; right: Expression; operatorPosition: Position;
   operandType?: JavaType;        // the promoted type the operation is done in
@@ -80,7 +80,7 @@ export type Conditional = Checked & { kind: "Conditional"; condition: Expression
 export type Cast = Checked & { kind: "Cast"; typeNode: TypeNode; operand: Expression };
 export type InstanceOf = Checked & { kind: "InstanceOf"; operand: Expression; typeNode: TypeNode; binding: string | null; operatorPosition: Position };
 export type This = Checked & { kind: "This" };
-export type SwitchExpression = Checked & { kind: "SwitchExpr"; selector: Expression; cases: SwitchCase[] };
+export type SwitchExpression = Checked & { kind: "SwitchExpr"; selector: Expression; cases: SwitchCase[]; closePosition: Position };
 export type Unsupported = Checked & { kind: "Unsupported"; feature: string };
 
 export type Expression =
