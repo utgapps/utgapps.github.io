@@ -124,7 +124,7 @@ function failure(diagnostics: Diagnostic[], sources: Map<string, string>, { sort
   for (const diagnostic of mistakes.slice(0, MAX_REPORTED)) {
     out.push(formatDiagnostic(diagnostic, sources));
     // Once is enough: three missing semicolons need one explanation.
-    const hint = hintFor(diagnostic);
+    const hint = hintFor(diagnostic, sources);
     if (hint && !hinted.has(hint)) out.push(`  \u2192 ${hint}`);
     if (hint) hinted.add(hint);
   }
@@ -159,8 +159,14 @@ function formatDiagnostic(diagnostic: Diagnostic, sources: Map<string, string>):
 }
 
 /** A plain-words next step for the errors students meet most. javac's own text stays above it. */
-function hintFor(diagnostic: Diagnostic): string | null {
+function hintFor(diagnostic: Diagnostic, sources: Map<string, string>): string | null {
   const message = diagnostic.message;
+  if (message === "illegal start of expression") {
+    const sourceLine = (sources.get(diagnostic.file) ?? "").split(/\r\n|\r|\n/)[diagnostic.line - 1] ?? "";
+    if (/^(public|private|protected|static)\b/.test(sourceLine.slice(diagnostic.column - 1))) {
+      return "A method cannot start inside another method: the method above is probably missing its closing brace }.";
+    }
+  }
   const symbol = diagnostic.details.find((detail) => detail.startsWith("symbol:"))?.replace(/^symbol:\s+/, "") ?? "";
   if (message === "cannot find symbol") {
     if (/^class (Scanner|Random|ArrayList|List|Arrays|Collections)$/.test(symbol)) {

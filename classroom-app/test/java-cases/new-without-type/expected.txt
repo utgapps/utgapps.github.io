@@ -1,0 +1,8 @@
+Main.java:4: error: <identifier> expected
+        if (new >= 0 && mark < 25) {
+               ^
+Main.java:4: error: '(' or '[' expected
+        if (new >= 0 && mark < 25) {
+                ^
+2 errors
+[did not compile]

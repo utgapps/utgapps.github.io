@@ -1,0 +1,6 @@
+Main.java:6: error: illegal start of expression
+    public static void greet() {
+    ^
+  → A method cannot start inside another method: the method above is probably missing its closing brace }.
+1 error
+[did not compile]

@@ -561,8 +561,7 @@ class Parser {
       explicitCall = { kind, args, position: at };
     }
     const statements = this.blockStatements(() => this.is("}"));
-    const closePosition = this.position();
-    this.index++;
+    const closePosition = this.closeBrace();
     return {
       kind: "Constructor", position: start, namePosition: this.position(nameToken), modifiers,
       name: nameToken.text, parameters, throwsTypes,
@@ -759,8 +758,7 @@ class Parser {
     const at = this.position();
     this.expect("{");
     const statements = this.blockStatements(() => this.is("}"));
-    const closePosition = this.position();
-    this.index++;
+    const closePosition = this.closeBrace();
     return { kind: "Block", position: at, statements, closePosition };
   }
 
@@ -771,16 +769,26 @@ class Parser {
     while (!done()) {
       if (this.atEnd()) this.endOfFile();
       const before = this.index;
-      statements.push(this.blockStatement());
-      this.madeProgress(before);
-      // Where javac gives up on the block and leaves the rest to its caller.
-      if (this.token.offset === skippedTo) throw new ParseStopped();
+      const statement = this.blockStatement();
+      // Stuck where the last skip stopped (at `static`, say): javac ends the block there and
+      // leaves the rest to its caller, which reads it as the class's next member.
+      if (this.token.offset === skippedTo) return statements;
+      if (this.index === before && this.token.offset > this.errorEndOffset) throw new ParseStopped();
       if (this.token.offset <= this.errorEndOffset) {
         this.skip({ members: true, identifiers: true, statements: true });
         skippedTo = this.token.offset;
       }
+      statements.push(statement);
     }
     return statements;
+  }
+  /** javac's accept(RBRACE) at the end of a block, which may have ended early. */
+  private closeBrace(): Ast.Position {
+    const at = this.position();
+    if (this.is("}")) this.index++;
+    else if (this.atEnd()) this.endOfFile();
+    else this.missing("'}' expected", "token-expected");
+    return at;
   }
 
   private blockStatement(): Ast.Statement {
@@ -803,10 +811,8 @@ class Parser {
       return { kind: "Yield", position: at, value };
     }
     if (this.looksLikeDeclaration(false)) return this.localVariable(at, false);
-    if (this.is("public") || this.is("private") || this.is("protected") || this.is("static")) {
-      // Almost always a method started before the last one's closing brace.
-      this.fail("illegal start of expression", at, "illegal-start-of-expression");
-    }
+    // A modifier here (usually a method started before the last one's closing brace) is an
+    // illegal start of expression; blockStatements() then ends the block at it, as javac does.
     return this.statement();
   }
 
@@ -1511,10 +1517,7 @@ class Parser {
   private creator(): Ast.Expression {
     const at = this.position();
     this.index++;                                         // "new"
-    if (!this.startsType()) {
-      if (this.atEnd()) this.endOfFile();
-      this.fail("<identifier> expected", this.endOfPrevious(), "identifier-expected");
-    }
+    // With no type after it, identifier() says "<identifier> expected" and the '(' check below reads on.
     // The element or class type, without dimensions.
     const typeAt = this.position();
     let typeNode: Ast.TypeNode;
