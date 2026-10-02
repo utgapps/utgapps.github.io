@@ -5,10 +5,15 @@
 //   way, and the wiper sweeps exactly the angle the four-bar's own geometry gives.
 // - One pin between two beams is a hinge; two pins hold them solid.
 // - A linkage that cannot move stalls its motor instead of tearing itself apart.
+// - The wiper builds for real: every axle in two holes, nothing can slide off, and the motor
+//   has a cable to a Brain port nothing is in front of.
 import * as THREE from "three";
 import { readFileSync } from "node:fs";
 import { boreCores, fillsOf, OCCUPIER } from "../src/lib/connections.ts";
 import { Mechanism } from "../src/lib/mechanism.ts";
+import { checkBuild } from "../src/lib/rules.ts";
+import { planCables } from "../src/lib/cables.ts";
+import { layout } from "../tools/library/layout.mjs";
 
 const here = new URL(".", import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL("../public/parts/manifest.json", here), "utf8"));
@@ -138,6 +143,14 @@ const wiperSaved = JSON.parse(readFileSync(new URL("../public/examples/windshiel
   check(one.bodies.length === 2, `one pin makes a hinge (${one.bodies.length} bodies)`);
   const two = build([...beams, pinAt(0), pinAt(3)]).mechanism;
   check(two.bodies.length === 1, `two pins hold the beams solid (${two.bodies.length} body)`);
+}
+
+{
+  const { poses, fills, studs } = layout(wiperSaved);
+  const plan = planCables(poses);
+  const problems = checkBuild(poses, fills, studs, plan);
+  check(!problems.length, `the wiper passes the build check${problems.length ? `: ${problems.map((problem) => problem.text).join(" / ")}` : ""}`);
+  check(plan.cables.length === 1 && plan.cables[0].reaches, `its motor is cabled to the Brain (${plan.cables.map((cable) => `port ${cable.port}, ${cable.length} mm`).join(", ")})`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

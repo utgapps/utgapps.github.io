@@ -1,31 +1,25 @@
 // Proves a saved build is a working mechanism, the way the builder will treat it:
 //   - every pin and axle goes through at least two parts (nothing is held by a pin in mid-air);
+//   - it would hold together for real: every axle is held in two places and nothing on it can
+//     slide, and every motor and sensor has a Smart Cable to a Brain port it can reach
+//     (src/lib/rules.ts, the same rules the builder shows students);
 //   - every part is connected, through pins, axles and gear teeth, to the motor;
 //   - nothing clips into a part it is not connected to (the builder would paint both red);
 //   - when the motors run, it moves without stalling, and the parts that should move do.
 import * as THREE from "three";
 import { OBB } from "three/examples/jsm/math/OBB.js";
-import { boreCores, fillsOf, OCCUPIER } from "../../src/lib/connections.ts";
+import { OCCUPIER } from "../../src/lib/connections.ts";
 import { Mechanism, meshingDistance, gearTeeth } from "../../src/lib/mechanism.ts";
-import { metaOf } from "./assembler.mjs";
+import { checkBuild } from "../../src/lib/rules.ts";
+import { layout as place } from "./layout.mjs";
 
 const COLLIDE_SLOP = 1.4; // the builder's: mm trimmed off each half-size before boxes count as touching
 const wraps = (meta) => meta.category === "chain" || (meta.id.startsWith("rubber-band-") && meta.id !== "rubber-band-anchor");
 
 /** Lay a saved build out as the builder does, and make its mechanism. */
 export function layout(saved) {
-  const parts = saved.map((entry, index) => {
-    const meta = metaOf(entry.id);
-    const object = new THREE.Object3D();
-    object.position.fromArray(entry.p);
-    object.quaternion.fromArray(entry.q);
-    object.updateMatrixWorld(true);
-    return { uid: `p${index}`, id: meta.id, name: meta.name, category: meta.category, isMotor: !!meta.isMotor, sizeMM: meta.sizeMM, meta, object };
-  });
-  const poses = parts.map((part) => ({ uid: part.uid, meta: part.meta, matrixWorld: part.object.matrixWorld }));
-  const cores = boreCores(poses);
-  const fills = poses.filter((pose) => OCCUPIER.has(pose.meta.category)).flatMap((pose) => fillsOf(pose, cores));
-  return { parts, fills, mechanism: new Mechanism(parts, fills, []) };
+  const { parts, poses, fills, studs } = place(saved);
+  return { parts, poses, fills, studs, mechanism: new Mechanism(parts, fills, studs) };
 }
 
 /**
@@ -39,8 +33,8 @@ export function layout(saved) {
  */
 export function verify(saved, expect = {}) {
   const problems = [];
-  const { parts, fills, mechanism } = layout(saved);
-  const byUid = new Map(parts.map((part) => [part.uid, part]));
+  const { parts, poses, fills, studs, mechanism } = layout(saved);
+  problems.push(...checkBuild(poses, fills, studs).map((problem) => `${problem.text} (${problem.uids.map((uid) => `#${uid}`).join(", ")})`));
 
   // Pins and axles that hold nothing.
   const heldBy = new Map();
@@ -55,6 +49,7 @@ export function verify(saved, expect = {}) {
   const links = new Map(parts.map((part) => [part.uid, new Set()]));
   const link = (a, b) => { links.get(a).add(b); links.get(b).add(a); };
   for (const fill of fills) link(fill.occupierUid, fill.partUid);
+  for (const stud of studs) link(stud.studUid, stud.holeUid);
   for (let first = 0; first < parts.length; first++) {
     for (let second = first + 1; second < parts.length; second++) {
       const a = parts[first], b = parts[second];

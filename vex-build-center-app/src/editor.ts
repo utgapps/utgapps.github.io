@@ -6,6 +6,8 @@ import { loadGeometry, CATEGORY_COLOR, type PartMeta } from "./lib/parts";
 import { holesFor, hasHoles } from "./lib/holes";
 import { OCCUPIER, boreCores, fillsOf, stackAt as stackOnLine, type Core, type Fill, type PartPose } from "./lib/connections";
 import { Mechanism, meshingDistance, gearTeeth, type MechanismPart, type StudJoin, type MotorInfo, type SpinInfo, type MeshInfo } from "./lib/mechanism";
+import { planCables, rehang, cableLabel, type Cable, type CablePlan } from "./lib/cables";
+import { checkBuild, type BuildProblem } from "./lib/rules";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
@@ -46,6 +48,7 @@ export type EditorState = {
   inventory: InventoryRow[]; // what you'd need off the shelf to build this for real
   gearInfo: string | null;   // for a selected gear: what it meshes with, or how to make it mesh
   running: boolean;
+  problems: BuildProblem[];  // what would stop it working for real: loose axles, missing cables...
 };
 
 // What Run mode reports to the panel, a few times a second.
@@ -195,6 +198,18 @@ export class Editor {
   private tracePoints = new Float32Array(TRACE_POINTS * 3);
   private traceCount = 0;
   private traceTarget: { body: number; local: THREE.Vector3 } | null = null;
+  // Smart Cables from every motor and sensor to the Brain, worked out from where things are.
+  private cablePlan: CablePlan = { cables: [], blocked: [], noBrain: [], noPort: [] };
+  private cables = new THREE.Group();
+  private cableMat = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.7, metalness: 0.05 });
+  private cableShortMat = new THREE.MeshStandardMaterial({ color: 0xd4343a, roughness: 0.7 });
+  private plugMat = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.4 });
+  private plugGeo = new THREE.BoxGeometry(7.5, 9, 13);
+  private cableClock = 0;
+  private problems: BuildProblem[] = [];
+  // The name of whatever is under the mouse.
+  private tip!: HTMLDivElement;
+  private tipClock = 0;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -289,6 +304,11 @@ export class Editor {
     this.trace.renderOrder = 998;
     this.trace.visible = false;
     this.scene.add(this.trace);
+    this.scene.add(this.cables);
+    this.tip = document.createElement("div");
+    this.tip.className = "hover-tip";
+    this.tip.hidden = true;
+    container.appendChild(this.tip);
 
     const el = this.renderer.domElement;
     el.addEventListener("pointerdown", this.onPointerDown, { capture: true });
@@ -825,6 +845,7 @@ export class Editor {
       inventory: this.inventory(),
       gearInfo: this.gearInfo(this.selected),
       running: this.running,
+      problems: this.problems,
     };
   }
 
@@ -855,7 +876,86 @@ export class Editor {
       if (row) row.count++;
       else by.set(p.meta.id, { id: p.meta.id, name: p.meta.name, category: p.meta.category, count: 1 });
     }
+    // The cables are not parts you place, but you still take them off the shelf.
+    for (const cable of this.cablePlan.cables) {
+      const id = `smart-cable-${cable.length}`;
+      const row = by.get(id);
+      if (row) row.count++;
+      else by.set(id, { id, name: `${cable.length} mm Smart Cable`, category: "cable", count: 1 });
+    }
     return [...by.values()].sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  }
+
+  // ---- cables and build rules -------------------------------------------------
+
+  private recomputeRules() {
+    const poses = this.poses();
+    this.cablePlan = planCables(poses);
+    this.problems = checkBuild(poses, this.fills, this.studJoins.map((join) => ({ studUid: join.studPart, holeUid: join.holePart })), this.cablePlan);
+    this.drawCables();
+  }
+
+  private drawCables() {
+    for (const child of this.cables.children) {
+      const geometry = (child as THREE.Mesh).geometry;
+      if (geometry !== this.plugGeo) geometry.dispose();
+    }
+    this.cables.clear();
+    for (const cable of this.cablePlan.cables) {
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cable.points), 64, 1.5, 6, false), cable.reaches ? this.cableMat : this.cableShortMat);
+      tube.castShadow = true;
+      tube.userData.cable = cable;
+      this.cables.add(tube);
+      for (const plug of cable.plugs) {
+        const box = new THREE.Mesh(this.plugGeo, this.plugMat);
+        box.position.copy(plug.point).addScaledVector(plug.out, 2.5);
+        box.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), plug.out);
+        box.userData.cable = cable;
+        this.cables.add(box);
+      }
+    }
+  }
+
+  // While it runs, the plugs stay in their ports and the cables follow the parts they are in.
+  private followCables(seconds: number) {
+    this.cableClock += seconds;
+    if (this.cableClock < 0.05 || !this.cablePlan.cables.length) return;
+    this.cableClock = 0;
+    this.scene.updateMatrixWorld(false);
+    this.cablePlan = {
+      ...this.cablePlan,
+      cables: this.cablePlan.cables.map((cable) => {
+        const device = this.parts.get(cable.deviceUid), brain = this.parts.get(cable.brainUid);
+        return device && brain ? rehang(cable, this.poseOf(device), this.poseOf(brain)) : cable;
+      }),
+    };
+    this.drawCables();
+  }
+
+  // Point at a part or a cable and its name shows up beside the mouse.
+  private updateTip(event: { clientX: number; clientY: number }) {
+    const now = performance.now();
+    if (now - this.tipClock < 60) return;
+    this.tipClock = now;
+    const hit = this.raycaster.intersectObjects([...this.cables.children, ...[...this.parts.values()].map((part) => part.mesh)], false)[0];
+    let text = "";
+    if (hit?.object.userData.cable) text = cableLabel(hit.object.userData.cable as Cable);
+    else if (hit) {
+      const part = this.parts.get(hit.object.userData.uid as string);
+      if (part) {
+        const cable = this.cablePlan.cables.find((candidate) => candidate.deviceUid === part.uid);
+        const used = this.cablePlan.cables.filter((candidate) => candidate.brainUid === part.uid).map((candidate) => candidate.port).sort((first, second) => first - second);
+        text = part.meta.name
+          + (cable ? ` \u00b7 Brain port ${cable.port}, ${cable.length} mm Smart Cable` : "")
+          + (used.length ? ` \u00b7 ports in use: ${used.join(", ")}` : "");
+      }
+    }
+    this.tip.hidden = !text;
+    if (!text) return;
+    this.tip.textContent = text;
+    const box = this.renderer.domElement.getBoundingClientRect();
+    this.tip.style.left = `${Math.max(4, Math.min(event.clientX - box.left + 14, box.width - 280))}px`;
+    this.tip.style.top = `${event.clientY - box.top + 18}px`;
   }
 
   // Lift any connected group that has sunk through the base plane back onto it.
@@ -881,6 +981,7 @@ export class Editor {
     this.recomputeOccupancy(); // builds the connection graph settling relies on
     this.settleGroups();
     this.recomputeCollisions(); // after settling, on final positions
+    this.recomputeRules();
     this.updateHelper();
     this.cullDirty = true;
     this.invalidate();
@@ -994,6 +1095,8 @@ export class Editor {
     if (!ev) return;
     this.pendingMove = null;
     this.setPointer(ev);
+    if (ev.buttons === 0 && !this.connectFrom && !this.dragging) this.updateTip(ev);
+    else this.tip.hidden = true;
     if (this.running) {
       const point = new THREE.Vector3();
       if (this.runGrab && this.mechanism && this.raycaster.ray.intersectPlane(this.runGrab.plane, point)) this.mechanism.moveDrag(point);
@@ -1119,6 +1222,7 @@ export class Editor {
 
   // Leaving the canvas with no gesture in flight: drop the stale highlight.
   private onPointerLeave = () => {
+    this.tip.hidden = true;
     if (this.connectFrom || this.dragging) return;
     this.pendingMove = null;
     if (this.hovered && this.hovered !== this.armed) { this.setHot(this.hovered, false); this.hovered = null; this.invalidate(); }
@@ -1728,6 +1832,7 @@ export class Editor {
     const seconds = this.lastFrame ? Math.min(0.05, Math.max(0, (time - this.lastFrame) / 1000)) : 0;
     this.lastFrame = time;
     if (seconds > 0) this.runMoving = mechanism.step(seconds);
+    this.followCables(seconds);
     this.updateRings();
     this.extendTrace();
     this.runInfoClock += seconds;
@@ -1856,6 +1961,10 @@ export class Editor {
     this.ringGeo.dispose(); this.ringMat.dispose(); this.driveRingMat.dispose();
     this.trace.geometry.dispose(); (this.trace.material as THREE.Material).dispose();
     this.squareGeo.dispose(); this.socketGeo.dispose(); this.axleMat.dispose();
+    this.cablePlan = { cables: [], blocked: [], noBrain: [], noPort: [] };
+    this.drawCables();
+    this.plugGeo.dispose(); this.cableMat.dispose(); this.cableShortMat.dispose(); this.plugMat.dispose();
+    this.tip.remove();
     // Hand the GPU back everything this editor made. Part geometries live in a
     // module-level cache shared with the next editor, so they stay. Without
     // this a remount (React StrictMode does one on every dev load) leaked a

@@ -25,7 +25,7 @@ const AXES: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
 // Categories whose parts host holes that connectors plug into (fallback only —
 // most parts now carry handles measured from the real mesh).
-const HOLED: PartCategory[] = ["beam", "plate", "standoff", "corner", "gear", "sprocket", "wheel"];
+const HOLED: PartCategory[] = ["beam", "plate", "standoff", "corner", "gear", "sprocket", "wheel", "spacer"];
 export function hasHoles(meta: PartMeta): boolean {
   return (meta.holes && meta.holes.length > 0) || HOLED.includes(meta.category);
 }
@@ -166,7 +166,19 @@ export function holesFor(meta: PartMeta): Hole[] {
       through(c, short, long);
     }
   } else if (meta.category === "standoff") {
-    through([0, 0, 0], long, mid); // hollow: an opening at each end
+    // A standoff has a pin moulded onto each end: two studs, tips at the ends, that plug
+    // straight into a beam or plate (the 1x is a 12.7 mm body with a 6.1 mm pin each side).
+    for (const sign of [1, -1]) {
+      const tip: [number, number, number] = [0, 0, 0]; tip[long] = sign * s[long] / 2;
+      const out: [number, number, number] = [0, 0, 0]; out[long] = sign;
+      holes.push({ p: tip, axis: out, tan: AXES[mid], kind: "stud", core: nextCore++, bore: "round" });
+    }
+  } else if (meta.category === "spacer") {
+    // Collars, spacers and washers slide onto an axle. The bushing's bore runs its length;
+    // the rest are rings, bored through their thickness. A rubber collar grips the axle, so it
+    // turns with it and stops it sliding; the others turn freely.
+    const axis = meta.id === "shaft-bushing" ? long : short;
+    through([0, 0, 0], axis, axis === long ? mid : long, meta.id === "rubber-collar" ? "square" : "round");
   } else if (spinsWithAxle(meta)) {
     through([0, 0, 0], short, long, "square"); // centre bore, both faces
   }

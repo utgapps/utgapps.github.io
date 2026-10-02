@@ -1,6 +1,8 @@
-// Drive bases: the Robot Brain in the middle, a long beam pinned to each side of it, and wheels
-// in front of and behind the Brain. Each driven wheel sits on its own motor's axle; the motor
-// hangs on the outside of the beam. Seen from above, X is forward and Z is to the side.
+// Drive bases: the Robot Brain in the middle, two long beams pinned to each side of it (one on
+// top of the other, so every wheel axle is held in two places), and wheels in front of and
+// behind the Brain. Each driven wheel sits on its own motor's axle; the motor hangs on the
+// outside of the rails. The rails' second row of holes runs below the Brain's side holes, so the
+// Smart Ports above them stay clear for cables. Seen from above, X is forward and Z is to the side.
 import * as THREE from "three";
 import { Build, LAYER, PITCH, X, Y, Z } from "../assembler.mjs";
 
@@ -39,16 +41,19 @@ function driveBase({ front, rear, drive, extra }) {
     const driven = [];
     for (const side of [1, -1]) {
       const railZ = side * (BRAIN_SIDE + LAYER / 2);
-      const rail = build.grid(railId, { first: [holeX(rearIndex), HOLE_ROW, railZ], along: X, normal: Z });
+      // Facing in or out does not matter to a beam; facing -Z puts its second row below.
+      const facing = Z.clone().negate();
+      const rail = build.grid(railId, { first: [holeX(rearIndex), HOLE_ROW, railZ], along: X, normal: facing });
       build.join(brain, rail, { count: 2 });
+      const outerRail = build.grid(railId, { first: [holeX(rearIndex), HOLE_ROW, railZ + side * LAYER], along: X, normal: facing });
       const inward = new THREE.Vector3(0, 0, -side);
       for (const [index, wheel, id, powered] of [[frontIndex, frontWheel, front, drive !== "rear"], [rearIndex, rearWheel, rear, drive !== "front"]]) {
         const wheelZ = side * (BRAIN_SIDE - 1 - wheel.thickness / 2);
-        const outerFace = railZ + side * (LAYER / 2);
+        const outerFace = railZ + side * (LAYER / 2 + LAYER);
         if (powered) {
           const socket = new THREE.Vector3(holeX(index), HOLE_ROW, outerFace - side * 0.125);
           const motor = build.motor({ socket, out: inward, body: index > 3 ? X.clone().negate() : X });
-          build.join(motor, rail);
+          build.join(motor, outerRail);
           build.axle({ through: socket, axis: inward, from: -5, to: Math.abs(socket.z - wheelZ) + wheel.thickness / 2, motor: true });
         } else {
           const through = new THREE.Vector3(holeX(index), HOLE_ROW, outerFace);
@@ -57,6 +62,7 @@ function driveBase({ front, rear, drive, extra }) {
         const placed = build.spinner(id, { center: [holeX(index), HOLE_ROW, wheelZ], axis: inward });
         if (powered) driven.push(placed.index);
       }
+      build.join(rail, outerRail, { count: 4 }); // after the axles, so no pin goes where an axle does
     }
     return { saved: build.toSaved(), expect: { moves: driven } };
   };

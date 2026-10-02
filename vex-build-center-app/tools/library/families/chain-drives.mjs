@@ -39,6 +39,9 @@ for (const driver of SIZES) {
     if (driver === 40 && driven === 40) continue;
     for (const extra of driver === driven ? [0, 2] : [0]) {
       if (1 + spacing(driver, driven, extra) > 11) continue;
+      // A 40T in the middle of the plate rises over its top edge right where the Brain has to
+      // go, with its Smart Ports facing it: no room left to plug a cable in.
+      if (driven === 40 && driver > 8) continue;
       entries.push({
         slug: `chain-${driver}-${driven}${extra ? "-long" : ""}`,
         name: `Chain: ${driver}T drives ${driven}T${extra ? ", far apart" : ""}`,

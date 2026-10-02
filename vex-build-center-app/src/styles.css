@@ -182,3 +182,10 @@ input { font: inherit; }
 .example-more .primary:hover { background: #17924a; }
 @media (max-width: 560px) { .parts-needed { columns: 1; } .gallery-filters { flex-direction: column; } }
 @media (max-width: 760px) { .run-panel { width: auto; left: 12px; top: auto; bottom: 48px; max-height: 45%; } }
+
+/* Build check: what would stop the build working for real, and the name under the mouse. */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.checks button { all: unset; display: block; cursor: pointer; font-size: 13px; line-height: 1.35; padding: 6px 8px; border-radius: 8px; color: #7a2a0c; background: #fff1e8; border-left: 3px solid #e86a2c; }
+.checks button:hover, .checks button:focus-visible { background: #ffe1cf; outline: 2px solid #e86a2c55; }
+.check-ok { color: var(--good); }
+.hover-tip { position: absolute; z-index: 5; pointer-events: none; max-width: 270px; padding: 5px 9px; border-radius: 8px; font-size: 12.5px; line-height: 1.3; color: #fff; background: rgba(20, 24, 32, 0.88); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }

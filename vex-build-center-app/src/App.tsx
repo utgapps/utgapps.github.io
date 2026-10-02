@@ -14,7 +14,7 @@ const DEFAULT_LIMITS: Limits = { w: 11, h: 15, d: 11, motors: 6 };
 const EMPTY_STATE: EditorState = {
   count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 },
   motors: 0, canPivot: false, overlaps: 0, canUndo: false, canRedo: false, inventory: [],
-  gearInfo: null, running: false,
+  gearInfo: null, running: false, problems: [],
 };
 
 export default function App() {
@@ -267,6 +267,11 @@ export default function App() {
               ⚠ {state.overlaps} part{state.overlaps === 1 ? "" : "s"} overlapping
             </div>
           )}
+          {state.count > 0 && (
+            <div className={`legality ${state.problems.length ? "warn" : "good"}`} title="See Build check on the right">
+              {state.problems.length ? `⚠ ${state.problems.length} thing${state.problems.length === 1 ? "" : "s"} to fix` : "✓ Builds for real"}
+            </div>
+          )}
           <div className={`legality ${anyOver ? "bad" : "good"}`}>{state.count ? (anyOver ? "Over the limits" : "Within the limits") : "Empty build"}</div>
           <button className="tool help-btn" onClick={() => setShowHelp(true)} title="How to build · keyboard shortcuts">? Help</button>
         </div>
@@ -361,6 +366,18 @@ export default function App() {
                 <p className="muted small">Arrow keys slide it one hole at a time.</p>
               </>
             ) : <p className="muted small">Click a part in the scene to select it.</p>}
+          </section>
+
+          <section className="card">
+            <h3>Build check</h3>
+            {!state.count ? <p className="muted small">Add parts and this checks they would hold together for real.</p>
+              : state.problems.length ? (
+                <ul className="checks">
+                  {state.problems.map((problem, index) => (
+                    <li key={index}><button onClick={() => editorRef.current?.selectByUid(problem.uids[0] ?? null)} title="Show me">{problem.text}</button></li>
+                  ))}
+                </ul>
+              ) : <p className="small check-ok">{"✓"} Every axle is held in two holes with nothing able to slide off, and every motor and sensor has a cable to a free Brain port.</p>}
           </section>
 
           <section className="card">

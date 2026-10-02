@@ -21,6 +21,7 @@ const WIPER_PIVOT = new THREE.Vector2(7 * PITCH, GEAR_AXLE.y + 2 * PITCH);
 const LEFT_POST_X = -4 * PITCH, RIGHT_POST_X = 7 * PITCH;
 const FOOT_CENTER_Z = -22.99;
 const CRANK = 2 * PITCH, COUPLER = 7 * PITCH, ROCKER = 3 * PITCH;
+const CAP = 0.8, SHAFT_CAP_2_5X = 30.77; // a capped axle's cap, and its whole length
 
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 function basis(localXGoesTo, localYGoesTo) {
@@ -33,6 +34,8 @@ const STANDING_UP = basis(Y, X.clone().negate());
 const POINTING_UP = basis(X, Z.clone().negate());
 const AXLE_REVERSED = basis(X.clone().negate(), Y);
 const MOTOR_FACING_WALL = basis(X.clone().negate(), Z);
+const BRAIN_ON_ITS_SIDE = basis(Y, X);
+const COLLAR_ON_AXLE = basis(X, Z.clone().negate());
 
 const wiperParts = [
   { id: "plate-3x12", body: "frame", at: [LEFT_POST_X, FOOT_TOP / 2, FOOT_CENTER_Z], turn: LYING_FRONT_TO_BACK },
@@ -47,18 +50,31 @@ const wiperParts = [
   { id: "beam-1x12", body: "frame", at: [1.5 * PITCH, MOTOR_AXLE.y, 0], turn: AS_IS },
   ...[[LEFT_POST_X, 0], [LEFT_POST_X, 2], [LEFT_POST_X, 3], [RIGHT_POST_X, 0], [RIGHT_POST_X, 1], [RIGHT_POST_X, 3]].map(([x, row]) => (
     { id: "pin-connector-1x1", body: "frame", at: [x, GEAR_AXLE.y + row * PITCH, -LAYER / 2], turn: AS_IS })),
+  // A second beam behind the wall's bottom row, so the big gear's axle sits in two holes and cannot tip.
+  { id: "beam-1x10", body: "frame", at: [1.5 * PITCH, GEAR_AXLE.y, -LAYER], turn: AS_IS },
+  ...[-2, 4].map((column) => ({ id: "pin-connector-1x1", body: "frame", at: [column * PITCH, GEAR_AXLE.y, -LAYER / 2], turn: AS_IS })),
   { id: "smart-motor", body: "frame", at: [MOTOR_AXLE.x - 9.52, MOTOR_AXLE.y + 0.02, -3.05 - 25.24], turn: MOTOR_FACING_WALL },
   { id: "pin-connector-1x1", body: "frame", at: [MOTOR_AXLE.x - PITCH, MOTOR_AXLE.y, -3.05], turn: AS_IS },
   { id: "pin-connector-1x1", body: "frame", at: [MOTOR_AXLE.x + PITCH, MOTOR_AXLE.y, -3.05], turn: AS_IS },
   { id: "shaft-motor-2x", body: "drive", at: [0, 0, 6.95], turn: AXLE_REVERSED },
   { id: "gear-12t", body: "drive", at: [0, 0, LAYER], turn: AS_IS },
-  { id: "shaft-2x", body: "driven", at: [0, 0, LAYER + 3.17 - 23.62 / 2], turn: AS_IS },
+  { id: "rubber-collar", body: "drive", at: [0, 0, 2 * LAYER], turn: COLLAR_ON_AXLE },
+  // The coupler sweeps right over the big gear's axle, so its front end is held by the axle's
+  // cap instead of a collar, and a collar behind the back beam holds the other end.
+  { id: "shaft-cap-2_5x", body: "driven", at: [0, 0, 1.5 * LAYER + CAP - SHAFT_CAP_2_5X / 2], turn: AS_IS },
   { id: "gear-60t", body: "driven", at: [0, 0, LAYER], turn: AS_IS },
+  { id: "rubber-collar", body: "driven", at: [0, 0, -2 * LAYER], turn: COLLAR_ON_AXLE },
   { id: "pin-idler-1x1", body: "frame", at: [WIPER_PIVOT.x, WIPER_PIVOT.y, LAYER / 2], turn: AS_IS },
   { id: "beam-1x12", body: "wiper", at: [2.5 * PITCH, 0, LAYER], turn: AS_IS },
   { id: "pin-idler-1x1", body: "driven", at: [0, CRANK, 1.5 * LAYER], turn: AS_IS },
   { id: "beam-1x8", body: "coupler", at: [3.5 * PITCH, 0, 2 * LAYER], turn: AS_IS },
   { id: "pin-idler-1x1", body: "wiper", at: [-3 * PITCH, 0, 1.5 * LAYER], turn: AS_IS },
+  // The Brain, on its side behind the right post, one beam further back so its front ports
+  // stay clear of the swinging wiper arm.
+  { id: "beam-1x6", body: "frame", at: [RIGHT_POST_X, POST_BOTTOM_HOLE + 4.5 * PITCH, -2 * LAYER], turn: STANDING_UP },
+  ...[2, 7].map((row) => ({ id: "pin-connector-1x1", body: "frame", at: [RIGHT_POST_X, POST_BOTTOM_HOLE + row * PITCH, -1.5 * LAYER], turn: AS_IS })),
+  { id: "robot-brain", body: "frame", at: [RIGHT_POST_X + 9.49, POST_BOTTOM_HOLE + 3 * PITCH + 29.1, -2 * LAYER - 3.05 - 37.21], turn: BRAIN_ON_ITS_SIDE },
+  ...[3, 6].map((row) => ({ id: "pin-connector-1x1", body: "frame", at: [RIGHT_POST_X, POST_BOTTOM_HOLE + row * PITCH, -2.5 * LAYER], turn: AS_IS })),
 ];
 
 // The guide's opening pose, solved the way the guide solves it.

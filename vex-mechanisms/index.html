@@ -124,16 +124,18 @@ const WIPER_PIVOT = new THREE.Vector2(7 * PITCH, GEAR_AXLE.y + 2 * PITCH);      
 const LEFT_POST_X = -4 * PITCH, RIGHT_POST_X = 7 * PITCH;
 const FOOT_CENTER_Z = -22.99;                           // puts the corner's eye over the foot's 6th hole from the front
 const CRANK = 2 * PITCH, COUPLER = 7 * PITCH, ROCKER = 3 * PITCH;
+const CAP = 0.8, SHAFT_CAP_2_5X = 30.77;                // a capped axle's cap, and its whole length
 const GEAR_RATIO = 60 / 12;
 const MOTOR_RPM = 120;                                  // an IQ Smart Motor at full speed
 
 const PART_NAMES = {
   "plate-3x12": "3x12 Plate", "corner-1x1": "1x1 Corner Connector", "pin-connector-1x1": "1x1 Connector Pin",
   "beam-1x8": "1x8 Beam", "beam-1x12": "1x12 Beam", "smart-motor": "Smart Motor", "shaft-motor-2x": "2x Motor Axle",
-  "gear-12t": "12T Gear", "shaft-2x": "2x Axle", "gear-60t": "60T Gear", "pin-idler-1x1": "1x1 Idler Pin",
+  "gear-12t": "12T Gear", "shaft-cap-2_5x": "2.5x Capped Axle", "gear-60t": "60T Gear", "pin-idler-1x1": "1x1 Idler Pin",
+  "beam-1x10": "1x10 Beam", "beam-1x6": "1x6 Beam", "rubber-collar": "Rubber Shaft Collar", "robot-brain": "Robot Brain",
 };
 
-const COLORS = { frame: "#6f86a3", post: "#4f79b8", motor: "#3a3f47", drive: "#e8892b", driven: "#d04a3a", coupler: "#2f9e63", wiper: "#7b55c9", pin: "#d8b04a", axle: "#a7b0bc" };
+const COLORS = { frame: "#6f86a3", post: "#4f79b8", motor: "#3a3f47", drive: "#e8892b", driven: "#d04a3a", coupler: "#2f9e63", wiper: "#7b55c9", pin: "#d8b04a", axle: "#a7b0bc", collar: "#2b2b2b", brain: "#30343b" };
 
 // ---- Orientation helpers ---------------------------------------------------------------
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
@@ -147,6 +149,8 @@ const STANDING_UP = basis(Y, X.clone().negate());             // a beam on end, 
 const POINTING_UP = basis(X, Z.clone().negate());             // a pin standing upright
 const AXLE_REVERSED = basis(X.clone().negate(), Y);           // local +z now points to the back
 const MOTOR_FACING_WALL = basis(X.clone().negate(), Z);       // output socket toward the wall, socket to the left of centre
+const BRAIN_ON_ITS_SIDE = basis(Y, X);                        // ports facing front and back, pin holes against the post
+const COLLAR_ON_AXLE = basis(X, Z.clone().negate());          // a rubber collar's hole along the axle
 
 // ---- The build: every part, the step it arrives in, and where it comes from ------------
 // body: which rigid body carries it. Moving bodies are posed every frame from the crank angle.
@@ -167,7 +171,9 @@ const steps = [
     title: "Pin on the wall",
     text: `<p>Hold a <b>3x12 plate</b> against the front of both posts. Its <b>bottom row lines up with the posts' 4th hole</b>, and its end columns sit on the posts.</p>
       <p>Pin it with <b>1x1 connector pins</b>: on the left post at holes 4 and 6, on the right post at holes 4 and 5. <b>Leave the plate's top-right hole empty</b>: the wiper will pivot there.</p>
-      <p>Then pin a <b>1x12 beam</b> to the posts' <b>7th hole</b>, just above the plate, with one more pin on each side.</p>`,
+      <p>Then pin a <b>1x12 beam</b> to the posts' <b>7th hole</b>, just above the plate, with one more pin on each side.</p>
+      <p>Turn the model around. Fit a <b>1x10 beam</b> behind the plate's <b>bottom row</b>, between the posts, and pin it on through the plate's 3rd and 9th holes.</p>
+      <p class="note">The big gear's axle will go through the plate <b>and</b> this beam. Held in two holes, an axle cannot tip.</p>`,
   },
   {
     title: "Mount the motor",
@@ -178,13 +184,14 @@ const steps = [
   {
     title: "Add the small gear",
     text: `<p>From the front, push a <b>2x motor axle</b> through the beam's 5th hole into the motor socket, collar end first, until it stops.</p>
-      <p>Slide a <b>12T gear</b> onto the axle until it sits against the beam.</p>
+      <p>Slide a <b>12T gear</b> onto the axle until it sits against the beam, then push a <b>rubber shaft collar</b> on after it so the gear cannot slide off.</p>
       <p class="note">The 12T is the <b>driving</b> gear: the motor turns it directly.</p>`,
   },
   {
     title: "Add the big gear",
-    text: `<p>Push a <b>2x axle</b> through the wall's <b>bottom row, 5th hole from the left</b>, straight below the motor axle.</p>
-      <p>Slide a <b>60T gear</b> onto it from the front until it sits against the wall. Wiggle it until its teeth drop between the 12T's teeth. The front of the axle should end flush with the gear.</p>
+    text: `<p>Hold a <b>60T gear</b> against the wall's <b>bottom row, 5th hole from the left</b>, straight below the motor axle. Wiggle it until its teeth drop between the 12T's teeth.</p>
+      <p>Push a <b>2.5x capped axle</b> through the gear, the wall and the back beam until its cap sits against the gear. Behind the back beam, push a <b>rubber shaft collar</b> onto it, snug against the beam.</p>
+      <p class="note">The coupler will sweep right over the front of this axle, so there is no room for a collar there: the cap does that job.</p>
       <p class="note">12T + 60T mesh at exactly 3 holes apart. That is why the motor sits 3 holes above this axle.</p>`,
   },
   {
@@ -200,8 +207,10 @@ const steps = [
       <p class="note">Turn the big gear slowly by hand. The arm should swing back and forth, and nothing should hit.</p>`,
   },
   {
-    title: "Wire it and run it",
-    text: `<p>Plug the Smart Motor into <b>port 1</b> of the Robot Brain, then spin it:</p>
+    title: "Mount the Brain, wire it and run it",
+    text: `<p>Turn the model around. Pin a <b>1x6 beam</b> onto the back of the right post, from its 3rd hole up, through the post's 3rd and 8th holes.</p>
+      <p>Hold the <b>Robot Brain</b> on its side behind that beam and pin it on through the beam's 2nd and 5th holes. The extra beam keeps the Brain's front ports clear of the swinging wiper.</p>
+      <p>Plug the Smart Motor into the Brain's nearest front port with a <b>300 mm Smart Cable</b>, then spin it:</p>
       <pre>motor_1.spin(FORWARD)</pre>
       <p>Switch to <b>Watch it run</b> to see what each part does while it moves.</p>`,
   },
@@ -223,6 +232,8 @@ const parts = [
   { id: "beam-1x12", step: 2, body: "frame", color: COLORS.frame, at: [1.5 * PITCH, MOTOR_AXLE.y, 0], turn: AS_IS, from: [0, 0, 70] },
   ...[[LEFT_POST_X, 0], [LEFT_POST_X, 2], [LEFT_POST_X, 3], [RIGHT_POST_X, 0], [RIGHT_POST_X, 1], [RIGHT_POST_X, 3]].map(([x, row]) => (
     { id: "pin-connector-1x1", step: 2, body: "frame", color: COLORS.pin, at: [x, GEAR_AXLE.y + row * PITCH, -LAYER / 2], turn: AS_IS, from: [0, 0, 50] })),
+  { id: "beam-1x10", step: 2, body: "frame", color: COLORS.frame, at: [1.5 * PITCH, GEAR_AXLE.y, -LAYER], turn: AS_IS, from: [0, 0, -60] },
+  ...[-2, 4].map((column) => ({ id: "pin-connector-1x1", step: 2, body: "frame", color: COLORS.pin, at: [column * PITCH, GEAR_AXLE.y, -LAYER / 2], turn: AS_IS, from: [0, 0, 50] })),
   // Step 4: motor
   { id: "smart-motor", step: 3, body: "frame", color: COLORS.motor, at: [MOTOR_AXLE.x - 9.52, MOTOR_AXLE.y + 0.02, -3.05 - 25.24], turn: MOTOR_FACING_WALL, from: [0, 0, -70] },
   { id: "pin-connector-1x1", step: 3, body: "frame", color: COLORS.pin, at: [MOTOR_AXLE.x - PITCH, MOTOR_AXLE.y, -3.05], turn: AS_IS, from: [0, 0, 40] },
@@ -230,9 +241,11 @@ const parts = [
   // Step 5: drive gear (turns with the motor)
   { id: "shaft-motor-2x", step: 4, body: "drive", color: COLORS.axle, at: [0, 0, 6.95], turn: AXLE_REVERSED, from: [0, 0, 60] },
   { id: "gear-12t", step: 4, body: "drive", color: COLORS.drive, at: [0, 0, LAYER], turn: AS_IS, from: [0, 0, 50] },
+  { id: "rubber-collar", step: 4, body: "drive", color: COLORS.collar, at: [0, 0, 2 * LAYER], turn: COLLAR_ON_AXLE, from: [0, 0, 40] },
   // Step 6: driven gear (the crank)
-  { id: "shaft-2x", step: 5, body: "driven", color: COLORS.axle, at: [0, 0, LAYER + 3.17 - 23.62 / 2], turn: AS_IS, from: [0, 0, 60] },
   { id: "gear-60t", step: 5, body: "driven", color: COLORS.driven, at: [0, 0, LAYER], turn: AS_IS, from: [0, 0, 50] },
+  { id: "shaft-cap-2_5x", step: 5, body: "driven", color: COLORS.axle, at: [0, 0, 1.5 * LAYER + CAP - SHAFT_CAP_2_5X / 2], turn: AS_IS, from: [0, 0, 60] },
+  { id: "rubber-collar", step: 5, body: "driven", color: COLORS.collar, at: [0, 0, -2 * LAYER], turn: COLLAR_ON_AXLE, from: [0, 0, -40] },
   // Step 7: wiper arm, hung on its pivot (hole 3 of 0..11 sits on the pivot)
   { id: "pin-idler-1x1", step: 6, body: "frame", color: COLORS.pin, at: [WIPER_PIVOT.x, WIPER_PIVOT.y, LAYER / 2], turn: AS_IS, from: [0, 0, 40] },
   { id: "beam-1x12", step: 6, body: "wiper", color: COLORS.wiper, at: [2.5 * PITCH, 0, LAYER], turn: AS_IS, from: [0, 0, 60] },
@@ -240,6 +253,11 @@ const parts = [
   { id: "pin-idler-1x1", step: 7, body: "driven", color: COLORS.pin, at: [0, CRANK, 1.5 * LAYER], turn: AS_IS, from: [0, 0, 40] },
   { id: "beam-1x8", step: 7, body: "coupler", color: COLORS.coupler, at: [3.5 * PITCH, 0, 2 * LAYER], turn: AS_IS, from: [0, 0, 60] },
   { id: "pin-idler-1x1", step: 7, body: "wiper", color: COLORS.pin, at: [-3 * PITCH, 0, 1.5 * LAYER], turn: AS_IS, from: [0, 0, 40] },
+  // Step 9: the Brain, one beam behind the right post so its front ports clear the wiper
+  { id: "beam-1x6", step: 8, body: "frame", color: COLORS.post, at: [RIGHT_POST_X, POST_BOTTOM_HOLE + 4.5 * PITCH, -2 * LAYER], turn: STANDING_UP, from: [0, 0, -60] },
+  ...[2, 7].map((row) => ({ id: "pin-connector-1x1", step: 8, body: "frame", color: COLORS.pin, at: [RIGHT_POST_X, POST_BOTTOM_HOLE + row * PITCH, -1.5 * LAYER], turn: AS_IS, from: [0, 0, -40] })),
+  { id: "robot-brain", step: 8, body: "frame", color: COLORS.brain, at: [RIGHT_POST_X + 9.49, POST_BOTTOM_HOLE + 3 * PITCH + 29.1, -2 * LAYER - 3.05 - 37.21], turn: BRAIN_ON_ITS_SIDE, from: [0, 0, -80] },
+  ...[3, 6].map((row) => ({ id: "pin-connector-1x1", step: 8, body: "frame", color: COLORS.pin, at: [RIGHT_POST_X, POST_BOTTOM_HOLE + row * PITCH, -2.5 * LAYER], turn: AS_IS, from: [0, 0, -40] })),
 ];
 
 // ---- Kinematics ----------------------------------------------------------------------

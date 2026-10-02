@@ -9,6 +9,8 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { verify } from "./library/verify.mjs";
 import { metaOf } from "./library/assembler.mjs";
+import { layout } from "./library/layout.mjs";
+import { planCables } from "../src/lib/cables.ts";
 
 const here = new URL(".", import.meta.url);
 const checking = process.argv[2] === "--check";
@@ -49,6 +51,10 @@ for (const entry of families) {
   const counts = new Map();
   for (const part of made.saved) counts.set(part.id, (counts.get(part.id) || 0) + 1);
   const parts = [...counts].map(([id, count]) => ({ id, name: metaOf(id).name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // The cables are worked out from where the parts are, not saved, but you still need them.
+  const cables = new Map();
+  for (const cable of planCables(layout(made.saved).poses).cables) cables.set(cable.length, (cables.get(cable.length) || 0) + 1);
+  for (const [length, count] of [...cables].sort((a, b) => a[0] - b[0])) parts.push({ id: `smart-cable-${length}`, name: `${length} mm Smart Cable`, count });
   const { make, ...tags } = entry;
   index.push({ ...tags, file: `library/${entry.slug}.json`, partCount: made.saved.length, parts });
   if (!only) output(new URL(`${entry.slug}.json`, outDir), JSON.stringify(made.saved) + "\n");
