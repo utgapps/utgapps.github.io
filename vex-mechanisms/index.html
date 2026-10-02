@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>window.UTG_TOOL = "vex";</script>
+<script>document.write('<script src="../class-codes.js?t=' + Date.now() + '"><' + '/script>');</script>
+<script>document.write('<script src="../guard.js?t=' + Date.now() + '"><' + '/script>');</script>
+<title>VEX Windshield Wiper</title>
+<meta name="description" content="Build a motor-driven windshield wiper from VEX IQ parts, step by step, then watch the gears, crank and four-bar linkage move.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --page: #eef2f6; --panel: #ffffff; --ink: #18202b; --muted: #5b6676; --line: #d9e0e8;
+    --accent: #2b6fd6; --accent-ink: #ffffff; --chip: #f1f4f8; --scene: #e8edf3;
+    --frame: #6f86a3; --drive: #e8892b; --driven: #d04a3a; --coupler: #2f9e63; --wiper: #7b55c9; --pin: #d8b04a; --motor: #3a3f47;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #12161c; --panel: #1a2029; --ink: #e8edf3; --muted: #9aa6b5; --line: #2c3542;
+      --accent: #5b9bf0; --accent-ink: #0d1117; --chip: #232b36; --scene: #161b22;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #12161c; --panel: #1a2029; --ink: #e8edf3; --muted: #9aa6b5; --line: #2c3542;
+    --accent: #5b9bf0; --accent-ink: #0d1117; --chip: #232b36; --scene: #161b22;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--page); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100vh; }
+  .stage { position: relative; min-height: 0; background: var(--scene); }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .views { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .views button, .chip-button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .views button:hover, .chip-button:hover { border-color: var(--accent); }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 500; }
+  aside { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  header { padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0 0 2px; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; padding: 10px 18px 0; }
+  .tabs button { flex: 1; border: 1px solid var(--line); background: var(--chip); color: var(--ink); padding: 8px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .content { padding: 14px 18px 18px; overflow-y: auto; flex: 1; }
+  .step-count { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .content h2 { font-size: 17px; margin: 2px 0 8px; }
+  .content p { margin: 0 0 10px; }
+  .content ol, .content ul { margin: 0 0 10px; padding-left: 20px; }
+  .content li { margin-bottom: 4px; }
+  .parts { background: var(--chip); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
+  .parts h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+  .parts div { display: flex; justify-content: space-between; font-size: 14px; }
+  .nav { display: flex; gap: 8px; margin-top: 12px; }
+  .nav button { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  .nav button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .nav button:disabled { opacity: .45; cursor: default; }
+  .dots { display: flex; gap: 4px; margin: 0 0 12px; }
+  .dots span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+  .dots span.done { background: var(--accent); }
+  .controls { display: grid; gap: 10px; margin: 6px 0 14px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row label { font-size: 13px; color: var(--muted); min-width: 92px; }
+  .row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toggles label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; background: var(--chip); padding: 5px 9px; border-radius: 8px; cursor: pointer; }
+  .readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
+  .readout { background: var(--chip); border-radius: 10px; padding: 8px 10px; }
+  .readout b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .readout span { font-size: 12px; color: var(--muted); }
+  .legend { display: grid; gap: 4px; margin: 0 0 12px; font-size: 13px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+  .note { font-size: 13px; color: var(--muted); }
+  code { background: var(--chip); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  pre { background: var(--chip); padding: 10px 12px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .content { overflow: visible; padding: 14px 16px 24px; }
+    header, .tabs { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="loading" id="loading">Loading the VEX IQ parts&hellip;</div>
+    <div class="views">
+      <button data-view="corner">3D</button>
+      <button data-view="front">Front</button>
+      <button data-view="back">Back</button>
+      <button data-view="side">Side</button>
+    </div>
+  </div>
+  <aside>
+    <header>
+      <h1>Windshield Wiper</h1>
+      <p>A motor, a 5:1 gear train and a four-bar linkage, built from VEX IQ parts.</p>
+    </header>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-build" aria-selected="true">Build it</button>
+      <button role="tab" id="tab-run" aria-selected="false">Watch it run</button>
+    </div>
+    <div class="content" id="content"></div>
+  </aside>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ---- Real VEX IQ geometry (millimetres) -----------------------------------------------
+// Every hole sits on the 12.7 mm pitch grid, and parts stack in 6.35 mm layers along z.
+// The wall is layer 0; layer 1 holds the gears and the wiper arm; layer 2 the coupler.
+const PITCH = 12.7, LAYER = 6.35;
+const FOOT_TOP = 6.1;                                   // a plate lying flat is 6.1 mm thick
+const CORNER_PIN_ABOVE_FOOT = 6.19;                     // a corner connector's built-in pin, above the plate it sits on
+const POST_BOTTOM_HOLE = FOOT_TOP + CORNER_PIN_ABOVE_FOOT;
+const GEAR_AXLE = new THREE.Vector2(0, POST_BOTTOM_HOLE + 3 * PITCH);           // the 60T, on the posts' 4th hole
+const MOTOR_AXLE = new THREE.Vector2(0, GEAR_AXLE.y + 3 * PITCH);               // the 12T, 3 holes straight up: 12T + 60T mesh at 3 pitches
+const WIPER_PIVOT = new THREE.Vector2(7 * PITCH, GEAR_AXLE.y + 2 * PITCH);      // the wall's top-right hole
+const LEFT_POST_X = -4 * PITCH, RIGHT_POST_X = 7 * PITCH;
+const FOOT_CENTER_Z = -22.99;                           // puts the corner's eye over the foot's 6th hole from the front
+const CRANK = 2 * PITCH, COUPLER = 7 * PITCH, ROCKER = 3 * PITCH;
+const GEAR_RATIO = 60 / 12;
+const MOTOR_RPM = 120;                                  // an IQ Smart Motor at full speed
+
+const PART_NAMES = {
+  "plate-3x12": "3x12 Plate", "corner-1x1": "1x1 Corner Connector", "pin-connector-1x1": "1x1 Connector Pin",
+  "beam-1x8": "1x8 Beam", "beam-1x12": "1x12 Beam", "smart-motor": "Smart Motor", "shaft-motor-2x": "2x Motor Axle",
+  "gear-12t": "12T Gear", "shaft-2x": "2x Axle", "gear-60t": "60T Gear", "pin-idler-1x1": "1x1 Idler Pin",
+};
+
+const COLORS = { frame: "#6f86a3", post: "#4f79b8", motor: "#3a3f47", drive: "#e8892b", driven: "#d04a3a", coupler: "#2f9e63", wiper: "#7b55c9", pin: "#d8b04a", axle: "#a7b0bc" };
+
+// ---- Orientation helpers ---------------------------------------------------------------
+const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+function basis(localXGoesTo, localYGoesTo) {
+  const localZGoesTo = new THREE.Vector3().crossVectors(localXGoesTo, localYGoesTo);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(localXGoesTo, localYGoesTo, localZGoesTo));
+}
+const AS_IS = new THREE.Quaternion();
+const LYING_FRONT_TO_BACK = basis(Z, X);                       // a plate flat on the table, long side front to back
+const STANDING_UP = basis(Y, X.clone().negate());             // a beam on end, holes facing front
+const POINTING_UP = basis(X, Z.clone().negate());             // a pin standing upright
+const AXLE_REVERSED = basis(X.clone().negate(), Y);           // local +z now points to the back
+const MOTOR_FACING_WALL = basis(X.clone().negate(), Z);       // output socket toward the wall, socket to the left of centre
+
+// ---- The build: every part, the step it arrives in, and where it comes from ------------
+// body: which rigid body carries it. Moving bodies are posed every frame from the crank angle.
+// at: position in the body's frame. from: the direction it slides in from during its step.
+const steps = [
+  {
+    title: "Lay out the feet",
+    text: `<p>Lay two <b>3x12 plates</b> flat on the table, long sides running front to back, 11 holes apart (centre to centre).</p>
+      <p>On each plate, stand a <b>corner connector</b> on the middle row, 6th hole from the front, with its built-in pin pointing to the front. Push a <b>1x1 connector pin</b> up through the plate into the corner's hole from underneath.</p>
+      <p class="note">The feet run front to back because the motor will hang off the back of the wall. Long feet keep it from tipping over.</p>`,
+  },
+  {
+    title: "Stand up the posts",
+    text: `<p>Push the <b>bottom hole</b> of a <b>1x8 beam</b> onto each corner's built-in pin, so both beams stand straight up with their holes facing front.</p>
+      <p class="note">These posts carry everything: the wall, the motor and every axle.</p>`,
+  },
+  {
+    title: "Pin on the wall",
+    text: `<p>Hold a <b>3x12 plate</b> against the front of both posts. Its <b>bottom row lines up with the posts' 4th hole</b>, and its end columns sit on the posts.</p>
+      <p>Pin it with <b>1x1 connector pins</b>: on the left post at holes 4 and 6, on the right post at holes 4 and 5. <b>Leave the plate's top-right hole empty</b>: the wiper will pivot there.</p>
+      <p>Then pin a <b>1x12 beam</b> to the posts' <b>7th hole</b>, just above the plate, with one more pin on each side.</p>`,
+  },
+  {
+    title: "Mount the motor",
+    text: `<p>Turn the model around. Hold the <b>Smart Motor</b> against the back of the 1x12 beam with its round output socket <b>behind the beam's 5th hole from the left</b>.</p>
+      <p>Push two <b>1x1 connector pins</b> through the beam's 4th and 6th holes into the motor.</p>
+      <p class="note">Look through the beam's 5th hole from the front: you should see the square drive inside the socket.</p>`,
+  },
+  {
+    title: "Add the small gear",
+    text: `<p>From the front, push a <b>2x motor axle</b> through the beam's 5th hole into the motor socket, collar end first, until it stops.</p>
+      <p>Slide a <b>12T gear</b> onto the axle until it sits against the beam.</p>
+      <p class="note">The 12T is the <b>driving</b> gear: the motor turns it directly.</p>`,
+  },
+  {
+    title: "Add the big gear",
+    text: `<p>Push a <b>2x axle</b> through the wall's <b>bottom row, 5th hole from the left</b>, straight below the motor axle.</p>
+      <p>Slide a <b>60T gear</b> onto it from the front until it sits against the wall. Wiggle it until its teeth drop between the 12T's teeth. The front of the axle should end flush with the gear.</p>
+      <p class="note">12T + 60T mesh at exactly 3 holes apart. That is why the motor sits 3 holes above this axle.</p>`,
+  },
+  {
+    title: "Hang the wiper arm",
+    text: `<p>Push a <b>1x1 idler pin</b> into the wall's <b>top-right hole</b>, the one you left empty.</p>
+      <p>Hang a <b>1x12 beam</b> on it by its <b>4th hole</b>: 3 holes hang below the pivot, 8 stick up. This beam is the wiper arm.</p>
+      <p class="note">An idler pin spins freely in its hole. That is what makes this a pivot instead of a rigid joint.</p>`,
+  },
+  {
+    title: "Connect the coupler",
+    text: `<p>Push a <b>1x1 idler pin</b> into the 60T gear's hole <b>2 holes from its centre</b>. That pin is the crank.</p>
+      <p>Put the end hole of a <b>1x8 beam</b> on that pin, in front of the gear. Swing the beam's other end to the <b>wiper arm's bottom hole</b> and join them with another <b>idler pin</b>.</p>
+      <p class="note">Turn the big gear slowly by hand. The arm should swing back and forth, and nothing should hit.</p>`,
+  },
+  {
+    title: "Wire it and run it",
+    text: `<p>Plug the Smart Motor into <b>port 1</b> of the Robot Brain, then spin it:</p>
+      <pre>motor_1.spin(FORWARD)</pre>
+      <p>Switch to <b>Watch it run</b> to see what each part does while it moves.</p>`,
+  },
+];
+
+const parts = [
+  // Step 1: feet
+  { id: "plate-3x12", step: 0, body: "frame", color: COLORS.frame, at: [LEFT_POST_X, FOOT_TOP / 2, FOOT_CENTER_Z], turn: LYING_FRONT_TO_BACK, from: [0, -30, 0] },
+  { id: "plate-3x12", step: 0, body: "frame", color: COLORS.frame, at: [RIGHT_POST_X, FOOT_TOP / 2, FOOT_CENTER_Z], turn: LYING_FRONT_TO_BACK, from: [0, -30, 0] },
+  { id: "corner-1x1", step: 0, body: "frame", color: COLORS.post, at: [LEFT_POST_X, POST_BOTTOM_HOLE - 0.905, -13.5], turn: AS_IS, from: [0, 40, 0] },
+  { id: "corner-1x1", step: 0, body: "frame", color: COLORS.post, at: [RIGHT_POST_X, POST_BOTTOM_HOLE - 0.905, -13.5], turn: AS_IS, from: [0, 40, 0] },
+  { id: "pin-connector-1x1", step: 0, body: "frame", color: COLORS.pin, at: [LEFT_POST_X, FOOT_TOP, -16.64], turn: POINTING_UP, from: [0, -40, 0] },
+  { id: "pin-connector-1x1", step: 0, body: "frame", color: COLORS.pin, at: [RIGHT_POST_X, FOOT_TOP, -16.64], turn: POINTING_UP, from: [0, -40, 0] },
+  // Step 2: posts
+  { id: "beam-1x8", step: 1, body: "frame", color: COLORS.post, at: [LEFT_POST_X, POST_BOTTOM_HOLE + 3.5 * PITCH, -LAYER], turn: STANDING_UP, from: [0, 0, 60] },
+  { id: "beam-1x8", step: 1, body: "frame", color: COLORS.post, at: [RIGHT_POST_X, POST_BOTTOM_HOLE + 3.5 * PITCH, -LAYER], turn: STANDING_UP, from: [0, 0, 60] },
+  // Step 3: wall
+  { id: "plate-3x12", step: 2, body: "frame", color: COLORS.frame, at: [1.5 * PITCH, GEAR_AXLE.y + PITCH, 0], turn: AS_IS, from: [0, 0, 70] },
+  { id: "beam-1x12", step: 2, body: "frame", color: COLORS.frame, at: [1.5 * PITCH, MOTOR_AXLE.y, 0], turn: AS_IS, from: [0, 0, 70] },
+  ...[[LEFT_POST_X, 0], [LEFT_POST_X, 2], [LEFT_POST_X, 3], [RIGHT_POST_X, 0], [RIGHT_POST_X, 1], [RIGHT_POST_X, 3]].map(([x, row]) => (
+    { id: "pin-connector-1x1", step: 2, body: "frame", color: COLORS.pin, at: [x, GEAR_AXLE.y + row * PITCH, -LAYER / 2], turn: AS_IS, from: [0, 0, 50] })),
+  // Step 4: motor
+  { id: "smart-motor", step: 3, body: "frame", color: COLORS.motor, at: [MOTOR_AXLE.x - 9.52, MOTOR_AXLE.y + 0.02, -3.05 - 25.24], turn: MOTOR_FACING_WALL, from: [0, 0, -70] },
+  { id: "pin-connector-1x1", step: 3, body: "frame", color: COLORS.pin, at: [MOTOR_AXLE.x - PITCH, MOTOR_AXLE.y, -3.05], turn: AS_IS, from: [0, 0, 40] },
+  { id: "pin-connector-1x1", step: 3, body: "frame", color: COLORS.pin, at: [MOTOR_AXLE.x + PITCH, MOTOR_AXLE.y, -3.05], turn: AS_IS, from: [0, 0, 40] },
+  // Step 5: drive gear (turns with the motor)
+  { id: "shaft-motor-2x", step: 4, body: "drive", color: COLORS.axle, at: [0, 0, 6.95], turn: AXLE_REVERSED, from: [0, 0, 60] },
+  { id: "gear-12t", step: 4, body: "drive", color: COLORS.drive, at: [0, 0, LAYER], turn: AS_IS, from: [0, 0, 50] },
+  // Step 6: driven gear (the crank)
+  { id: "shaft-2x", step: 5, body: "driven", color: COLORS.axle, at: [0, 0, LAYER + 3.17 - 23.62 / 2], turn: AS_IS, from: [0, 0, 60] },
+  { id: "gear-60t", step: 5, body: "driven", color: COLORS.driven, at: [0, 0, LAYER], turn: AS_IS, from: [0, 0, 50] },
+  // Step 7: wiper arm, hung on its pivot (hole 3 of 0..11 sits on the pivot)
+  { id: "pin-idler-1x1", step: 6, body: "frame", color: COLORS.pin, at: [WIPER_PIVOT.x, WIPER_PIVOT.y, LAYER / 2], turn: AS_IS, from: [0, 0, 40] },
+  { id: "beam-1x12", step: 6, body: "wiper", color: COLORS.wiper, at: [2.5 * PITCH, 0, LAYER], turn: AS_IS, from: [0, 0, 60] },
+  // Step 8: crank pin, coupler, and the joint between coupler and wiper
+  { id: "pin-idler-1x1", step: 7, body: "driven", color: COLORS.pin, at: [0, CRANK, 1.5 * LAYER], turn: AS_IS, from: [0, 0, 40] },
+  { id: "beam-1x8", step: 7, body: "coupler", color: COLORS.coupler, at: [3.5 * PITCH, 0, 2 * LAYER], turn: AS_IS, from: [0, 0, 60] },
+  { id: "pin-idler-1x1", step: 7, body: "wiper", color: COLORS.pin, at: [-3 * PITCH, 0, 1.5 * LAYER], turn: AS_IS, from: [0, 0, 40] },
+];
+
+// ---- Kinematics ----------------------------------------------------------------------
+// crankAngle is the direction from the gear axle to the crank pin. The four-bar is solved exactly:
+// the coupler pin B is where a circle of radius COUPLER around A meets a circle of radius ROCKER around the pivot.
+function solveLinkage(crankAngle) {
+  const crankPin = new THREE.Vector2(CRANK * Math.cos(crankAngle), CRANK * Math.sin(crankAngle)).add(GEAR_AXLE);
+  const pivotToCrank = crankPin.clone().sub(WIPER_PIVOT);
+  const distance = pivotToCrank.length();
+  const cosine = (ROCKER * ROCKER + distance * distance - COUPLER * COUPLER) / (2 * ROCKER * distance);
+  const rockerAngle = Math.atan2(pivotToCrank.y, pivotToCrank.x) + Math.acos(Math.max(-1, Math.min(1, cosine)));
+  const couplerPin = new THREE.Vector2(Math.cos(rockerAngle), Math.sin(rockerAngle)).multiplyScalar(ROCKER).add(WIPER_PIVOT);
+  const wiperAngle = rockerAngle + Math.PI;                   // the arm points away from the coupler pin
+  const toPivot = WIPER_PIVOT.clone().sub(couplerPin), toCrank = crankPin.clone().sub(couplerPin);
+  const transmission = Math.acos(Math.abs(toPivot.dot(toCrank) / (toPivot.length() * toCrank.length())));
+  return { crankPin, couplerPin, wiperAngle, transmission };
+}
+
+// ---- Scene ---------------------------------------------------------------------------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 5, 6000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+const sceneCenter = new THREE.Vector3(20, 85, 0);
+controls.target.copy(sceneCenter);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a96a8, 1.9));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(180, 420, 320);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 50, far: 1200 });
+sun.target.position.copy(sceneCenter);
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0xffffff, 0.7);
+fill.position.set(-300, 150, -250);
+scene.add(fill);
+
+const floor = new THREE.Mesh(new THREE.CircleGeometry(700, 64), new THREE.ShadowMaterial({ opacity: 0.18 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(1016, 80, 0x9aa8b8, 0xc4ced9);
+grid.material.transparent = true; grid.material.opacity = 0.45;
+grid.position.y = 0.05;
+scene.add(grid);
+
+function applyTheme() {
+  const styles = getComputedStyle(document.documentElement);
+  scene.background = new THREE.Color(styles.getPropertyValue("--scene").trim());
+  const dark = scene.background.getHSL({}).l < 0.3;
+  grid.material.color.set(dark ? 0x2c3542 : 0xc4ced9);
+  floor.material.opacity = dark ? 0.35 : 0.18;
+}
+applyTheme();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+// Moving bodies. Each is a group whose origin is its own axle or joint.
+const bodies = { frame: new THREE.Group(), drive: new THREE.Group(), driven: new THREE.Group(), coupler: new THREE.Group(), wiper: new THREE.Group() };
+for (const group of Object.values(bodies)) scene.add(group);
+bodies.drive.position.set(MOTOR_AXLE.x, MOTOR_AXLE.y, 0);
+bodies.driven.position.set(GEAR_AXLE.x, GEAR_AXLE.y, 0);
+
+function decode(base64, ArrayType) {
+  const text = atob(base64), bytes = new Uint8Array(text.length);
+  for (let index = 0; index < text.length; index++) bytes[index] = text.charCodeAt(index);
+  return new ArrayType(bytes.buffer);
+}
+const geometryCache = new Map();
+function loadGeometry(id) {
+  if (!geometryCache.has(id)) {
+    geometryCache.set(id, fetch(`../vex-build-center/parts/${id}.json`).then((response) => response.json()).then((data) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(decode(data.position, Float32Array), 3));
+      if (data.normal) geometry.setAttribute("normal", new THREE.BufferAttribute(decode(data.normal, Float32Array), 3));
+      geometry.setIndex(new THREE.BufferAttribute(decode(data.index, Uint32Array), 1));
+      if (!data.normal) geometry.computeVertexNormals();
+      return geometry;
+    }));
+  }
+  return geometryCache.get(id);
+}
+
+await Promise.all(parts.map(async (part) => {
+  const material = new THREE.MeshStandardMaterial({ color: part.color, metalness: 0.12, roughness: 0.55, transparent: true });
+  const mesh = new THREE.Mesh(await loadGeometry(part.id), material);
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.quaternion.copy(part.turn);
+  part.home = new THREE.Vector3(...part.at);
+  part.mesh = mesh;
+  bodies[part.body].add(mesh);
+}));
+document.getElementById("loading").remove();
+
+// Paths the joints trace, and the linkage drawn as a skeleton, for Run mode.
+const overlay = new THREE.Group();
+scene.add(overlay);
+const OVERLAY_Z = 3 * LAYER + 2;
+function pathLine(points, color) {
+  const geometry = new THREE.BufferGeometry().setFromPoints(points.map((point) => new THREE.Vector3(point.x, point.y, OVERLAY_Z)));
+  return new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.85 }));
+}
+const traces = new THREE.Group();
+{
+  const crankPath = [], couplerPath = [], tipPath = [];
+  for (let degree = 0; degree <= 360; degree += 2) {
+    const pose = solveLinkage((degree * Math.PI) / 180);
+    crankPath.push(pose.crankPin); couplerPath.push(pose.couplerPin);
+    tipPath.push(new THREE.Vector2(Math.cos(pose.wiperAngle), Math.sin(pose.wiperAngle)).multiplyScalar(8 * PITCH).add(WIPER_PIVOT));
+  }
+  traces.add(pathLine(crankPath, COLORS.driven), pathLine(couplerPath, COLORS.coupler), pathLine(tipPath, COLORS.wiper));
+}
+overlay.add(traces);
+const skeleton = new THREE.Group();
+overlay.add(skeleton);
+const skeletonLinks = {
+  ground: pathLine([GEAR_AXLE, WIPER_PIVOT], "#8a94a6"), crank: pathLine([GEAR_AXLE, GEAR_AXLE], COLORS.driven),
+  coupler: pathLine([GEAR_AXLE, GEAR_AXLE], COLORS.coupler), rocker: pathLine([GEAR_AXLE, GEAR_AXLE], COLORS.wiper),
+};
+skeletonLinks.ground.material = new THREE.LineDashedMaterial({ color: "#8a94a6", dashSize: 6, gapSize: 4, depthTest: false, transparent: true });
+skeletonLinks.ground.computeLineDistances();
+for (const line of Object.values(skeletonLinks)) skeleton.add(line);
+const jointMarkers = {};
+for (const [name, color] of [["gearAxle", "#ffffff"], ["pivot", "#ffffff"], ["crankPin", COLORS.driven], ["couplerPin", COLORS.coupler]]) {
+  const marker = new THREE.Mesh(new THREE.SphereGeometry(3.2, 16, 12), new THREE.MeshBasicMaterial({ color, depthTest: false }));
+  marker.renderOrder = 10;
+  jointMarkers[name] = marker;
+  skeleton.add(marker);
+}
+jointMarkers.gearAxle.position.set(GEAR_AXLE.x, GEAR_AXLE.y, OVERLAY_Z);
+jointMarkers.pivot.position.set(WIPER_PIVOT.x, WIPER_PIVOT.y, OVERLAY_Z);
+for (const object of overlay.children) object.renderOrder = 9;
+skeleton.traverse((object) => { object.renderOrder = 9; });
+traces.traverse((object) => { object.renderOrder = 9; });
+
+function setLine(line, from, to) {
+  const positions = line.geometry.attributes.position;
+  positions.setXYZ(0, from.x, from.y, OVERLAY_Z); positions.setXYZ(1, to.x, to.y, OVERLAY_Z);
+  positions.needsUpdate = true;
+}
+
+// Pose every moving body for a crank angle. The motor turns GEAR_RATIO times as fast, the other way.
+// Measured from the meshes: the 60T's tooth tips sit at 3 + 6k degrees, the 12T's at 15 + 30k. Turning the 12T
+// a further 15 degrees puts a gap of the 12T on every tooth of the 60T where they meet.
+const TOOTH_PHASE = Math.PI / 12;
+let crankAngle = Math.PI * 0.62;
+function poseMechanism() {
+  const pose = solveLinkage(crankAngle);
+  const gearTurn = crankAngle - Math.PI / 2;               // the crank pin is the 60T's hole straight "up" in its own frame
+  bodies.driven.rotation.z = gearTurn;
+  bodies.drive.rotation.z = -GEAR_RATIO * gearTurn + TOOTH_PHASE;
+  const couplerDirection = pose.couplerPin.clone().sub(pose.crankPin);
+  bodies.coupler.position.set(pose.crankPin.x, pose.crankPin.y, 0);
+  bodies.coupler.rotation.z = Math.atan2(couplerDirection.y, couplerDirection.x);
+  bodies.wiper.position.set(WIPER_PIVOT.x, WIPER_PIVOT.y, 0);
+  bodies.wiper.rotation.z = pose.wiperAngle;
+  setLine(skeletonLinks.crank, GEAR_AXLE, pose.crankPin);
+  setLine(skeletonLinks.coupler, pose.crankPin, pose.couplerPin);
+  setLine(skeletonLinks.rocker, WIPER_PIVOT, pose.couplerPin);
+  jointMarkers.crankPin.position.set(pose.crankPin.x, pose.crankPin.y, OVERLAY_Z);
+  jointMarkers.couplerPin.position.set(pose.couplerPin.x, pose.couplerPin.y, OVERLAY_Z);
+  return pose;
+}
+
+// ---- Camera views --------------------------------------------------------------------
+const VIEWS = {
+  corner: new THREE.Vector3(330, 300, 520), front: new THREE.Vector3(0, 0, 640),
+  back: new THREE.Vector3(-260, 120, -520), side: new THREE.Vector3(620, 40, 0),
+};
+let cameraFlight = null;
+function flyTo(name) {
+  cameraFlight = { start: camera.position.clone(), end: sceneCenter.clone().add(VIEWS[name]), startTarget: controls.target.clone(), elapsed: 0 };
+}
+camera.position.copy(sceneCenter).add(VIEWS.corner);
+document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => flyTo(button.dataset.view)));
+
+// ---- Build mode: parts of the current step slide in -----------------------------------
+let mode = "build", currentStep = 0, stepClock = 0;
+const SLIDE_SECONDS = 1.1;
+const ease = (time) => 1 - Math.pow(1 - Math.min(1, Math.max(0, time)), 3);
+const inverseTurn = new THREE.Quaternion();
+function placeParts() {
+  for (const part of parts) {
+    const visible = mode === "run" || part.step <= currentStep;
+    part.mesh.visible = visible;
+    part.mesh.position.copy(part.home);
+    const material = part.mesh.material;
+    material.emissive.set(0x000000);
+    const ghosted = mode === "run" && ghostFrame && part.body === "frame" && part.id !== "pin-idler-1x1";
+    material.opacity = ghosted ? 0.18 : 1;
+    material.depthWrite = !ghosted;
+    if (mode === "build" && visible && part.step === currentStep) {
+      // slide in along a world direction, expressed in the moving body's own frame
+      const progress = ease(stepClock / SLIDE_SECONDS);
+      inverseTurn.copy(bodies[part.body].quaternion).invert();
+      part.mesh.position.add(new THREE.Vector3(...part.from).multiplyScalar(1 - progress).applyQuaternion(inverseTurn));
+      const glow = 0.25 + 0.15 * Math.sin(stepClock * 4);
+      material.emissive.set(0x2b6fd6).multiplyScalar(glow);
+    }
+  }
+}
+
+// ---- Run mode ------------------------------------------------------------------------
+let running = true, motorPercent = 100, showSkeleton = true, showTraces = true, ghostFrame = false;
+
+// ---- Panel ---------------------------------------------------------------------------
+const content = document.getElementById("content");
+const tabBuild = document.getElementById("tab-build"), tabRun = document.getElementById("tab-run");
+function partsForStep(stepIndex) {
+  const counts = new Map();
+  for (const part of parts) if (part.step === stepIndex) counts.set(part.id, (counts.get(part.id) || 0) + 1);
+  return [...counts].map(([id, count]) => `<div><span>${PART_NAMES[id]}</span><b>&times;${count}</b></div>`).join("");
+}
+function allParts() {
+  const counts = new Map();
+  for (const part of parts) counts.set(part.id, (counts.get(part.id) || 0) + 1);
+  return [...counts].map(([id, count]) => `<div><span>${PART_NAMES[id]}</span><b>&times;${count}</b></div>`).join("") + `<div><span>Robot Brain + battery</span><b>&times;1</b></div>`;
+}
+function renderBuild() {
+  const step = steps[currentStep];
+  const list = currentStep === steps.length - 1
+    ? `<div class="parts"><h3>Everything you used</h3>${allParts()}</div>`
+    : `<div class="parts"><h3>You need</h3>${partsForStep(currentStep)}</div>`;
+  content.innerHTML = `
+    <div class="dots">${steps.map((_, index) => `<span class="${index <= currentStep ? "done" : ""}"></span>`).join("")}</div>
+    <div class="step-count">Step ${currentStep + 1} of ${steps.length}</div>
+    <h2>${step.title}</h2>
+    ${step.text}
+    ${list}
+    <div class="nav">
+      <button id="previous" ${currentStep === 0 ? "disabled" : ""}>Back</button>
+      <button id="replay">Replay</button>
+      <button id="next" class="primary">${currentStep === steps.length - 1 ? "Watch it run" : "Next step"}</button>
+    </div>`;
+  document.getElementById("previous").onclick = () => goToStep(currentStep - 1);
+  document.getElementById("replay").onclick = () => { stepClock = 0; };
+  document.getElementById("next").onclick = () => currentStep === steps.length - 1 ? setMode("run") : goToStep(currentStep + 1);
+}
+function goToStep(stepIndex) {
+  currentStep = Math.max(0, Math.min(steps.length - 1, stepIndex));
+  stepClock = 0;
+  if (currentStep === 3) flyTo("back");
+  else if (currentStep === 4 || currentStep === 0) flyTo("corner");
+  renderBuild();
+}
+
+function renderRun() {
+  content.innerHTML = `
+    <div class="controls">
+      <div class="row"><button class="chip-button" id="play">${running ? "Pause" : "Play"}</button>
+        <label for="speed" style="min-width:0">Motor</label><input id="speed" type="range" min="10" max="100" value="${motorPercent}"><span id="speed-value">${motorPercent}%</span></div>
+      <div class="row"><label for="crank">Turn by hand</label><input id="crank" type="range" min="0" max="360" step="1"></div>
+      <div class="toggles">
+        <label><input type="checkbox" id="show-skeleton" ${showSkeleton ? "checked" : ""}> Linkage lines</label>
+        <label><input type="checkbox" id="show-traces" ${showTraces ? "checked" : ""}> Paths</label>
+        <label><input type="checkbox" id="ghost" ${ghostFrame ? "checked" : ""}> See-through frame</label>
+      </div>
+    </div>
+    <div class="readouts">
+      <div class="readout"><b id="motor-rpm"></b><span>motor + 12T (rpm)</span></div>
+      <div class="readout"><b id="gear-rpm"></b><span>60T + crank (rpm)</span></div>
+      <div class="readout"><b id="wiper-angle"></b><span>wiper arm angle</span></div>
+      <div class="readout"><b id="transmission"></b><span>transmission angle</span></div>
+    </div>
+    <div class="legend">
+      <div><i style="background:${COLORS.drive}"></i><b>Driving gear</b> (12T): the motor turns it.</div>
+      <div><i style="background:${COLORS.driven}"></i><b>Crank</b> (60T + pin): goes all the way round.</div>
+      <div><i style="background:${COLORS.coupler}"></i><b>Coupler</b> (1x8): pushes and pulls.</div>
+      <div><i style="background:${COLORS.wiper}"></i><b>Rocker</b> (wiper arm): swings back and forth.</div>
+      <div><i style="background:#8a94a6"></i><b>Ground link</b>: the wall between the two fixed pivots.</div>
+    </div>
+    <h2>The gear train</h2>
+    <p>The 12T gear has 12 teeth and the 60T has 60. Each turn of the 12T pushes 12 teeth past, so the 60T needs <b>60 &divide; 12 = 5</b> turns of the motor to go round once. It turns <b>5 times slower</b>, the opposite way, with <b>5 times the turning force</b> (torque). That extra torque is what lets a small motor push a long arm.</p>
+    <h2>The four-bar linkage</h2>
+    <p>Four links joined by four pivots: the crank (2 holes), the coupler (7 holes), the rocker (3 holes) and the wall between the fixed pivots (about 7.3 holes). Add the shortest and longest, <b>2 + 7.3 = 9.3</b>. That is less than the other two together, <b>7 + 3 = 10</b>, so the short crank can go all the way round while the rocker only swings. Engineers call this Grashof's rule.</p>
+    <p>The crank turns at a steady speed, but watch the arm: it slows down at each end, stops, and turns back. A real car's wipers use this same linkage.</p>
+    <p class="note">The transmission angle is the angle between the coupler and the rocker. Near 90&deg; the coupler pushes the arm efficiently. Near 0&deg; it pushes along the arm and nothing moves. This linkage never drops below about 44&deg;, so it never jams.</p>`;
+  document.getElementById("play").onclick = () => { running = !running; renderRunButtons(); };
+  const speed = document.getElementById("speed");
+  speed.oninput = () => { motorPercent = Number(speed.value); document.getElementById("speed-value").textContent = `${motorPercent}%`; };
+  const crankSlider = document.getElementById("crank");
+  crankSlider.oninput = () => { running = false; renderRunButtons(); crankAngle = (Number(crankSlider.value) * Math.PI) / 180; };
+  document.getElementById("show-skeleton").onchange = (event) => { showSkeleton = event.target.checked; };
+  document.getElementById("show-traces").onchange = (event) => { showTraces = event.target.checked; };
+  document.getElementById("ghost").onchange = (event) => { ghostFrame = event.target.checked; };
+}
+function renderRunButtons() { const play = document.getElementById("play"); if (play) play.textContent = running ? "Pause" : "Play"; }
+function updateReadouts(pose) {
+  const motorRpm = running ? MOTOR_RPM * motorPercent / 100 : 0;
+  // measured from straight up, positive to the left
+  const fromVertical = Math.atan2(-Math.cos(pose.wiperAngle), Math.sin(pose.wiperAngle));
+  document.getElementById("motor-rpm").textContent = motorRpm.toFixed(0);
+  document.getElementById("gear-rpm").textContent = (motorRpm / GEAR_RATIO).toFixed(1);
+  document.getElementById("wiper-angle").textContent = `${((fromVertical * 180) / Math.PI).toFixed(0)}\u00b0`;
+  document.getElementById("transmission").textContent = `${((pose.transmission * 180) / Math.PI).toFixed(0)}\u00b0`;
+  const crankSlider = document.getElementById("crank");
+  if (crankSlider && running) crankSlider.value = String(Math.round((((crankAngle * 180) / Math.PI) % 360 + 360) % 360));
+}
+
+function setMode(next) {
+  mode = next;
+  tabBuild.setAttribute("aria-selected", String(mode === "build"));
+  tabRun.setAttribute("aria-selected", String(mode === "run"));
+  if (mode === "build") renderBuild(); else { renderRun(); flyTo("front"); }
+}
+tabBuild.onclick = () => setMode("build");
+tabRun.onclick = () => setMode("run");
+
+// ---- Loop ----------------------------------------------------------------------------
+function resize() {
+  const { clientWidth, clientHeight } = stage;
+  renderer.setSize(clientWidth, clientHeight, false);
+  camera.aspect = clientWidth / Math.max(1, clientHeight);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+const clock = new THREE.Clock();
+renderBuild();
+renderer.setAnimationLoop(() => {
+  const seconds = Math.min(clock.getDelta(), 0.05);
+  stepClock += seconds;
+  if (mode === "run" && running) {
+    const crankRpm = (MOTOR_RPM * motorPercent / 100) / GEAR_RATIO;
+    crankAngle -= (crankRpm / 60) * 2 * Math.PI * seconds;
+  }
+  const pose = poseMechanism();
+  placeParts();
+  if (mode === "run") updateReadouts(pose);
+  overlay.visible = mode === "run";
+  skeleton.visible = showSkeleton;
+  traces.visible = showTraces;
+  if (cameraFlight) {
+    cameraFlight.elapsed += seconds;
+    const progress = ease(cameraFlight.elapsed / 0.9);
+    camera.position.lerpVectors(cameraFlight.start, cameraFlight.end, progress);
+    controls.target.lerpVectors(cameraFlight.startTarget, sceneCenter, progress);
+    if (progress >= 1) cameraFlight = null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
