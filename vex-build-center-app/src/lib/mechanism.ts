@@ -8,7 +8,8 @@ import type { Fill } from "./connections.ts";
 //   - two different pin lines between the same two bodies lock them solid, as they do for real;
 //   - an axle grips anything with a square bore (gears, wheels) and turns freely in round holes;
 //   - an axle in a motor's socket is driven by that motor;
-//   - two gears whose teeth touch turn together at the ratio of their tooth counts.
+//   - two gears whose teeth touch turn together at the ratio of their tooth counts;
+//   - sprockets wrapped by one chain turn the same way at the ratio of their tooth counts.
 // The simulation is kinematic: motors are perfectly strong and nothing has weight, so what
 // you see is how the mechanism is ALLOWED to move. If it cannot move at all, the motor stalls.
 
@@ -20,10 +21,19 @@ export const SMART_MOTOR_RPM = 120;
 // can move solves to under 0.07 mm; one that is locked is past 0.2 within a few degrees.
 const STUCK_MM = 0.2;
 
+// The idler gear has the 36T's teeth; only its middle differs (it turns freely on its axle).
 export function gearTeeth(partId: string): number {
-  const match = /^gear-(\d+)t$/.exec(partId);
+  const match = /^gear-(\d+)t(-idler)?$/.exec(partId);
   return match ? Number(match[1]) : 0;
 }
+
+// VEX IQ chain has a quarter-inch pitch, so a sprocket's pitch circle grows with its teeth.
+export const CHAIN_PITCH = 6.35;
+export function sprocketTeeth(partId: string): number {
+  const match = /^sprocket-(\d+)t$/.exec(partId);
+  return match ? Number(match[1]) : 0;
+}
+export const sprocketPitchRadius = (teeth: number) => CHAIN_PITCH / (2 * Math.sin(Math.PI / teeth));
 
 export type MechanismPart = {
   uid: string; id: string; name: string; category: string; isMotor: boolean;
@@ -90,11 +100,12 @@ type Turn = {
 };
 
 type Drive = { motorUid: string; motorName: string; turn: Turn; target: number; speedPercent: number; stalled: boolean };
-type GearMesh = { first: Turn; second: Turn; firstRadius: number; secondRadius: number; firstName: string; secondName: string; firstTeeth: number; secondTeeth: number };
+// A chain turns both sprockets the same way, so its second radius is negative.
+type GearMesh = { first: Turn; second: Turn; firstRadius: number; secondRadius: number; firstName: string; secondName: string; firstTeeth: number; secondTeeth: number; chain: boolean };
 
 export type MotorInfo = { uid: string; name: string; speedPercent: number; rpm: number; stalled: boolean };
 export type SpinInfo = { label: string; rpm: number };
-export type MeshInfo = { driver: string; driven: string; driverTeeth: number; drivenTeeth: number };
+export type MeshInfo = { driver: string; driven: string; driverTeeth: number; drivenTeeth: number; chain: boolean };
 
 const scratchA = new THREE.Vector3(), scratchB = new THREE.Vector3(), scratchC = new THREE.Vector3();
 const scratchQuaternion = new THREE.Quaternion();
@@ -111,6 +122,8 @@ export class Mechanism {
   private hinges: Hinge[] = [];
   private drives: Drive[] = [];
   private meshes: GearMesh[] = [];
+  // Meshes in order out from the motors, each with the body on the far side of it.
+  private meshesFromMotors: { mesh: GearMesh; follower: number }[] = [];
   private spins: Turn[] = [];
   private bodyOfPart = new Map<string, number>();
   private drag: { body: number; anchor: THREE.Vector3; target: THREE.Vector3 } | null = null;
@@ -223,7 +236,7 @@ export class Mechanism {
         body.members.push({ object, localPosition: object.getWorldPosition(new THREE.Vector3()).sub(body.position), localQuaternion: worldQuaternion });
       }
       const named = body.partUids.map((uid) => byUid.get(uid)!);
-      const namer = named.find((part) => part.category === "gear") || named.find((part) => part.category === "wheel")
+      const namer = named.find((part) => part.category === "gear") || named.find((part) => part.category === "sprocket") || named.find((part) => part.category === "wheel")
         || named.find((part) => part.isMotor) || named.find((part) => part.category !== "pin" && part.category !== "shaft") || named[0];
       body.label = namer.name;
     }
@@ -256,8 +269,37 @@ export class Mechanism {
         first: this.makeTurn(firstBody, this.carrierOf(firstBody, first), firstAxis),
         second: this.makeTurn(secondBody, this.carrierOf(secondBody, second), secondAxis),
         firstRadius: gearTeeth(first.id) * MM_PER_TOOTH_RADIUS, secondRadius: gearTeeth(second.id) * MM_PER_TOOTH_RADIUS,
-        firstName: first.name, secondName: second.name, firstTeeth: gearTeeth(first.id), secondTeeth: gearTeeth(second.id),
+        firstName: first.name, secondName: second.name, firstTeeth: gearTeeth(first.id), secondTeeth: gearTeeth(second.id), chain: false,
       });
+    }
+    for (const [first, second] of this.findChainLoops(parts)) {
+      const firstBody = this.bodyOfPart.get(first.uid)!, secondBody = this.bodyOfPart.get(second.uid)!;
+      const firstAxis = this.gearAxis(first), secondAxis = this.gearAxis(second);
+      if (secondAxis.dot(firstAxis) < 0) secondAxis.negate();
+      const firstTeeth = sprocketTeeth(first.id), secondTeeth = sprocketTeeth(second.id);
+      this.meshes.push({
+        first: this.makeTurn(firstBody, this.carrierOf(firstBody, first), firstAxis),
+        second: this.makeTurn(secondBody, this.carrierOf(secondBody, second), secondAxis),
+        firstRadius: sprocketPitchRadius(firstTeeth), secondRadius: -sprocketPitchRadius(secondTeeth),
+        firstName: first.name, secondName: second.name, firstTeeth, secondTeeth, chain: true,
+      });
+    }
+
+    // Walk out from the motors through the meshes, so a step can turn each gear train forward
+    // before the general solve. Without that, every mesh pushes its driver back as hard as it
+    // pulls the follower, and a fast train (two stages up) never settles in time.
+    const reached = new Set(this.drives.map((drive) => drive.turn.body));
+    for (let progressed = true; progressed;) {
+      progressed = false;
+      for (const mesh of this.meshes) {
+        if (this.meshesFromMotors.some((entry) => entry.mesh === mesh)) continue;
+        const firstIn = reached.has(mesh.first.body), secondIn = reached.has(mesh.second.body);
+        if (firstIn === secondIn) continue;
+        const follower = firstIn ? mesh.second.body : mesh.first.body;
+        this.meshesFromMotors.push({ mesh, follower });
+        reached.add(follower);
+        progressed = true;
+      }
     }
 
     // Spin readouts for everything that turns on an axle: gears, wheels, motor shafts.
@@ -347,6 +389,36 @@ export class Mechanism {
     return pairs;
   }
 
+  // A chain is a loop of links lying in one plane. Every sprocket in that plane with a link on
+  // its pitch circle is wrapped by it, so neighbouring sprockets along the loop turn together.
+  private findChainLoops(parts: MechanismPart[]): [MechanismPart, MechanismPart][] {
+    const sprockets = parts.filter((part) => sprocketTeeth(part.id) > 0);
+    const links = parts.filter((part) => part.category === "chain").map((part) => part.object.getWorldPosition(new THREE.Vector3()));
+    if (sprockets.length < 2 || !links.length) return [];
+    const wrapped = sprockets.filter((sprocket) => {
+      const center = sprocket.object.getWorldPosition(new THREE.Vector3()), axis = this.gearAxis(sprocket);
+      const radius = sprocketPitchRadius(sprocketTeeth(sprocket.id));
+      return links.some((link) => {
+        const offset = link.clone().sub(center), along = offset.dot(axis);
+        return Math.abs(along) < 4 && Math.abs(offset.addScaledVector(axis, -along).length() - radius) < 4;
+      });
+    });
+    const pairs: [MechanismPart, MechanismPart][] = [];
+    const joined = new Set<string>();
+    for (const first of wrapped) {
+      const center = first.object.getWorldPosition(new THREE.Vector3()), axis = this.gearAxis(first);
+      // The nearest wrapped sprocket in the same plane that this loop has not reached yet.
+      const next = wrapped
+        .filter((second) => second !== first && !joined.has(second.uid) && this.bodyOfPart.get(second.uid) !== this.bodyOfPart.get(first.uid))
+        .filter((second) => Math.abs(this.gearAxis(second).dot(axis)) > 0.98 && Math.abs(second.object.getWorldPosition(new THREE.Vector3()).sub(center).dot(axis)) < 3)
+        .sort((a, b) => a.object.getWorldPosition(new THREE.Vector3()).distanceTo(center) - b.object.getWorldPosition(new THREE.Vector3()).distanceTo(center))[0];
+      if (!next) continue;
+      joined.add(first.uid);
+      pairs.push([first, next]);
+    }
+    return pairs;
+  }
+
   private lineUpTeeth(pairs: [MechanismPart, MechanismPart][]) {
     if (!pairs.length) return;
     // Start from the biggest gear in each train: it is the one most likely to carry a crank pin,
@@ -401,8 +473,8 @@ export class Mechanism {
     return this.meshes.map((mesh) => {
       const firstDistance = distance.get(mesh.first.body) ?? Infinity, secondDistance = distance.get(mesh.second.body) ?? Infinity;
       return secondDistance < firstDistance
-        ? { driver: mesh.secondName, driven: mesh.firstName, driverTeeth: mesh.secondTeeth, drivenTeeth: mesh.firstTeeth }
-        : { driver: mesh.firstName, driven: mesh.secondName, driverTeeth: mesh.firstTeeth, drivenTeeth: mesh.secondTeeth };
+        ? { driver: mesh.secondName, driven: mesh.firstName, driverTeeth: mesh.secondTeeth, drivenTeeth: mesh.firstTeeth, chain: mesh.chain }
+        : { driver: mesh.firstName, driven: mesh.secondName, driverTeeth: mesh.firstTeeth, drivenTeeth: mesh.secondTeeth, chain: mesh.chain };
     });
   }
   /** Where each hinge is right now, for drawing pivot markers. */
@@ -506,6 +578,10 @@ export class Mechanism {
     const dragging = this.drag !== null;
     const iterations = dragging ? 160 : 120, handIterations = dragging ? 80 : 0;
     let remaining = Infinity;
+    if (!dragging) {
+      for (const drive of this.drives) this.holdAngle([[drive.turn, 1]], drive.target);
+      for (const { mesh, follower } of this.meshesFromMotors) this.holdAngle([[mesh.first, mesh.firstRadius], [mesh.second, mesh.secondRadius]], 0, follower);
+    }
     for (let iteration = 0; iteration < iterations; iteration++) {
       if (iteration < handIterations) this.pullDrag(0.2);
       if (!dragging) for (const drive of this.drives) this.holdAngle([[drive.turn, 1]], drive.target);
@@ -594,8 +670,9 @@ export class Mechanism {
     turn.lastRaw = raw;
   }
 
-  // Make sum(weight * angle) equal target, turning each body and its carrier about the turn's axis.
-  private holdAngle(terms: [Turn, number][], target: number) {
+  // Make sum(weight * angle) equal target, turning each body and its carrier about the turn's axis
+  // (or only the body `only`, leaving the rest where they are).
+  private holdAngle(terms: [Turn, number][], target: number, only?: number) {
     let value = 0;
     const gradients = new Map<number, THREE.Vector3>();
     for (const [turn, weight] of terms) {
@@ -607,6 +684,7 @@ export class Mechanism {
     }
     const error = value - target;
     if (Math.abs(error) < 1e-9) return;
+    if (only !== undefined) for (const body of [...gradients.keys()]) if (body !== only) gradients.delete(body);
     let total = 0;
     for (const [body, gradient] of gradients) total += this.bodies[body].inverseInertia * gradient.lengthSq();
     if (total < 1e-12) return;

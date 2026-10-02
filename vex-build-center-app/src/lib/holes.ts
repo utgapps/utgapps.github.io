@@ -25,14 +25,29 @@ const AXES: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
 // Categories whose parts host holes that connectors plug into (fallback only —
 // most parts now carry handles measured from the real mesh).
-const HOLED: PartCategory[] = ["beam", "plate", "standoff", "corner", "gear", "wheel"];
+const HOLED: PartCategory[] = ["beam", "plate", "standoff", "corner", "gear", "sprocket", "wheel"];
 export function hasHoles(meta: PartMeta): boolean {
   return (meta.holes && meta.holes.length > 0) || HOLED.includes(meta.category);
 }
 
-// Gears and wheels turn about their thinnest dimension.
-const SPINS: PartCategory[] = ["gear", "wheel"];
-const thinAxis = (meta: PartMeta) => meta.sizeMM.indexOf(Math.min(...meta.sizeMM));
+// Gears, sprockets and wheels turn with their axle, and so do a ratchet and a flywheel. The
+// 60T ring gear is a fixed ring, and the differential is a box of gears, not one gear.
+const SPINS: PartCategory[] = ["gear", "sprocket", "wheel"];
+const ALSO_SPIN = /^(ratchet-\d+t|flywheel)$/;
+const NEVER_SPIN = /^gear-(ring-60t|differential)$/;
+export function spinsWithAxle(meta: PartMeta): boolean {
+  if (NEVER_SPIN.test(meta.id)) return false;
+  return SPINS.includes(meta.category) || ALSO_SPIN.test(meta.id);
+}
+// The idler gear has a round middle: it turns freely on whatever goes through it.
+const FREE_SPINNING = new Set(["gear-36t-idler"]);
+// Most spinning parts turn about their thinnest dimension. The worm gear is the exception: it
+// is a screw, and it turns about its length.
+export function spinAxisIndex(meta: PartMeta): number {
+  const sizes = meta.sizeMM;
+  return meta.id === "gear-worm" ? sizes.indexOf(Math.max(...sizes)) : sizes.indexOf(Math.min(...sizes));
+}
+const thinAxis = spinAxisIndex;
 
 // A fixed in-plane direction for a detected handle: the part's longest axis
 // perpendicular to the hole axis (used to align orientation on connect).
@@ -50,7 +65,7 @@ const centered = (i: number, n: number) => (i - (n - 1) / 2) * PITCH;
 
 // The middle of a gear or wheel is its axle bore.
 function isCenterBore(meta: PartMeta, p: [number, number, number], axisIndex: number): boolean {
-  if (!SPINS.includes(meta.category) || axisIndex !== thinAxis(meta)) return false;
+  if (!spinsWithAxle(meta) || axisIndex !== thinAxis(meta)) return false;
   const perp = [0, 1, 2].filter((i) => i !== axisIndex);
   return Math.hypot(p[perp[0]], p[perp[1]]) < 1.5;
 }
@@ -83,6 +98,8 @@ function onPitchGrid(meta: PartMeta, detected: Detected[]): Detected[] {
 
 // Compute hole handles from a part's size + category. Derived (not from CAD)
 // so it can be tuned without re-converting meshes.
+const BLIND_DEPTH = 12.7; // a face this far from the middle is on a part too thick to pin through
+
 export function holesFor(meta: PartMeta): Hole[] {
   // Prefer handles measured from the real CAD mesh (see tools/detect-features.cjs).
   if (meta.holes && meta.holes.length) {
@@ -90,29 +107,33 @@ export function holesFor(meta: PartMeta): Hole[] {
     if (usable.length) {
       // The detector emits handles face-by-face, so a through-hole's two
       // handles are far apart in the list. Pair them by the bore's axis line:
-      // same axis, same in-plane position, opposite normals.
+      // same axis, same in-plane position, opposite normals. Faces more than two
+      // pitches apart are not one bore but two blind holes (the Brain's sides):
+      // no pin is that long, and a pin in one must not count as filling the other.
       const cores = new Map<string, number>();
       const holes: Hole[] = usable.map((h) => {
         const ai = h.axis.findIndex((v) => v !== 0);
         const perp = [0, 1, 2].filter((i) => i !== ai);
         const key = h.kind === "stud"
           ? `s:${h.p.map((v) => Math.round(v)).join(",")}`             // a stud is its own core
-          : `h:${ai}:${Math.round(h.p[perp[0]])}:${Math.round(h.p[perp[1]])}`;
+          : `h:${ai}:${Math.round(h.p[perp[0]])}:${Math.round(h.p[perp[1]])}${Math.abs(h.p[ai]) > BLIND_DEPTH ? (h.p[ai] > 0 ? "+" : "-") : ""}`;
         let c = cores.get(key);
         if (c === undefined) { c = cores.size; cores.set(key, c); }
         const kind: "hole" | "stud" = h.kind === "stud" ? "stud" : "hole";
-        const bore: Bore = h.kind === "axle" ? "socket" : isCenterBore(meta, h.p, ai) ? "square" : "round";
+        const bore: Bore = h.kind === "axle" ? "socket" : isCenterBore(meta, h.p, ai) && !FREE_SPINNING.has(meta.id) ? "square" : "round";
         return { p: h.p, axis: h.axis, tan: tangentFor(meta, h.axis), kind, core: c, bore };
       });
       // The mesh detector missed the 36T's middle. Every gear and wheel has
       // one, and without it there is no way to put the gear on an axle.
-      if (SPINS.includes(meta.category) && !holes.some((h) => h.bore === "square")) {
+      const hasCenter = holes.some((h) => isCenterBore(meta, h.p, h.axis.findIndex((v) => v !== 0)));
+      if (spinsWithAxle(meta) && !hasCenter) {
         const axisIndex = thinAxis(meta), half = meta.sizeMM[axisIndex] / 2, core = cores.size;
         const front: [number, number, number] = [0, 0, 0], back: [number, number, number] = [0, 0, 0];
         front[axisIndex] = half; back[axisIndex] = -half;
         const out = AXES[axisIndex], into: [number, number, number] = [-out[0], -out[1], -out[2]];
-        holes.push({ p: front, axis: out, tan: tangentFor(meta, out), kind: "hole", core, bore: "square" });
-        holes.push({ p: back, axis: into, tan: tangentFor(meta, out), kind: "hole", core, bore: "square" });
+        const bore: Bore = FREE_SPINNING.has(meta.id) ? "round" : "square";
+        holes.push({ p: front, axis: out, tan: tangentFor(meta, out), kind: "hole", core, bore });
+        holes.push({ p: back, axis: into, tan: tangentFor(meta, out), kind: "hole", core, bore });
       }
       return holes;
     }
@@ -146,7 +167,7 @@ export function holesFor(meta: PartMeta): Hole[] {
     }
   } else if (meta.category === "standoff") {
     through([0, 0, 0], long, mid); // hollow: an opening at each end
-  } else if (meta.category === "gear" || meta.category === "wheel") {
+  } else if (spinsWithAxle(meta)) {
     through([0, 0, 0], short, long, "square"); // centre bore, both faces
   }
   return holes;

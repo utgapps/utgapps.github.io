@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Editor, STOPPED, type EditorState, type SavedPart, type ConnectRequest, type PartMenu, type ViewName, type RunInfo } from "./editor";
-import { loadManifest, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta, type PartCategory } from "./lib/parts";
+import { Gallery, type Example } from "./Gallery";
+import { loadManifest, CATEGORY_COLOR, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta, type PartCategory } from "./lib/parts";
 
 const MM_PER_IN = 25.4;
 const SAVE_KEY = "utg_vex_build";
@@ -15,9 +16,6 @@ const EMPTY_STATE: EditorState = {
   motors: 0, canPivot: false, overlaps: 0, canUndo: false, canRedo: false, inventory: [],
   gearInfo: null, running: false,
 };
-
-// Ready-made builds a class can open, run and take apart.
-const EXAMPLES = [{ file: "windshield-wiper.json", name: "Windshield wiper", blurb: "A motor, two gears and a four-bar linkage that swings an arm back and forth." }];
 
 export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -105,7 +103,7 @@ export default function App() {
       ? "Move: drag an arrow to slide the part along it, one half hole at a time."
       : "Turn: drag a ring to turn the part a quarter turn at a time.");
   }
-  async function openExample(file: string, name: string) {
+  async function openExample({ file, name }: Example) {
     setShowExamples(false);
     try {
       const response = await fetch(`${import.meta.env.BASE_URL}examples/${file}`);
@@ -113,7 +111,7 @@ export default function App() {
       const data = await response.json() as SavedPart[];
       await editorRef.current?.load(data, metaById);
       editorRef.current?.frameAll();
-      setStatus(`Opened the ${name}. Press \u25B6 Run to watch it move. Ctrl+Z puts your old build back.`);
+      setStatus(`Opened "${name}". Press \u25B6 Run to watch it move. Ctrl+Z puts your old build back.`);
     } catch { setStatus("That example could not be opened. Check the internet connection."); }
   }
   function view(v: ViewName, label: string) {
@@ -446,21 +444,7 @@ export default function App() {
 
       {showHelp && <Help onClose={() => setShowHelp(false)} />}
 
-      {showExamples && (
-        <>
-          <div className="modal-scrim" onClick={() => setShowExamples(false)} />
-          <div className="modal" role="dialog" aria-label="Examples">
-            <button className="modal-x" onClick={() => setShowExamples(false)} aria-label="Close">×</button>
-            <h2>Examples</h2>
-            <p className="muted small">Open one, press ▶ Run to watch it move, then take it apart and see how it works. Opening one replaces your build, and Ctrl+Z brings yours back.</p>
-            {EXAMPLES.map((example) => (
-              <button key={example.file} className="example" onClick={() => openExample(example.file, example.name)}>
-                <b>{example.name}</b><span>{example.blurb}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {showExamples && <Gallery onOpen={openExample} onClose={() => setShowExamples(false)} />}
 
       <footer className="statusbar">{status}</footer>
     </main>
@@ -534,7 +518,7 @@ function RunPanel({ run, editor }: { run: RunInfo; editor: Editor | null }) {
           <p className="run-mesh" key={index}>
             <b>{mesh.driver}</b> turns <b>{mesh.driven}</b>: {ratio > 1.01
               ? `${shown}\u00d7 slower, ${shown}\u00d7 the turning force`
-              : ratio < 0.99 ? `${Math.round(10 / ratio) / 10}\u00d7 faster, less turning force` : "same speed"}, the other way round.
+              : ratio < 0.99 ? `${Math.round(10 / ratio) / 10}\u00d7 faster, less turning force` : "same speed"}, {mesh.chain ? "the same way round, through the chain" : "the other way round"}.
           </p>
         );
       })}
@@ -569,6 +553,5 @@ function copyList(text: string, setStatus: (s: string) => void) {
 function holeSpan(m: PartMeta): number { return Math.round(Math.max(...m.sizeMM) / 6.35); }
 
 function swatch(p: PartMeta): string {
-  const map: Record<string, string> = { beam: "#2f6fb0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8", gear: "#c85c3c", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0" };
-  return p.color || map[p.category] || "#6b7787";
+  return p.color || CATEGORY_COLOR[p.category] || "#6b7787";
 }

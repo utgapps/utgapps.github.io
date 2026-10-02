@@ -24,7 +24,81 @@ const ZIPS = {
   sensors: () => zip("*Smart-Sensors-STEP.zip"),
 };
 
-// id, category, name, zipKey, internalPath (inside the zip), extra flags
+// The rest of the kit that mechanisms are built from: every straight beam length, the
+// angled beams, wider plates, sprockets and chain, wheels, and the motion parts (racks,
+// slides, ratchets, cams) and attachments (intake flaps, buckets, hooks).
+function MORE_PARTS() {
+  const kit = (id, category, name, internal, flags) => [id, category, name, "kit", internal || name, flags];
+  return [
+    ...[7, 9, 10, 11, 13, 14, 16, 18, 20].map((n) => kit(`beam-1x${n}`, "beam", `1x${n} Beam`)),
+    ...[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20].map((n) => kit(`beam-2x${n}`, "beam", `2x${n} Beam`)),
+    kit("angle-2x3-right", "angle", "2x3 Right Angle Beam"),
+    kit("angle-3x3-right", "angle", "3x3 Right Angle Beam"),
+    kit("angle-3x5-right", "angle", "3x5 Right Angle Beam"),
+    kit("angle-4x4-offset", "angle", "4x4 Offset Right Angle Beam"),
+    kit("angle-3x3-30", "angle", "3x3 30° Angle Beam", "3x3 30 Degree Angle Beam"),
+    kit("angle-3x3-45", "angle", "3x3 45° Angle Beam", "3x3 45 Degree Angle Beam"),
+    kit("angle-3x3-60", "angle", "3x3 60° Angle Beam", "3x3 60 Degreee Angle Beam"),
+    kit("angle-2x2-30", "angle", "2x2 30° Beam", "2x2 30 Degree Beam"),
+    kit("angle-2x2-45", "angle", "2x2 45° Beam", "2x2 45 Degree Beam"),
+    kit("angle-3x4-tee", "angle", "3x4 Tee Beam"),
+    kit("angle-plus-3x3", "angle", "3x3 Plus Beam", "3x3 Plus Gusset Beam"),
+    kit("arm-12x", "angle", "12x Robot Arm Beam"),
+    kit("arm-17x", "angle", "17x Robot Arm Beam"),
+    ...["3x4", "3x8", "3x10", "3x16", "4x4", "4x6", "4x8", "4x10", "4x12", "4x16", "6x12", "12x12"].map((size) => kit(`plate-${size}`, "plate", `${size} Plate`)),
+    kit("pin-idler-0x2", "pin", "0x2 Idler Pin"),
+    kit("pin-idler-0x3", "pin", "0x3 Idler Pin"),
+    kit("pin-idler-1x2", "pin", "1x2 Idler Pin"),
+    kit("pin-idler-2x3", "pin", "2x3 Smooth Idler Pin"),
+    ...[3, 4, 6, 8].map((n) => kit(`standoff-${n}x`, "standoff", `${n}x Standoff`, `${n}x Pitch Standoff`)),
+    kit("rubber-collar", "spacer", "Rubber Shaft Collar"),
+    kit("shaft-bushing", "spacer", "Shaft Bushing"),
+    kit("gear-36t-idler", "gear", "36T Idler Gear", "36 Tooth Idler Gear", { roundBore: true }),
+    kit("gear-crown-36t", "gear", "36T Crown Gear", "36 Tooth Crown Gear"),
+    kit("gear-worm", "gear", "Worm Gear"),
+    kit("gear-bevel-18t", "gear", "18T Bevel Gear", "18 Tooth Bevel Gear"),
+    kit("gear-differential", "gear", "Differential Gear"),
+    kit("gear-ring-60t", "gear", "60T Ring Gear", "60 Tooth Internal Ring Gear"),
+    ...[8, 16, 24, 32, 40].map((n) => kit(`sprocket-${n}t`, "sprocket", `${n}T Sprocket`, `${n} Tooth Sprocket`)),
+    kit("chain-link", "chain", "Chain Link"),
+    kit("tread-link", "chain", "Tank Tread Link", "Tank Tread, Attachment Link"),
+    kit("traction-link", "chain", "Traction Link"),
+    // A tire stretches over its hub: the 200 mm tire (20.4 mm inside radius) over the small
+    // 44 mm hub, the 250 mm tire (30.4) over the large 64 mm hub. The hub's CAD origin sits
+    // on one face, so each piece is centred before they are put together.
+    kit("wheel-200", "wheel", "200mm Travel Wheel", ["Small Wheel Hub (44 mm)", "Tire (200 mm Travel)"], { centreEach: true }),
+    kit("wheel-250", "wheel", "250mm Travel Wheel", ["Large Wheel Hub (64 mm)", "Tire (250 mm Travel)"], { centreEach: true }),
+    kit("wheel-low-friction-160", "wheel", "160mm Low-Friction Wheel", "4x Pitch Diameter (160 mm Travel) Low-Friction Wheel"),
+    kit("rack-1x20", "motion", "1x20 Rack Gear", "1x20 Linear Motion Rack Gear"),
+    kit("rack", "motion", "Rack Gear"),
+    kit("linear-slide", "motion", "Linear Slide"),
+    kit("linear-beam-1x5", "motion", "1x5 Linear Motion Beam"),
+    kit("ratchet-16t", "motion", "16T Ratchet", "16 Tooth Ratchet"),
+    kit("ratchet-40t", "motion", "40T Ratchet", "40 Tooth Ratchet"),
+    kit("pawl", "motion", "Ratchet Pawl", "Short Low-Profile Pawl"),
+    kit("cam-small", "motion", "Small Drop Cam", "Small 2x Pitch Drop Cam"),
+    kit("cam-large", "motion", "Large Drop Cam", "Large 1x Pitch Drop Cam"),
+    kit("cam-follower", "motion", "Cam Follower"),
+    kit("flap-short", "attachment", "Short Intake Flap"),
+    kit("flap-medium", "attachment", "Medium Intake Flap"),
+    kit("flap-long", "attachment", "Long Intake Flap"),
+    kit("bucket-loader", "attachment", "Front Loader Bucket", "10x Pitch Wide Front Loader Bucket"),
+    kit("bucket-excavator", "attachment", "Excavator Bucket", "4x Pitch Wide Excavator Bucket"),
+    kit("crane-hook", "attachment", "Crane Hook", "1x3 Large Crane Hook"),
+    kit("fork-lift", "attachment", "Fork Lift Beam"),
+    kit("flywheel", "attachment", "Flywheel (75 g)", "6x Pitch Flywheel (75 g)"),
+    kit("shooter-plate", "attachment", "Ball Shooter Plate", "2x4 25mm Ball Shooter Plate (Strong)"),
+    kit("rubber-band-32", "attachment", "Rubber Band #32", "Silicone Rubber Band #32"),
+    kit("rubber-band-64", "attachment", "Rubber Band #64", "Silicone Rubber Band #64"),
+    kit("rubber-band-117", "attachment", "Rubber Band #117", "Silicone Rubber Band #117B"),
+    kit("rubber-band-anchor", "attachment", "Rubber Band Anchor"),
+  ];
+}
+
+// id, category, name, zipKey, internalPath (inside the zip), extra flags.
+// The internal path may be just the catalog name ("1x10 Beam"): the part number in
+// brackets is looked up. A list of names merges several files into one part (a tire on
+// its hub is one wheel to a student).
 const PARTS = [
   ["beam-1x1", "beam", "1x1 Beam", "kit", "1x1 Beam (228-2500-154).step"],
   ["beam-1x2", "beam", "1x2 Beam", "kit", "1x2 Beam (228-2500-001).step"],
@@ -106,6 +180,7 @@ const PARTS = [
   ["shaft-snap-2x", "shaft", "2x Snap Axle", "kit", "2x Pitch Plastic Motor Snap Shaft v1 (228-2500-092).step"],
   ["spacer-025x", "spacer", "0.25x Spacer", "kit", "0.25x Pitch Spacer (228-2500-114).step"],
   ["washer", "spacer", "Washer", "kit", "Washer (228-2500-112).step"],
+  ...MORE_PARTS(),
   // electronics (real CAD)
   ["smart-motor", "motor", "Smart Motor", "motor", "228-2560.STEP", { isMotor: true }],
   ["robot-brain", "brain", "Robot Brain", "brain", "228-2540 VEX IQ Robot Brain/228-2540.STEP"],
@@ -123,20 +198,60 @@ function b64(a) { return Buffer.from(a.buffer, a.byteOffset, a.byteLength).toStr
   if (!DL) { console.error("usage: node convert-parts.cjs <downloadsDir> [outDir]"); process.exit(1); }
   fs.rmSync(TMP, { recursive: true, force: true }); fs.mkdirSync(TMP, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });
-  const zipPath = {};
-  for (const k of Object.keys(ZIPS)) zipPath[k] = ZIPS[k]();
+  // A zip that is no longer downloaded keeps its parts from the last run: the electronics
+  // CAD came as separate zips that need not be on hand every time the kit grows.
+  const zipPath = {}, zipListing = {};
+  for (const key of Object.keys(ZIPS)) {
+    try {
+      zipPath[key] = ZIPS[key]();
+      zipListing[key] = cp.execSync(`unzip -Z1 "${zipPath[key]}"`, { maxBuffer: 1 << 26 }).toString().split(/\r?\n/).filter(Boolean);
+    } catch { console.log("no zip for", key, "- keeping its parts from the last run"); }
+  }
+  const manifestPath = path.join(OUT, "manifest.json");
+  const lastRun = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")).parts : [];
+  // "1x10 Beam" -> "1x10 Beam (228-2500-009).step". Where VEX revised a part and both
+  // revisions ship, the shorter part number is the original one the kits carry.
+  const resolve = (zipKey, name) => {
+    const listing = zipListing[zipKey];
+    if (listing.includes(name)) return name;
+    const prefix = (name + " (").toLowerCase();
+    const hits = listing.filter((entry) => entry.toLowerCase().startsWith(prefix) && /\(228-[\d-]+\)\.step$/i.test(entry));
+    if (!hits.length) throw new Error("not in the zip: " + name);
+    return hits.sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+  };
 
   const occt = await require("occt-import-js")();
   const manifest = { pitchMM: PITCH, parts: [] };
   let ok = 0, fail = 0;
   for (const [id, category, name, zipKey, internal, flags] of PARTS) {
     try {
-      const stepBytes = cp.execSync(`unzip -p "${zipPath[zipKey]}" "${internal}"`, { maxBuffer: 1 << 28 });
-      const buf = new Uint8Array(stepBytes);
-      const r = occt.ReadStepFile(buf, { linearDeflection: 0.08, angularDeflection: 0.4 });
-      if (!r || !r.success || !r.meshes.length) { console.log("FAIL", id); fail++; continue; }
+      if (!zipPath[zipKey]) {
+        const kept = lastRun.find((entry) => entry.id === id);
+        if (!kept || !fs.existsSync(path.join(OUT, id + ".json"))) { console.log("MISSING", id); fail++; continue; }
+        const { holes, ...entry } = kept;
+        manifest.parts.push(entry);
+        ok++;
+        continue;
+      }
+      // Several files merge into one part in their shared CAD frame (a tire on its hub).
+      const meshes = [];
+      for (const file of [].concat(internal)) {
+        const stepBytes = cp.execSync(`unzip -p "${zipPath[zipKey]}" "${resolve(zipKey, file)}"`, { maxBuffer: 1 << 28 });
+        const r = occt.ReadStepFile(new Uint8Array(stepBytes), { linearDeflection: 0.08, angularDeflection: 0.4 });
+        if (!r || !r.success || !r.meshes.length) throw new Error("no mesh in " + file);
+        if (flags && flags.centreEach) {
+          const low = [1e9, 1e9, 1e9], high = [-1e9, -1e9, -1e9];
+          for (const m of r.meshes) for (let i = 0; i < m.attributes.position.array.length; i += 3) for (let k = 0; k < 3; k++) {
+            low[k] = Math.min(low[k], m.attributes.position.array[i + k]); high[k] = Math.max(high[k], m.attributes.position.array[i + k]);
+          }
+          for (const m of r.meshes) for (let i = 0; i < m.attributes.position.array.length; i += 3) for (let k = 0; k < 3; k++) {
+            m.attributes.position.array[i + k] -= (low[k] + high[k]) / 2;
+          }
+        }
+        meshes.push(...r.meshes);
+      }
       let pos = [], nor = [], idx = [], base = 0;
-      for (const m of r.meshes) {
+      for (const m of meshes) {
         const p = m.attributes.position.array;
         const n = (m.attributes.normal && m.attributes.normal.array) || null;
         for (let i = 0; i < p.length; i++) pos.push(p[i]);
@@ -157,6 +272,6 @@ function b64(a) { return Buffer.from(a.buffer, a.byteOffset, a.byteLength).toStr
       ok++;
     } catch (e) { console.log("ERR", id, e.message); fail++; }
   }
-  fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 1));
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 1));
   console.log(JSON.stringify({ converted: ok, failed: fail, total: manifest.parts.length }));
 })();

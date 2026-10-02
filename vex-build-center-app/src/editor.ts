@@ -21,6 +21,9 @@ const PICK_PIXELS = 16;
 // Pins with a cap on one end (0xN connector pins, sheet pins): the head goes on
 // the side the pin enters from.
 const isHeaded = (id: string) => id.startsWith("pin-connector-0x") || id.startsWith("pin-sheet");
+// Parts that wrap around others instead of bumping into them: chain and tread over sprocket
+// teeth, a rubber band over the pins it is stretched between.
+const WRAPS = (meta: PartMeta) => meta.category === "chain" || meta.id.startsWith("rubber-band-") && meta.id !== "rubber-band-anchor";
 
 export type PlacedPart = { uid: string; meta: PartMeta; mesh: THREE.Mesh };
 export type SavedPart = {
@@ -1521,12 +1524,22 @@ export class Editor {
     const aabbs = new Map<string, THREE.Box3>();
     for (const p of parts) { obbs.set(p.uid, this.obbWorld(p)); aabbs.set(p.uid, this.worldBox(p)); }
     const hit = new Set<string>();
+    // Two parts on the same pin or axle are as directly connected as a part and its pin: a
+    // bucket pinned over the end of an arm overlaps it by design.
+    const sharePin = new Set<string>();
+    for (const [pinUid, held] of this.pinLinks) {
+      if (this.disabledPins.has(pinUid)) continue;
+      for (const first of held) for (const second of held) sharePin.add(`${first}|${second}`);
+    }
     for (let i = 0; i < parts.length; i++) {
       for (let j = i + 1; j < parts.length; j++) {
         const a = parts[i], b = parts[j];
         if (this.adj.get(a.uid)?.has(b.uid)) continue; // directly connected → allowed
+        if (sharePin.has(`${a.uid}|${b.uid}`)) continue;
         // meshing gears' teeth interleave: their boxes overlap by design
         if (gearTeeth(a.meta.id) && gearTeeth(b.meta.id) && meshingDistance(this.asMechanismPart(a), this.asMechanismPart(b)) !== null) continue;
+        // chain wraps over sprocket teeth, and a rubber band stretches over whatever it holds
+        if (WRAPS(a.meta) || WRAPS(b.meta)) continue;
         // Cheap axis-aligned reject first; the OBB separating-axis test costs
         // far more, and this pass is O(n²) over the whole build.
         if (!aabbs.get(a.uid)!.intersectsBox(aabbs.get(b.uid)!)) continue;
