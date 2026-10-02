@@ -14,6 +14,10 @@ const snap = (v: number) => Math.round(v / HALF) * HALF;
 
 // How many points the path a traced point leaves behind keeps.
 const TRACE_POINTS = 1500;
+// How far above the selected part its move arrows float, in mm.
+const GIZMO_LIFT = 16;
+// How near a click must land to a hole, in screen pixels, to pick it.
+const PICK_PIXELS = 16;
 // Pins with a cap on one end (0xN connector pins, sheet pins): the head goes on
 // the side the pin enters from.
 const isHeaded = (id: string) => id.startsWith("pin-connector-0x") || id.startsWith("pin-sheet");
@@ -168,7 +172,7 @@ export class Editor {
   private gizmo: TransformControls;
   private gizmoProxy = new THREE.Object3D();
   private gizmoMode: "translate" | "rotate" = "translate";
-  private gizmoDrag: { undo: Snapshot; pivot: THREE.Vector3; members: { mesh: THREE.Mesh; position: THREE.Vector3; quaternion: THREE.Quaternion }[] } | null = null;
+  private gizmoDrag: { undo: Snapshot; start: THREE.Vector3; pivot: THREE.Vector3; members: { mesh: THREE.Mesh; position: THREE.Vector3; quaternion: THREE.Quaternion }[] } | null = null;
   private gizmoPress = false;
 
   // Run mode: the build moves the way its pins, axles, gears and motors let it.
@@ -260,6 +264,12 @@ export class Editor {
     this.gizmo.setSize(1);
     this.gizmo.setRotationSnap(Math.PI / 2);
     this.gizmo.setSpace("world");
+    // Only the three coloured rings turn a part. The grey ball and the yellow outer ring spin
+    // it freely, off the grid, so dragging them did nothing at all: take them away instead.
+    const handles = (this.gizmo as unknown as { _gizmo: { gizmo: Record<string, THREE.Object3D>; picker: Record<string, THREE.Object3D> } })._gizmo;
+    for (const set of [handles.gizmo.rotate, handles.picker.rotate]) {
+      for (const handle of [...set.children]) if (handle.name === "E" || handle.name === "XYZE") set.remove(handle);
+    }
     this.scene.add(this.gizmoProxy);
     this.scene.add(this.gizmo.getHelper());
     this.gizmo.addEventListener("change", this.invalidate);
@@ -319,10 +329,11 @@ export class Editor {
     const uid = `p${uidSeq++}`;
     mesh.userData.uid = uid;
 
-    // rest on the grid, near the camera target, offset a touch so stacked adds don't overlap exactly
-    const off = (this.parts.size % 4) * HALF;
-    mesh.position.set(snap(this.controls.target.x) + off, 0, snap(this.controls.target.z) + off);
+    // Rest on the grid near the middle of the view, in the nearest clear spot. Dropping it half a
+    // hole off the last part hid one behind the other with holes that never lined up.
+    mesh.position.set(snap(this.controls.target.x), 0, snap(this.controls.target.z));
     this.restOnGrid(mesh);
+    this.moveToClearSpot(mesh);
 
     this.scene.add(mesh);
     const part: PlacedPart = { uid, meta, mesh };
@@ -331,6 +342,44 @@ export class Editor {
     this.select(part);
     this.commit(before);
     this.emit();
+  }
+
+  // Nearest grid spot where the new part neither collides with the build nor sits in front of
+  // or behind it on screen: a part dropped in front of another hides that part's holes.
+  private moveToClearSpot(mesh: THREE.Mesh) {
+    const boxes = [...this.parts.values()].map((p) => p.mesh.geometry.boundingBox!.clone().applyMatrix4(p.mesh.matrixWorld).expandByScalar(1));
+    if (!boxes.length) return;
+    this.camera.updateMatrixWorld();
+    const screenRect = (box: THREE.Box3) => {
+      const rect = new THREE.Box2();
+      const corner = new THREE.Vector3();
+      for (let index = 0; index < 8; index++) {
+        corner.set(index & 1 ? box.max.x : box.min.x, index & 2 ? box.max.y : box.min.y, index & 4 ? box.max.z : box.min.z).project(this.camera);
+        rect.expandByPoint(new THREE.Vector2(corner.x, corner.y));
+      }
+      return rect;
+    };
+    const onScreen = boxes.map(screenRect);
+    const own = mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld);
+    const start = mesh.position.clone();
+    const shifted = new THREE.Box3();
+    let fallback: THREE.Vector3 | null = null;
+    const offsets: [number, number][] = [];
+    for (let across = -16; across <= 16; across++) for (let deep = -16; deep <= 16; deep++) offsets.push([across, deep]);
+    offsets.sort((a, b) => Math.hypot(...a) - Math.hypot(...b) || b[1] - a[1] || b[0] - a[0]);
+    for (const [across, deep] of offsets) {
+      const step = new THREE.Vector3(across * PITCH, 0, deep * PITCH);
+      shifted.copy(own).translate(step);
+      if (boxes.some((box) => box.intersectsBox(shifted))) continue;
+      fallback ??= step;
+      const rect = screenRect(shifted);
+      if (onScreen.some((other) => other.intersectsBox(rect))) continue;
+      fallback = step;
+      break;
+    }
+    if (!fallback) return;
+    mesh.position.copy(start).add(fallback);
+    mesh.updateMatrixWorld(true);
   }
 
   private restOnGrid(mesh: THREE.Mesh) {
@@ -397,7 +446,11 @@ export class Editor {
     this.helper.visible = true;
     this.helper.updateMatrixWorld(true);
     if (!this.gizmoDrag) {
-      this.gizmoProxy.position.copy(this.selBox.getCenter(new THREE.Vector3()));
+      // The arrows float just above the part so they never cover its holes; the turn rings
+      // stay round its middle, which is what it turns about.
+      const center = this.selBox.getCenter(new THREE.Vector3());
+      if (this.gizmoMode === "translate") center.y = this.selBox.max.y + GIZMO_LIFT;
+      this.gizmoProxy.position.copy(center);
       this.gizmoProxy.quaternion.identity();
       this.gizmoProxy.updateMatrixWorld(true);
       this.gizmo.setMode(this.gizmoMode);
@@ -410,7 +463,7 @@ export class Editor {
   setGizmoMode(mode: "translate" | "rotate") {
     this.gizmoMode = mode;
     this.gizmo.setMode(mode);
-    this.invalidate();
+    this.updateHelper();
   }
 
   private onGizmoDragging = (event: { value: unknown }) => {
@@ -419,7 +472,8 @@ export class Editor {
     if (dragging && this.selected) {
       this.gizmoDrag = {
         undo: this.snapshot(),
-        pivot: this.gizmoProxy.position.clone(),
+        start: this.gizmoProxy.position.clone(),
+        pivot: this.selBox.getCenter(new THREE.Vector3()),
         members: this.groupOf(this.selected.uid).map((p) => ({ mesh: p.mesh, position: p.mesh.position.clone(), quaternion: p.mesh.quaternion.clone() })),
       };
       return;
@@ -437,7 +491,7 @@ export class Editor {
     const drag = this.gizmoDrag;
     if (!drag) return;
     if (this.gizmo.mode === "translate") {
-      const delta = this.gizmoProxy.position.clone().sub(drag.pivot);
+      const delta = this.gizmoProxy.position.clone().sub(drag.start);
       delta.set(snap(delta.x), snap(delta.y), snap(delta.z));
       for (const m of drag.members) { m.mesh.position.copy(m.position).add(delta); m.mesh.updateMatrixWorld(true); }
     } else {
@@ -861,14 +915,12 @@ export class Editor {
     this.downAt = { x: e.clientX, y: e.clientY };
     this.setPointer(e);
     if (this.running) { this.runPointerDown(e); return; }
-    // 0) the move arrows / turn rings win over whatever is behind them
-    if (this.gizmo.object) {
-      this.gizmo.pointerHover({ x: this.pointer.x, y: this.pointer.y, button: 0 } as unknown as PointerEvent);
-      if (this.gizmo.axis !== null) { this.gizmoPress = true; this.controls.enabled = false; return; }
-    }
-    // 1) a hole marker starts a connection
+    // 1) a hole marker starts a connection: holes come first, even under the arrows
     if (this.markersVisible) {
-      const mh = this.raycaster.intersectObjects(this.visibleMarkers(), false);
+      if (this.armed && this.slideArmedOntoConnector()) { e.stopImmediatePropagation(); return; }
+      // the second hole of a pair is forgiving; the first is exact, so a part can still be grabbed
+      const picked = this.pickMarker(null, this.armed !== null);
+      const mh = picked ? [{ object: picked }] : [];
       if (mh.length) {
         this.capturePointer(e);
         this.connectFrom = mh[0].object as THREE.Mesh;
@@ -876,11 +928,17 @@ export class Editor {
         this.setHot(this.connectFrom, true);
         this.connectLine.visible = true;
         this.updateConnectLine(this.worldOf(this.connectFrom));
-        e.stopPropagation();
+        // the arrows' grab zone is wider than the arrows: keep them from starting a move too
+        e.stopImmediatePropagation();
         return;
       }
     }
-    // 2) a part body starts a move
+    // 2) the move arrows / turn rings win over the part behind them
+    if (this.gizmo.object) {
+      this.gizmo.pointerHover({ x: this.pointer.x, y: this.pointer.y, button: 0 } as unknown as PointerEvent);
+      if (this.gizmo.axis !== null) { this.gizmoPress = true; this.controls.enabled = false; return; }
+    }
+    // 3) a part body starts a move
     const meshes = [...this.parts.values()].map((p) => p.mesh);
     const hits = this.raycaster.intersectObjects(meshes, false);
     if (hits.length) {
@@ -961,7 +1019,7 @@ export class Editor {
     // Idle: hover-highlight a hole marker. Skipped while a button is held —
     // that's an orbit or pan, and the highlight used to strobe as it swung.
     if (this.markersVisible && ev.buttons === 0) {
-      const m = (this.raycaster.intersectObjects(this.visibleMarkers(), false)[0]?.object as THREE.Mesh) || null;
+      const m = this.pickMarker(null, this.armed !== null);
       if (m !== this.hovered) {
         if (this.hovered && this.hovered !== this.armed) this.setHot(this.hovered, false);
         this.hovered = m; if (m) this.setHot(m, true);
@@ -1111,8 +1169,42 @@ export class Editor {
     return this.visibleCache;
   }
   private markerUnderPointer(exclude: THREE.Mesh): THREE.Mesh | null {
-    for (const h of this.raycaster.intersectObjects(this.visibleMarkers(), false)) if (h.object !== exclude) return h.object as THREE.Mesh;
-    return null;
+    return this.pickMarker(exclude, true);
+  }
+  // The hole under the pointer, or (forgiving) the nearest one within a fingertip of it.
+  // A hole is a few pixels across at a normal zoom: aiming the second hole of a pair that
+  // precisely is too much to ask.
+  private pickMarker(exclude: THREE.Mesh | null, forgiving: boolean): THREE.Mesh | null {
+    const markers = this.visibleMarkers();
+    for (const hit of this.raycaster.intersectObjects(markers, false)) if (hit.object !== exclude) return hit.object as THREE.Mesh;
+    if (!forgiving) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const surface = this.raycaster.intersectObjects([...this.parts.values()].map((p) => p.mesh), false)[0];
+    const reach = surface ? surface.distance + 8 : Infinity; // not through the part in front
+    const cameraAt = this.camera.position;
+    const world = new THREE.Vector3(), screen = new THREE.Vector3();
+    let best: THREE.Mesh | null = null, bestPixels = PICK_PIXELS;
+    for (const marker of markers) {
+      if (marker === exclude) continue;
+      marker.getWorldPosition(world);
+      if (world.distanceTo(cameraAt) > reach) continue;
+      screen.copy(world).project(this.camera);
+      const pixels = Math.hypot((screen.x - this.pointer.x) * rect.width / 2, (screen.y - this.pointer.y) * rect.height / 2);
+      if (pixels < bestPixels) { bestPixels = pixels; best = marker; }
+    }
+    if (best || !this.armed || !surface) return best;
+    // With a hole picked, clicking the other PART means "connect to that": a kid clicks the
+    // axle, not the speck on its tip. Take that part's hole nearest the pointer.
+    const armedUid = (this.armed.userData.holeRef as HoleRef).partUid;
+    if (surface.object.userData.uid === armedUid) return null;
+    bestPixels = Infinity;
+    for (const marker of markers) {
+      if (marker === exclude || marker.parent !== surface.object) continue;
+      screen.copy(marker.getWorldPosition(world)).project(this.camera);
+      const pixels = Math.hypot((screen.x - this.pointer.x) * rect.width / 2, (screen.y - this.pointer.y) * rect.height / 2);
+      if (pixels < bestPixels) { bestPixels = pixels; best = marker; }
+    }
+    return best;
   }
   // World mating point: a hole's open face, or a stud's tip. The marker floats
   // that far off it along the normal.
@@ -1187,6 +1279,51 @@ export class Editor {
     }
     const shift = this.faceOf(anchor).sub(this.faceOf(mover));
     for (const p of group) { p.mesh.position.add(shift); p.mesh.updateMatrixWorld(true); }
+  }
+
+  // With a hole picked, a click on a pin or axle that is already in place slides the
+  // picked part onto it: the hole lines up with the connector and stops at the spot along
+  // it nearest the click. Pins and axles carry no holes of their own to click, so without
+  // this a gear could never go onto the axle already sticking out of a motor.
+  private slideArmedOntoConnector(): boolean {
+    const hole = this.armed!;
+    if (this.raycaster.intersectObjects(this.visibleMarkers(), false).length) return false; // an exact hole wins
+    const surface = this.raycaster.intersectObjects([...this.parts.values()].map((p) => p.mesh), false)[0];
+    const connector = surface && this.parts.get(surface.object.userData.uid as string);
+    if (!connector || !OCCUPIER.has(connector.meta.category)) return false;
+    const holeUid = (hole.userData.holeRef as HoleRef).partUid, holePart = this.parts.get(holeUid);
+    if (!holePart || this.componentOf(holeUid).has(connector.uid)) return false;
+    // a square hole turns with its axle; a pin has no flats to drive it
+    if (hole.userData.bore === "square" && connector.meta.category === "pin") return false;
+    const before = this.snapshot();
+    const along = this.longAxis(connector.meta).applyQuaternion(connector.mesh.quaternion).normalize();
+    const box = connector.mesh.geometry.boundingBox || (connector.mesh.geometry.computeBoundingBox(), connector.mesh.geometry.boundingBox!);
+    const middle = box.getCenter(new THREE.Vector3()).applyMatrix4(connector.mesh.matrixWorld);
+    const half = Math.max(...connector.meta.sizeMM) / 2;
+    // turn the part (and whatever is pinned to it) so the hole runs along the connector
+    const holeAxis = this.axisOf(hole);
+    const turn = new THREE.Quaternion().setFromUnitVectors(holeAxis, holeAxis.dot(along) >= 0 ? along : along.clone().negate());
+    const group = [...this.componentOf(holeUid)].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
+    const pivot = this.worldOf(hole);
+    for (const p of group) {
+      p.mesh.quaternion.premultiply(turn);
+      p.mesh.position.sub(pivot).applyQuaternion(turn).add(pivot);
+      p.mesh.updateMatrixWorld(true);
+    }
+    // where along it: nearest the click, on the connector, its edge on a half-layer
+    const thickness = this.extentAlong(holePart, along);
+    const room = Math.max(0, half - thickness / 2);
+    const nearClick = surface.point.clone().sub(middle).dot(along);
+    const edge = Math.round((nearClick - thickness / 2 + half) / (HALF / 2)) * (HALF / 2);
+    const spot = Math.max(-room, Math.min(room, edge - half + thickness / 2));
+    const holeMiddle = this.faceOf(hole).addScaledVector(this.axisOf(hole), -thickness / 2);
+    const shift = middle.addScaledVector(along, spot).sub(holeMiddle);
+    for (const p of group) { p.mesh.position.add(shift); p.mesh.updateMatrixWorld(true); }
+    this.clearArm();
+    this.select(holePart);
+    this.commit(before);
+    this.emit();
+    return true;
   }
 
   // Plug a corner's built-in pin straight into another part's hole. No separate

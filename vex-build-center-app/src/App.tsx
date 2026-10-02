@@ -59,7 +59,11 @@ export default function App() {
     ed.onChange = setState;
     ed.onConnect = setConnectReq;
     ed.onPartMenu = setPartMenu;
-    ed.onRun = setRun;
+    ed.onRun = (info) => {
+      setRun(info);
+      // An edit made while running ends the run; don't leave "Running!" up after it.
+      if (!info.running) setStatus("Stopped. Everything is back where you built it.");
+    };
     ed.onArmChange = (armed) => setStatus(armed
       ? "First hole picked — click another hole to connect, or click it again for a single connector. (Esc cancels)"
       : "Pick a part on the left, or click a hole to start a connection.");

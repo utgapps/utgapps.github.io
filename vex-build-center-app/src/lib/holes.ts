@@ -55,12 +55,38 @@ function isCenterBore(meta: PartMeta, p: [number, number, number], axisIndex: nu
   return Math.hypot(p[perp[0]], p[perp[1]]) < 1.5;
 }
 
+// Beams and plates are an exact 12.7 mm grid of holes. The mesh detector read the gap between
+// the middle two holes of every even-length beam (and the 3x6 and 3x12 plates) as a hole of
+// its own, and others up to 0.2 mm off, so a click there joined parts half a hole out. Snap
+// each detected hole onto the grid and drop the ones that are not on it.
+const GRID_SLOP = 3;
+type Detected = NonNullable<PartMeta["holes"]>[number];
+function onPitchGrid(meta: PartMeta, detected: Detected[]): Detected[] {
+  if (meta.category !== "beam" && meta.category !== "plate") return detected;
+  const out: Detected[] = [];
+  for (const hole of detected) {
+    const axisIndex = hole.axis.findIndex((v) => v !== 0);
+    const p: [number, number, number] = [hole.p[0], hole.p[1], hole.p[2]];
+    let onGrid = true;
+    for (const index of [0, 1, 2]) {
+      if (index === axisIndex) continue;
+      const count = nAlong(meta.sizeMM[index]);
+      const step = Math.round(p[index] / PITCH + (count - 1) / 2);
+      const nearest = centered(Math.max(0, Math.min(count - 1, step)), count);
+      if (Math.abs(nearest - p[index]) > GRID_SLOP) { onGrid = false; break; }
+      p[index] = nearest;
+    }
+    if (onGrid) out.push({ ...hole, p });
+  }
+  return out;
+}
+
 // Compute hole handles from a part's size + category. Derived (not from CAD)
 // so it can be tuned without re-converting meshes.
 export function holesFor(meta: PartMeta): Hole[] {
   // Prefer handles measured from the real CAD mesh (see tools/detect-features.cjs).
   if (meta.holes && meta.holes.length) {
-    const usable = meta.holes.filter((h) => h.kind === "hole" || h.kind === "stud" || h.kind === "axle");
+    const usable = onPitchGrid(meta, meta.holes.filter((h) => h.kind === "hole" || h.kind === "stud" || h.kind === "axle"));
     if (usable.length) {
       // The detector emits handles face-by-face, so a through-hole's two
       // handles are far apart in the list. Pair them by the bore's axis line:
