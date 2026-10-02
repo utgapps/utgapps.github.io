@@ -98,6 +98,31 @@ for (const reduction of REDUCTIONS) {
     });
   }
 }
+// A rubber band from a post at the top corner of the frame to a post on the arm pulls the arm up,
+// so the motor only has to hold part of its weight. The arm is short enough to swing clear of
+// the frame's post.
+const bandAssist = (build, arm, frontLayer) => {
+  const frame = build.parts[0];
+  const top = build.post(frame, { near: at(10, 5, 0), out: Z, id: "standoff-2x" });
+  // The first arm hole the gear's pin is not already in.
+  for (const column of [7, 8, 9]) {
+    const onArm = build.post(arm, { near: at(column, 4, frontLayer - 1), out: Z, id: "standoff-1x" });
+    if (!build.clips(onArm, new Set([arm]))) { build.band("rubber-band-32", [top, onArm]); return onArm; }
+    build.parts.pop();
+  }
+  throw new Error("every hole on the arm is taken");
+};
+for (const reduction of REDUCTIONS) {
+  entries.push({
+    slug: `band-assisted-arm-${reduction.key}`,
+    name: `Rubber band assisted arm, ${reduction.label}`,
+    blurb: `A #32 rubber band, wrapped round two standoffs until it is snug, pulls the arm up while the motor's 12T turns it ${reduction.label} slower. `
+      + "The band carries part of the arm's weight, so the motor lifts more before it stalls.",
+    category: "lifts", difficulty: reduction.difficulty + 1, motors: 1, principle: "a stretched band stores energy",
+    games: LIFT_GAMES,
+    make: singleArm(reduction, 4, bandAssist),
+  });
+}
 for (const reduction of REDUCTIONS.slice(1)) {
   for (const armLength of [6, 8, 10]) {
     for (const height of [3, 4]) {

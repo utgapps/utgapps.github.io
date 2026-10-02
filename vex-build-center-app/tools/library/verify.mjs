@@ -3,6 +3,7 @@
 //   - it would hold together for real: every axle is held in two places and nothing on it can
 //     slide, and every motor and sensor has a Smart Cable to a Brain port it can reach
 //     (src/lib/rules.ts, the same rules the builder shows students);
+//   - every rubber band sits on its posts, snug but not about to snap (src/lib/bands.ts);
 //   - every part is connected, through pins, axles and gear teeth, to the motor;
 //   - nothing clips into a part it is not connected to (the builder would paint both red);
 //   - when the motors run, it moves without stalling, and the parts that should move do.
@@ -11,7 +12,7 @@ import { OBB } from "three/examples/jsm/math/OBB.js";
 import { OCCUPIER } from "../../src/lib/connections.ts";
 import { Mechanism, meshingDistance, gearTeeth } from "../../src/lib/mechanism.ts";
 import { checkBuild } from "../../src/lib/rules.ts";
-import { layout as place } from "./layout.mjs";
+import { layout as place, bands } from "./layout.mjs";
 
 const COLLIDE_SLOP = 1.4; // the builder's: mm trimmed off each half-size before boxes count as touching
 const wraps = (meta) => meta.category === "chain" || (meta.id.startsWith("rubber-band-") && meta.id !== "rubber-band-anchor");
@@ -35,6 +36,7 @@ export function verify(saved, expect = {}) {
   const problems = [];
   const { parts, poses, fills, studs, mechanism } = layout(saved);
   problems.push(...checkBuild(poses, fills, studs).map((problem) => `${problem.text} (${problem.uids.map((uid) => `#${uid}`).join(", ")})`));
+  for (const band of bands(saved, poses)) problems.push(...band.shape.problems);
 
   // Pins and axles that hold nothing.
   const heldBy = new Map();

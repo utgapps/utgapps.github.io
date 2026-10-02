@@ -8,6 +8,8 @@ import { OCCUPIER, boreCores, fillsOf, stackAt as stackOnLine, type Core, type F
 import { Mechanism, meshingDistance, gearTeeth, type MechanismPart, type StudJoin, type MotorInfo, type SpinInfo, type MeshInfo } from "./lib/mechanism";
 import { planCables, rehang, cableLabel, type Cable, type CablePlan } from "./lib/cables";
 import { checkBuild, type BuildProblem } from "./lib/rules";
+import { BAND_SIZES, isBand, postOf, shapeBand, alongPost, bandLabel, type BandShape } from "./lib/bands";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
@@ -28,12 +30,17 @@ const isHeaded = (id: string) => id.startsWith("pin-connector-0x") || id.startsW
 const WRAPS = (meta: PartMeta) => meta.category === "chain" || meta.id.startsWith("rubber-band-") && meta.id !== "rubber-band-anchor";
 
 export type PlacedPart = { uid: string; meta: PartMeta; mesh: THREE.Mesh };
+// A rubber band is not placed like a part: it is stretched round the posts it was put on, so its
+// shape is worked out from where they are, every time they move.
+type Band = { uid: string; meta: PartMeta; posts: string[]; along: number; mesh: THREE.Mesh; shape: BandShape };
+export type BandDraft = { name: string; posts: number };
 export type SavedPart = {
   id: string;
   p: [number, number, number];
   q: [number, number, number, number];
   off?: true;                       // this pin was disabled (it doesn't bind its parts)
   sj?: [number, number, number][];  // built-in-pin joins: [thisStudCore, otherPartIndex, otherHoleCore]
+  band?: { posts: number[]; at: number }; // a rubber band: the parts it goes round, and how far along the first one
 };
 export type EditorState = {
   count: number;
@@ -94,6 +101,7 @@ export class Editor {
   onPartMenu: (m: PartMenu) => void = () => {};
   onArmChange: (armed: boolean) => void = () => {};
   onRun: (info: RunInfo) => void = () => {};
+  onBandDraft: (draft: BandDraft | null) => void = () => {};
 
   private occupied = new Set<string>(); // core-keys "<partUid>:<coreIndex>" filled by a pin
   private headAxisCache = new Map<string, THREE.Vector3>();
@@ -210,6 +218,11 @@ export class Editor {
   // The name of whatever is under the mouse.
   private tip!: HTMLDivElement;
   private tipClock = 0;
+  // Rubber bands, and the one being put on post by post.
+  private bands = new Map<string, Band>();
+  private selectedBand: Band | null = null;
+  private bandDraft: { meta: PartMeta; posts: string[]; along: number; preview: THREE.Mesh | null } | null = null;
+  private bandRings = new THREE.Group();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -305,6 +318,8 @@ export class Editor {
     this.trace.visible = false;
     this.scene.add(this.trace);
     this.scene.add(this.cables);
+    this.bandRings.renderOrder = 997;
+    this.scene.add(this.bandRings);
     this.tip = document.createElement("div");
     this.tip.className = "hover-tip";
     this.tip.hidden = true;
@@ -341,6 +356,7 @@ export class Editor {
 
   async addPart(meta: PartMeta): Promise<void> {
     this.stopRun(); // any edit ends a run, and the build goes back where it was
+    if (isBand(meta.id)) { this.startBand(meta); return; }
     const geo = await loadGeometry(meta);
     this.catalog.set(meta.id, meta);
     const before = this.snapshot();
@@ -452,12 +468,23 @@ export class Editor {
 
   private select(part: PlacedPart | null) {
     this.selected = part;
+    if (part) this.selectedBand = null;
     this.updateHelper();
   }
 
   // Re-fit the selection outline to the selected part's own geometry box.
   private updateHelper() {
     const part = this.selected;
+    const band = this.selectedBand;
+    if (band && !part && !this.running) {
+      band.mesh.geometry.computeBoundingBox();
+      this.selBox.copy(band.mesh.geometry.boundingBox!).expandByScalar(1.5);
+      this.helper.visible = true;
+      this.helper.updateMatrixWorld(true);
+      if (!this.gizmoDrag) this.gizmo.detach(); // a band goes where its posts go
+      this.invalidate();
+      return;
+    }
     if (!part || !part.mesh.geometry.boundingBox || this.running) {
       this.helper.visible = false;
       if (!this.gizmoDrag) this.gizmo.detach();
@@ -534,6 +561,7 @@ export class Editor {
 
   selectByUid(uid: string | null) {
     this.select(uid ? this.parts.get(uid) || null : null);
+    this.selectedBand = uid ? this.bands.get(uid) || null : null;
     this.emit();
   }
 
@@ -621,6 +649,11 @@ export class Editor {
       if (sj && sj.length) out.sj = sj;
       return out;
     });
+    for (const entry of saved.slice(all.length)) {
+      if (entry.band && entry.band.posts.every((post) => remap.has(post))) {
+        subset.push({ ...entry, band: { posts: entry.band.posts.map((post) => remap.get(post)!), at: entry.band.at } });
+      }
+    }
 
     const box = new THREE.Box3();
     for (const i of members) box.union(this.worldBox(all[i]));
@@ -640,6 +673,13 @@ export class Editor {
 
   deleteSelected() {
     this.stopRun(); // any edit ends a run, and the build goes back where it was
+    if (this.selectedBand) {
+      const before = this.snapshot();
+      this.removeBand(this.selectedBand);
+      this.commit(before);
+      this.emit();
+      return;
+    }
     if (!this.selected) return;
     const before = this.snapshot();
     this.removePart(this.selected);
@@ -684,6 +724,8 @@ export class Editor {
   // Tear the build down without touching the undo history — the callers that
   // replace the whole build (load, undo, redo) record their own step.
   private wipe() {
+    this.cancelBand();
+    for (const band of [...this.bands.values()]) this.removeBand(band);
     for (const part of [...this.parts.values()]) this.removePart(part);
     this.studJoins = [];
   }
@@ -709,7 +751,9 @@ export class Editor {
       const joins = this.studJoins.filter((j) => j.studPart === p.uid && indexOf.has(j.holePart));
       if (joins.length) out.sj = joins.map((j): [number, number, number] => [coreOf(j.studCore), indexOf.get(j.holePart)!, coreOf(j.holeCore)]);
       return out;
-    });
+    }).concat([...this.bands.values()]
+      .filter((band) => band.posts.every((uid) => indexOf.has(uid)))
+      .map((band): SavedPart => ({ id: band.meta.id, p: [0, 0, 0], q: [0, 0, 0, 1], band: { posts: band.posts.map((uid) => indexOf.get(uid)!), at: Math.round(band.along * 100) / 100 } })));
   }
 
   /** Tell the editor about every part in the library, once. Undo and Duplicate
@@ -737,7 +781,7 @@ export class Editor {
     const made: (PlacedPart | null)[] = [];
     for (const s of saved) {
       const meta = this.catalog.get(s.id);
-      if (!meta) { made.push(null); continue; }
+      if (!meta || s.band) { made.push(null); continue; } // bands go on once their posts exist
       const geo = await loadGeometry(meta);
       const color = meta.color || CATEGORY_COLOR[meta.category] || "#6b7787";
       const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, metalness: 0.18, roughness: 0.55 }));
@@ -772,6 +816,12 @@ export class Editor {
         });
       }
     });
+    for (const s of saved) {
+      const meta = this.catalog.get(s.id);
+      if (!meta || !s.band) continue;
+      const posts = s.band.posts.map((index) => made[index]?.uid).filter(Boolean) as string[];
+      if (posts.length >= 2) this.makeBand(meta, posts, s.band.at);
+    }
     return made;
   }
 
@@ -833,9 +883,9 @@ export class Editor {
     }
     const size = this.parts.size ? box.getSize(new THREE.Vector3()) : new THREE.Vector3();
     return {
-      count: this.parts.size,
-      selectedUid: this.selected?.uid ?? null,
-      selectedName: this.selected?.meta.name ?? null,
+      count: this.parts.size + this.bands.size,
+      selectedUid: this.selected?.uid ?? this.selectedBand?.uid ?? null,
+      selectedName: this.selected?.meta.name ?? (this.selectedBand ? bandLabel(this.selectedBand.meta.id, this.selectedBand.shape, this.selectedBand.posts.length) : null),
       bboxMM: { w: +size.x.toFixed(1), h: +size.y.toFixed(1), d: +size.z.toFixed(1) },
       motors,
       canPivot: this.canPivot(this.selected?.uid),
@@ -876,6 +926,11 @@ export class Editor {
       if (row) row.count++;
       else by.set(p.meta.id, { id: p.meta.id, name: p.meta.name, category: p.meta.category, count: 1 });
     }
+    for (const band of this.bands.values()) {
+      const row = by.get(band.meta.id);
+      if (row) row.count++;
+      else by.set(band.meta.id, { id: band.meta.id, name: band.meta.name, category: band.meta.category, count: 1 });
+    }
     // The cables are not parts you place, but you still take them off the shelf.
     for (const cable of this.cablePlan.cables) {
       const id = `smart-cable-${cable.length}`;
@@ -893,6 +948,133 @@ export class Editor {
     this.cablePlan = planCables(poses);
     this.problems = checkBuild(poses, this.fills, this.studJoins.map((join) => ({ studUid: join.studPart, holeUid: join.holePart })), this.cablePlan);
     this.drawCables();
+    for (const band of [...this.bands.values()]) {
+      band.posts = band.posts.filter((uid) => this.parts.has(uid));
+      if (band.posts.length < 2) { this.removeBand(band); continue; } // its posts are gone
+      this.reshapeBand(band);
+      for (const text of band.shape.problems) this.problems.push({ rule: "band", uids: [band.uid, ...band.posts], text });
+    }
+  }
+
+  // ---- rubber bands -----------------------------------------------------------
+
+  private bandShapeFor(meta: PartMeta, posts: string[], along: number): BandShape {
+    const found = posts.map((uid) => this.parts.get(uid)).filter(Boolean).map((part) => postOf(this.poseOf(part!))).filter(Boolean);
+    return shapeBand(meta.name, BAND_SIZES[meta.id].circumference, found as NonNullable<ReturnType<typeof postOf>>[], along);
+  }
+
+  private bandGeometry(shape: BandShape, stretch: number): THREE.BufferGeometry {
+    // Stretching a band thins it.
+    const radius = Math.max(0.55, 1.1 / Math.sqrt(Math.max(1, stretch)));
+    const strands = shape.strands.filter((strand) => strand.length > 2)
+      .map((strand) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(strand, true), Math.max(48, strand.length * 2), radius, 6, true));
+    if (!strands.length) return new THREE.BufferGeometry();
+    const merged = strands.length === 1 ? strands[0] : mergeGeometries(strands)!;
+    if (strands.length > 1) for (const strand of strands) strand.dispose();
+    merged.computeBoundingBox();
+    return merged;
+  }
+
+  private makeBand(meta: PartMeta, posts: string[], along: number): Band {
+    this.scene.updateMatrixWorld(false);
+    const shape = this.bandShapeFor(meta, posts, along);
+    const color = meta.color || CATEGORY_COLOR[meta.category] || "#c0392b";
+    const mesh = new THREE.Mesh(this.bandGeometry(shape, shape.stretch), new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
+    mesh.castShadow = true;
+    const uid = `p${uidSeq++}`;
+    mesh.userData.uid = uid;
+    mesh.userData.band = true;
+    this.scene.add(mesh);
+    const band: Band = { uid, meta, posts, along, mesh, shape };
+    this.bands.set(uid, band);
+    return band;
+  }
+
+  private reshapeBand(band: Band) {
+    band.shape = this.bandShapeFor(band.meta, band.posts, band.along);
+    band.mesh.geometry.dispose();
+    band.mesh.geometry = this.bandGeometry(band.shape, band.shape.stretch);
+  }
+
+  private removeBand(band: Band) {
+    if (this.selectedBand === band) { this.selectedBand = null; this.updateHelper(); }
+    this.scene.remove(band.mesh);
+    band.mesh.geometry.dispose();
+    (band.mesh.material as THREE.Material).dispose();
+    this.bands.delete(band.uid);
+  }
+
+  // Putting a band on: click the posts it goes round, in order, then Done (or the first post again).
+  private startBand(meta: PartMeta) {
+    this.cancelBand();
+    this.clearArm();
+    this.select(null);
+    this.bandDraft = { meta, posts: [], along: 0, preview: null };
+    this.onBandDraft({ name: meta.name, posts: 0 });
+    this.updateHelper();
+  }
+
+  private bandPostClick(): boolean {
+    const draft = this.bandDraft;
+    if (!draft) return false;
+    const hit = this.raycaster.intersectObjects([...this.parts.values()].map((part) => part.mesh), false)
+      .find((candidate) => { const part = this.parts.get(candidate.object.userData.uid as string); return part && postOf(this.poseOf(part)); });
+    if (!hit) return true;
+    const part = this.parts.get(hit.object.userData.uid as string)!;
+    if (draft.posts[0] === part.uid && draft.posts.length >= 2) { this.finishBand(); return true; }
+    if (draft.posts.includes(part.uid)) return true;
+    if (!draft.posts.length) draft.along = alongPost(postOf(this.poseOf(part))!, hit.point);
+    draft.posts.push(part.uid);
+    this.drawBandDraft();
+    this.onBandDraft({ name: draft.meta.name, posts: draft.posts.length });
+    return true;
+  }
+
+  private drawBandDraft() {
+    const draft = this.bandDraft;
+    this.bandRings.clear();
+    if (draft?.preview) { this.scene.remove(draft.preview); draft.preview.geometry.dispose(); draft.preview = null; }
+    if (!draft) { this.invalidate(); return; }
+    this.scene.updateMatrixWorld(false);
+    const posts = draft.posts.map((uid) => this.parts.get(uid)).filter(Boolean).map((part) => postOf(this.poseOf(part!))!).filter(Boolean);
+    const plane = posts[0] ? posts[0].center.clone().addScaledVector(posts[0].axis, draft.along) : null;
+    for (const post of posts) {
+      const ring = new THREE.Mesh(this.ringGeo, this.driveRingMat);
+      const facing = post.axis.dot(posts[0].axis);
+      const reach = Math.abs(facing) > 0.5 ? plane!.clone().sub(post.center).dot(posts[0].axis) / facing : 0;
+      ring.position.copy(post.center).addScaledVector(post.axis, reach);
+      ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), post.axis);
+      this.bandRings.add(ring);
+    }
+    if (draft.posts.length >= 2) {
+      const shape = this.bandShapeFor(draft.meta, draft.posts, draft.along);
+      draft.preview = new THREE.Mesh(this.bandGeometry(shape, shape.stretch), this.driveRingMat);
+      this.scene.add(draft.preview);
+    }
+    this.invalidate();
+  }
+
+  /** Put the band being drawn on its posts. */
+  finishBand() {
+    const draft = this.bandDraft;
+    if (!draft) return;
+    const posts = draft.posts.slice();
+    this.cancelBand();
+    if (posts.length < 2) return;
+    const before = this.snapshot();
+    const band = this.makeBand(draft.meta, posts, draft.along);
+    this.commit(before);
+    this.selectedBand = band;
+    this.emit();
+  }
+
+  cancelBand() {
+    if (!this.bandDraft) return;
+    const draft = this.bandDraft;
+    draft.posts = [];
+    this.drawBandDraft();
+    this.bandDraft = null;
+    this.onBandDraft(null);
   }
 
   private drawCables() {
@@ -919,9 +1101,10 @@ export class Editor {
   // While it runs, the plugs stay in their ports and the cables follow the parts they are in.
   private followCables(seconds: number) {
     this.cableClock += seconds;
-    if (this.cableClock < 0.05 || !this.cablePlan.cables.length) return;
+    if (this.cableClock < 0.05 || (!this.cablePlan.cables.length && !this.bands.size)) return;
     this.cableClock = 0;
     this.scene.updateMatrixWorld(false);
+    for (const band of this.bands.values()) this.reshapeBand(band);
     this.cablePlan = {
       ...this.cablePlan,
       cables: this.cablePlan.cables.map((cable) => {
@@ -937,7 +1120,8 @@ export class Editor {
     const now = performance.now();
     if (now - this.tipClock < 60) return;
     this.tipClock = now;
-    const hit = this.raycaster.intersectObjects([...this.cables.children, ...[...this.parts.values()].map((part) => part.mesh)], false)[0];
+    const bandMeshes = [...this.bands.values()].map((band) => band.mesh);
+    const hit = this.raycaster.intersectObjects([...this.cables.children, ...bandMeshes, ...[...this.parts.values()].map((part) => part.mesh)], false)[0];
     // A cable is only 3 mm thick, so it counts as pointed at within a few pixels of it.
     const ray = this.raycaster.ray, onRay = new THREE.Vector3(), onCable = new THREE.Vector3();
     let nearCable: Cable | null = null, nearest = Infinity;
@@ -948,8 +1132,21 @@ export class Editor {
         if (missBy < Math.max(2.5, along * 0.008) && along < nearest && (!hit || along <= hit.distance + 1)) { nearest = along; nearCable = cable; }
       }
     }
+    // A band is thin too.
+    let nearBand: Band | null = null;
+    for (const band of this.bands.values()) {
+      for (const strand of band.shape.strands) {
+        for (let index = 0; index < strand.length; index++) {
+          const missBy = Math.sqrt(ray.distanceSqToSegment(strand[index], strand[(index + 1) % strand.length], onRay, onCable));
+          const along = onRay.distanceTo(ray.origin);
+          if (missBy < Math.max(2, along * 0.007) && along < nearest && (!hit || along <= hit.distance + 1)) { nearest = along; nearBand = band; nearCable = null; }
+        }
+      }
+    }
+    const hitBand = hit ? this.bands.get(hit.object.userData.uid as string) : undefined;
     let text = "";
-    if (nearCable) text = cableLabel(nearCable);
+    if (nearBand || (hitBand && !nearCable)) { const band = (nearBand || hitBand)!; text = bandLabel(band.meta.id, band.shape, band.posts.length); }
+    else if (nearCable) text = cableLabel(nearCable);
     else if (hit?.object.userData.cable) text = cableLabel(hit.object.userData.cable as Cable);
     else if (hit) {
       const part = this.parts.get(hit.object.userData.uid as string);
@@ -1030,6 +1227,13 @@ export class Editor {
     this.downAt = { x: e.clientX, y: e.clientY };
     this.setPointer(e);
     if (this.running) { this.runPointerDown(e); return; }
+    if (this.bandDraft) {
+      // Clicking posts puts the band on them; a drag off the posts still turns the view.
+      const before = this.bandDraft.posts.length;
+      this.bandPostClick();
+      if (this.bandDraft === null || this.bandDraft.posts.length !== before) e.stopImmediatePropagation();
+      return;
+    }
     // 1) a hole marker starts a connection: holes come first, even under the arrows
     if (this.markersVisible) {
       if (this.armed && this.slideArmedOntoConnector()) { e.stopImmediatePropagation(); return; }
@@ -1055,7 +1259,15 @@ export class Editor {
     }
     // 3) a part body starts a move
     const meshes = [...this.parts.values()].map((p) => p.mesh);
-    const hits = this.raycaster.intersectObjects(meshes, false);
+    const hits = this.raycaster.intersectObjects([...meshes, ...[...this.bands.values()].map((band) => band.mesh)], false);
+    const band = hits.length ? this.bands.get(hits[0].object.userData.uid as string) : undefined;
+    if (band) { // a band only goes where its posts go: pick it, so it can be deleted
+      this.select(null);
+      this.selectedBand = band;
+      this.emit();
+      e.stopPropagation();
+      return;
+    }
     if (hits.length) {
       const part = this.parts.get(hits[0].object.userData.uid as string) || null;
       if (!part) return;
@@ -1204,7 +1416,7 @@ export class Editor {
       this.emptyDown = null;
       if (moved < 4) {
         this.clearArm();
-        if (this.selected) { this.select(null); this.emit(); }
+        if (this.selected || this.selectedBand) { this.selectedBand = null; this.select(null); this.emit(); }
       }
     }
   };
@@ -1976,6 +2188,7 @@ export class Editor {
     this.drawCables();
     this.plugGeo.dispose(); this.cableMat.dispose(); this.cableShortMat.dispose(); this.plugMat.dispose();
     this.tip.remove();
+    this.bandRings.clear();
     // Hand the GPU back everything this editor made. Part geometries live in a
     // module-level cache shared with the next editor, so they stay. Without
     // this a remount (React StrictMode does one on every dev load) leaked a

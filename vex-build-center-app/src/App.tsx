@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Editor, STOPPED, type EditorState, type SavedPart, type ConnectRequest, type PartMenu, type ViewName, type RunInfo } from "./editor";
+import { Editor, STOPPED, type EditorState, type SavedPart, type ConnectRequest, type PartMenu, type ViewName, type RunInfo, type BandDraft } from "./editor";
 import { Gallery, type Example } from "./Gallery";
 import { loadManifest, CATEGORY_COLOR, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta, type PartCategory } from "./lib/parts";
 
@@ -27,6 +27,7 @@ export default function App() {
     try { return { ...DEFAULT_LIMITS, ...JSON.parse(localStorage.getItem("utg_vex_limits") || "{}") }; } catch { return DEFAULT_LIMITS; }
   });
   const [status, setStatus] = useState("Loading parts…");
+  const [bandDraft, setBandDraft] = useState<BandDraft | null>(null);
   const [error, setError] = useState("");
   const [connectReq, setConnectReq] = useState<ConnectRequest | null>(null);
   const [partMenu, setPartMenu] = useState<PartMenu | null>(null);
@@ -57,6 +58,7 @@ export default function App() {
     ed.onChange = setState;
     ed.onConnect = setConnectReq;
     ed.onPartMenu = setPartMenu;
+    ed.onBandDraft = setBandDraft;
     ed.onRun = (info) => {
       setRun(info);
       // An edit made while running ends the run; don't leave "Running!" up after it.
@@ -136,6 +138,11 @@ export default function App() {
       if (e.altKey) return;
       if (e.key === " ") { e.preventDefault(); toggleRun(); return; }
       if (ed.isRunning()) { if (e.key === "Escape") toggleRun(); return; } // building keys wait until Stop
+      if (bandDraft) {
+        if (e.key === "Enter") { e.preventDefault(); ed.finishBand(); }
+        else if (e.key === "Escape") ed.cancelBand();
+        return;
+      }
 
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); ed.deleteSelected(); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); ed.moveSelected(-1, 0); }
@@ -155,9 +162,14 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [state.selectedUid]);
+  }, [state.selectedUid, bandDraft]);
 
-  function add(meta: PartMeta) { editorRef.current?.addPart(meta); setStatus(`Added ${meta.name}. Drag to move · R to rotate · Del to remove.`); }
+  function add(meta: PartMeta) {
+    editorRef.current?.addPart(meta);
+    setStatus(meta.category === "band"
+      ? `Click the pins, standoffs or axles to stretch the ${meta.name} round, in order. Click where along the first one it should sit.`
+      : `Added ${meta.name}. Drag to move · R to rotate · Del to remove.`);
+  }
   function save() {
     const data: SavedPart[] = editorRef.current?.serialize() || [];
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -313,6 +325,17 @@ export default function App() {
             </div>
           )}
           {run.running && <RunPanel run={run} editor={editorRef.current} />}
+          {bandDraft && !run.running && (
+            <div className="band-bar">
+              <span>{bandDraft.posts === 0
+                ? `Click the first post for the ${bandDraft.name}: a pin, standoff or axle, at the spot it goes round.`
+                : bandDraft.posts === 1
+                  ? "Now click the next post it stretches to."
+                  : `Round ${bandDraft.posts} posts. Click more to bend it round them, or finish.`}</span>
+              <button className="primary" disabled={bandDraft.posts < 2} onClick={() => editorRef.current?.finishBand()}>Done (Enter)</button>
+              <button onClick={() => editorRef.current?.cancelBand()}>Cancel (Esc)</button>
+            </div>
+          )}
           <div className="stage-hint">{run.running
             ? "Drag a moving part to turn it by hand · click one to draw its path · orange rings are pivots"
             : "Click a hole, then another, to connect them · blue = pin hole, green = axle hole · drag a part or its arrows to move it"}</div>

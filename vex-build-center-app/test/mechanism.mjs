@@ -7,13 +7,14 @@
 // - A linkage that cannot move stalls its motor instead of tearing itself apart.
 // - The wiper builds for real: every axle in two holes, nothing can slide off, and the motor
 //   has a cable to a Brain port nothing is in front of.
+// - The band-assisted arm's rubber band is double wrapped to stay snug, and stretches as the arm swings.
 import * as THREE from "three";
 import { readFileSync } from "node:fs";
 import { boreCores, fillsOf, OCCUPIER } from "../src/lib/connections.ts";
 import { Mechanism } from "../src/lib/mechanism.ts";
 import { checkBuild } from "../src/lib/rules.ts";
 import { planCables } from "../src/lib/cables.ts";
-import { layout } from "../tools/library/layout.mjs";
+import { layout, bands } from "../tools/library/layout.mjs";
 
 const here = new URL(".", import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL("../public/parts/manifest.json", here), "utf8"));
@@ -151,6 +152,19 @@ const wiperSaved = JSON.parse(readFileSync(new URL("../public/examples/windshiel
   const problems = checkBuild(poses, fills, studs, plan);
   check(!problems.length, `the wiper passes the build check${problems.length ? `: ${problems.map((problem) => problem.text).join(" / ")}` : ""}`);
   check(plan.cables.length === 1 && plan.cables[0].reaches, `its motor is cabled to the Brain (${plan.cables.map((cable) => `port ${cable.port}, ${cable.length} mm`).join(", ")})`);
+}
+
+{
+  const saved = JSON.parse(readFileSync(new URL("../public/examples/library/band-assisted-arm-5to1.json", here), "utf8"));
+  const { parts, poses, fills, studs } = layout(saved);
+  const [band] = bands(saved, poses);
+  check(band && band.meta.id === "rubber-band-32" && !band.shape.problems.length, `the arm's band sits on its posts${band?.shape.problems.length ? `: ${band.shape.problems.join(" / ")}` : ""}`);
+  check(band && band.shape.wraps === 2 && band.shape.stretch > 1.1 && band.shape.stretch < 2.5, `a #32 is double wrapped to stay snug (${band && `${band.shape.wraps} wraps, ${band.shape.stretch.toFixed(2)}x`})`);
+  const mechanism = new Mechanism(parts, fills, studs);
+  for (let frame = 0; frame < 20; frame++) mechanism.step(1 / 60);
+  for (const part of parts) part.object.updateMatrixWorld(true);
+  const [moved] = bands(saved, poses);
+  check(Math.abs(moved.shape.stretch - band.shape.stretch) > 0.05, `it stretches as the arm swings (${band.shape.stretch.toFixed(2)}x to ${moved.shape.stretch.toFixed(2)}x)`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

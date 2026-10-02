@@ -40226,7 +40226,7 @@
   {
    "id": "rubber-band-32",
    "name": "Rubber Band #32",
-   "category": "attachment",
+   "category": "band",
    "sizeMM": [
     60.6,
     60.6,
@@ -40238,7 +40238,7 @@
   {
    "id": "rubber-band-64",
    "name": "Rubber Band #64",
-   "category": "attachment",
+   "category": "band",
    "sizeMM": [
     60.6,
     60.6,
@@ -40250,7 +40250,7 @@
   {
    "id": "rubber-band-117",
    "name": "Rubber Band #117",
-   "category": "attachment",
+   "category": "band",
    "sizeMM": [
     114.3,
     6.3,

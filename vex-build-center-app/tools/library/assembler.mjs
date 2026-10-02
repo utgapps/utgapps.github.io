@@ -52,12 +52,12 @@ function localCores(meta) {
   const byCore = new Map();
   for (const hole of holesFor(meta)) {
     if (hole.kind === "stud") continue;
-    const entry = byCore.get(hole.core) || byCore.set(hole.core, { faces: [], axis: vector(hole.axis), bore: hole.bore }).get(hole.core);
+    const entry = byCore.get(hole.core) || byCore.set(hole.core, { core: hole.core, faces: [], axis: vector(hole.axis), bore: hole.bore }).get(hole.core);
     entry.faces.push(vector(hole.p));
   }
   const cores = [...byCore.values()].map((entry) => ({
     center: entry.faces.reduce((sum, face) => sum.add(face), new THREE.Vector3()).multiplyScalar(1 / entry.faces.length),
-    axis: entry.axis, bore: entry.bore, faces: entry.faces.length,
+    axis: entry.axis, bore: entry.bore, faces: entry.faces.length, core: entry.core,
   }));
   localCoreCache.set(meta.id, cores);
   return cores;
@@ -72,12 +72,13 @@ const TIGHT = 1.6; // mm a part may slide on its axle (the rules' limit)
 // What fills a gap on an axle, thickest first: a rubber collar grips, the others just spin.
 const FILLERS = [["rubber-collar", 6.35], ["spacer-025x", 3.17], ["washer", 0.76]];
 const COLLAR = 6.35;
+const PIN_LENGTH = 6.2; // each end of a standoff is a pin this long
 const COLLIDE_SLOP = 1.4; // the builder's: mm trimmed off each half-size before boxes count as touching
 const BRAIN_HOLE = new THREE.Vector3(-41.78, -9.49, 37.21); // the Brain's first side hole, in its own frame
 const SOCKET = new THREE.Vector3(-9.52, 25.24, -0.02); // the Smart Motor's output, in its own frame
 
 export class Build {
-  constructor() { this.parts = []; this.lines = []; }
+  constructor() { this.parts = []; this.lines = []; this.bands = []; }
 
   /** Place a part by position and turn. Returns its handle. */
   add(id, position, quaternion = new THREE.Quaternion()) {
@@ -93,7 +94,7 @@ export class Build {
     return localCores(handle.meta).map((core) => ({
       center: core.center.clone().applyMatrix4(handle.matrix),
       axis: core.axis.clone().transformDirection(handle.matrix),
-      bore: core.bore, faces: core.faces,
+      bore: core.bore, faces: core.faces, core: core.core,
     }));
   }
 
@@ -231,6 +232,40 @@ export class Build {
       }
     }
     return found;
+  }
+
+  /**
+   * A standoff standing out of `part`'s hole nearest `near`, its built-in pin pushed in from the
+   * `out` side: a post for a rubber band.
+   */
+  post(part, { near, out = Z, id = "standoff-1x" }) {
+    const direction = vector(out).normalize();
+    const hole = this.cores(part).filter((core) => core.bore === "round" && Math.abs(core.axis.dot(direction)) > 0.98)
+      .sort((first, second) => first.center.distanceTo(vector(near)) - second.center.distanceTo(vector(near)))[0];
+    if (!hole || hole.center.distanceTo(vector(near)) > 2) throw new Error(`${part.id} has no hole at ${vector(near).toArray()}`);
+    const meta = metaOf(id);
+    const tip = holesFor(meta).find((handle) => handle.kind === "stud" && handle.axis[2] < 0);
+    // The pin goes all the way through, its tip at the far face.
+    const thickness = Math.min(...part.meta.sizeMM);
+    const tipAt = hole.center.clone().addScaledVector(direction, -thickness / 2);
+    const handle = this.add(id, tipAt.addScaledVector(direction, -tip.p[2]), rotationFor({ 2: direction, 0: Math.abs(direction.dot(X)) > 0.9 ? Y : X }));
+    handle.studs = [[tip.core, part.index, hole.core]];
+    // Where a band can sit: the square middle, between the two pins.
+    const center = new THREE.Vector3().setFromMatrixPosition(handle.matrix), half = Math.max(...meta.sizeMM) / 2 - PIN_LENGTH;
+    handle.body = { center, axis: direction, half };
+    return handle;
+  }
+
+  /**
+   * A rubber band of `id` round standoff posts made by post(), in the order it goes round them.
+   * It sits halfway along the stretch of post that all of them share.
+   */
+  band(id, posts) {
+    const axis = posts[0].body.axis;
+    const reach = (post) => post.body.center.clone().sub(posts[0].body.center).dot(axis);
+    const low = Math.max(...posts.map((post) => reach(post) - post.body.half)), high = Math.min(...posts.map((post) => reach(post) + post.body.half));
+    if (high - low < 3) throw new Error("the posts do not stand out far enough side by side for a band");
+    this.bands.push({ id, posts, at: (low + high) / 2 });
   }
 
   /** Pin two parts solid: `count` pins at matching holes, spread as far apart as they go. */
@@ -422,8 +457,10 @@ export class Build {
     return this.parts.map((handle) => {
       const position = new THREE.Vector3(), quaternion = new THREE.Quaternion();
       handle.matrix.decompose(position, quaternion, new THREE.Vector3());
-      return { id: handle.id, p: position.toArray().map(round), q: quaternion.toArray().map((value) => Math.round(value * 1e6) / 1e6) };
-    });
+      const saved = { id: handle.id, p: position.toArray().map(round), q: quaternion.toArray().map((value) => Math.round(value * 1e6) / 1e6) };
+      if (handle.studs) saved.sj = handle.studs;
+      return saved;
+    }).concat(this.bands.map((band) => ({ id: band.id, p: [0, 0, 0], q: [0, 0, 0, 1], band: { posts: band.posts.map((post) => post.index), at: round(band.at) } })));
   }
 }
 

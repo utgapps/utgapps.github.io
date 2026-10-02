@@ -4,9 +4,12 @@ import * as THREE from "three";
 import { boreCores, fillsOf, OCCUPIER } from "../../src/lib/connections.ts";
 import { holesFor } from "../../src/lib/holes.ts";
 import { metaOf } from "./assembler.mjs";
+import { BAND_SIZES, postOf, shapeBand } from "../../src/lib/bands.ts";
 
 export function layout(saved) {
-  const parts = saved.map((entry, index) => {
+  // Rubber bands come last and are drawn from their posts, not placed: see bands() below.
+  const placed = saved.filter((entry) => !entry.band);
+  const parts = placed.map((entry, index) => {
     const meta = metaOf(entry.id);
     const object = new THREE.Object3D();
     object.position.fromArray(entry.p);
@@ -19,7 +22,7 @@ export function layout(saved) {
   const fills = poses.filter((pose) => OCCUPIER.has(pose.meta.category)).flatMap((pose) => fillsOf(pose, cores));
   // A standoff's or corner's built-in pin, plugged into another part's hole.
   const studs = [];
-  saved.forEach((entry, index) => {
+  placed.forEach((entry, index) => {
     for (const [studCore, holeIndex] of entry.sj || []) {
       const stud = holesFor(parts[index].meta).find((hole) => hole.kind === "stud" && hole.core === studCore);
       if (!stud) continue;
@@ -31,4 +34,13 @@ export function layout(saved) {
     }
   });
   return { parts, poses, fills, studs };
+}
+
+/** The rubber bands of a laid-out build, each with the shape it takes on its posts. */
+export function bands(saved, poses) {
+  return saved.filter((entry) => entry.band).map((entry) => {
+    const meta = metaOf(entry.id);
+    const posts = entry.band.posts.map((index) => postOf(poses[index]));
+    return { meta, posts: entry.band.posts, shape: shapeBand(meta.name, BAND_SIZES[meta.id].circumference, posts, entry.band.at) };
+  });
 }

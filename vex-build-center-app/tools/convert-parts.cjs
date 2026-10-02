@@ -88,9 +88,9 @@ function MORE_PARTS() {
     kit("fork-lift", "attachment", "Fork Lift Beam"),
     kit("flywheel", "attachment", "Flywheel (75 g)", "6x Pitch Flywheel (75 g)"),
     kit("shooter-plate", "attachment", "Ball Shooter Plate", "2x4 25mm Ball Shooter Plate (Strong)"),
-    kit("rubber-band-32", "attachment", "Rubber Band #32", "Silicone Rubber Band #32"),
-    kit("rubber-band-64", "attachment", "Rubber Band #64", "Silicone Rubber Band #64"),
-    kit("rubber-band-117", "attachment", "Rubber Band #117", "Silicone Rubber Band #117B"),
+    kit("rubber-band-32", "band", "Rubber Band #32", "Silicone Rubber Band #32"),
+    kit("rubber-band-64", "band", "Rubber Band #64", "Silicone Rubber Band #64"),
+    kit("rubber-band-117", "band", "Rubber Band #117", "Silicone Rubber Band #117B"),
     kit("rubber-band-anchor", "attachment", "Rubber Band Anchor"),
   ];
 }

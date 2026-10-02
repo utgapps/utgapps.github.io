@@ -8,7 +8,7 @@ import { planCables, type CablePlan } from "./cables.ts";
 // cannot tip, nothing on an axle free to slide along it or off the end, and every motor and
 // sensor plugged into a Brain port that a cable can actually reach.
 
-export type Rule = "support" | "slides" | "brain" | "cable" | "port";
+export type Rule = "support" | "slides" | "brain" | "cable" | "port" | "band";
 export type BuildProblem = { rule: Rule; uids: string[]; text: string };
 
 const TIGHT = 1.6;  // mm a part on an axle may slide before it counts as loose
