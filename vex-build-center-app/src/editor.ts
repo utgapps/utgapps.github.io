@@ -938,8 +938,19 @@ export class Editor {
     if (now - this.tipClock < 60) return;
     this.tipClock = now;
     const hit = this.raycaster.intersectObjects([...this.cables.children, ...[...this.parts.values()].map((part) => part.mesh)], false)[0];
+    // A cable is only 3 mm thick, so it counts as pointed at within a few pixels of it.
+    const ray = this.raycaster.ray, onRay = new THREE.Vector3(), onCable = new THREE.Vector3();
+    let nearCable: Cable | null = null, nearest = Infinity;
+    for (const cable of this.cablePlan.cables) {
+      for (let index = 1; index < cable.points.length; index++) {
+        const missBy = Math.sqrt(ray.distanceSqToSegment(cable.points[index - 1], cable.points[index], onRay, onCable));
+        const along = onRay.distanceTo(ray.origin);
+        if (missBy < Math.max(2.5, along * 0.008) && along < nearest && (!hit || along <= hit.distance + 1)) { nearest = along; nearCable = cable; }
+      }
+    }
     let text = "";
-    if (hit?.object.userData.cable) text = cableLabel(hit.object.userData.cable as Cable);
+    if (nearCable) text = cableLabel(nearCable);
+    else if (hit?.object.userData.cable) text = cableLabel(hit.object.userData.cable as Cable);
     else if (hit) {
       const part = this.parts.get(hit.object.userData.uid as string);
       if (part) {

@@ -3,7 +3,7 @@ import * as THREE from "three";
 export type PartCategory =
   | "beam" | "angle" | "plate" | "pin" | "standoff" | "corner"
   | "gear" | "sprocket" | "chain" | "wheel" | "shaft" | "spacer" | "motion" | "attachment"
-  | "motor" | "brain" | "sensor";
+  | "motor" | "brain" | "sensor" | "pneumatic";
 
 // A connection handle detected from the real mesh: a point on an open face
 // plus the outward normal. kind "stud" is a built-in pin sticking out.
@@ -21,6 +21,7 @@ export type PartMeta = {
   primitive?: "box";
   color?: string;
   isMotor?: boolean;
+  substitute?: boolean;     // not in the VEX CAD library: drawn by tools/make-substitutes.mjs at the real size
   holes?: DetectedHandle[]; // measured from the CAD mesh; preferred over the parametric guess
 };
 
@@ -71,15 +72,15 @@ export function loadGeometry(meta: PartMeta): Promise<THREE.BufferGeometry> {
 export const CATEGORY_COLOR: Record<PartCategory, string> = {
   beam: "#2f6fb0", angle: "#2a62a0", plate: "#3f8fd0", pin: "#e0a13a", standoff: "#8a94a6", corner: "#356fa8",
   gear: "#c85c3c", sprocket: "#b8502e", chain: "#4a4f58", wheel: "#2b2f36", shaft: "#9aa3b0", spacer: "#b9c0cb", motion: "#3c9a6a", attachment: "#d0a030",
-  motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0",
+  motor: "#2b7de0", brain: "#3a3f47", sensor: "#7a5cc0", pneumatic: "#5fa8b8",
 };
 
 export const CATEGORY_LABEL: Record<PartCategory, string> = {
   beam: "Beams", angle: "Angle Beams & Arms", plate: "Plates", pin: "Pins", standoff: "Standoffs", corner: "Corners",
-  gear: "Gears", sprocket: "Sprockets", chain: "Chain & Tread", wheel: "Wheels", shaft: "Axles", spacer: "Spacers & Collars", motion: "Racks, Slides, Ratchets & Cams", attachment: "Intakes, Buckets & Hooks", motor: "Motors", brain: "Brain & Battery", sensor: "Sensors",
+  gear: "Gears", sprocket: "Sprockets", chain: "Chain & Tread", wheel: "Wheels", shaft: "Axles", spacer: "Spacers & Collars", motion: "Racks, Slides, Ratchets & Cams", attachment: "Intakes, Buckets & Hooks", motor: "Motors", brain: "Brain & Battery", sensor: "Sensors", pneumatic: "Pneumatics",
 };
 
 export const CATEGORY_ORDER: PartCategory[] = [
   "beam", "angle", "plate", "corner", "pin", "standoff", "gear", "sprocket", "chain", "wheel", "shaft", "spacer",
-  "motion", "attachment", "motor", "sensor", "brain",
+  "motion", "attachment", "motor", "sensor", "pneumatic", "brain",
 ];

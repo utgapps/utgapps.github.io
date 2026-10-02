@@ -24,10 +24,11 @@ function brainPorts(meta: PartMeta): Port[] {
 }
 
 // A Smart Motor's port is on the end of its body, across from the axle socket. A sensor's is on
-// its back, the face away from what it senses.
+// its back, the face away from what it senses. The pneumatic solenoid is cabled like a sensor
+// (the pump plugs into the solenoid, not the Brain).
 function devicePort(meta: PartMeta): Port | null {
   if (meta.isMotor || meta.category === "motor") return { point: new THREE.Vector3(meta.sizeMM[0] / 2, 0, 0), out: new THREE.Vector3(1, 0, 0) };
-  if (meta.category === "sensor") return { point: new THREE.Vector3(0, 0, -meta.sizeMM[2] / 2), out: new THREE.Vector3(0, 0, -1) };
+  if (meta.category === "sensor" || meta.id === "pneumatic-solenoid") return { point: new THREE.Vector3(0, 0, -meta.sizeMM[2] / 2), out: new THREE.Vector3(0, 0, -1) };
   return null;
 }
 
