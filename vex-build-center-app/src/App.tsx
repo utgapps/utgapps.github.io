@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Editor, type EditorState, type SavedPart, type ConnectRequest, type PartMenu, type ViewName } from "./editor";
+import { Editor, STOPPED, type EditorState, type SavedPart, type ConnectRequest, type PartMenu, type ViewName, type RunInfo } from "./editor";
 import { loadManifest, CATEGORY_LABEL, CATEGORY_ORDER, type Manifest, type PartMeta, type PartCategory } from "./lib/parts";
 
 const MM_PER_IN = 25.4;
@@ -13,7 +13,11 @@ const DEFAULT_LIMITS: Limits = { w: 11, h: 15, d: 11, motors: 6 };
 const EMPTY_STATE: EditorState = {
   count: 0, selectedUid: null, selectedName: null, bboxMM: { w: 0, h: 0, d: 0 },
   motors: 0, canPivot: false, overlaps: 0, canUndo: false, canRedo: false, inventory: [],
+  gearInfo: null, running: false,
 };
+
+// Ready-made builds a class can open, run and take apart.
+const EXAMPLES = [{ file: "windshield-wiper.json", name: "Windshield wiper", blurb: "A motor, two gears and a four-bar linkage that swings an arm back and forth." }];
 
 export default function App() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -30,6 +34,9 @@ export default function App() {
   const [partMenu, setPartMenu] = useState<PartMenu | null>(null);
   const [search, setSearch] = useState("");
   const [showHelp, setShowHelp] = useState(false);
+  const [showExamples, setShowExamples] = useState(false);
+  const [run, setRun] = useState<RunInfo>(STOPPED);
+  const [gizmoMode, setGizmoMode] = useState<"translate" | "rotate">("translate");
 
   const metaById = useMemo(() => new Map((manifest?.parts || []).map((p) => [p.id, p])), [manifest]);
 
@@ -52,6 +59,7 @@ export default function App() {
     ed.onChange = setState;
     ed.onConnect = setConnectReq;
     ed.onPartMenu = setPartMenu;
+    ed.onRun = setRun;
     ed.onArmChange = (armed) => setStatus(armed
       ? "First hole picked — click another hole to connect, or click it again for a single connector. (Esc cancels)"
       : "Pick a part on the left, or click a hole to start a connection.");
@@ -76,6 +84,34 @@ export default function App() {
     await ed.duplicateSelected();
     setStatus("Copied — the new one is sitting next to the original.");
   }
+  function toggleRun() {
+    const ed = editorRef.current;
+    if (!ed) return;
+    if (ed.isRunning()) { ed.stopRun(); setStatus("Stopped. Everything is back where you built it."); return; }
+    setConnectReq(null); setPartMenu(null);
+    const info = ed.startRun();
+    setStatus(info.movingParts
+      ? "Running! Drag a moving part to turn it by hand. Press Stop to go back to building."
+      : "Nothing in your build can move yet. Join parts with ONE pin to make a hinge, or put a gear on an axle.");
+  }
+  function chooseGizmo(mode: "translate" | "rotate") {
+    setGizmoMode(mode);
+    editorRef.current?.setGizmoMode(mode);
+    setStatus(mode === "translate"
+      ? "Move: drag an arrow to slide the part along it, one half hole at a time."
+      : "Turn: drag a ring to turn the part a quarter turn at a time.");
+  }
+  async function openExample(file: string, name: string) {
+    setShowExamples(false);
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}examples/${file}`);
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json() as SavedPart[];
+      await editorRef.current?.load(data, metaById);
+      editorRef.current?.frameAll();
+      setStatus(`Opened the ${name}. Press \u25B6 Run to watch it move. Ctrl+Z puts your old build back.`);
+    } catch { setStatus("That example could not be opened. Check the internet connection."); }
+  }
   function view(v: ViewName, label: string) {
     editorRef.current?.setView(v);
     setStatus(`${label} view.`);
@@ -96,6 +132,8 @@ export default function App() {
         return; // every other Ctrl/Cmd combo belongs to the browser
       }
       if (e.altKey) return;
+      if (e.key === " ") { e.preventDefault(); toggleRun(); return; }
+      if (ed.isRunning()) { if (e.key === "Escape") toggleRun(); return; } // building keys wait until Stop
 
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); ed.deleteSelected(); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); ed.moveSelected(-1, 0); }
@@ -108,6 +146,8 @@ export default function App() {
       else if (e.key === "]") ed.nudgeSelectedY(1);
       else if (e.key === "[") ed.nudgeSelectedY(-1);
       else if (e.key === "f" || e.key === "F") ed.frameAll();
+      else if (e.key === "m" || e.key === "M") chooseGizmo("translate");
+      else if (e.key === "t" || e.key === "T") chooseGizmo("rotate");
       else if (e.key === "?") setShowHelp(true);
       else if (e.key === "Escape") { ed.clearArm(); ed.selectByUid(null); setConnectReq(null); setPartMenu(null); setShowHelp(false); }
     };
@@ -173,6 +213,21 @@ export default function App() {
   const choices = useMemo(() => {
     if (!connectReq) return [];
     const depth = connectReq.depth;
+    if (connectReq.axle) {
+      // A square hole only takes an axle. A motor's socket wants a motor axle, which reaches
+      // two half holes deeper because part of it sits inside the motor.
+      const shafts = connectors.filter((c) => c.category === "shaft").sort((a, b) => holeSpan(a) - holeSpan(b));
+      const isMotorShaft = (c: PartMeta) => c.id.startsWith("shaft-motor");
+      const isPlainShaft = (c: PartMeta) => /^shaft-\d+x$/.test(c.id);
+      const ordered = connectReq.socket
+        ? [...shafts.filter(isMotorShaft), ...shafts.filter((c) => !isMotorShaft(c))]
+        : [...shafts.filter(isPlainShaft), ...shafts.filter((c) => !isPlainShaft(c))];
+      const best = connectReq.socket
+        ? ordered.find((c) => isMotorShaft(c) && holeSpan(c) >= depth + 2) || ordered.find(isMotorShaft)
+        : ordered.find((c) => isPlainShaft(c) && holeSpan(c) >= depth);
+      const first = best ? [best, ...ordered.filter((c) => c !== best)] : ordered;
+      return first.map((meta) => ({ meta, best: meta === best }));
+    }
     const usable = connectors.filter((c) => c.category !== "pin" || holeSpan(c) >= depth);
     const pins = usable.filter((c) => c.category === "pin").sort((a, b) => holeSpan(a) - holeSpan(b));
     const rest = usable.filter((c) => c.category !== "pin");
@@ -198,7 +253,11 @@ export default function App() {
         <div className="toolbar">
           <button className="tool" onClick={undo} disabled={!state.canUndo} title="Undo (Ctrl+Z)">↶ Undo</button>
           <button className="tool" onClick={redo} disabled={!state.canRedo} title="Redo (Ctrl+Y)">↷ Redo</button>
-          <button className="tool" onClick={duplicate} disabled={!hasSel} title="Duplicate the selected part and everything pinned to it (Ctrl+D)">⧉ Copy</button>
+          <button className="tool" onClick={duplicate} disabled={!hasSel || run.running} title="Duplicate the selected part and everything pinned to it (Ctrl+D)">⧉ Copy</button>
+          <button className={`tool run-btn ${run.running ? "stop" : ""}`} onClick={toggleRun} disabled={!state.count} title="Watch your build move (Space)">
+            {run.running ? "■ Stop" : "▶ Run"}
+          </button>
+          <button className="tool" onClick={() => setShowExamples(true)} title="Open a ready-made build">Examples</button>
         </div>
         <div className="badges">
           {state.overlaps > 0 && (
@@ -240,7 +299,16 @@ export default function App() {
             <button onClick={() => view("side", "Side")} title="Look at the side">Side</button>
             <button onClick={() => view("top", "Top")} title="Look from above">Top</button>
           </div>
-          <div className="stage-hint">Click a hole then another to connect (or drag between them) · click the same hole twice for one connector · drag a part to move</div>
+          {!run.running && (
+            <div className="gizmo-bar">
+              <button className={gizmoMode === "translate" ? "on" : ""} onClick={() => chooseGizmo("translate")} title="Arrows on the selected part slide it (M)">✥ Move</button>
+              <button className={gizmoMode === "rotate" ? "on" : ""} onClick={() => chooseGizmo("rotate")} title="Rings on the selected part turn it (T)">⟳ Turn</button>
+            </div>
+          )}
+          {run.running && <RunPanel run={run} editor={editorRef.current} />}
+          <div className="stage-hint">{run.running
+            ? "Drag a moving part to turn it by hand · click one to draw its path · orange rings are pivots"
+            : "Click a hole, then another, to connect them · blue = pin hole, green = axle hole · drag a part or its arrows to move it"}</div>
         </div>
 
         <aside className="inspector">
@@ -269,6 +337,7 @@ export default function App() {
             {hasSel ? (
               <>
                 <p className="sel-name">{state.selectedName}</p>
+                {state.gearInfo && <p className="gear-info">{state.gearInfo}</p>}
                 {state.canPivot && (
                   <div className="btn-row">
                     <button className="pivot" onClick={() => { editorRef.current?.pivotSelected(); setStatus("Pivoted 90° around the pin."); }}>⟳ Pivot on pin 90°</button>
@@ -336,7 +405,9 @@ export default function App() {
         <>
           <div className="picker-scrim" onClick={() => setConnectReq(null)} />
           <div className="picker" style={{ left: Math.min(connectReq.screen.x, window.innerWidth - 210), top: Math.min(connectReq.screen.y, window.innerHeight - 260) }}>
-            <div className="picker-head">{connectReq.to ? `Connect ${connectReq.depth} stacked holes with…` : "Put in this hole…"}</div>
+            <div className="picker-head">{connectReq.axle
+              ? (connectReq.socket ? "Put an axle in the motor…" : "Square hole: it takes an axle…")
+              : connectReq.to ? `Connect ${connectReq.depth} stacked holes with…` : "Put in this hole…"}</div>
             <div className="picker-grid">
               {choices.map(({ meta: c, best }) => (
                 <button key={c.id} className={`picker-item ${best ? "best" : ""}`} onClick={() => { editorRef.current?.connect(connectReq.from, connectReq.to, c); setConnectReq(null); setStatus(`Placed ${c.name}.`); }}>
@@ -371,6 +442,22 @@ export default function App() {
 
       {showHelp && <Help onClose={() => setShowHelp(false)} />}
 
+      {showExamples && (
+        <>
+          <div className="modal-scrim" onClick={() => setShowExamples(false)} />
+          <div className="modal" role="dialog" aria-label="Examples">
+            <button className="modal-x" onClick={() => setShowExamples(false)} aria-label="Close">×</button>
+            <h2>Examples</h2>
+            <p className="muted small">Open one, press ▶ Run to watch it move, then take it apart and see how it works. Opening one replaces your build, and Ctrl+Z brings yours back.</p>
+            {EXAMPLES.map((example) => (
+              <button key={example.file} className="example" onClick={() => openExample(example.file, example.name)}>
+                <b>{example.name}</b><span>{example.blurb}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       <footer className="statusbar">{status}</footer>
     </main>
   );
@@ -389,6 +476,15 @@ function Help({ onClose }: { onClose: () => void }) {
           <li><b>Click a blue hole</b>, then click another hole on a different part. The first part you clicked flies over and lines up.</li>
           <li><b>Choose a pin</b> from the little menu — the top one is already the right length.</li>
           <li><b>Gold circles</b> are built-in pins on corner brackets. Click one, then a hole, and they plug straight together.</li>
+          <li><b>Green squares</b> are axle holes: the middle of a gear or wheel, and the motor's socket. An axle turns whatever has a square hole on it.</li>
+        </ol>
+
+        <h2>Make it move</h2>
+        <ol className="steps">
+          <li><b>One pin</b> between two parts makes a hinge: they can swing. <b>Two pins</b> hold them solid.</li>
+          <li><b>Gears mesh</b> when they sit side by side in the same layer and their teeth touch. Select a gear and it tells you if it is meshing.</li>
+          <li>Put an axle in the <b>motor's green socket</b> and through a gear, then press <b>▶ Run</b>.</li>
+          <li>While it runs, <b>drag</b> a moving part to turn it by hand, and <b>click</b> one to draw the path it makes.</li>
         </ol>
         <p className="muted small">Parts glowing red are overlapping — move one out of the way. Right-click a pin to disable it if you want to pull parts apart again.</p>
 
@@ -399,11 +495,53 @@ function Help({ onClose }: { onClose: () => void }) {
             ["Arrow keys", "Slide one hole"], ["] and [", "Raise / lower"],
             ["R", "Turn (Y)"], ["X", "Turn (X)"], ["Z", "Turn (Z)"],
             ["Delete", "Remove"], ["F", "Fit the view"], ["Esc", "Cancel / deselect"],
+            ["M", "Move arrows"], ["T", "Turn rings"], ["Space", "Run / Stop"],
           ].map(([k, what]) => <div className="key-row" key={k}><kbd>{k}</kbd><span>{what}</span></div>)}
         </div>
         <p className="muted small">Drag on empty space to spin the view · scroll to zoom · right-drag to slide it.</p>
       </div>
     </>
+  );
+}
+
+// What the build is doing while it runs: motor speeds, how fast each part spins, and why.
+function RunPanel({ run, editor }: { run: RunInfo; editor: Editor | null }) {
+  const turnsPerMinute = (rpm: number) => `${Math.abs(rpm) < 0.5 ? 0 : Math.round(Math.abs(rpm))} rpm`;
+  return (
+    <div className="run-panel">
+      <h3>{run.moving ? "Running" : "Stuck!"}</h3>
+      {!run.moving && <p className="run-stuck">The motor is stuck: something in your build stops it from turning. Look for a part held by two pins that needs to swing.</p>}
+      {run.movingParts === 0 && <p className="run-note">Nothing can move yet. One pin between two parts makes a hinge, and an axle in the motor turns what is on it.</p>}
+      {run.motors.map((motor) => (
+        <div className="run-motor" key={motor.uid}>
+          <div className="run-row"><b>{motor.name}</b><span>{motor.stalled ? "stuck" : turnsPerMinute(motor.rpm)}</span></div>
+          <input
+            type="range" min={-100} max={100} step={5} value={motor.speedPercent}
+            onChange={(e) => editor?.setMotorSpeed(motor.uid, +e.target.value)}
+            aria-label={`${motor.name} speed`}
+          />
+          <div className="run-scale"><span>backward</span><span>{motor.speedPercent}%</span><span>forward</span></div>
+        </div>
+      ))}
+      {run.meshes.map((mesh, index) => {
+        const ratio = mesh.drivenTeeth / mesh.driverTeeth;
+        const shown = Math.round(ratio * 10) / 10;
+        return (
+          <p className="run-mesh" key={index}>
+            <b>{mesh.driver}</b> turns <b>{mesh.driven}</b>: {ratio > 1.01
+              ? `${shown}\u00d7 slower, ${shown}\u00d7 the turning force`
+              : ratio < 0.99 ? `${Math.round(10 / ratio) / 10}\u00d7 faster, less turning force` : "same speed"}, the other way round.
+          </p>
+        );
+      })}
+      {run.spins.length > 0 && (
+        <ul className="run-spins">
+          {run.spins.map((spin, index) => <li key={index}><span>{spin.label}</span><span>{turnsPerMinute(spin.rpm)}</span></li>)}
+        </ul>
+      )}
+      {run.notes.map((note, index) => <p className="run-note" key={index}>{note}</p>)}
+      {run.tracing && <button className="tool" onClick={() => editor?.clearTrace()}>Clear path</button>}
+    </div>
   );
 }
 

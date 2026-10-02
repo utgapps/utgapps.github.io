@@ -1,16 +1,19 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { OBB } from "three/examples/jsm/math/OBB.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { loadGeometry, CATEGORY_COLOR, type PartMeta } from "./lib/parts";
 import { holesFor, hasHoles } from "./lib/holes";
+import { OCCUPIER, boreCores, fillsOf, stackAt as stackOnLine, type Core, type Fill, type PartPose } from "./lib/connections";
+import { Mechanism, meshingDistance, gearTeeth, type MechanismPart, type StudJoin, type MotorInfo, type SpinInfo, type MeshInfo } from "./lib/mechanism";
 
 const PITCH = 12.7;
 const HALF = PITCH / 2; // snap step (mm)
 const PROUD = 1.0; // how far a hole marker sits off the face (mm) — clears shallow recesses
 const snap = (v: number) => Math.round(v / HALF) * HALF;
 
-// Categories that fill holes when placed (so those holes become occupied).
-const OCCUPIER = new Set(["pin", "shaft"]);
+// How many points the path a traced point leaves behind keeps.
+const TRACE_POINTS = 1500;
 // Pins with a cap on one end (0xN connector pins, sheet pins): the head goes on
 // the side the pin enters from.
 const isHeaded = (id: string) => id.startsWith("pin-connector-0x") || id.startsWith("pin-sheet");
@@ -34,7 +37,22 @@ export type EditorState = {
   canUndo: boolean;
   canRedo: boolean;
   inventory: InventoryRow[]; // what you'd need off the shelf to build this for real
+  gearInfo: string | null;   // for a selected gear: what it meshes with, or how to make it mesh
+  running: boolean;
 };
+
+// What Run mode reports to the panel, a few times a second.
+export type RunInfo = {
+  running: boolean;
+  moving: boolean;            // false when a motor is stuck
+  movingParts: number;        // groups of parts that can move at all
+  motors: MotorInfo[];
+  spins: SpinInfo[];
+  meshes: MeshInfo[];
+  notes: string[];
+  tracing: boolean;
+};
+export const STOPPED: RunInfo = { running: false, moving: true, movingParts: 0, motors: [], spins: [], meshes: [], notes: [], tracing: false };
 
 // One line of the build's parts list.
 export type InventoryRow = { id: string; name: string; category: string; count: number };
@@ -48,7 +66,9 @@ export type ViewName = "corner" | "front" | "side" | "top";
 type HoleRef = { partUid: string; holeIndex: number };
 // Emitted when the user clicks a hole (to === null) or drags between two holes.
 // depth = how many aligned holes the connector must span (for filtering pins).
-export type ConnectRequest = { from: HoleRef; to: HoleRef | null; depth: number; screen: { x: number; y: number } };
+// axle = one of the holes is square (a gear or wheel's middle) or a motor's socket, so only an
+// axle fits; socket = it is the motor's socket, which wants a motor axle.
+export type ConnectRequest = { from: HoleRef; to: HoleRef | null; depth: number; axle: boolean; socket: boolean; screen: { x: number; y: number } };
 // Emitted when the user right-clicks a placed pin/connector.
 export type PartMenu = { uid: string; name: string; disabled: boolean; screen: { x: number; y: number } };
 
@@ -63,6 +83,7 @@ export class Editor {
   onConnect: (req: ConnectRequest) => void = () => {};
   onPartMenu: (m: PartMenu) => void = () => {};
   onArmChange: (armed: boolean) => void = () => {};
+  onRun: (info: RunInfo) => void = () => {};
 
   private occupied = new Set<string>(); // core-keys "<partUid>:<coreIndex>" filled by a pin
   private headAxisCache = new Map<string, THREE.Vector3>();
@@ -72,6 +93,8 @@ export class Editor {
   // A corner's built-in pin plugged straight into another part's hole. There's
   // no separate connector part, so the join is recorded here instead.
   private studJoins: { studPart: string; studCore: string; holePart: string; holeCore: string }[] = [];
+  private cores: Core[] = [];  // every bore in the build, world space, as of the last edit
+  private fills: Fill[] = [];  // which bores each ENABLED pin and axle passes through
   private colliding = new Set<string>(); // part uids currently clipping another part
   private obbCache = new Map<string, OBB>(); // per-geometry local OBB (center+halfSize)
   private dragGroup: { mesh: THREE.Mesh; start: THREE.Vector3 }[] = [];
@@ -98,6 +121,10 @@ export class Editor {
   // a corner's built-in pin is male, so it reads gold and sits a touch proud
   private studGeo = new THREE.CircleGeometry(3.1, 20);
   private studMat = new THREE.MeshBasicMaterial({ color: 0xf0a020, transparent: true, opacity: 0.75, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
+  // a square bore (the middle of a gear or wheel) or a motor's socket takes an axle: green squares
+  private squareGeo = new THREE.PlaneGeometry(4.4, 4.4);
+  private socketGeo = new THREE.PlaneGeometry(5.4, 5.4);
+  private axleMat = new THREE.MeshBasicMaterial({ color: 0x1fae55, transparent: true, opacity: 0.8, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
   private hovered: THREE.Mesh | null = null;
   private markersVisible = true;
   // connect drag
@@ -135,6 +162,32 @@ export class Editor {
   // Every part definition the editor has seen, so undo/duplicate can rebuild a
   // part without the caller handing the catalogue back each time.
   private catalog = new Map<string, PartMeta>();
+
+  // Move arrows and turn rings on the selected part. They drive an invisible stand-in at the
+  // part's centre; the part's whole group follows it, snapped to half a hole and quarter turns.
+  private gizmo: TransformControls;
+  private gizmoProxy = new THREE.Object3D();
+  private gizmoMode: "translate" | "rotate" = "translate";
+  private gizmoDrag: { undo: Snapshot; pivot: THREE.Vector3; members: { mesh: THREE.Mesh; position: THREE.Vector3; quaternion: THREE.Quaternion }[] } | null = null;
+  private gizmoPress = false;
+
+  // Run mode: the build moves the way its pins, axles, gears and motors let it.
+  private running = false;
+  private mechanism: Mechanism | null = null;
+  private runPoses = new Map<string, { position: THREE.Vector3; quaternion: THREE.Quaternion }>();
+  private markersBeforeRun = true;
+  private runGrab: { body: number; local: THREE.Vector3; plane: THREE.Plane } | null = null;
+  private runMoving = true;
+  private lastFrame = 0;
+  private runInfoClock = 0;
+  private pivotRings = new THREE.Group();
+  private ringGeo = new THREE.TorusGeometry(4.6, 0.8, 8, 28);
+  private ringMat = new THREE.MeshBasicMaterial({ color: 0xff8a1f, depthTest: false, transparent: true, opacity: 0.95 });
+  private driveRingMat = new THREE.MeshBasicMaterial({ color: 0x1fbf5a, depthTest: false, transparent: true, opacity: 0.95 });
+  private trace: THREE.Line;
+  private tracePoints = new Float32Array(TRACE_POINTS * 3);
+  private traceCount = 0;
+  private traceTarget: { body: number; local: THREE.Vector3 } | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -203,6 +256,27 @@ export class Editor {
     this.helper.visible = false;
     this.scene.add(this.helper);
 
+    this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
+    this.gizmo.setSize(1);
+    this.gizmo.setRotationSnap(Math.PI / 2);
+    this.gizmo.setSpace("world");
+    this.scene.add(this.gizmoProxy);
+    this.scene.add(this.gizmo.getHelper());
+    this.gizmo.addEventListener("change", this.invalidate);
+    this.gizmo.addEventListener("dragging-changed", this.onGizmoDragging);
+    this.gizmo.addEventListener("objectChange", this.onGizmoMove);
+
+    this.pivotRings.renderOrder = 997;
+    this.scene.add(this.pivotRings);
+    const traceGeometry = new THREE.BufferGeometry();
+    traceGeometry.setAttribute("position", new THREE.BufferAttribute(this.tracePoints, 3));
+    traceGeometry.setDrawRange(0, 0);
+    this.trace = new THREE.Line(traceGeometry, new THREE.LineBasicMaterial({ color: 0xff2d7a, depthTest: false, transparent: true }));
+    this.trace.frustumCulled = false;
+    this.trace.renderOrder = 998;
+    this.trace.visible = false;
+    this.scene.add(this.trace);
+
     const el = this.renderer.domElement;
     el.addEventListener("pointerdown", this.onPointerDown, { capture: true });
     el.addEventListener("contextmenu", this.onContextMenu);
@@ -233,6 +307,7 @@ export class Editor {
   // ---- placing / editing ----------------------------------------------------
 
   async addPart(meta: PartMeta): Promise<void> {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const geo = await loadGeometry(meta);
     this.catalog.set(meta.id, meta);
     const before = this.snapshot();
@@ -276,7 +351,8 @@ export class Editor {
     const zAxis = new THREE.Vector3(0, 0, 1);
     holesFor(part.meta).forEach((h, i) => {
       const stud = h.kind === "stud";
-      const m = new THREE.Mesh(stud ? this.studGeo : this.discGeo, stud ? this.studMat : this.markerMat);
+      const geometry = stud ? this.studGeo : h.bore === "socket" ? this.socketGeo : h.bore === "square" ? this.squareGeo : this.discGeo;
+      const m = new THREE.Mesh(geometry, this.baseMaterial(h.kind, h.bore));
       const axis = new THREE.Vector3(h.axis[0], h.axis[1], h.axis[2]).normalize();
       const off = stud ? PROUD * 1.6 : PROUD;
       m.position.set(h.p[0] + axis.x * off, h.p[1] + axis.y * off, h.p[2] + axis.z * off);
@@ -285,6 +361,7 @@ export class Editor {
       m.userData.holeRef = { partUid: part.uid, holeIndex: i } as HoleRef;
       m.userData.localTan = h.tan;
       m.userData.kind = h.kind;
+      m.userData.bore = h.bore;
       m.userData.core = h.core;
       m.userData.coreKey = `${part.uid}:${h.core}`; // fixed for the marker's life
       m.userData.proud = off;
@@ -309,13 +386,74 @@ export class Editor {
   // Re-fit the selection outline to the selected part's own geometry box.
   private updateHelper() {
     const part = this.selected;
-    if (!part || !part.mesh.geometry.boundingBox) { this.helper.visible = false; this.invalidate(); return; }
+    if (!part || !part.mesh.geometry.boundingBox || this.running) {
+      this.helper.visible = false;
+      if (!this.gizmoDrag) this.gizmo.detach();
+      this.invalidate();
+      return;
+    }
     part.mesh.updateMatrixWorld(true);
     this.selBox.copy(part.mesh.geometry.boundingBox).applyMatrix4(part.mesh.matrixWorld);
     this.helper.visible = true;
     this.helper.updateMatrixWorld(true);
+    if (!this.gizmoDrag) {
+      this.gizmoProxy.position.copy(this.selBox.getCenter(new THREE.Vector3()));
+      this.gizmoProxy.quaternion.identity();
+      this.gizmoProxy.updateMatrixWorld(true);
+      this.gizmo.setMode(this.gizmoMode);
+      this.gizmo.attach(this.gizmoProxy);
+    }
     this.invalidate();
   }
+
+  /** Show move arrows or turn rings on the selected part. */
+  setGizmoMode(mode: "translate" | "rotate") {
+    this.gizmoMode = mode;
+    this.gizmo.setMode(mode);
+    this.invalidate();
+  }
+
+  private onGizmoDragging = (event: { value: unknown }) => {
+    const dragging = !!event.value;
+    this.controls.enabled = !dragging;
+    if (dragging && this.selected) {
+      this.gizmoDrag = {
+        undo: this.snapshot(),
+        pivot: this.gizmoProxy.position.clone(),
+        members: this.groupOf(this.selected.uid).map((p) => ({ mesh: p.mesh, position: p.mesh.position.clone(), quaternion: p.mesh.quaternion.clone() })),
+      };
+      return;
+    }
+    const drag = this.gizmoDrag;
+    this.gizmoDrag = null;
+    if (!drag) return;
+    const moved = drag.members.some((m) => !m.mesh.position.equals(m.position) || !m.mesh.quaternion.equals(m.quaternion));
+    if (moved) this.commit(drag.undo);
+    this.emit();
+  };
+
+  // The stand-in moved: carry the group with it, a half hole or a quarter turn at a time.
+  private onGizmoMove = () => {
+    const drag = this.gizmoDrag;
+    if (!drag) return;
+    if (this.gizmo.mode === "translate") {
+      const delta = this.gizmoProxy.position.clone().sub(drag.pivot);
+      delta.set(snap(delta.x), snap(delta.y), snap(delta.z));
+      for (const m of drag.members) { m.mesh.position.copy(m.position).add(delta); m.mesh.updateMatrixWorld(true); }
+    } else {
+      // only the three coloured rings; the free-spin ring would turn parts off the grid
+      if (this.gizmo.axis !== "X" && this.gizmo.axis !== "Y" && this.gizmo.axis !== "Z") return;
+      const turn = this.gizmoProxy.quaternion;
+      for (const m of drag.members) {
+        m.mesh.position.copy(m.position).sub(drag.pivot).applyQuaternion(turn).add(drag.pivot);
+        m.mesh.quaternion.copy(turn).multiply(m.quaternion);
+        m.mesh.updateMatrixWorld(true);
+      }
+    }
+    if (this.selected) this.selBox.copy(this.selected.mesh.geometry.boundingBox!).applyMatrix4(this.selected.mesh.matrixWorld);
+    this.cullDirty = true;
+    this.invalidate();
+  };
 
   selectByUid(uid: string | null) {
     this.select(uid ? this.parts.get(uid) || null : null);
@@ -325,6 +463,7 @@ export class Editor {
   // Rotate the selected part together with everything it's connected to,
   // about the group's centre (so an assembly turns as one piece).
   rotateSelected(axis: "x" | "y" | "z") {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     if (!this.selected) return;
     const members = [...this.componentOf(this.selected.uid)].map((u) => this.parts.get(u)).filter(Boolean) as PlacedPart[];
     if (!members.length) return;
@@ -348,6 +487,7 @@ export class Editor {
 
   // Raise or lower the selected part's whole rigid group by one hole.
   nudgeSelectedY(dir: 1 | -1) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     if (!this.selected) return;
     const group = this.groupOf(this.selected.uid);
     if (dir < 0 && group.some((p) => this.worldBox(p).min.y < HALF - 0.01)) return; // already on the floor
@@ -362,6 +502,7 @@ export class Editor {
   // left/right/further/nearer from where the camera is right now — so the arrow
   // keys do what they look like they should whichever way the build is turned.
   moveSelected(right: number, away: number) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     if (!this.selected) return;
     const fwd = this.camera.getWorldDirection(new THREE.Vector3());
     fwd.y = 0;
@@ -385,6 +526,7 @@ export class Editor {
   // copy down alongside — building four identical wheel assemblies shouldn't
   // mean placing every beam and pin four times.
   async duplicateSelected(): Promise<void> {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const sel = this.selected;
     if (!sel) return;
     const comp = this.componentOf(sel.uid);
@@ -420,6 +562,7 @@ export class Editor {
   }
 
   deleteSelected() {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     if (!this.selected) return;
     const before = this.snapshot();
     this.removePart(this.selected);
@@ -453,6 +596,7 @@ export class Editor {
   }
 
   clear() {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const before = this.snapshot();
     this.wipe();
     this.select(null);
@@ -474,10 +618,12 @@ export class Editor {
     const indexOf = new Map(list.map((p, i) => [p.uid, i]));
     const coreOf = (key: string) => +key.slice(key.lastIndexOf(":") + 1);
     return list.map((p) => {
+      const pose = this.runPoses.get(p.uid); // mid-run, save the build as it was built
+      const position = pose?.position ?? p.mesh.position, quaternion = pose?.quaternion ?? p.mesh.quaternion;
       const out: SavedPart = {
         id: p.meta.id,
-        p: [p.mesh.position.x, p.mesh.position.y, p.mesh.position.z],
-        q: [p.mesh.quaternion.x, p.mesh.quaternion.y, p.mesh.quaternion.z, p.mesh.quaternion.w],
+        p: [position.x, position.y, position.z],
+        q: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
       };
       if (this.disabledPins.has(p.uid)) out.off = true;
       // A corner's built-in pin has no separate connector part, so nothing in
@@ -496,6 +642,7 @@ export class Editor {
   }
 
   async load(saved: SavedPart[], metaById?: Map<string, PartMeta>) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     if (metaById) this.setCatalog(metaById);
     const before = this.snapshot();
     this.wipe();
@@ -569,6 +716,7 @@ export class Editor {
   canRedo(): boolean { return this.future.length > 0; }
 
   async undo(): Promise<boolean> {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const prev = this.past.pop();
     if (!prev) return false;
     this.future.push(this.snapshot());
@@ -576,6 +724,7 @@ export class Editor {
     return true;
   }
   async redo(): Promise<boolean> {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const next = this.future.pop();
     if (!next) return false;
     this.past.push(this.snapshot());
@@ -617,7 +766,28 @@ export class Editor {
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0,
       inventory: this.inventory(),
+      gearInfo: this.gearInfo(this.selected),
+      running: this.running,
     };
+  }
+
+  // A kid placing a gear needs to know whether it is actually touching the next one.
+  private gearInfo(part: PlacedPart | null): string | null {
+    const teeth = part ? gearTeeth(part.meta.id) : 0;
+    if (!part || !teeth) return null;
+    const self = this.asMechanismPart(part);
+    const meshing: string[] = [];
+    let nearest: { part: PlacedPart; holes: number } | null = null;
+    for (const other of this.parts.values()) {
+      if (other === part || !gearTeeth(other.meta.id)) continue;
+      if (meshingDistance(self, this.asMechanismPart(other)) !== null) { meshing.push(other.meta.name); continue; }
+      const holes = other.mesh.position.distanceTo(part.mesh.position) / PITCH;
+      if (!nearest || holes < nearest.holes) nearest = { part: other, holes };
+    }
+    if (meshing.length) return `Its teeth mesh with the ${meshing.join(" and the ")}.`;
+    if (!nearest) return "Add another gear beside it. Two gears mesh when their middles are (teeth + teeth) \u00f7 24 holes apart.";
+    const want = (teeth + gearTeeth(nearest.part.meta.id)) / 24;
+    return `Not meshing yet. The ${nearest.part.meta.name} is ${Math.round(nearest.holes * 10) / 10} holes away: put their middles ${want} holes apart, side by side in the same layer.`;
   }
 
   // What you'd have to pull off the shelf to build this for real.
@@ -671,6 +841,7 @@ export class Editor {
   // Right-click a placed pin/connector to open its options menu.
   private onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
+    if (this.running) return;
     this.setPointer(e);
     const hits = this.raycaster.intersectObjects([...this.parts.values()].map((p) => p.mesh), false);
     for (const h of hits) {
@@ -689,6 +860,12 @@ export class Editor {
     this.emptyDown = null;
     this.downAt = { x: e.clientX, y: e.clientY };
     this.setPointer(e);
+    if (this.running) { this.runPointerDown(e); return; }
+    // 0) the move arrows / turn rings win over whatever is behind them
+    if (this.gizmo.object) {
+      this.gizmo.pointerHover({ x: this.pointer.x, y: this.pointer.y, button: 0 } as unknown as PointerEvent);
+      if (this.gizmo.axis !== null) { this.gizmoPress = true; this.controls.enabled = false; return; }
+    }
     // 1) a hole marker starts a connection
     if (this.markersVisible) {
       const mh = this.raycaster.intersectObjects(this.visibleMarkers(), false);
@@ -756,6 +933,11 @@ export class Editor {
     if (!ev) return;
     this.pendingMove = null;
     this.setPointer(ev);
+    if (this.running) {
+      const point = new THREE.Vector3();
+      if (this.runGrab && this.mechanism && this.raycaster.ray.intersectPlane(this.runGrab.plane, point)) this.mechanism.moveDrag(point);
+      return;
+    }
     if (this.connectFrom) {
       const target = this.markerUnderPointer(this.connectFrom);
       if (target !== this.hovered) {
@@ -791,6 +973,8 @@ export class Editor {
     if (this.activePointer !== null && e.pointerId !== this.activePointer) return;
     this.flushPointerMove(); // the last move may still be queued for this frame
     this.releasePointer();
+    if (this.running) { this.runPointerUp(e); return; }
+    if (this.gizmoPress) { this.gizmoPress = false; if (!this.gizmoDrag) this.controls.enabled = true; return; }
     if (this.connectFrom) {
       const fromMarker = this.connectFrom;
       const fromRef = fromMarker.userData.holeRef as HoleRef;
@@ -824,7 +1008,7 @@ export class Editor {
       const sameHandle = armedRef.partUid === fromRef.partUid && armedRef.holeIndex === fromRef.holeIndex;
       this.clearArm();
       if (sameHandle) {
-        if (!this.isStud(fromMarker)) this.onConnect({ from: fromRef, to: null, depth: this.stackAtHole(fromRef), screen });
+        if (!this.isStud(fromMarker)) this.onConnect({ from: fromRef, to: null, depth: this.stackAtHole(fromRef), screen, axle: this.takesAxle(fromMarker), socket: fromMarker.userData.bore === "socket" });
       } else if (armedRef.partUid !== fromRef.partUid) this.pairUp(armedMarker, fromMarker, screen);
       else this.setArm(fromMarker); // another hole on the same part — start over from it
       return;
@@ -853,6 +1037,8 @@ export class Editor {
   // Ends the current gesture cleanly however it died — a cancelled touch, a
   // window that lost focus mid-drag, a pointer the browser took back.
   private onPointerCancel = () => {
+    if (this.runGrab) { this.runGrab = null; this.mechanism?.endDrag(); this.controls.enabled = true; this.releasePointer(); return; }
+    if (this.gizmoPress && !this.gizmoDrag) { this.gizmoPress = false; this.controls.enabled = true; }
     if (!this.connectFrom && !this.dragging && !this.emptyDown) return;
     const wasDragging = this.dragging;
     if (this.connectFrom && this.connectFrom !== this.armed) this.setHot(this.connectFrom, false);
@@ -886,9 +1072,12 @@ export class Editor {
 
   private worldOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldPosition(new THREE.Vector3()); }
   private axisOf(marker: THREE.Mesh): THREE.Vector3 { return marker.getWorldDirection(new THREE.Vector3()).normalize(); }
+  private baseMaterial(kind: string, bore: string): THREE.Material {
+    return kind === "stud" ? this.studMat : bore === "round" ? this.markerMat : this.axleMat;
+  }
+  private takesAxle(marker: THREE.Mesh): boolean { return marker.userData.bore === "square" || marker.userData.bore === "socket"; }
   private setHot(marker: THREE.Mesh, hot: boolean) {
-    const base = marker.userData.kind === "stud" ? this.studMat : this.markerMat;
-    marker.material = hot ? this.markerHotMat : base;
+    marker.material = hot ? this.markerHotMat : this.baseMaterial(marker.userData.kind, marker.userData.bore);
     marker.scale.setScalar(hot ? 1.5 : 1);
     this.invalidate();
   }
@@ -907,7 +1096,11 @@ export class Editor {
       this.joinStud(sa ? a : b, sa ? b : a, a.partUid);
       return;
     }
-    this.onConnect({ from: a, to: b, depth: this.connectionDepth(a, b), screen });
+    this.onConnect({
+      from: a, to: b, depth: this.connectionDepth(a, b), screen,
+      axle: this.takesAxle(first) || this.takesAxle(second),
+      socket: first.userData.bore === "socket" || second.userData.bore === "socket",
+    });
   }
   private setArm(marker: THREE.Mesh) { this.armed = marker; this.setHot(marker, true); this.onArmChange(true); }
   clearArm() { if (this.armed) this.setHot(this.armed, false); this.armed = null; this.onArmChange(false); }
@@ -999,6 +1192,7 @@ export class Editor {
   // Plug a corner's built-in pin straight into another part's hole. No separate
   // connector is created — the stud IS the pin.
   joinStud(studRef: HoleRef, holeRef: HoleRef, moverUid: string) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const mStud = this.markerFor(studRef), mHole = this.markerFor(holeRef);
     if (!mStud || !mHole) return;
     if (this.occupied.has(this.coreKey(mHole)) || this.occupied.has(this.coreKey(mStud))) return;
@@ -1017,6 +1211,7 @@ export class Editor {
   // Connect two holes with a chosen connector (moving the FIRST-clicked part
   // into the second), or drop a connector into a single hole when toRef is null.
   async connect(fromRef: HoleRef, toRef: HoleRef | null, meta: PartMeta) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const mFrom = this.markerFor(fromRef); if (!mFrom) return;
     const fromPart = this.parts.get(fromRef.partUid); if (!fromPart) return;
     if (this.occupied.has(this.coreKey(mFrom))) return; // hole already filled
@@ -1070,22 +1265,15 @@ export class Editor {
   // spans, from either side.
   private recomputeOccupancy() {
     this.occupied.clear(); this.pinLinks.clear(); this.adj.clear();
-    const occupiers = [...this.parts.values()].filter((p) => OCCUPIER.has(p.meta.category));
-    const cores = this.buildCores();
-    for (const pin of occupiers) {
-      const axis = this.longAxis(pin.meta).applyQuaternion(pin.mesh.getWorldQuaternion(new THREE.Quaternion())).normalize();
-      const pc = pin.mesh.getWorldPosition(new THREE.Vector3());
-      const half = this.extentAlong(pin, axis) / 2 + 1.5;
+    this.cores = boreCores(this.poses());
+    this.fills = [];
+    for (const pin of this.parts.values()) {
+      if (!OCCUPIER.has(pin.meta.category)) continue;
+      const fills = fillsOf(this.poseOf(pin), this.cores);
       const links = new Set<string>();
-      for (const core of cores) {
-        if (Math.abs(core.a.dot(axis)) < 0.9) continue;
-        const rel = core.c.clone().sub(pc), t = rel.dot(axis);
-        if (Math.abs(t) > half) continue;
-        if (rel.addScaledVector(axis, -t).length() > 3.5) continue;
-        this.occupied.add(core.key);
-        links.add(core.key.slice(0, core.key.lastIndexOf(":")));
-      }
+      for (const fill of fills) { this.occupied.add(fill.coreKey); links.add(fill.partUid); }
       this.pinLinks.set(pin.uid, links);
+      if (!this.disabledPins.has(pin.uid)) this.fills.push(...fills);
     }
     // rigid-connection graph: an enabled pin binds itself to the parts it fills
     for (const [pinUid, parts] of this.pinLinks) {
@@ -1114,6 +1302,7 @@ export class Editor {
     return comp;
   }
   setPinEnabled(uid: string, enabled: boolean) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const part = this.parts.get(uid); if (!part) return;
     const before = this.snapshot();
     if (enabled) this.disabledPins.delete(uid); else this.disabledPins.add(uid);
@@ -1125,40 +1314,14 @@ export class Editor {
   isPinDisabled(uid: string): boolean { return this.disabledPins.has(uid); }
 
   // ---- connection depth (how many holed parts a pin must span) --------------
+  private poseOf(part: PlacedPart): PartPose { return { uid: part.uid, meta: part.meta, matrixWorld: part.mesh.matrixWorld }; }
+  private poses(): PartPose[] {
+    this.scene.updateMatrixWorld(false);
+    return [...this.parts.values()].map((part) => this.poseOf(part));
+  }
   // Distinct parts with a hole coaxial with (point, axis) within a stack window.
   private stackAt(point: THREE.Vector3, axis: THREE.Vector3): number {
-    const parts = new Set<string>();
-    for (const core of this.buildCores()) {
-      if (Math.abs(core.a.dot(axis)) < 0.9) continue;
-      const rel = core.c.clone().sub(point), t = rel.dot(axis);
-      if (Math.abs(t) > 45) continue;
-      if (rel.addScaledVector(axis, -t).length() > 3.5) continue;
-      parts.add(core.key.slice(0, core.key.lastIndexOf(":")));
-    }
-    return Math.max(1, parts.size);
-  }
-
-  // Every physical bore in the scene, in world space: both faces of a
-  // through-hole average to one core. Reads matrixWorld directly instead of
-  // calling getWorldPosition/getWorldDirection per marker — each of those walks
-  // the ancestor chain and allocates, and this runs over every marker in the
-  // build on every edit.
-  private buildCores(): { key: string; c: THREE.Vector3; a: THREE.Vector3 }[] {
-    this.scene.updateMatrixWorld(false);
-    const byCore = new Map<string, THREE.Mesh[]>();
-    for (const m of this.markers) {
-      if (this.isStud(m)) continue; // a stud is male — no pin goes into it
-      const k = this.coreKey(m); (byCore.get(k) || byCore.set(k, []).get(k)!).push(m);
-    }
-    const out: { key: string; c: THREE.Vector3; a: THREE.Vector3 }[] = [];
-    for (const [key, ms] of byCore) {
-      const c = new THREE.Vector3();
-      for (const m of ms) { const e = m.matrixWorld.elements; c.x += e[12]; c.y += e[13]; c.z += e[14]; }
-      c.multiplyScalar(1 / ms.length);
-      const e0 = ms[0].matrixWorld.elements;
-      out.push({ key, c, a: new THREE.Vector3(e0[8], e0[9], e0[10]).normalize() });
-    }
-    return out;
+    return stackOnLine(boreCores(this.poses()), point, axis);
   }
   private connectionDepth(from: HoleRef, to: HoleRef): number {
     const mF = this.markerFor(from), mT = this.markerFor(to);
@@ -1225,6 +1388,8 @@ export class Editor {
       for (let j = i + 1; j < parts.length; j++) {
         const a = parts[i], b = parts[j];
         if (this.adj.get(a.uid)?.has(b.uid)) continue; // directly connected → allowed
+        // meshing gears' teeth interleave: their boxes overlap by design
+        if (gearTeeth(a.meta.id) && gearTeeth(b.meta.id) && meshingDistance(this.asMechanismPart(a), this.asMechanismPart(b)) !== null) continue;
         // Cheap axis-aligned reject first; the OBB separating-axis test costs
         // far more, and this pass is O(n²) over the whole build.
         if (!aabbs.get(a.uid)!.intersectsBox(aabbs.get(b.uid)!)) continue;
@@ -1241,6 +1406,7 @@ export class Editor {
   // pieces are highlighted red (by recomputeCollisions) rather than blocked.
   // The whole build lifts if the rotation would dip a part below the base plane.
   pivotSelected(): boolean {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const sel = this.selected; if (!sel) return false;
     const pins = this.pinsAdjacent(sel.uid); if (pins.length !== 1) return false;
     const pin = this.parts.get(pins[0])!;
@@ -1263,6 +1429,7 @@ export class Editor {
   }
 
   deletePartByUid(uid: string) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const part = this.parts.get(uid); if (!part) return;
     const before = this.snapshot();
     if (this.selected === part) this.select(null);
@@ -1272,6 +1439,7 @@ export class Editor {
   }
   // Swap a placed connector for another at the same spot.
   async replaceConnector(uid: string, meta: PartMeta) {
+    this.stopRun(); // any edit ends a run, and the build goes back where it was
     const old = this.parts.get(uid); if (!old) return;
     this.catalog.set(meta.id, meta);
     const before = this.snapshot();
@@ -1280,6 +1448,166 @@ export class Editor {
     this.removePart(old);
     await this.addCenteredConnector(meta, center, axis);
     this.select(null); this.commit(before); this.emit();
+  }
+
+  // ---- run mode ---------------------------------------------------------------
+
+  private asMechanismPart(part: PlacedPart): MechanismPart {
+    const meta = part.meta;
+    return { uid: part.uid, id: meta.id, name: meta.name, category: meta.category, isMotor: !!meta.isMotor, sizeMM: meta.sizeMM, object: part.mesh, geometry: part.mesh.geometry };
+  }
+
+  isRunning(): boolean { return this.running; }
+
+  /** Let the build move: motors turn, gears mesh, hinges swing. Stop puts everything back. */
+  startRun(): RunInfo {
+    if (this.running) return this.runInfo();
+    this.onPointerCancel();
+    this.clearArm();
+    this.recomputeOccupancy();
+    this.runPoses.clear();
+    for (const part of this.parts.values()) this.runPoses.set(part.uid, { position: part.mesh.position.clone(), quaternion: part.mesh.quaternion.clone() });
+    const studs: StudJoin[] = [];
+    for (const join of this.studJoins) {
+      const core = this.cores.find((candidate) => candidate.key === join.holeCore);
+      if (core) studs.push({ studUid: join.studPart, holeUid: join.holePart, center: core.center, axis: core.axis });
+    }
+    this.mechanism = new Mechanism([...this.parts.values()].map((part) => this.asMechanismPart(part)), this.fills, studs);
+    this.running = true;
+    this.runMoving = true;
+    this.lastFrame = 0;
+    this.runInfoClock = 0;
+    this.markersBeforeRun = this.markersVisible;
+    this.setMarkersVisible(false);
+    this.updateHelper();
+    for (const pose of this.mechanism.hingePoses()) {
+      const ring = new THREE.Mesh(this.ringGeo, pose.driven ? this.driveRingMat : this.ringMat);
+      ring.renderOrder = 997;
+      this.pivotRings.add(ring);
+    }
+    this.updateRings();
+    this.clearTrace();
+    const info = this.runInfo();
+    this.onRun(info);
+    this.invalidate();
+    return info;
+  }
+
+  stopRun() {
+    if (!this.running) return;
+    this.running = false;
+    if (this.runGrab) { this.runGrab = null; this.controls.enabled = true; this.releasePointer(); }
+    this.mechanism = null;
+    for (const [uid, pose] of this.runPoses) {
+      const part = this.parts.get(uid);
+      if (!part) continue;
+      part.mesh.position.copy(pose.position);
+      part.mesh.quaternion.copy(pose.quaternion);
+      part.mesh.updateMatrixWorld(true);
+    }
+    this.runPoses.clear();
+    this.pivotRings.clear();
+    this.clearTrace();
+    this.setMarkersVisible(this.markersBeforeRun);
+    this.onRun(STOPPED);
+    this.emit();
+  }
+
+  setMotorSpeed(motorUid: string, percent: number) {
+    this.mechanism?.setMotorSpeed(motorUid, percent);
+    this.onRun(this.runInfo());
+  }
+
+  clearTrace() {
+    this.traceTarget = null;
+    this.traceCount = 0;
+    this.trace.geometry.setDrawRange(0, 0);
+    this.trace.visible = false;
+    if (this.running) this.onRun(this.runInfo());
+    this.invalidate();
+  }
+
+  private runInfo(): RunInfo {
+    const mechanism = this.mechanism;
+    if (!this.running || !mechanism) return STOPPED;
+    return {
+      running: true,
+      moving: this.runMoving,
+      movingParts: mechanism.bodies.length - 1,
+      motors: mechanism.motors(),
+      spins: mechanism.spinRates(),
+      meshes: mechanism.gearMeshes(),
+      notes: mechanism.notes,
+      tracing: this.traceTarget !== null,
+    };
+  }
+
+  // Grab a moving part to turn it by hand. A click without a drag traces that point instead.
+  private runPointerDown(e: PointerEvent) {
+    const mechanism = this.mechanism;
+    if (!mechanism) return;
+    const hit = this.raycaster.intersectObjects([...this.parts.values()].map((p) => p.mesh), false)[0];
+    if (!hit) return;
+    const body = mechanism.bodyIndexOf(hit.object.userData.uid as string);
+    if (body === undefined || mechanism.isGround(body)) return; // the frame holds still: let the view orbit
+    this.capturePointer(e);
+    this.controls.enabled = false;
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(this.camera.getWorldDirection(new THREE.Vector3()).negate(), hit.point);
+    this.runGrab = { body, local: mechanism.localPoint(body, hit.point), plane };
+    mechanism.startDrag(body, hit.point);
+    e.stopPropagation();
+  }
+
+  private runPointerUp(e: PointerEvent) {
+    const grab = this.runGrab;
+    if (!grab) return;
+    this.runGrab = null;
+    this.mechanism?.endDrag();
+    this.controls.enabled = true;
+    if (Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) < 4) {
+      this.clearTrace();
+      this.traceTarget = { body: grab.body, local: grab.local };
+      this.trace.visible = true;
+      this.onRun(this.runInfo());
+    }
+  }
+
+  private advanceRun(time: number) {
+    const mechanism = this.mechanism;
+    if (!mechanism) return;
+    const seconds = this.lastFrame ? Math.min(0.05, Math.max(0, (time - this.lastFrame) / 1000)) : 0;
+    this.lastFrame = time;
+    if (seconds > 0) this.runMoving = mechanism.step(seconds);
+    this.updateRings();
+    this.extendTrace();
+    this.runInfoClock += seconds;
+    if (this.runInfoClock >= 0.2) { this.runInfoClock = 0; this.onRun(this.runInfo()); }
+  }
+
+  private updateRings() {
+    const poses = this.mechanism?.hingePoses() || [];
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    this.pivotRings.children.forEach((ring, index) => {
+      const pose = poses[index];
+      if (!pose) return;
+      ring.position.copy(pose.position);
+      ring.quaternion.setFromUnitVectors(zAxis, pose.axis);
+    });
+  }
+
+  private extendTrace() {
+    if (!this.traceTarget || !this.mechanism) return;
+    const point = this.mechanism.worldPoint(this.traceTarget.body, this.traceTarget.local);
+    const points = this.tracePoints;
+    if (this.traceCount) {
+      const last = (this.traceCount - 1) * 3;
+      if (Math.hypot(points[last] - point.x, points[last + 1] - point.y, points[last + 2] - point.z) < 0.4) return;
+    }
+    if (this.traceCount === TRACE_POINTS) { points.copyWithin(0, 3); this.traceCount--; }
+    points.set([point.x, point.y, point.z], this.traceCount * 3);
+    this.traceCount++;
+    (this.trace.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    this.trace.geometry.setDrawRange(0, this.traceCount);
   }
 
   private resize() {
@@ -1321,11 +1649,12 @@ export class Editor {
    *  idles until something actually changes. */
   invalidate = () => { this.needsRender = true; };
 
-  private animate = () => {
+  private animate = (time: number = performance.now()) => {
     this.raf = requestAnimationFrame(this.animate);
     if (this.contextLost) return;
     if (this.pendingMove) this.flushPointerMove();
     if (this.controls.update()) this.needsRender = true; // damping still settling
+    if (this.running) { this.advanceRun(time); this.needsRender = true; } // a running build moves every frame
     if (!this.needsRender) return;
     this.needsRender = false;
     this.cullMarkers();
@@ -1370,6 +1699,13 @@ export class Editor {
     this.controls.removeEventListener("change", this.invalidate);
     this.ro.disconnect();
     this.controls.dispose();
+    this.running = false;
+    this.gizmo.detach();
+    this.gizmo.dispose();
+    this.pivotRings.clear();
+    this.ringGeo.dispose(); this.ringMat.dispose(); this.driveRingMat.dispose();
+    this.trace.geometry.dispose(); (this.trace.material as THREE.Material).dispose();
+    this.squareGeo.dispose(); this.socketGeo.dispose(); this.axleMat.dispose();
     // Hand the GPU back everything this editor made. Part geometries live in a
     // module-level cache shared with the next editor, so they stay. Without
     // this a remount (React StrictMode does one on every dev load) leaked a
