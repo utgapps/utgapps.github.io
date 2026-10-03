@@ -200,3 +200,23 @@ CREATE TABLE IF NOT EXISTS account_access (
   PRIMARY KEY (account_id, code_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_account_access_code ON account_access(code_hash);
+
+-- Python Coding Challenges: every project a student hands in for a challenge,
+-- what the checker said about it, and the points it earned. files is the code
+-- as it was handed in (panels and game.txt only), so a teacher can see what
+-- earned the points even after the project changes. points is 1000 on the
+-- first passing submission of a challenge and 0 on every other row, so a
+-- student's total is SUM(points).
+CREATE TABLE IF NOT EXISTS challenge_submissions (
+  id            TEXT PRIMARY KEY,
+  account_id    TEXT NOT NULL,
+  challenge_id  TEXT NOT NULL,
+  project_id    TEXT NOT NULL,
+  project_title TEXT NOT NULL,
+  files         TEXT NOT NULL,              -- JSON: { filename: contents }
+  passed        INTEGER NOT NULL,
+  points        INTEGER NOT NULL DEFAULT 0,
+  notes         TEXT NOT NULL,              -- JSON: [ "what is wrong or missing" ]
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_challenge_submissions_account ON challenge_submissions(account_id, challenge_id);

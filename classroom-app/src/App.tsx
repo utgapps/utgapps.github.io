@@ -7,6 +7,7 @@ import { seedDoc, docToFiles, deriveLater, fileNames, filesMap, b64encode, b64de
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
+import { ChallengesApp } from "./ChallengesApp";
 import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiEnterProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type ApiCoeditRoom, type WeekStates } from "./lib/api";
 import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
@@ -132,6 +133,7 @@ function App() {
   }
 
   if (window.location.pathname.replace(/\/+$/, "").endsWith("/admin")) return <AdminApp />;
+  if (window.location.pathname.replace(/\/+$/, "").endsWith("/pcc")) return <ChallengesApp />;
   // The classroom has no standalone landing page. Arriving without a role, an
   // instructor entry, or an account sends you back to the modules hub.
   if (!rootRole && !wantsInstructor && !savedAccount()) {

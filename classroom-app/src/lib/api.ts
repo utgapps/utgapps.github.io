@@ -318,3 +318,31 @@ export async function apiAdminGetDemoKey(token: string): Promise<string | null> 
 export async function apiAdminSetDemoKey(token: string, key: string): Promise<string | null> {
   return (await req("/admin/demo-key", { method: "PUT", body: JSON.stringify({ key }) }, token)).key ?? null;
 }
+export async function apiAdminGetChallengeKey(token: string): Promise<string | null> {
+  return (await req("/admin/challenge-key", {}, token)).key ?? null;
+}
+export async function apiAdminSetChallengeKey(token: string, key: string): Promise<string | null> {
+  return (await req("/admin/challenge-key", { method: "PUT", body: JSON.stringify({ key }) }, token)).key ?? null;
+}
+
+/* ---- Python Coding Challenges ---- */
+export type ChallengeAttempt = { passed: boolean; points: number; notes: string[]; projectTitle: string; at: number };
+export type ChallengeProgress = {
+  points: number;
+  challenges: Record<string, { passed: boolean; attempts: number; last: ChallengeAttempt | null }>;
+};
+/** The key the challenge checker asks the classroom AI with. Null when an
+ *  admin has not set one yet. */
+export async function apiChallengeKey(token: string): Promise<string | null> {
+  return (await req("/challenges/key", {}, token)).key ?? null;
+}
+export async function apiChallengeProgress(token: string): Promise<ChallengeProgress> {
+  return req("/challenges/progress", {}, token);
+}
+/** Hand a project in. earned is the points this submission won: 1000 the
+ *  first time a challenge passes, 0 every other time. */
+export async function apiSubmitChallenge(token: string, challengeId: string,
+                                         body: { projectId: string; passed: boolean; notes: string[] }):
+                                         Promise<ChallengeProgress & { earned: number }> {
+  return req(`/challenges/${encodeURIComponent(challengeId)}/submissions`, { method: "POST", body: JSON.stringify(body) }, token);
+}

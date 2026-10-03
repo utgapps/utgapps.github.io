@@ -9,14 +9,17 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 // classroom. It reuses the shared bundle (App renders <AdminApp/> when the
 // path ends in /admin), so this just emits an /admin/index.html alongside the
 // classroom build, pointing at the same absolute /classroom/assets/ files.
+// Python Coding Challenges at /pcc/ is made the same way.
 function adminPage(): Plugin {
+  const pages = [["admin", "UTG Academy · Admin"], ["pcc", "UTG Academy · Python Coding Challenges"]];
   return {
     name: "utg-admin-page",
     closeBundle() {
-      const html = readFileSync(`${here}../classroom/index.html`, "utf8")
-        .replace("<title>UTG Classroom</title>", "<title>UTG Academy · Admin</title>");
-      mkdirSync(`${here}../admin`, { recursive: true });
-      writeFileSync(`${here}../admin/index.html`, html);
+      const classroom = readFileSync(`${here}../classroom/index.html`, "utf8");
+      for (const [dir, title] of pages) {
+        mkdirSync(`${here}../${dir}`, { recursive: true });
+        writeFileSync(`${here}../${dir}/index.html`, classroom.replace("<title>UTG Classroom</title>", `<title>${title}</title>`));
+      }
     },
   };
 }

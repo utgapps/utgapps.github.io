@@ -296,6 +296,48 @@ check("an instructor cannot register anyone either",
 check("and the student still sees nothing",
       (await call("/me/access", { token: unregisteredPupil.data?.token })).data?.access?.labels?.length === 0);
 
+// ------------------------------------------------- Python Coding Challenges
+section("Python Coding Challenges");
+const challenger = (await call("/login/account", { method: "POST", body: { username: "zz.test.stu05", password: "test-pw-stu" } })).data?.token;
+const outsider = unregisteredPupil.data?.token;
+check("a student without the PCC code is turned away",
+      (await call("/challenges/progress", { token: outsider })).status === 403 &&
+      (await call("/challenges/key", { token: outsider })).status === 403);
+check("and so is nobody at all", (await call("/challenges/progress")).status === 401);
+check("a teacher is let in without a code", (await call("/challenges/progress", { token: T1 })).status === 200);
+const fresh = (await call("/challenges/progress", { token: challenger })).data;
+check("a registered student starts on zero", fresh?.points === 0 && Object.keys(fresh?.challenges || {}).length === 0, fresh);
+const keyReply = await call("/challenges/key", { token: challenger });
+check("a registered student can fetch the checker key", keyReply.status === 200 && "key" in (keyReply.data || {}), keyReply);
+
+const gameFiles = { "game.txt": "room Play\n", "Game.start.py": "set_room('Play')\n", "Play.start.py": "x = 1\n", "art/hero.json": "{\"big\": true}" };
+const game = (await call("/projects", { method: "POST", token: challenger, body: { title: "ZZ PCC Game", kind: "pixelpad", files: gameFiles } })).data?.project;
+const web = (await call("/projects", { method: "POST", token: challenger, body: { title: "ZZ PCC Web", kind: "web", files: { "index.html": "hi" } } })).data?.project;
+const theirs = (await call("/projects", { method: "POST", token: outsider, body: { title: "ZZ PCC Not Yours", kind: "pixelpad", files: gameFiles } })).data?.project;
+const submit = (challengeId, body, token = challenger) =>
+  call(`/challenges/${challengeId}/submissions`, { method: "POST", token, body });
+
+const miss = await submit("double-jump", { projectId: game?.id, passed: false, notes: ["You never count the jumps.", "", "Landing does not give them back."] });
+check("a failed project earns nothing and keeps its notes",
+      miss.status === 200 && miss.data?.earned === 0 && miss.data?.points === 0 &&
+      JSON.stringify(miss.data?.challenges?.["double-jump"]?.last?.notes) === '["You never count the jumps.","Landing does not give them back."]', miss);
+const hit = await submit("double-jump", { projectId: game?.id, passed: true, notes: ["Nice counting."] });
+check("the first pass earns 1000", hit.data?.earned === 1000 && hit.data?.points === 1000 && hit.data?.challenges?.["double-jump"]?.passed === true, hit);
+const again = await submit("double-jump", { projectId: game?.id, passed: true, notes: [] });
+check("passing the same challenge again earns nothing more", again.data?.earned === 0 && again.data?.points === 1000 && again.data?.challenges?.["double-jump"]?.attempts === 3, again);
+const racing = await Promise.all([1, 2, 3].map(() => submit("charge-shot", { projectId: game?.id, passed: true, notes: [] })));
+check("three passes at once still pay out once",
+      racing.reduce((sum, reply) => sum + (reply.data?.earned || 0), 0) === 1000 &&
+      (await call("/challenges/progress", { token: challenger })).data?.points === 2000, racing.map((reply) => reply.data?.earned));
+check("someone else's project cannot be handed in", (await submit("walk-and-face", { projectId: theirs?.id, passed: true })).status === 404);
+check("a web project cannot be handed in", (await submit("walk-and-face", { projectId: web?.id, passed: true })).status === 400);
+check("a challenge id that is not one is refused", (await submit("Not_A..Challenge", { projectId: game?.id, passed: true })).status === 404);
+check("passed has to be exactly true to count",
+      (await submit("homing-missile", { projectId: game?.id, passed: "true" })).data?.earned === 0);
+const chatty = await submit("coin-collector", { projectId: game?.id, passed: false, notes: Array.from({ length: 20 }, (_, index) => "note " + index) });
+check("a flood of notes is cut to twelve", chatty.data?.challenges?.["coin-collector"]?.last?.notes?.length === 12, chatty.data?.challenges?.["coin-collector"]);
+check("the outsider still has no points to see", (await call("/challenges/progress", { token: outsider })).status === 403);
+
 // ------------------------------------------------------------------ tidy up
 section("Tidy up");
 const mine = await call("/projects", { token: T1 });

@@ -6,7 +6,7 @@ const DAY = 86400000;
 const HOUR = 60 * 60 * 1000;
 const JSON_LIMIT = 750000;
 const CLASSROOM_LIMIT = 1200000;
-const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102", "pxp101", "cs701"];
+const SITE_TOOLS = ["pixel-art", "animator", "digital-art", "modeling", "camp", "vex", "classroom", "ai101", "ai102", "pxp101", "cs701", "pcc"];
 /* "pixelpad" is the stored value a game project has always carried and sits
    in rows students saved long before the editor was named; it is a column
    value, not a label, so renaming it would be a migration rather than a
@@ -342,8 +342,11 @@ async function rememberClassroom(db, accountId, classId, role, label) {
   await db.prepare("INSERT INTO account_classrooms (account_id, class_id, role, label, last_used) VALUES (?,?,?,?,?) ON CONFLICT(account_id, class_id, role) DO UPDATE SET label=excluded.label, last_used=excluded.last_used")
     .bind(accountId, classId, role, name, Date.now()).run();
 }
-async function rateLimit(db, request, bucket, limit = 12) {
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+/* who replaces the address for a limit that belongs to one account: thirty
+   students share one school address, and a per-address limit on something
+   every one of them does in the same lesson locks the class out. */
+async function rateLimit(db, request, bucket, limit = 12, who = null) {
+  const ip = who || request.headers.get("CF-Connecting-IP") || "unknown";
   const key = `${bucket}:${await sha256(ip)}`;
   const now = Date.now();
   const row = await db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?").bind(key).first();
@@ -516,6 +519,44 @@ async function accountAccess(db, accountId) {
     play: merge(active.map((row) => { try { const play = JSON.parse(row.play); return play === "all" ? "all" : Array.isArray(play) ? play : []; } catch { return []; } })),
     print: active.some((row) => !!row.print_allowed),
   };
+}
+/* Python Coding Challenges is open to anyone teaching, and to a student whose
+   account an admin registered to a code that unlocks it. */
+const CHALLENGE_POINTS = 1000;
+async function challengeAccess(db, me) {
+  if (me.role === "admin" || me.role === "instructor") return true;
+  const { tools } = await accountAccess(db, me.id);
+  return tools === "all" || tools.includes("pcc");
+}
+/* The code a challenge was judged on: the panels and game.txt, not the
+   pictures. A drawing is most of a project's bytes and none of its mechanics. */
+function challengeCode(filesJson) {
+  let files = {};
+  try { files = JSON.parse(filesJson) || {}; } catch { files = {}; }
+  const code = {};
+  for (const [name, text] of Object.entries(files)) {
+    if (name === "game.txt" || name.endsWith(".py")) code[name] = String(text).slice(0, 40000);
+  }
+  return JSON.stringify(code).slice(0, 200000);
+}
+/* Each challenge's attempts, whether it is done, and what the last attempt was
+   told - which is what the challenge page shows when a student comes back. */
+async function challengeProgress(db, accountId) {
+  const rows = (await db.prepare(
+    "SELECT challenge_id, passed, points, notes, project_title, created_at FROM challenge_submissions WHERE account_id = ? ORDER BY created_at"
+  ).bind(accountId).all()).results;
+  const challenges = {};
+  let points = 0;
+  for (const row of rows) {
+    const entry = challenges[row.challenge_id] || (challenges[row.challenge_id] = { passed: false, attempts: 0, last: null });
+    entry.attempts++;
+    if (row.passed) entry.passed = true;
+    points += row.points || 0;
+    let notes = [];
+    try { notes = JSON.parse(row.notes); } catch { notes = []; }
+    entry.last = { passed: !!row.passed, points: row.points || 0, notes, projectTitle: row.project_title, at: row.created_at };
+  }
+  return { points, challenges };
 }
 async function newClassroomGrant(db, profile) {
   if (!profile.classroom_class_id || !profile.classroom_role || !profileAllows(profile, "classroom")) return null;
@@ -759,6 +800,49 @@ export default {
         return response(request, env, { ok: true });
       }
       if (!me) return bad(request, env, "Not signed in.", 401);
+
+      /* ---- Python Coding Challenges ----
+         The checking itself happens in the student's browser, because the
+         school AI gateway is on a Tailscale address this worker cannot reach.
+         So the verdict that arrives here is the browser's word, and a student
+         who knows how could send "passed" for a game they never wrote. What
+         this end can do is keep the receipt: the code exactly as it was handed
+         in sits beside every verdict, so a teacher can look at what earned the
+         points. */
+      if (path.startsWith("/challenges/")) {
+        if (!(await challengeAccess(db, me))) throw new HttpError("Python Coding Challenges is not one of your classes. Ask your teacher to add it to your account.", 403);
+
+        if (path === "/challenges/key" && request.method === "GET") {
+          const row = await db.prepare("SELECT value FROM settings WHERE key = 'challenge_ai_key'").first();
+          return response(request, env, { key: (row && row.value) || null });
+        }
+        if (path === "/challenges/progress" && request.method === "GET") {
+          return response(request, env, await challengeProgress(db, me.id));
+        }
+        const submitMatch = path.match(/^\/challenges\/([a-z0-9-]{1,40})\/submissions$/);
+        if (submitMatch && request.method === "POST") {
+          const challengeId = submitMatch[1];
+          await rateLimit(db, request, "challenge-submit", 40, me.id);
+          const { projectId, passed, notes } = await readJson(request, 20000);
+          const project = await db.prepare(
+            "SELECT p.id, p.title, p.kind, p.files FROM projects p WHERE p.id = ? AND p.deleted_at IS NULL AND " +
+            "(p.account_id = ? OR EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.account_id = ?))"
+          ).bind(String(projectId || ""), me.id, me.id).first();
+          if (!project) throw new HttpError("That project is not one of yours.", 404);
+          if (project.kind !== "pixelpad") throw new HttpError("Only a Python game project can be handed in for a challenge.");
+          const cleanNotes = (Array.isArray(notes) ? notes : []).map((note) => String(note || "").trim().slice(0, 400)).filter(Boolean).slice(0, 12);
+          const id = crypto.randomUUID(), now = Date.now(), didPass = passed === true ? 1 : 0;
+          /* One statement, so two passes handed in at the same moment cannot
+             both find the challenge unearned and both pay out. */
+          await db.prepare(
+            "INSERT INTO challenge_submissions (id, account_id, challenge_id, project_id, project_title, files, passed, points, notes, created_at) " +
+            "VALUES (?,?,?,?,?,?,?, CASE WHEN ? = 1 AND NOT EXISTS (SELECT 1 FROM challenge_submissions WHERE account_id = ? AND challenge_id = ? AND points > 0) THEN ? ELSE 0 END, ?, ?)"
+          ).bind(id, me.id, challengeId, project.id, project.title, challengeCode(project.files), didPass, didPass, me.id, challengeId, CHALLENGE_POINTS, JSON.stringify(cleanNotes), now).run();
+          const row = await db.prepare("SELECT points FROM challenge_submissions WHERE id = ?").bind(id).first();
+          return response(request, env, { earned: (row && row.points) || 0, ...(await challengeProgress(db, me.id)) });
+        }
+        throw new HttpError("Not found.", 404);
+      }
 
       /* Legacy single-project routes. A browser holding a cached pre-picker bundle
          still autosaves through these, so they stay until that cache cannot exist.
@@ -1237,18 +1321,26 @@ export default {
         // The demo AI key that checkpoint slides run with. Stored server-side,
         // set here by an admin, read back for confirmation (the admin who sets
         // it may see it; nobody else does).
-        if (path === "/admin/demo-key" && request.method === "GET") {
-          const row = await db.prepare("SELECT value FROM settings WHERE key = 'demo_ai_key'").first();
+        //
+        // The challenge key is a second, separate one: Python Coding Challenges
+        // checks a student's project from the student's own browser, so unlike
+        // the demo key it DOES reach students. Keeping them apart means the
+        // gateway can give it a budget of its own, and replacing it never
+        // touches the teachers' checkpoints.
+        const keyMatch = path.match(/^\/admin\/(demo|challenge)-key$/);
+        const keySetting = keyMatch && (keyMatch[1] === "demo" ? "demo_ai_key" : "challenge_ai_key");
+        if (keySetting && request.method === "GET") {
+          const row = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(keySetting).first();
           return response(request, env, { key: (row && row.value) || null });
         }
-        if (path === "/admin/demo-key" && request.method === "PUT") {
+        if (keySetting && request.method === "PUT") {
           const { key } = await readJson(request, 4000);
           const clean = String(key || "").trim();
           if (clean) {
-            await db.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES ('demo_ai_key', ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by")
-              .bind(clean, Date.now(), me.id).run();
+            await db.prepare("INSERT INTO settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by")
+              .bind(keySetting, clean, Date.now(), me.id).run();
           } else {
-            await db.prepare("DELETE FROM settings WHERE key = 'demo_ai_key'").run();
+            await db.prepare("DELETE FROM settings WHERE key = ?").bind(keySetting).run();
           }
           return response(request, env, { key: clean || null });
         }
@@ -1375,7 +1467,7 @@ export default {
           if (!account) throw new HttpError("No such account.", 404);
           if (request.method === "DELETE") {
             if (env.MEDIA) for (const { r2_key } of (await db.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-            await db.batch([db.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+            await db.batch([db.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), db.prepare("DELETE FROM challenge_submissions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
             return response(request, env, { ok: true });
           }
           if (request.method === "PATCH") {
@@ -1409,7 +1501,7 @@ export default {
       const stale = (await env.DB.prepare("SELECT id FROM accounts WHERE is_permanent = 0 AND last_seen < ?").bind(cutoff).all()).results;
       for (const { id } of stale) {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-        await env.DB.batch([env.DB.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+        await env.DB.batch([env.DB.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM challenge_submissions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
       await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM coedit_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now), env.DB.prepare("DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?").bind(now - 30 * DAY)]);
       // Projects hard-deleted above leave their membership rows behind.

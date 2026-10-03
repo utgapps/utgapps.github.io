@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { apiMe, apiLogout, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetAccountAccess, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, apiAdminGetDemoKey, apiAdminSetDemoKey, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
+import { apiMe, apiLogout, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetAccountAccess, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, apiAdminGetDemoKey, apiAdminSetDemoKey, apiAdminGetChallengeKey, apiAdminSetChallengeKey, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 const MODULES = [
@@ -9,6 +9,7 @@ const MODULES = [
   { id: "camp", label: "Camp Coding" }, { id: "vex", label: "VEX Build Center" }, { id: "classroom", label: "Curriculum Classroom" },
   { id: "ai101", label: "AI101 Course" }, { id: "ai102", label: "AI102 Course" },
   { id: "pxp101", label: "PXP101 Course" }, { id: "cs701", label: "CS701 Course" },
+  { id: "pcc", label: "Python Coding Challenges" },
 ];
 const GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 type CodeDraft = { label: string; enabled: boolean; tools: string[]; print: boolean; play: string[]; hours: string; newCode: string };
@@ -55,11 +56,14 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
   const [codes, setCodes] = useState({ classId: "ai102", studentCode: "", instructorCode: "" });
   const [demoKey, setDemoKey] = useState("");
   const [demoKeySet, setDemoKeySet] = useState(false);
+  const [challengeKey, setChallengeKey] = useState("");
+  const [challengeKeySet, setChallengeKeySet] = useState(false);
 
   async function refresh() {
     try {
       const [nextAccounts, nextLockouts, nextProfiles, key] = await Promise.all([apiAdminList(token, classId || undefined), apiAdminListAccessLockouts(token), apiAdminListSiteAccess(token), apiAdminGetDemoKey(token)]);
       setAccounts(nextAccounts); setLockouts(nextLockouts); setProfiles(nextProfiles); setDemoKeySet(!!key); setMsg("");
+      setChallengeKeySet(!!(await apiAdminGetChallengeKey(token)));
     }
     catch (e) { setMsg((e as Error).message); if ((e as Error).message.toLowerCase().includes("sign")) onSignOut(); }
   }
@@ -89,6 +93,11 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
   async function saveDemoKey(value?: string) {
     const key = (value !== undefined ? value : demoKey).trim();
     try { const saved = await apiAdminSetDemoKey(token, key); setDemoKeySet(!!saved); setDemoKey(""); setMsg(saved ? "Demo AI key saved." : "Demo AI key cleared."); }
+    catch (e) { setMsg((e as Error).message); }
+  }
+  async function saveChallengeKey(value?: string) {
+    const key = (value !== undefined ? value : challengeKey).trim();
+    try { const saved = await apiAdminSetChallengeKey(token, key); setChallengeKeySet(!!saved); setChallengeKey(""); setMsg(saved ? "Challenge checker key saved." : "Challenge checker key cleared."); }
     catch (e) { setMsg((e as Error).message); }
   }
   async function clearLockout(browserKey: string) {
@@ -155,6 +164,16 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
           <input value={demoKey} type="password" placeholder={demoKeySet ? "enter a new key to replace it" : "sk-class-… demo key"} onChange={(e) => setDemoKey(e.target.value)} />
           <button className="primary" onClick={() => saveDemoKey()} disabled={!demoKey.trim()}>Save key</button>
           {demoKeySet && <button className="secondary" onClick={() => saveDemoKey("")}>Clear</button>}
+        </div>
+      </div>
+
+      <div className="admin-create">
+        <h3>Python Coding Challenges checker key</h3>
+        <p className="muted">The key a student's browser uses to ask the classroom AI's smart model whether a challenge project passes. Unlike the demo key this one DOES reach students - anyone whose account can open Python Coding Challenges - so give it a budget of its own on the gateway. {challengeKeySet ? "A key is set." : "No key set yet — students cannot hand challenges in."}</p>
+        <div className="row">
+          <input value={challengeKey} type="password" placeholder={challengeKeySet ? "enter a new key to replace it" : "sk-class-… challenge key"} onChange={(e) => setChallengeKey(e.target.value)} />
+          <button className="primary" onClick={() => saveChallengeKey()} disabled={!challengeKey.trim()}>Save key</button>
+          {challengeKeySet && <button className="secondary" onClick={() => saveChallengeKey("")}>Clear</button>}
         </div>
       </div>
 
