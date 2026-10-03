@@ -88,9 +88,12 @@ function serialize(files: Record<string, string>): string {
  *  can be looked for whatever its spacing. */
 const squeeze = (text: string) => text.split(/\r?\n/).map(withoutComment).join("").replace(/\s+/g, "");
 
-/** True when every line the model quoted is somewhere in the project. */
+/** True when every line the model quoted is somewhere in the project. A line
+ *  of just "..." is the model skipping lines it did not need, not code: a
+ *  correct game was failed for one, quoted from the top of its loop to the
+ *  bottom with the middle left out. */
 function quotedFrom(project: string, quote: unknown): boolean {
-  const lines = String(quote || "").split(/\r?\n/).map(squeeze).filter(Boolean);
+  const lines = String(quote || "").split(/\r?\n/).map(squeeze).filter((line) => line && !/^(\.\.\.|…)$/.test(line));
   return lines.length > 0 && lines.every((line) => project.includes(line));
 }
 
