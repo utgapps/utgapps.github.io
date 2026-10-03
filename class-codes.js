@@ -29,6 +29,11 @@ window.UTG_CLASSROOMS = [
     id: "cs701",
     courseId: "CS701",
     className: "CS701 - AP Computer Science Prep Level 1"
+  },
+  {
+    id: "pcc",
+    courseId: "PCC",
+    className: "PCC - Python Coding Challenges"
   }
 ];
 
