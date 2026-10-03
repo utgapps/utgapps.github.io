@@ -100,7 +100,11 @@ export function gatewayAsk(
           return;
         }
         if (typeof data.status === "number" && data.status >= 400) {
-          reject(new Error(`The AI gateway refused the request (${data.status}).`));
+          // The gateway explains itself in plain words ("That conversation is
+          // 4737 characters; the limit is 4000") - pass that on.
+          let reason = "";
+          try { reason = String(JSON.parse(data.text || "{}")?.error?.message || ""); } catch { /* not JSON */ }
+          reject(new Error(`The AI gateway refused the request (${data.status})${reason ? ": " + reason : "."}`));
           return;
         }
         try {
