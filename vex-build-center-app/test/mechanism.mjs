@@ -8,7 +8,10 @@
 // - The wiper builds for real: every axle in two holes, nothing can slide off, and the motor
 //   has a cable to a Brain port nothing is in front of.
 // - The band-assisted arm's rubber band is double wrapped to stay snug, and stretches as the arm swings.
+// - Parts are solid: an arm swung round stops against the first part in its way, and runs back.
+// - A cable goes round parts, never through them; and a band never cuts through a part as the build moves.
 import * as THREE from "three";
+import { OBB } from "three/examples/jsm/math/OBB.js";
 import { readFileSync } from "node:fs";
 import { boreCores, fillsOf, OCCUPIER } from "../src/lib/connections.ts";
 import { Mechanism } from "../src/lib/mechanism.ts";
@@ -165,6 +168,109 @@ const wiperSaved = JSON.parse(readFileSync(new URL("../public/examples/windshiel
   for (const part of parts) part.object.updateMatrixWorld(true);
   const [moved] = bands(saved, poses);
   check(Math.abs(moved.shape.stretch - band.shape.stretch) > 0.05, `it stretches as the arm swings (${band.shape.stretch.toFixed(2)}x to ${moved.shape.stretch.toFixed(2)}x)`);
+}
+
+// Every point of a cable, between its plugs, is outside every part's box. Checked point by point
+// with three's own boxes, not with the router's solids.
+function cableInsideOf(cable, poses) {
+  const boxes = poses.map((pose) => {
+    const box = new OBB(new THREE.Vector3(), new THREE.Vector3(...pose.meta.sizeMM).multiplyScalar(0.5).subScalar(0.6));
+    return { uid: pose.uid, box: box.applyMatrix4(pose.matrixWorld) };
+  });
+  const inside = new Set();
+  const middle = cable.points.slice(2, -2);
+  for (let index = 1; index < middle.length; index++) {
+    for (let step = 0; step < 4; step++) {
+      const point = middle[index - 1].clone().lerp(middle[index], step / 4);
+      for (const { uid, box } of boxes) if (box.containsPoint(point)) inside.add(uid);
+    }
+  }
+  return [...inside];
+}
+const savedOf = (slug) => JSON.parse(readFileSync(new URL(`../public/examples/library/${slug}.json`, here), "utf8"));
+
+{
+  // The 5:1 arm lift: the arm swings up and over until it meets the first part in its way.
+  const { parts, poses, fills, studs } = layout(savedOf("arm-lift-5to1-8"));
+  const mechanism = new Mechanism(parts, fills, studs);
+  const arm = parts.find((part) => part.id === "beam-1x8");
+  const start = arm.object.quaternion.clone();
+  let frame = 0;
+  while (frame < 600 && mechanism.step(1 / 60)) frame++;
+  const swung = (arm.object.quaternion.angleTo(start) * 180) / Math.PI;
+  check(mechanism.bump !== null && frame < 600, `the arm stops when it meets a part (${mechanism.bump ? `the ${mechanism.bump.first} against the ${mechanism.bump.second}` : "it never did"}, after ${swung.toFixed(0)} deg)`);
+  // Nothing it is not joined to overlaps it, by three's own boxes.
+  const joined = new Set(fills.filter((fill) => fill.partUid === arm.uid).map((fill) => fill.occupierUid));
+  const boxOf = (sizeMM, matrix) => new OBB(new THREE.Vector3(), new THREE.Vector3(...sizeMM).multiplyScalar(0.5).subScalar(1.4)).applyMatrix4(matrix);
+  const armBox = boxOf(arm.sizeMM, arm.object.matrixWorld);
+  // A round part is a cylinder, not its box: test points round its rim and across its faces.
+  const roundInto = (pose) => {
+    const size = pose.meta.sizeMM, axis = size.indexOf(Math.min(...size));
+    const [first, second] = [0, 1, 2].filter((index) => index !== axis);
+    const radius = Math.max(size[first], size[second]) / 2 - 1.4, half = size[axis] / 2 - 1.4;
+    for (let ring = 0; ring <= 4; ring++) for (let turn = 0; turn < 24; turn++) for (const side of [-half, 0, half]) {
+      const point = new THREE.Vector3().setComponent(axis, side);
+      point.setComponent(first, (radius * ring / 4) * Math.cos(turn * Math.PI / 12)).setComponent(second, (radius * ring / 4) * Math.sin(turn * Math.PI / 12));
+      if (armBox.containsPoint(point.applyMatrix4(pose.matrixWorld))) return true;
+    }
+    return false;
+  };
+  const round = (pose) => ["gear", "sprocket", "wheel", "spacer"].includes(pose.meta.category);
+  const through = poses.filter((pose) => pose.uid !== arm.uid && !joined.has(pose.uid) && (round(pose) ? roundInto(pose) : boxOf(pose.meta.sizeMM, pose.matrixWorld).intersectsOBB(armBox)));
+  check(!through.length, `and it stops short of it, not inside it${through.length ? `: ${through.map((pose) => pose.meta.name).join(", ")}` : ""}`);
+  check(mechanism.motors()[0].stalled, "the motor stalls against the stop");
+  for (let again = 0; again < 30; again++) mechanism.step(1 / 60);
+  check(mechanism.bump !== null, "and stays there while it keeps pushing");
+  mechanism.setMotorSpeed(mechanism.motors()[0].uid, -100);
+  const before = arm.object.quaternion.clone();
+  let moving = true;
+  for (let again = 0; again < 30; again++) moving = mechanism.step(1 / 60) && moving;
+  check(moving && arm.object.quaternion.angleTo(before) > 0.2 && mechanism.bump === null, "run the other way, it swings back");
+}
+
+{
+  // A cable never goes through a part: not in the wiper, and not in examples from the library.
+  const { poses } = layout(wiperSaved);
+  const [cable] = planCables(poses).cables;
+  const inside = cableInsideOf(cable, poses);
+  check(cable.clear && !inside.length, `the wiper's motor cable goes round every part${inside.length ? `, not through ${inside.join(", ")}` : ""}`);
+  let checked = 0;
+  const throughParts = [];
+  for (const slug of ["arm-lift-5to1-8", "claw-60-6", "four-bar-9to1-8-3", "band-assisted-arm-5to1", "tilt-tray-15to1-6-3x6"]) {
+    const { poses: libraryPoses } = layout(savedOf(slug));
+    for (const libraryCable of planCables(libraryPoses).cables) {
+      checked++;
+      const through = cableInsideOf(libraryCable, libraryPoses);
+      if (through.length || !libraryCable.clear) throughParts.push(`${slug}: ${through.join(", ")}`);
+    }
+  }
+  check(checked > 0 && !throughParts.length, `${checked} library cables go round every part${throughParts.length ? `; not ${throughParts.join(" / ")}` : ""}`);
+
+  // A plate stood straight across the cable's way: the cable goes round it.
+  const middle = cable.points[Math.floor(cable.points.length / 2)];
+  const across = cable.points[Math.floor(cable.points.length / 2) + 1].clone().sub(middle).normalize();
+  const plate = metaById.get("plate-4x6");
+  const thin = plate.sizeMM.indexOf(Math.min(...plate.sizeMM));
+  const wallMatrix = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3().setComponent(thin, 1), across)).setPosition(middle);
+  const walled = [...poses, { uid: "wall", meta: plate, matrixWorld: wallMatrix }];
+  check(cableInsideOf(cable, walled).includes("wall"), "the plate stands across where the cable was");
+  const [around] = planCables(walled).cables;
+  const stillInside = cableInsideOf(around, walled);
+  check(around.clear && !stillInside.length, `and the cable goes round it instead (${around.length} mm cable)${stillInside.length ? `, not through ${stillInside.join(", ")}` : ""}`);
+}
+
+{
+  // The band-assisted arm, swung to its stops and back: its band never cuts through a part.
+  const saved = savedOf("band-assisted-arm-15to1");
+  const { parts, poses, fills, studs } = layout(saved);
+  const mechanism = new Mechanism(parts, fills, studs);
+  const cuts = new Set();
+  let stops = 0;
+  for (let frame = 0; frame < 600; frame++) {
+    if (!mechanism.step(1 / 60) && mechanism.bump) { stops++; mechanism.setMotorSpeed(mechanism.motors()[0].uid, -mechanism.motors()[0].speedPercent); }
+    if (frame % 5 === 0) for (const band of bands(saved, poses)) for (const uid of band.clashes) cuts.add(uid);
+  }
+  check(stops >= 1 && !cuts.size, `swung stop to stop (${stops} stops), the arm's band cuts through nothing${cuts.size ? `; it cuts ${[...cuts].join(", ")}` : ""}`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");

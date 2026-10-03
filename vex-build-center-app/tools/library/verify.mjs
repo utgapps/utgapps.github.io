@@ -3,15 +3,20 @@
 //   - it would hold together for real: every axle is held in two places and nothing on it can
 //     slide, and every motor and sensor has a Smart Cable to a Brain port it can reach
 //     (src/lib/rules.ts, the same rules the builder shows students);
-//   - every rubber band sits on its posts, snug but not about to snap (src/lib/bands.ts);
+//   - every rubber band sits on its posts, snug but not about to snap, and cuts through no
+//     other part, however the build moves (src/lib/bands.ts);
+//   - every cable finds a way round the parts to its Brain port, however the build moves;
 //   - every part is connected, through pins, axles and gear teeth, to the motor;
 //   - nothing clips into a part it is not connected to (the builder would paint both red);
-//   - when the motors run, it moves without stalling, and the parts that should move do.
+//   - when the motors run, it moves, and the parts that should move do. Parts are solid: one
+//     that swings into another stops there, and the motors turn round, the way a program drives
+//     a real arm between its stops. Stopped both ways at once, or locked, it fails.
 import * as THREE from "three";
 import { OBB } from "three/examples/jsm/math/OBB.js";
 import { OCCUPIER } from "../../src/lib/connections.ts";
 import { Mechanism, meshingDistance, gearTeeth } from "../../src/lib/mechanism.ts";
 import { checkBuild } from "../../src/lib/rules.ts";
+import { planCables, rehang } from "../../src/lib/cables.ts";
 import { layout as place, bands } from "./layout.mjs";
 
 const COLLIDE_SLOP = 1.4; // the builder's: mm trimmed off each half-size before boxes count as touching
@@ -36,7 +41,10 @@ export function verify(saved, expect = {}) {
   const problems = [];
   const { parts, poses, fills, studs, mechanism } = layout(saved);
   problems.push(...checkBuild(poses, fills, studs).map((problem) => `${problem.text} (${problem.uids.map((uid) => `#${uid}`).join(", ")})`));
-  for (const band of bands(saved, poses)) problems.push(...band.shape.problems);
+  for (const band of bands(saved, poses)) {
+    problems.push(...band.shape.problems);
+    for (const uid of band.clashes) problems.push(`${band.meta.name} cuts through ${parts[Number(uid.slice(1))].name} #${uid}`);
+  }
 
   // Pins and axles that hold nothing.
   const heldBy = new Map();
@@ -97,7 +105,17 @@ export function verify(saved, expect = {}) {
     tracked = [turnTracker(inputPart.object, inputAxis), turnTracker(outputPart.object, outputAxis)];
   }
   const frames = Math.round((expect.seconds ?? 1) * 60);
-  let stalled = false;
+  // The ratio is read up to the first stop, before anything turns round.
+  let stalled = false, bumpedAt = -Infinity, ratioDone = false, ratioTurns = [0, 0];
+  const bandClashes = new Set();
+  let cables = planCables(poses).cables;
+  const cableProblems = new Set();
+  // A band, or a cable to a part that moves, gets swept through the whole of the motion (5 s,
+  // turning round at each stop), not just the stretch that proves it moves.
+  const savedBands = bands(saved, poses);
+  const ground = mechanism.bodies.findIndex((_, index) => mechanism.isGround(index));
+  const sweeps = savedBands.length > 0 || cables.some((cable) => mechanism.bodyIndexOf(cable.deviceUid) !== ground);
+  const lastFrame = sweeps ? Math.max(frames, 300) : frames;
   // Judged every frame: a gear that has made a whole number of turns is back where it started.
   const everMoved = new Set();
   const movedNow = (index) => {
@@ -105,18 +123,39 @@ export function verify(saved, expect = {}) {
     const object = parts[index].object;
     return object.position.distanceTo(position) > 0.5 || object.quaternion.angleTo(quaternion) > 0.02;
   };
-  for (let frame = 0; frame < frames; frame++) {
-    if (!mechanism.step(1 / 60)) { stalled = true; break; }
-    if (tracked) tracked.forEach((track) => track());
+  for (let frame = 0; frame < lastFrame; frame++) {
+    const proving = frame < frames;
+    if (!mechanism.step(1 / 60)) {
+      const bump = mechanism.bump;
+      if (!bump) { stalled = proving; break; }
+      // Against a stop: run the motors the other way. Stopped again straight away, it is jammed.
+      if (frame - bumpedAt <= 2) { problems.push(`it jams: the ${bump.first} #${bump.firstUid} runs into the ${bump.second} #${bump.secondUid} both ways`); break; }
+      bumpedAt = frame;
+      ratioDone = true;
+      for (const motor of mechanism.motors()) mechanism.setMotorSpeed(motor.uid, -motor.speedPercent);
+      continue;
+    }
+    if (frame % 3 === 0) {
+      for (const band of bands(saved, poses)) for (const uid of band.clashes) bandClashes.add(`${band.meta.name} cuts through ${parts[Number(uid.slice(1))].name} #${uid} as it moves`);
+      const byUid = new Map(poses.map((pose) => [pose.uid, pose]));
+      cables = cables.map((cable) => rehang(cable, byUid.get(cable.deviceUid), byUid.get(cable.brainUid), poses));
+      for (const cable of cables) {
+        if (!cable.reaches) cableProblems.add(`the ${cable.deviceName}'s cable is too short once it moves`);
+        else if (!cable.clear) cableProblems.add(`the ${cable.deviceName}'s cable has no way round ${cable.blockedBy.map((uid) => `#${uid}`).join(", ")} as it moves`);
+      }
+    }
+    if (!proving) continue;
+    if (tracked && !ratioDone) ratioTurns = tracked.map((track) => track());
     if (levelStart) levelDrift = Math.max(levelDrift, parts[expect.level].object.quaternion.angleTo(levelStart));
     parts.forEach((part, index) => { if (!everMoved.has(index) && movedNow(index)) everMoved.add(index); });
   }
   if (stalled) problems.push(`the motor stalls (${mechanism.motors().map((motor) => motor.name).join(", ")})`);
+  problems.push(...bandClashes, ...cableProblems);
   const moved = (index) => everMoved.has(index);
   for (const index of expect.moves || []) if (!moved(index)) problems.push(`${parts[index].name} #p${index} should move but does not`);
   for (const index of expect.still || []) if (moved(index)) problems.push(`${parts[index].name} #p${index} should stay still but moves`);
   if (tracked) {
-    const [inputTurn, outputTurn] = tracked.map((track) => track());
+    const [inputTurn, outputTurn] = ratioTurns;
     const measured = outputTurn / inputTurn;
     if (!Number.isFinite(measured) || Math.abs(measured - expect.ratio[2]) > Math.abs(expect.ratio[2]) * 0.03 + 0.002)
       problems.push(`output turns ${measured.toFixed(3)}x the input, expected ${expect.ratio[2].toFixed(3)}x`);

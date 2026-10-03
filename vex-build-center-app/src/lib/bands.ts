@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { PartPose } from "./connections.ts";
 import { longAxisIndex } from "./connections.ts";
+import { PartShape, rodsAlong, overlaps } from "./contact.ts";
+import type { PartMeta } from "./parts.ts";
 
 // A VEX IQ rubber band, stretched around two or more posts: pins, standoffs or axles that stand
 // side by side. It takes the shortest loop round them in the order you put it on, hugging each
@@ -142,6 +144,20 @@ export function shapeBand(name: string, circumference: number, posts: BandPost[]
     strands.push(loop.map((point) => origin.clone().addScaledVector(first, point.x).addScaledVector(second, point.y).addScaledVector(normal, lift)));
   }
   return { strands, path, wraps, stretch, bent: sides.some((side) => side < 0), problems };
+}
+
+const STRAND_RADIUS = 0.6; // a stretched band is about a millimetre thick
+
+/** The parts, other than its own posts, that a band's strands pass through. */
+export function bandClashes(shape: BandShape, postUids: string[], parts: { uid: string; meta: PartMeta; matrixWorld: THREE.Matrix4 }[]): string[] {
+  const rods = shape.strands.flatMap((strand) => rodsAlong(strand, STRAND_RADIUS, true));
+  const hit: string[] = [];
+  for (const part of parts) {
+    if (postUids.includes(part.uid) || part.meta.category === "band") continue;
+    const solid = new PartShape(part.meta, part.matrixWorld, 0.6);
+    if (rods.some((rod) => overlaps(rod, solid))) hit.push(part.uid);
+  }
+  return hit;
 }
 
 /** Where along the first post a band sits, from a point on (or near) the post. */

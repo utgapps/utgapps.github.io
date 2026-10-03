@@ -100,14 +100,15 @@ for (const reduction of REDUCTIONS) {
 }
 // A rubber band from a post at the top corner of the frame to a post on the arm pulls the arm up,
 // so the motor only has to hold part of its weight. The arm is short enough to swing clear of
-// the frame's post.
+// the frame's post, and the posts stand out far enough that the band is in front of every axle
+// end and collar, so it never cuts through one as the arm swings.
 const bandAssist = (build, arm, frontLayer) => {
   const frame = build.parts[0];
-  const top = build.post(frame, { near: at(10, 5, 0), out: Z, id: "standoff-2x" });
+  const top = build.post(frame, { near: at(10, 5, 0), out: Z, id: "standoff-4x" });
   // The first arm hole the gear's pin is not already in.
   for (const column of [7, 8, 9]) {
-    const onArm = build.post(arm, { near: at(column, 4, frontLayer - 1), out: Z, id: "standoff-1x" });
-    if (!build.clips(onArm, new Set([arm]))) { build.band("rubber-band-32", [top, onArm]); return onArm; }
+    const onArm = build.post(arm, { near: at(column, 4, frontLayer - 1), out: Z, id: "standoff-3x" });
+    if (!build.clips(onArm, new Set([arm]))) { build.band("rubber-band-32", [top, onArm], { outward: true }); return onArm; }
     build.parts.pop();
   }
   throw new Error("every hole on the arm is taken");

@@ -194,6 +194,7 @@ export function checkBuild(poses: PartPose[], fills: Fill[], studs: { studUid: s
   if (cables.noBrain.length) problems.push({ rule: "brain", uids: cables.noBrain, text: `Add a Robot Brain: every motor and sensor needs a Smart Cable to one of its ports.` });
   for (const cable of cables.cables) {
     if (!cable.reaches) problems.push({ rule: "cable", uids: [cable.deviceUid], text: `The ${cable.deviceName} is too far from the Brain: even a 400 mm Smart Cable will not reach. Move them closer.` });
+    else if (!cable.clear) problems.push({ rule: "cable", uids: [cable.deviceUid, ...cable.blockedBy], text: `The ${cable.deviceName}'s cable has no way round the ${nameOf(cable.blockedBy[0])} to the Brain. Leave a gap a cable can pass through.` });
   }
   for (const uid of cables.noPort) problems.push({ rule: "cable", uids: [uid], text: `There is no free Brain port left for the ${nameOf(uid)}.` });
   for (const blocked of cables.blocked) {

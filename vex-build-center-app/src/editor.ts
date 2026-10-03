@@ -6,9 +6,9 @@ import { loadGeometry, CATEGORY_COLOR, type PartMeta } from "./lib/parts";
 import { holesFor, hasHoles } from "./lib/holes";
 import { OCCUPIER, boreCores, fillsOf, stackAt as stackOnLine, type Core, type Fill, type PartPose } from "./lib/connections";
 import { Mechanism, meshingDistance, gearTeeth, type MechanismPart, type StudJoin, type MotorInfo, type SpinInfo, type MeshInfo } from "./lib/mechanism";
-import { planCables, rehang, cableLabel, type Cable, type CablePlan } from "./lib/cables";
+import { planCables, rehang, cableLabel, CABLE_RADIUS, type Cable, type CablePlan } from "./lib/cables";
 import { checkBuild, type BuildProblem } from "./lib/rules";
-import { BAND_SIZES, isBand, postOf, shapeBand, alongPost, bandLabel, type BandShape } from "./lib/bands";
+import { BAND_SIZES, isBand, postOf, shapeBand, alongPost, bandLabel, bandClashes, type BandShape } from "./lib/bands";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 const PITCH = 12.7;
@@ -32,7 +32,7 @@ const WRAPS = (meta: PartMeta) => meta.category === "chain" || meta.id.startsWit
 export type PlacedPart = { uid: string; meta: PartMeta; mesh: THREE.Mesh };
 // A rubber band is not placed like a part: it is stretched round the posts it was put on, so its
 // shape is worked out from where they are, every time they move.
-type Band = { uid: string; meta: PartMeta; posts: string[]; along: number; mesh: THREE.Mesh; shape: BandShape };
+type Band = { uid: string; meta: PartMeta; posts: string[]; along: number; mesh: THREE.Mesh; shape: BandShape; clashes: string[] };
 export type BandDraft = { name: string; posts: number };
 export type SavedPart = {
   id: string;
@@ -67,9 +67,10 @@ export type RunInfo = {
   spins: SpinInfo[];
   meshes: MeshInfo[];
   notes: string[];
+  bump: string | null;        // what ran into what, when that is why it stopped
   tracing: boolean;
 };
-export const STOPPED: RunInfo = { running: false, moving: true, movingParts: 0, motors: [], spins: [], meshes: [], notes: [], tracing: false };
+export const STOPPED: RunInfo = { running: false, moving: true, movingParts: 0, motors: [], spins: [], meshes: [], notes: [], bump: null, tracing: false };
 
 // One line of the build's parts list.
 export type InventoryRow = { id: string; name: string; category: string; count: number };
@@ -114,6 +115,7 @@ export class Editor {
   private cores: Core[] = [];  // every bore in the build, world space, as of the last edit
   private fills: Fill[] = [];  // which bores each ENABLED pin and axle passes through
   private colliding = new Set<string>(); // part uids currently clipping another part
+  private bumped: string[] = [];          // while running: the two parts that ran into each other
   private obbCache = new Map<string, OBB>(); // per-geometry local OBB (center+halfSize)
   private dragGroup: { mesh: THREE.Mesh; start: THREE.Vector3 }[] = [];
   private dragGrabStart = new THREE.Vector3();
@@ -951,8 +953,9 @@ export class Editor {
     for (const band of [...this.bands.values()]) {
       band.posts = band.posts.filter((uid) => this.parts.has(uid));
       if (band.posts.length < 2) { this.removeBand(band); continue; } // its posts are gone
-      this.reshapeBand(band);
+      this.reshapeBand(band, poses);
       for (const text of band.shape.problems) this.problems.push({ rule: "band", uids: [band.uid, ...band.posts], text });
+      if (band.clashes.length) this.problems.push({ rule: "band", uids: [band.uid, ...band.clashes], text: `The ${band.meta.name} cuts through the ${this.parts.get(band.clashes[0])!.meta.name}. Slide it along its posts, or use longer posts so it sits in front.` });
     }
   }
 
@@ -985,15 +988,23 @@ export class Editor {
     mesh.userData.uid = uid;
     mesh.userData.band = true;
     this.scene.add(mesh);
-    const band: Band = { uid, meta, posts, along, mesh, shape };
+    const band: Band = { uid, meta, posts, along, mesh, shape, clashes: [] };
+    this.reshapeBand(band);
     this.bands.set(uid, band);
     return band;
   }
 
-  private reshapeBand(band: Band) {
+  private reshapeBand(band: Band, poses = this.poses()) {
     band.shape = this.bandShapeFor(band.meta, band.posts, band.along);
     band.mesh.geometry.dispose();
     band.mesh.geometry = this.bandGeometry(band.shape, band.shape.stretch);
+    const clashes = bandClashes(band.shape, band.posts, poses);
+    if (clashes.join() !== band.clashes.join()) {
+      const material = band.mesh.material as THREE.MeshStandardMaterial;
+      material.emissive.setHex(clashes.length ? 0xe53935 : 0x000000);
+      material.emissiveIntensity = clashes.length ? 0.55 : 1;
+    }
+    band.clashes = clashes;
   }
 
   private removeBand(band: Band) {
@@ -1084,7 +1095,7 @@ export class Editor {
     }
     this.cables.clear();
     for (const cable of this.cablePlan.cables) {
-      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cable.points), 64, 1.5, 6, false), cable.reaches ? this.cableMat : this.cableShortMat);
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cable.points), Math.max(64, cable.points.length * 2), CABLE_RADIUS, 6, false), cable.reaches ? this.cableMat : this.cableShortMat);
       tube.castShadow = true;
       tube.userData.cable = cable;
       this.cables.add(tube);
@@ -1104,15 +1115,19 @@ export class Editor {
     if (this.cableClock < 0.05 || (!this.cablePlan.cables.length && !this.bands.size)) return;
     this.cableClock = 0;
     this.scene.updateMatrixWorld(false);
-    for (const band of this.bands.values()) this.reshapeBand(band);
+    const poses = this.poses();
+    for (const band of this.bands.values()) this.reshapeBand(band, poses);
+    let changed = false;
     this.cablePlan = {
       ...this.cablePlan,
       cables: this.cablePlan.cables.map((cable) => {
         const device = this.parts.get(cable.deviceUid), brain = this.parts.get(cable.brainUid);
-        return device && brain ? rehang(cable, this.poseOf(device), this.poseOf(brain)) : cable;
+        const moved = device && brain ? rehang(cable, this.poseOf(device), this.poseOf(brain), poses) : cable;
+        if (moved !== cable) changed = true;
+        return moved;
       }),
     };
-    this.drawCables();
+    if (changed) this.drawCables();
   }
 
   // Point at a part or a cable and its name shows up beside the mouse.
@@ -1974,6 +1989,7 @@ export class Editor {
     if (!this.running) return;
     this.running = false;
     if (this.runGrab) { this.runGrab = null; this.controls.enabled = true; this.releasePointer(); }
+    this.showBump([]);
     this.mechanism = null;
     for (const [uid, pose] of this.runPoses) {
       const part = this.parts.get(uid);
@@ -2015,6 +2031,7 @@ export class Editor {
       spins: mechanism.spinRates(),
       meshes: mechanism.gearMeshes(),
       notes: mechanism.notes,
+      bump: mechanism.bump ? `The ${mechanism.bump.first} has run into the ${mechanism.bump.second}.` : null,
       tracing: this.traceTarget !== null,
     };
   }
@@ -2055,11 +2072,21 @@ export class Editor {
     const seconds = this.lastFrame ? Math.min(0.05, Math.max(0, (time - this.lastFrame) / 1000)) : 0;
     this.lastFrame = time;
     if (seconds > 0) this.runMoving = mechanism.step(seconds);
+    this.showBump(mechanism.bump ? [mechanism.bump.firstUid, mechanism.bump.secondUid] : []);
     this.followCables(seconds);
     this.updateRings();
     this.extendTrace();
     this.runInfoClock += seconds;
     if (this.runInfoClock >= 0.2) { this.runInfoClock = 0; this.onRun(this.runInfo()); }
+  }
+
+  // The two parts that stopped the build by running into each other glow red until it moves on.
+  private showBump(uids: string[]) {
+    if (uids.join() === this.bumped.join()) return;
+    for (const uid of this.bumped) { const part = this.parts.get(uid); if (part && !this.colliding.has(uid)) this.setColliding(part, false); }
+    for (const uid of uids) { const part = this.parts.get(uid); if (part) this.setColliding(part, true); }
+    this.bumped = uids;
+    this.onRun(this.runInfo());
   }
 
   private updateRings() {

@@ -537,8 +537,9 @@ function RunPanel({ run, editor }: { run: RunInfo; editor: Editor | null }) {
   const turnsPerMinute = (rpm: number) => `${Math.abs(rpm) < 0.5 ? 0 : Math.round(Math.abs(rpm))} rpm`;
   return (
     <div className="run-panel">
-      <h3>{run.moving ? "Running" : "Stuck!"}</h3>
-      {!run.moving && <p className="run-stuck">The motor is stuck: something in your build stops it from turning. Look for a part held by two pins that needs to swing.</p>}
+      <h3>{run.moving ? "Running" : run.bump ? "Stopped" : "Stuck!"}</h3>
+      {!run.moving && run.bump && <p className="run-stuck">{run.bump} Parts can't pass through each other, so a real one stops there too. Slide the motor's speed the other way to run it back.</p>}
+      {!run.moving && !run.bump && <p className="run-stuck">The motor is stuck: something in your build stops it from turning. Look for a part held by two pins that needs to swing.</p>}
       {run.movingParts === 0 && <p className="run-note">Nothing can move yet. One pin between two parts makes a hinge, and an axle in the motor turns what is on it.</p>}
       {run.motors.map((motor) => (
         <div className="run-motor" key={motor.uid}>

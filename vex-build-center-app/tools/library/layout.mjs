@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { boreCores, fillsOf, OCCUPIER } from "../../src/lib/connections.ts";
 import { holesFor } from "../../src/lib/holes.ts";
 import { metaOf } from "./assembler.mjs";
-import { BAND_SIZES, postOf, shapeBand } from "../../src/lib/bands.ts";
+import { BAND_SIZES, postOf, shapeBand, bandClashes } from "../../src/lib/bands.ts";
 
 export function layout(saved) {
   // Rubber bands come last and are drawn from their posts, not placed: see bands() below.
@@ -36,11 +36,12 @@ export function layout(saved) {
   return { parts, poses, fills, studs };
 }
 
-/** The rubber bands of a laid-out build, each with the shape it takes on its posts. */
+/** The rubber bands of a laid-out build, each with the shape it takes on its posts and the parts it cuts through. */
 export function bands(saved, poses) {
   return saved.filter((entry) => entry.band).map((entry) => {
     const meta = metaOf(entry.id);
     const posts = entry.band.posts.map((index) => postOf(poses[index]));
-    return { meta, posts: entry.band.posts, shape: shapeBand(meta.name, BAND_SIZES[meta.id].circumference, posts, entry.band.at) };
+    const shape = shapeBand(meta.name, BAND_SIZES[meta.id].circumference, posts, entry.band.at);
+    return { meta, posts: entry.band.posts, shape, clashes: bandClashes(shape, entry.band.posts.map((index) => `p${index}`), poses) };
   });
 }

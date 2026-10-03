@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Fill } from "./connections.ts";
+import { PartShape, overlaps } from "./contact.ts";
 
 // ---- What a build is made of, mechanically -------------------------------------------------
 //
@@ -12,6 +13,8 @@ import type { Fill } from "./connections.ts";
 //   - sprockets wrapped by one chain turn the same way at the ratio of their tooth counts.
 // The simulation is kinematic: motors are perfectly strong and nothing has weight, so what
 // you see is how the mechanism is ALLOWED to move. If it cannot move at all, the motor stalls.
+// Parts are solid: one that swings into a part it is not joined to stops there, the way an arm
+// stops against the frame, and the motor stalls until it is turned the other way.
 
 export const PITCH = 12.7;
 // VEX IQ gears share one tooth size: 12T and 36T sit 2 holes apart, 12T and 60T 3 holes apart.
@@ -99,6 +102,9 @@ type Turn = {
   rpm: number;                            // smoothed, for the readouts
 };
 
+// Two parts in different bodies, not joined to each other, that could swing into one another.
+type Contact = { first: MechanismPart; second: MechanismPart; firstShape: PartShape; secondShape: PartShape; firstBody: number; secondBody: number };
+
 type Drive = { motorUid: string; motorName: string; turn: Turn; target: number; speedPercent: number; stalled: boolean };
 // A chain turns both sprockets the same way, so its second radius is negative.
 type GearMesh = { first: Turn; second: Turn; firstRadius: number; secondRadius: number; firstName: string; secondName: string; firstTeeth: number; secondTeeth: number; chain: boolean };
@@ -127,9 +133,12 @@ export class Mechanism {
   private spins: Turn[] = [];
   private bodyOfPart = new Map<string, number>();
   private drag: { body: number; anchor: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  private contacts: Contact[] = [];
   notes: string[] = [];
+  /** The two parts that last stopped the build by running into each other, until it moves again. */
+  bump: { first: string; second: string; firstUid: string; secondUid: string } | null = null;
 
-  constructor(parts: MechanismPart[], fills: Fill[], studs: StudJoin[], options: { groundUid?: string } = {}) {
+  constructor(parts: MechanismPart[], fills: Fill[], studs: StudJoin[], options: { groundUid?: string; solid?: boolean } = {}) {
     const byUid = new Map(parts.map((part) => [part.uid, part]));
     const unionFind = new UnionFind();
     const lines: Line[] = [];
@@ -259,6 +268,7 @@ export class Mechanism {
       }
     }
     if (!this.drives.length && parts.some((part) => part.isMotor)) this.notes.push("Your motor has no axle in its square socket yet, so it has nothing to turn.");
+    if (options.solid !== false) this.findContacts(parts, fills, studs, gearMeshPairs);
 
     // Gear meshes, each measured against the body its axle turns in.
     for (const [first, second] of gearMeshPairs) {
@@ -324,6 +334,48 @@ export class Mechanism {
       const carrier = hinge.first === body ? hinge.second : hinge.first;
       this.spins.push(this.makeTurn(body, carrier, (hinge.first === body ? hinge.axisFirst : hinge.axisSecond).clone()));
     }
+  }
+
+  // Every pair of parts that could run into each other: in different bodies, and not joined by
+  // a pin, an axle, a built-in pin or gear teeth (those touch by design). A pair already
+  // overlapping when the run starts is left alone; the builder paints it red instead.
+  private findContacts(parts: MechanismPart[], fills: Fill[], studs: StudJoin[], gearMeshPairs: [MechanismPart, MechanismPart][]) {
+    const joined = new Set<string>();
+    const join = (first: string, second: string) => { joined.add(`${first}|${second}`); joined.add(`${second}|${first}`); };
+    const heldBy = new Map<string, Set<string>>();
+    for (const fill of fills) {
+      join(fill.occupierUid, fill.partUid);
+      (heldBy.get(fill.occupierUid) || heldBy.set(fill.occupierUid, new Set()).get(fill.occupierUid)!).add(fill.partUid);
+    }
+    for (const held of heldBy.values()) for (const first of held) for (const second of held) join(first, second);
+    for (const stud of studs) join(stud.studUid, stud.holeUid);
+    for (const [first, second] of gearMeshPairs) join(first.uid, second.uid);
+    const solid = parts.filter((part) => part.category !== "chain" && part.category !== "band");
+    const shapes = new Map(solid.map((part) => { part.object.updateMatrixWorld(true); return [part.uid, new PartShape(part, part.object.matrixWorld)]; }));
+    for (let index = 0; index < solid.length; index++) {
+      for (let other = index + 1; other < solid.length; other++) {
+        const first = solid[index], second = solid[other];
+        const firstBody = this.bodyOfPart.get(first.uid)!, secondBody = this.bodyOfPart.get(second.uid)!;
+        if (firstBody === secondBody || joined.has(`${first.uid}|${second.uid}`)) continue;
+        const firstShape = shapes.get(first.uid)!, secondShape = shapes.get(second.uid)!;
+        if (overlaps(firstShape, secondShape)) continue;
+        this.contacts.push({ first, second, firstShape, secondShape, firstBody, secondBody });
+      }
+    }
+  }
+
+  // The first pair of parts that has run into each other, with every part where the bodies are now.
+  private collision(): Contact | null {
+    if (!this.contacts.length) return null;
+    this.applyToParts();
+    for (const contact of this.contacts) {
+      contact.firstShape.place(contact.first.object.matrixWorld);
+      contact.secondShape.place(contact.second.object.matrixWorld);
+    }
+    return this.contacts.find((contact) => overlaps(contact.firstShape, contact.secondShape)) ?? null;
+  }
+  private bumped(contact: Contact) {
+    this.bump = { first: contact.first.name, second: contact.second.name, firstUid: contact.first.uid, secondUid: contact.second.uid };
   }
 
   // ---- building the joints --------------------------------------------------------------------
@@ -521,6 +573,9 @@ export class Mechanism {
         const saved = this.save();
         this.drag.target.lerpVectors(start, goal, substep / substeps);
         if (this.solve() > STUCK_MM) { this.restore(saved); moving = false; break; }
+        const contact = this.collision();
+        if (contact) { this.restore(saved); this.bumped(contact); moving = false; break; }
+        this.bump = null;
       }
       this.drag.target.copy(goal);
       for (const drive of this.drives) { this.readTurn(drive.turn); drive.target = drive.turn.angle; drive.stalled = false; }
@@ -538,6 +593,16 @@ export class Mechanism {
           moving = false;
           break;
         }
+        const contact = this.collision();
+        if (contact) {
+          // It ran into something. Stop just short of it, as the real one would.
+          this.restore(saved);
+          this.bumped(contact);
+          for (const drive of this.drives) drive.stalled = drive.speedPercent !== 0;
+          moving = false;
+          break;
+        }
+        this.bump = null;
         for (const drive of this.drives) drive.stalled = false;
       }
     }

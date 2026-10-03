@@ -258,14 +258,15 @@ export class Build {
 
   /**
    * A rubber band of `id` round standoff posts made by post(), in the order it goes round them.
-   * It sits halfway along the stretch of post that all of them share.
+   * It sits halfway along the stretch of post that all of them share, or with `outward`, near
+   * the far end of it, out in front of whatever the posts stand beside.
    */
-  band(id, posts) {
+  band(id, posts, { outward = false } = {}) {
     const axis = posts[0].body.axis;
     const reach = (post) => post.body.center.clone().sub(posts[0].body.center).dot(axis);
     const low = Math.max(...posts.map((post) => reach(post) - post.body.half)), high = Math.min(...posts.map((post) => reach(post) + post.body.half));
     if (high - low < 3) throw new Error("the posts do not stand out far enough side by side for a band");
-    this.bands.push({ id, posts, at: (low + high) / 2 });
+    this.bands.push({ id, posts, at: outward ? high - 3 : (low + high) / 2 });
   }
 
   /** Pin two parts solid: `count` pins at matching holes, spread as far apart as they go. */
