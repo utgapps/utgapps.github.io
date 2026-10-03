@@ -3,6 +3,7 @@
 --   zz.test.t102 / test-pw-102      instructor, ai102
 --   zz.test.stu01..12 / test-pw-stu students, ai101  (a class, for throttling)
 --   zz-guest                        a guest student, to prove reset refuses one
+--   ZZ Test Code / ZZ Test Code Off  access codes zz.test.stu03 is registered to
 -- Every id and username starts with zz so clean.sql finds them all.
 DELETE FROM accounts WHERE username LIKE 'zz.test.%' OR id LIKE 'zz-%';
 INSERT INTO accounts (id, class_id, name, username, password_hash, password_salt, is_permanent, role, created_at, last_seen) VALUES
@@ -28,3 +29,13 @@ INSERT INTO accounts (id, class_id, name, is_permanent, role, created_at, last_s
 VALUES ('zz-guest','ai101','ZZ Test Guest',0,'student',
         CAST(strftime('%s','now') AS INTEGER) * 1000,
         CAST(strftime('%s','now') AS INTEGER) * 1000);
+-- Two access codes, one on and one off, that zz.test.stu03 is registered to.
+-- Their hashes are made up, so no typed code can ever match them.
+DELETE FROM site_access WHERE label LIKE 'ZZ %';
+INSERT INTO site_access (code_hash, code_plain, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES
+  ('0000000000000000000000000000000000000000000000000000000000000001',NULL,'ZZ Test Code',1,'["pixel-art","vex"]',1,'["pong"]',NULL,NULL,NULL,CAST(strftime('%s','now') AS INTEGER) * 1000),
+  ('0000000000000000000000000000000000000000000000000000000000000002',NULL,'ZZ Test Code Off',0,'["animator"]',0,'"all"',NULL,NULL,NULL,CAST(strftime('%s','now') AS INTEGER) * 1000);
+DELETE FROM account_access WHERE account_id LIKE 'zz-%';
+INSERT INTO account_access (account_id, code_hash, granted_at) VALUES
+  ('zz-stu-03','0000000000000000000000000000000000000000000000000000000000000001',1),
+  ('zz-stu-03','0000000000000000000000000000000000000000000000000000000000000002',1);

@@ -188,3 +188,15 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at INTEGER NOT NULL,
   updated_by TEXT
 );
+
+-- Access codes an admin has registered an account to. A signed-in account sees
+-- every module, game and print permission its codes unlock, without typing any
+-- of them. Keyed by the code's hash, which changes when a code is replaced:
+-- both places that change one carry these rows across.
+CREATE TABLE IF NOT EXISTS account_access (
+  account_id TEXT NOT NULL,
+  code_hash  TEXT NOT NULL,
+  granted_at INTEGER NOT NULL,
+  PRIMARY KEY (account_id, code_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_account_access_code ON account_access(code_hash);

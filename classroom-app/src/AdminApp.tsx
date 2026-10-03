@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { apiLoginAccount, apiBootstrapAdmin, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, apiAdminGetDemoKey, apiAdminSetDemoKey, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { apiMe, apiLogout, apiAdminList, apiAdminCreate, apiAdminUpdate, apiAdminDelete, apiAdminSetAccountAccess, apiAdminSetClassAccess, apiAdminClearAccessLockout, apiAdminListAccessLockouts, apiAdminListSiteAccess, apiAdminUpdateSiteAccess, apiAdminReplaceSiteAccessCode, apiAdminGetDemoKey, apiAdminSetDemoKey, type ApiAccessLockout, type ApiAccount, type ApiSiteAccess } from "./lib/api";
 
 const TOKEN_KEY = "utg_admin_token";
 const MODULES = [
@@ -12,66 +13,38 @@ const MODULES = [
 const GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
 type CodeDraft = { label: string; enabled: boolean; tools: string[]; print: boolean; play: string[]; hours: string; newCode: string };
 
+// The admin dashboard has no sign-in of its own: an admin signs in on the
+// hub with their username and password like everyone else, and the hub's
+// "Admin dashboard" button brings them here. Anyone else is sent back there.
+function savedToken(): string | null {
+  try { return (JSON.parse(localStorage.getItem("utg_account") || "null") || {}).token || localStorage.getItem(TOKEN_KEY); }
+  catch { return localStorage.getItem(TOKEN_KEY); }
+}
+function toHub() { window.location.replace("../"); }
+
 export function AdminApp() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [token] = useState(savedToken);
   const [me, setMe] = useState<ApiAccount | null>(null);
-  const [mode, setMode] = useState<"login" | "setup">("login");
-  const [msg, setMsg] = useState("");
 
-  function signOut() { localStorage.removeItem(TOKEN_KEY); setToken(null); setMe(null); }
-  function onAuthed(t: string, account: ApiAccount) {
-    if (account.role !== "admin") { setMsg("That account is not an admin."); return; }
-    localStorage.setItem(TOKEN_KEY, t); setToken(t); setMe(account); setMsg("");
+  useEffect(() => {
+    if (!token) { toHub(); return; }
+    apiMe(token).then((account) => { if (account.role === "admin") setMe(account); else toHub(); }).catch(toHub);
+  }, [token]);
+
+  // The same log out as the hub's: the session ends on the server and every
+  // saved code and account is forgotten, so the hub opens on its sign-in.
+  async function signOut() {
+    if (token) await apiLogout(token).catch(() => {});
+    for (const key of ["utg_account", TOKEN_KEY, "utg_class_code"]) localStorage.removeItem(key);
+    sessionStorage.removeItem("utg_class_code");
+    toHub();
   }
 
-  if (token && me) return <Dashboard token={token} me={me} onSignOut={signOut} />;
-  if (token && !me) return <Dashboard token={token} me={null} onSignOut={signOut} />; // token from storage; dashboard validates
-
-  return <main className="admin-auth"><section className="join-card">
-    <a className="back" href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
-    <p className="eyebrow">Admin</p>
-    <h1>{mode === "login" ? "Admin sign in" : "First-time setup"}</h1>
-    {mode === "login" ? <LoginForm onAuthed={onAuthed} setMsg={setMsg} /> : <SetupForm onAuthed={onAuthed} setMsg={setMsg} />}
-    <p className="notice">{msg}</p>
-    <button className="text-button" onClick={() => { setMsg(""); setMode(mode === "login" ? "setup" : "login"); }}>
-      {mode === "login" ? "First time? Set up the admin account →" : "← Back to sign in"}
-    </button>
-  </section></main>;
+  if (!token || !me) return null;
+  return <Dashboard token={token} me={me} onSignOut={signOut} />;
 }
 
-function LoginForm({ onAuthed, setMsg }: { onAuthed: (t: string, a: ApiAccount) => void; setMsg: (s: string) => void }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  async function submit() {
-    try { const { token, account } = await apiLoginAccount(username.trim(), password); onAuthed(token, account); }
-    catch (e) { setMsg((e as Error).message); }
-  }
-  return <>
-    <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-    <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} /></label>
-    <button className="primary full" onClick={submit}>Sign in</button>
-  </>;
-}
-
-function SetupForm({ onAuthed, setMsg }: { onAuthed: (t: string, a: ApiAccount) => void; setMsg: (s: string) => void }) {
-  const [setupSecret, setSecret] = useState("");
-  const [name, setName] = useState("Teacher");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  async function submit() {
-    try { const { token, account } = await apiBootstrapAdmin({ setupSecret: setupSecret.trim(), classId: "*", name: name.trim(), username: username.trim(), password }); onAuthed(token, account); }
-    catch (e) { setMsg((e as Error).message); }
-  }
-  return <>
-    <label>Setup secret<input value={setupSecret} onChange={(e) => setSecret(e.target.value)} placeholder="one-time code" /></label>
-    <label>Your name<input value={name} onChange={(e) => setName(e.target.value)} /></label>
-    <label>Admin username<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
-    <label>Admin password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-    <button className="primary full" onClick={submit}>Create admin</button>
-  </>;
-}
-
-function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | null; onSignOut: () => void }) {
+function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; onSignOut: () => void }) {
   const [accounts, setAccounts] = useState<ApiAccount[]>([]);
   const [lockouts, setLockouts] = useState<ApiAccessLockout[]>([]);
   const [profiles, setProfiles] = useState<ApiSiteAccess[]>([]);
@@ -104,6 +77,11 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
     if (!confirm(`Delete "${a.name}"${a.username ? ` (@${a.username})` : ""} and all their work? This cannot be undone.`)) return;
     try { await apiAdminDelete(token, a.id); refresh(); } catch (e) { setMsg((e as Error).message); }
   }
+  async function registerCodes(account: ApiAccount, codes: string[]) {
+    setAccounts((current) => current.map((row) => row.id === account.id ? { ...row, access: codes } : row));
+    try { await apiAdminSetAccountAccess(token, account.id, codes); }
+    catch (e) { setMsg((e as Error).message); refresh(); }
+  }
   async function saveCodes() {
     try { await apiAdminSetClassAccess(token, codes.classId.trim().toLowerCase(), codes.studentCode, codes.instructorCode); setCodes({ ...codes, studentCode: "", instructorCode: "" }); await refresh(); setMsg("Class access codes saved."); }
     catch (e) { setMsg((e as Error).message); }
@@ -131,7 +109,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
 
   return <main className="admin-shell">
     <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>Admin</strong></div>
-      <div className="connection">{me?.username ? `@${me.username}` : "signed in"}<button className="text-button" onClick={onSignOut}>Sign out</button></div></header>
+      <div className="connection">{me.username ? `@${me.username}` : me.name}<button className="text-button" onClick={onSignOut}>Log out</button></div></header>
 
     <section className="admin-body">
       <div className="admin-tabs" role="tablist" aria-label="Admin sections">
@@ -184,8 +162,8 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount | n
       <AccessLockoutTable rows={lockouts} onClear={clearLockout} />
       </>}
       {tab === "accounts" && <>
-      <AccountTable title="Permanent accounts" rows={perms} onUpdate={update} onRemove={remove} />
-      <AccountTable title={`Guests (auto-deleted after 120 days)`} rows={guests} onUpdate={update} onRemove={remove} isGuest />
+      <AccountTable title="Permanent accounts" rows={perms} profiles={profiles} onUpdate={update} onRemove={remove} onRegister={registerCodes} />
+      <AccountTable title={`Guests (auto-deleted after 120 days)`} rows={guests} profiles={profiles} onUpdate={update} onRemove={remove} onRegister={registerCodes} isGuest />
       </>}
     </section>
   </main>;
@@ -273,16 +251,60 @@ function AccessLockoutTable({ rows, onClear }: { rows: ApiAccessLockout[]; onCle
   </div>;
 }
 
-function AccountTable({ title, rows, onUpdate, onRemove, isGuest }: {
-  title: string; rows: ApiAccount[]; onUpdate: (id: string, body: Record<string, unknown>) => void; onRemove: (a: ApiAccount) => void; isGuest?: boolean;
+// A dropdown of every access code, one checkbox each. Ticking a code registers
+// the account to it: signed in, they see everything that code unlocks without
+// typing it. Each tick saves straight away.
+function CodePicker({ account, profiles, onChange }: { account: ApiAccount; profiles: ApiSiteAccess[]; onChange: (codes: string[]) => void }) {
+  const [open, setOpen] = useState<{ top: number; left: number } | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const chosen = (account.access || []).filter((id) => profiles.some((profile) => profile.id === id));
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: Event) => { if (!panel.current?.contains(event.target as Node) && !button.current?.contains(event.target as Node)) setOpen(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(null); };
+    const away = (event: Event) => { if (!panel.current?.contains(event.target as Node)) setOpen(null); };
+    document.addEventListener("pointerdown", close); document.addEventListener("keydown", escape); window.addEventListener("scroll", away, true); window.addEventListener("resize", away);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); window.removeEventListener("scroll", away, true); window.removeEventListener("resize", away); };
+  }, [open]);
+  function toggle() {
+    if (open) { setOpen(null); return; }
+    const box = button.current!.getBoundingClientRect();
+    const width = 300;
+    setOpen({ top: Math.min(box.bottom + 4, window.innerHeight - 340), left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)) });
+  }
+  const names = chosen.map((id) => profiles.find((profile) => profile.id === id)!.label);
+  const summary = names.length === 0 ? "No codes" : names.length === 1 ? names[0] : `${names.length} codes`;
+  return <>
+    <button ref={button} type="button" className={chosen.length ? "code-picker on" : "code-picker"} aria-haspopup="true" aria-expanded={!!open} title={names.join(", ") || "Not registered to any code"} onClick={toggle}>
+      <span>{summary}</span><span aria-hidden="true">▾</span>
+    </button>
+    {open && createPortal(<div ref={panel} className="code-picker-panel" role="group" aria-label={`Codes for ${account.name}`} style={{ top: open.top, left: open.left }}>
+      <p className="muted">{account.name} sees everything the ticked codes unlock.</p>
+      {profiles.length === 0 ? <p className="empty">No codes yet.</p> : profiles.map((profile) => {
+        const on = chosen.includes(profile.id);
+        const kind = profile.classroom ? `${profile.classroom.classId.toUpperCase()} · ${profile.classroom.role}` : "Resource code";
+        return <label key={profile.id} className={on ? "code-option sel" : "code-option"}>
+          <input type="checkbox" checked={on} onChange={() => onChange(on ? chosen.filter((id) => id !== profile.id) : [...chosen, profile.id])} />
+          <span className="code-option-name"><strong>{profile.label}</strong><span className="muted">{kind}{profile.enabled ? "" : " · off"}</span></span>
+          {profile.code && <span className="code-value small">{profile.code}</span>}
+        </label>;
+      })}
+    </div>, document.body)}
+  </>;
+}
+
+function AccountTable({ title, rows, profiles, onUpdate, onRemove, onRegister, isGuest }: {
+  title: string; rows: ApiAccount[]; profiles: ApiSiteAccess[]; onUpdate: (id: string, body: Record<string, unknown>) => void; onRemove: (a: ApiAccount) => void; onRegister: (a: ApiAccount, codes: string[]) => void; isGuest?: boolean;
 }) {
   return <div className="admin-table">
     <h3>{title} <span className="muted">({rows.length})</span></h3>
-    {rows.length === 0 ? <p className="empty">None.</p> : <table><thead><tr><th>Name</th><th>Username</th><th>Class</th><th>Last seen</th><th></th></tr></thead>
+    {rows.length === 0 ? <p className="empty">None.</p> : <table><thead><tr><th>Name</th><th>Username</th><th>Class</th><th>Codes</th><th>Last seen</th><th></th></tr></thead>
       <tbody>{rows.map((a) => <tr key={a.id}>
         <td>{a.name}</td>
         <td>{a.username || <span className="muted">—</span>}</td>
         <td>{a.classId}</td>
+        <td>{a.role === "admin" ? <span className="muted">Everything</span> : <CodePicker account={a} profiles={profiles} onChange={(codes) => onRegister(a, codes)} />}</td>
         <td className="muted">{new Date(a.lastSeen).toLocaleDateString()}</td>
         <td className="admin-actions">
           {isGuest && <button className="text-button" onClick={() => { const u = prompt(`Username for ${a.name}?`, a.name.toLowerCase().replace(/\s+/g, "")); if (!u) return; const p = prompt("Set a password:"); if (!p) return; onUpdate(a.id, { promote: true, username: u, password: p }); }}>Make permanent</button>}

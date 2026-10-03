@@ -14,7 +14,8 @@ function accessDevice() {
   return id;
 }
 
-export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number };
+export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number; access?: string[] };
+// access: the ids (code hashes) of the access codes an admin registered the account to; only on the admin list.
 export type { ProjectKind } from "./types";
 import type { ProjectKind } from "./types";
 // The picker list deliberately carries no files - see the worker's GET /projects.
@@ -146,8 +147,11 @@ export async function apiLoginInstructor(code: string, grant = ""): Promise<{ to
 export async function apiLoginAccount(username: string, password: string): Promise<{ token: string; account: ApiAccount }> {
   return req("/login/account", { method: "POST", body: JSON.stringify({ username, password }) });
 }
-export async function apiBootstrapAdmin(body: { setupSecret: string; classId: string; name: string; username: string; password: string }): Promise<{ token: string; account: ApiAccount }> {
-  return req("/admin/bootstrap", { method: "POST", body: JSON.stringify(body) });
+export async function apiMe(token: string): Promise<ApiAccount> {
+  return (await req("/me", {}, token)).account;
+}
+export async function apiLogout(token: string): Promise<void> {
+  await req("/logout", { method: "POST" }, token);
 }
 /* The single-project routes (GET and PUT /project) are gone from here. They
    were kept for a browser still running a cached pre-picker bundle, but such a
@@ -281,6 +285,9 @@ export async function apiAdminCreate(token: string, body: { classId: string; nam
 }
 export async function apiAdminUpdate(token: string, id: string, body: Record<string, unknown>): Promise<ApiAccount> {
   return (await req(`/admin/account/${id}`, { method: "PATCH", body: JSON.stringify(body) }, token)).account;
+}
+export async function apiAdminSetAccountAccess(token: string, id: string, codes: string[]): Promise<string[]> {
+  return (await req(`/admin/account/${id}/access`, { method: "PUT", body: JSON.stringify({ codes }) }, token)).access;
 }
 export async function apiAdminDelete(token: string, id: string): Promise<void> {
   await req(`/admin/account/${id}`, { method: "DELETE" }, token);

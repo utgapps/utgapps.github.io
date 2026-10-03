@@ -276,6 +276,26 @@ for (let i = 0; i < 32; i++) {
 }
 check("the per-account project cap holds", spam.includes(400), `statuses seen: ${[...new Set(spam)].join(",")}`);
 
+// ------------------------------------------- codes an account is registered to
+section("Codes an account is registered to");
+const registeredPupil = await call("/login/account", { method: "POST", body: { username: "zz.test.stu03", password: "test-pw-stu" } });
+const unregisteredPupil = await call("/login/account", { method: "POST", body: { username: "zz.test.stu04", password: "test-pw-stu" } });
+const registered = (await call("/me/access", { token: registeredPupil.data?.token })).data?.access;
+check("a registered student sees what their code unlocks",
+      JSON.stringify(registered?.tools) === '["pixel-art","vex"]' && JSON.stringify(registered?.play) === '["pong"]' && registered?.print === true, registered);
+check("a code that is switched off unlocks nothing, not even its games",
+      JSON.stringify(registered?.labels) === '["ZZ Test Code"]', registered);
+const unregistered = (await call("/me/access", { token: unregisteredPupil.data?.token })).data?.access;
+check("a student registered to nothing sees nothing", unregistered?.labels?.length === 0 && unregistered?.tools?.length === 0, unregistered);
+check("no token, no access list", (await call("/me/access")).status === 401);
+const sneak = { method: "PUT", body: { codes: ["0000000000000000000000000000000000000000000000000000000000000001"] } };
+check("a student cannot register themselves to a code",
+      (await call("/admin/account/zz-stu-04/access", { ...sneak, token: unregisteredPupil.data?.token })).status === 403);
+check("an instructor cannot register anyone either",
+      (await call("/admin/account/zz-stu-04/access", { ...sneak, token: T1 })).status === 403);
+check("and the student still sees nothing",
+      (await call("/me/access", { token: unregisteredPupil.data?.token })).data?.access?.labels?.length === 0);
+
 // ------------------------------------------------------------------ tidy up
 section("Tidy up");
 const mine = await call("/projects", { token: T1 });

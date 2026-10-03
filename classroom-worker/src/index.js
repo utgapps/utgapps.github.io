@@ -503,6 +503,20 @@ function publicProfile(profile) {
     classroom: profile.classroom_class_id ? { classId: profile.classroom_class_id, role: profile.classroom_role } : null,
   };
 }
+// Everything the codes an account is registered to unlock, merged: a module,
+// a game or printing is on when any active code turns it on. A code that is
+// off, or outside its hours, counts for nothing until it is back.
+async function accountAccess(db, accountId) {
+  const rows = (await db.prepare("SELECT site_access.* FROM account_access JOIN site_access ON site_access.code_hash = account_access.code_hash WHERE account_access.account_id = ?").bind(accountId).all()).results;
+  const active = rows.filter(profileActive);
+  const merge = (scopes) => scopes.includes("all") ? "all" : [...new Set(scopes.flat())];
+  return {
+    labels: active.map((row) => row.label),
+    tools: merge(active.map((row) => profileTools(row))),
+    play: merge(active.map((row) => { try { const play = JSON.parse(row.play); return play === "all" ? "all" : Array.isArray(play) ? play : []; } catch { return []; } })),
+    print: active.some((row) => !!row.print_allowed),
+  };
+}
 async function newClassroomGrant(db, profile) {
   if (!profile.classroom_class_id || !profile.classroom_role || !profileAllows(profile, "classroom")) return null;
   const token = rndHex(24), now = Date.now();
@@ -726,6 +740,11 @@ export default {
         }
         const rows = (await db.prepare("SELECT class_id, role, label, last_used FROM account_classrooms WHERE account_id = ? ORDER BY last_used DESC").bind(me.id).all()).results;
         return response(request, env, { classrooms: rows.map((r) => ({ classId: r.class_id, role: r.role, label: r.label, lastUsed: r.last_used })) });
+      }
+      // What the codes an admin registered this account to unlock.
+      if (path === "/me/access" && request.method === "GET") {
+        if (!me) throw new HttpError("Not signed in.", 401);
+        return response(request, env, { access: await accountAccess(db, me.id) });
       }
       // Forget a saved classroom (removes the record, never the class code).
       if (path === "/me/classrooms" && request.method === "DELETE") {
@@ -1273,6 +1292,7 @@ export default {
           const nextSiteHash = await siteCodeHash(code);
           if (nextSiteHash !== current.code_hash && await db.prepare("SELECT code_hash FROM site_access WHERE code_hash = ?").bind(nextSiteHash).first()) throw new HttpError("That code is already in use.", 409);
           const statements = [db.prepare("UPDATE site_access SET code_hash = ?, code_plain = ?, updated_at = ? WHERE code_hash = ?").bind(nextSiteHash, code, Date.now(), current.code_hash)];
+          statements.push(db.prepare("UPDATE account_access SET code_hash = ? WHERE code_hash = ?").bind(nextSiteHash, current.code_hash));
           if (current.classroom_class_id && (current.classroom_role === "student" || current.classroom_role === "instructor")) {
             const column = current.classroom_role === "student" ? "student_code_hash" : "instructor_code_hash";
             statements.push(db.prepare(`UPDATE class_access SET ${column} = ?, updated_at = ? WHERE class_id = ?`).bind(await codeHash(current.classroom_role, code), Date.now(), current.classroom_class_id));
@@ -1283,7 +1303,9 @@ export default {
         if (path === "/admin/accounts" && request.method === "GET") {
           const classId = url.searchParams.get("classId");
           const rows = classId ? (await db.prepare("SELECT * FROM accounts WHERE class_id = ? ORDER BY is_permanent DESC, last_seen DESC").bind(classId).all()).results : (await db.prepare("SELECT * FROM accounts ORDER BY is_permanent DESC, last_seen DESC").all()).results;
-          return response(request, env, { accounts: rows.map(publicAccount) });
+          const registered = new Map();
+          for (const row of (await db.prepare("SELECT account_id, code_hash FROM account_access").all()).results) registered.set(row.account_id, [...(registered.get(row.account_id) || []), row.code_hash]);
+          return response(request, env, { accounts: rows.map((row) => ({ ...publicAccount(row), access: registered.get(row.id) || [] })) });
         }
         if (path === "/admin/access-lockouts" && request.method === "GET") {
           const rows = (await db.prepare("SELECT browser_key, attempt_count, lock_level, locked_until, updated_at FROM access_lockouts ORDER BY updated_at DESC").all()).results;
@@ -1328,8 +1350,23 @@ export default {
             await db.prepare("DELETE FROM site_access WHERE classroom_class_id = ? AND classroom_role = ?").bind(classId, role).run();
             await db.prepare("INSERT INTO site_access (code_hash, code_plain, label, enabled, tools, print_allowed, play, classroom_class_id, classroom_role, hours, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
               .bind(await siteCodeHash(code), code, profile.label, profile.enabled == null ? 1 : profile.enabled, profile.tools, profile.print_allowed, profile.play, classId, role, profile.hours, now).run();
+            if (existing) await db.prepare("UPDATE account_access SET code_hash = ? WHERE code_hash = ?").bind(await siteCodeHash(code), existing.code_hash).run();
           }
           return response(request, env, { ok: true });
+        }
+        // Register an account to exactly these access codes (by hash).
+        const accountAccessMatch = path.match(/^\/admin\/account\/([^/]+)\/access$/);
+        if (accountAccessMatch && request.method === "PUT") {
+          const id = accountAccessMatch[1];
+          if (!await db.prepare("SELECT id FROM accounts WHERE id = ?").bind(id).first()) throw new HttpError("No such account.", 404);
+          const { codes } = await readJson(request, 20000);
+          if (!Array.isArray(codes) || codes.some((code) => !/^[a-f0-9]{64}$/.test(String(code)))) throw new HttpError("Codes must be a list of access codes.");
+          const wanted = [...new Set(codes.map(String))];
+          const known = new Set((await db.prepare("SELECT code_hash FROM site_access").all()).results.map((row) => row.code_hash));
+          if (wanted.some((code) => !known.has(code))) throw new HttpError("One of those codes no longer exists. Refresh and try again.", 409);
+          const now = Date.now();
+          await db.batch([db.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), ...wanted.map((code) => db.prepare("INSERT INTO account_access (account_id, code_hash, granted_at) VALUES (?,?,?)").bind(id, code, now))]);
+          return response(request, env, { access: wanted });
         }
         const accountMatch = path.match(/^\/admin\/account\/([^/]+)$/);
         if (accountMatch) {
@@ -1338,7 +1375,7 @@ export default {
           if (!account) throw new HttpError("No such account.", 404);
           if (request.method === "DELETE") {
             if (env.MEDIA) for (const { r2_key } of (await db.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-            await db.batch([db.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+            await db.batch([db.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), db.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), db.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), db.prepare("DELETE FROM media WHERE account_id = ?").bind(id), db.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), db.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), db.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
             return response(request, env, { ok: true });
           }
           if (request.method === "PATCH") {
@@ -1372,7 +1409,7 @@ export default {
       const stale = (await env.DB.prepare("SELECT id FROM accounts WHERE is_permanent = 0 AND last_seen < ?").bind(cutoff).all()).results;
       for (const { id } of stale) {
         if (env.MEDIA) for (const { r2_key } of (await env.DB.prepare("SELECT r2_key FROM media WHERE account_id = ?").bind(id).all()).results) await env.MEDIA.delete(r2_key);
-        await env.DB.batch([env.DB.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
+        await env.DB.batch([env.DB.prepare("DELETE FROM coedit_rooms WHERE host_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM project_members WHERE project_id IN (SELECT id FROM projects WHERE account_id = ?)").bind(id), env.DB.prepare("DELETE FROM projects WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM media WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_classrooms WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM account_access WHERE account_id = ?").bind(id), env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id)]);
       }
       await env.DB.batch([env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM live_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM coedit_rooms WHERE expires_at < ?").bind(now), env.DB.prepare("DELETE FROM rate_limits WHERE reset_at < ?").bind(now), env.DB.prepare("DELETE FROM classroom_access_grants WHERE expires_at < ? OR used_at IS NOT NULL").bind(now), env.DB.prepare("DELETE FROM projects WHERE deleted_at IS NOT NULL AND deleted_at < ?").bind(now - 30 * DAY)]);
       // Projects hard-deleted above leave their membership rows behind.

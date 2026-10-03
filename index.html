@@ -251,17 +251,26 @@
       }
       // Build the hub for a signed-in permanent account. Admins/instructors
       // host (Teacher Classroom + tools); students get their classwork module.
+      // A student sees the modules of the access codes an admin registered
+      // them to, fetched once the hub is up so a slow API never blocks it.
       function revealAccount(acct) {
         var isAdmin = acct.role === "admin";
-        if (isAdmin) localStorage.setItem("utg_admin_token", (JSON.parse(localStorage.getItem("utg_account") || "{}").token) || "");
-        reveal({
+        var token = (JSON.parse(localStorage.getItem("utg_account") || "{}").token) || "";
+        if (isAdmin) localStorage.setItem("utg_admin_token", token);
+        var hub = function (tools) { return {
           label: acct.name || acct.username || "",
-          tools: acct.role === "student" ? [] : "all",
+          tools: tools,
           classroomRole: acct.role === "student" ? "student" : "instructor",
           classroomHref: acct.role === "student" ? "./classroom/" : "./classroom/?instructor=1",
           isAdmin: isAdmin,
           hasAccount: true
-        });
+        }; };
+        reveal(hub(acct.role === "student" ? [] : "all"));
+        if (acct.role !== "student" || !token) return;
+        fetch(API + "/me/access", { cache: "no-store", headers: { authorization: "Bearer " + token } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) { if (d && d.access) reveal(hub(d.access.tools)); })
+          .catch(function () {});
       }
       function showGate(msg) {
         $("hub").classList.add("hidden");

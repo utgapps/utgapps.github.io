@@ -20,17 +20,22 @@
   }
   // Staff (admin/instructor) sign in with an account, not a class code, and
   // get every tool. Verified against the API so a spoofed role can't pass.
+  // Any other account gets what the access codes an admin registered it to
+  // unlock; when they do not cover this tool, a saved code still might.
   function tryAccount(next) {
     var acct = null;
     try { acct = JSON.parse(localStorage.getItem("utg_account") || "null"); } catch (e) { acct = null; }
     var role = acct && acct.account && acct.account.role;
-    if (!acct || !acct.token || (role !== "admin" && role !== "instructor")) { next(); return; }
-    fetch(API + "/me", { cache: "no-store", headers: { authorization: "Bearer " + acct.token } })
+    if (!acct || !acct.token) { next(); return; }
+    var staff = role === "admin" || role === "instructor";
+    fetch(API + (staff ? "/me" : "/me/access"), { cache: "no-store", headers: { authorization: "Bearer " + acct.token } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         var r = d && d.account && d.account.role;
-        if (r === "admin" || r === "instructor") grant({ tools: "all", print: true, play: "all", label: d.account.name });
-        else next();
+        if (r === "admin" || r === "instructor") { grant({ tools: "all", print: true, play: "all", label: d.account.name }); return; }
+        var access = d && d.access;
+        if (access && access.labels.length && (!window.UTG_TOOL || allow(access.tools, window.UTG_TOOL)) && (!window.UTG_PLAY || allow(access.play, window.UTG_PLAY))) { grant({ tools: access.tools, print: access.print, play: access.play, label: access.labels.join(", ") }); return; }
+        next();
       })
       .catch(function () { next(); });
   }
