@@ -62,7 +62,7 @@
     @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
 
     /* ---------- Tools hub ---------- */
-    .wrap { max-width:880px; margin:0 auto; padding:48px 22px 80px; }
+    .wrap { max-width:1120px; margin:0 auto; padding:48px 22px 80px; }
     .topline { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
     .logo-img { height:42px; width:auto; display:block; }
     .classchip { display:inline-flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); }
@@ -74,17 +74,19 @@
     a.lockbtn { text-decoration:none; display:inline-flex; align-items:center; }
     .lockbtn:hover { background:var(--brand-tint); border-color:var(--brand); }
     h2.title { font-size:clamp(28px,5vw,40px); font-weight:700; letter-spacing:-.02em; margin:8px 0 8px; }
-    .sub { color:var(--muted); font-size:17px; margin:0 0 36px; max-width:560px; line-height:1.5; }
-    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+    .sub { color:var(--muted); font-size:17px; margin:0 0 14px; max-width:560px; line-height:1.5; }
+    .hub-section { margin-top:30px; }
+    .section-title { margin:0 0 12px; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+    .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
     a.card {
       display:flex; flex-direction:column; gap:8px; text-decoration:none; color:inherit;
       background:var(--surface); border:1px solid var(--border); border-radius:16px;
-      padding:24px 24px 22px; transition:border-color .15s, transform .1s, box-shadow .15s;
+      padding:20px 22px 18px; transition:border-color .15s, transform .1s, box-shadow .15s;
       box-shadow:0 1px 3px rgba(31,42,55,.05);
     }
     a.card:hover { border-color:var(--brand); transform:translateY(-3px); box-shadow:0 12px 30px rgba(1,174,253,.14); }
     a.card .ico { width:44px; height:44px; border-radius:11px; display:grid; place-items:center; font-size:23px; background:var(--brand-tint); margin-bottom:6px; }
-    a.card h3 { margin:0; font-size:21px; font-weight:600; }
+    a.card h3 { margin:0; font-size:19px; font-weight:600; }
     a.card span { color:var(--muted); font-size:14px; line-height:1.5; }
     a.card .go { margin-top:6px; color:var(--brand-ink); font-weight:600; font-size:14px; }
     footer { color:var(--muted); font-size:13px; margin-top:44px; }
@@ -124,98 +126,113 @@
     <h2 class="title">Resources</h2>
     <p class="sub">Pick a resource to start.</p>
 
-    <div class="cards">
-      <a class="card" data-projects-card href="./classroom/?projects=1">
-        <div class="ico">&#128187;</div>
-        <h3>My Projects</h3>
-        <span>Start a web page, a game or a Java program of your own, and pick up any project you have saved.</span>
-        <div class="go">Open my projects &rarr;</div>
-      </a>
-      <a class="card" data-tool-card="pixel-art" href="./pixel-art-maker/">
-        <div class="ico">🎨</div>
-        <h3>Pixel Art Maker</h3>
-        <span>A focused pixel editor — draw, fill, transform, and export game-ready sprites and PNGs.</span>
-        <div class="go">Open →</div>
-      </a>
-      <a class="card" data-tool-card="animator" href="./animator/">
-        <div class="ico">🎬</div>
-        <h3>Animator</h3>
-        <span>Pose a stick figure, capture frames, and play it back — make your own 2D animations.</span>
-        <div class="go">Open →</div>
-      </a>
-      <a class="card" data-tool-card="digital-art" href="./digital-arts-camp/">
-        <div class="ico">🖌️</div>
-        <h3>Digital Arts Camp</h3>
-        <span>Downhill Derby, 3D printing, pixel art, animation, and game-art projects in step-by-step modules.</span>
-        <div class="go">Open →</div>
-      </a>
-      <a class="card" data-tool-card="modeling" href="./modeling-studio/">
-        <div class="ico">🧊</div>
-        <h3>Modeling Studio</h3>
-        <span>Build printable 3D models with shapes, holes, exact measurements, and STL export.</span>
-        <div class="go">Open &rarr;</div>
-      </a>
-      <a class="card" data-tool-card="camp" href="./camp-coding-projects/">
-        <div class="ico">🕹️</div>
-        <h3>Camp Coding Projects</h3>
-        <span>21 step-by-step Python coding projects — build a real, playable game one line at a time.</span>
-        <div class="go">Browse projects →</div>
-      </a>
-      <a class="card" data-tool-card="vex" href="./vex-build-center/">
-        <div class="ico">🤖</div>
-        <h3>VEX Build Center</h3>
-        <span>Design a VEX IQ robot in 3D from real parts, with live size and motor-limit checks before you build it for real.</span>
-        <div class="go">Start building →</div>
-      </a>
-      <a class="card" data-tool-card="vex" href="./vex-mechanisms/">
-        <div class="ico">⚙️</div>
-        <h3>VEX Windshield Wiper</h3>
-        <span>Build a motor-driven wiper step by step, then watch the 5:1 gears and four-bar linkage move in 3D.</span>
-        <div class="go">See how it works →</div>
-      </a>
-      <a class="card" data-tool-card="ai101" href="./ai101/">
-        <div class="ico">💬</div>
-        <h3>AI101 · Talk to the Machine</h3>
-        <span>15 weeks building your own AI chat companion — prompts, memory, streaming replies, and what to trust.</span>
-        <div class="go">Open the course →</div>
-      </a>
-      <a class="card" data-tool-card="ai102" href="./ai102/">
-        <div class="ico">🎨</div>
-        <h3>AI102 · AI Creative Studio</h3>
-        <span>15 weeks making an illustrated, narrated AI storybook — images, voices, and video from your own code.</span>
-        <div class="go">Open the course →</div>
-      </a>
-      <a class="card" data-tool-card="pxp101" href="./pxp101/">
-        <div class="ico">👾</div>
-        <h3>PXP101 · Monster Munch</h3>
-        <span>Build your own arcade game in PixelPad — draw the monster, write the Python, and press Play every week to catch falling food, dodge bombs, and keep score.</span>
-        <div class="go">Open the course →</div>
-      </a>
-      <a class="card" data-tool-card="cs701" href="./cs701/">
-        <div class="ico">☕</div>
-        <h3>CS701 · AP Computer Science Prep Level 1</h3>
-        <span>15 weeks of Java — variables, decisions, loops, strings, arrays, methods and lists — finishing with Wordle, a two-player word game you build yourself. The groundwork for AP Computer Science A.</span>
-        <div class="go">Open the course →</div>
-      </a>
-      <a class="card" data-tool-card="pcc" href="./pcc/">
-        <div class="ico">🏆</div>
-        <h3>PCC · Python Coding Challenges</h3>
-        <span>Play a game mechanic — a double jump, a bouncing fireball, a homing missile — then build it from scratch in your own Python game. Get it right and earn 1,000 points.</span>
-        <div class="go">Open the challenges →</div>
-      </a>
-      <a class="card" data-classroom-card="student" href="./classroom/">
-        <div class="ico">🎓</div>
-        <h3>My Classwork</h3>
-        <span>Join your teacher's live class and work where they can see your code and help.</span>
-        <div class="go">Open →</div>
-      </a>
-      <a class="card" data-classroom-card="teacher" href="./classroom/?instructor=1">
-        <div class="ico">🧑‍🏫</div>
-        <h3>Teacher Classroom</h3>
-        <span>Host a live coding class, approve student devices, work in individual projects, and export a complete class file.</span>
-        <div class="go">Open classroom →</div>
-      </a>
-    </div>
+    <section class="hub-section">
+      <h3 class="section-title">Your work</h3>
+      <div class="cards">
+        <a class="card" data-projects-card href="./classroom/?projects=1">
+          <div class="ico">&#128187;</div>
+          <h3>My Projects</h3>
+          <span>Start a web page, a game or a Java program, and pick up anything you have saved.</span>
+          <div class="go">Open my projects &rarr;</div>
+        </a>
+        <a class="card" data-classroom-card="student" href="./classroom/">
+          <div class="ico">🎓</div>
+          <h3>My Classwork</h3>
+          <span>Join your teacher's live class and work where they can see your code and help.</span>
+          <div class="go">Open &rarr;</div>
+        </a>
+        <a class="card" data-classroom-card="teacher" href="./classroom/?instructor=1">
+          <div class="ico">🧑‍🏫</div>
+          <h3>Teacher Classroom</h3>
+          <span>Host a live coding class, approve student devices and export a complete class file.</span>
+          <div class="go">Open classroom &rarr;</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h3 class="section-title">Courses</h3>
+      <div class="cards">
+        <a class="card" data-tool-card="ai101" href="./ai101/">
+          <div class="ico">💬</div>
+          <h3>AI101 · Talk to the Machine</h3>
+          <span>15 weeks building your own AI chat companion: prompts, memory, streaming and trust.</span>
+          <div class="go">Open the course &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="pxp101" href="./pxp101/">
+          <div class="ico">👾</div>
+          <h3>PXP101 · Monster Munch</h3>
+          <span>Build an arcade game in PixelPad: draw the monster, write the Python, press Play.</span>
+          <div class="go">Open the course &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="cs701" href="./cs701/">
+          <div class="ico">☕</div>
+          <h3>CS701 · AP Computer Science Prep</h3>
+          <span>15 weeks of Java, finishing with Wordle. The groundwork for AP Computer Science A.</span>
+          <div class="go">Open the course &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="pcc" href="./pcc/">
+          <div class="ico">🏆</div>
+          <h3>PCC · Python Coding Challenges</h3>
+          <span>Play a game mechanic, then build it yourself in Python. Get it right for 1,000 points.</span>
+          <div class="go">Open the challenges &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="camp" href="./camp-coding-projects/">
+          <div class="ico">🕹️</div>
+          <h3>Camp Coding Projects</h3>
+          <span>21 step-by-step Python projects. Build a real, playable game one line at a time.</span>
+          <div class="go">Browse projects &rarr;</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h3 class="section-title">Art and 3D</h3>
+      <div class="cards">
+        <a class="card" data-tool-card="pixel-art" href="./pixel-art-maker/">
+          <div class="ico">🎨</div>
+          <h3>Pixel Art Maker</h3>
+          <span>Draw, fill and transform sprites, then export them as game-ready PNGs.</span>
+          <div class="go">Open &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="animator" href="./animator/">
+          <div class="ico">🎬</div>
+          <h3>Animator</h3>
+          <span>Pose a stick figure, capture frames and play back your own 2D animation.</span>
+          <div class="go">Open &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="modeling" href="./modeling-studio/">
+          <div class="ico">🧊</div>
+          <h3>Modeling Studio</h3>
+          <span>Build printable 3D models from shapes and holes, with exact sizes and STL export.</span>
+          <div class="go">Open &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="digital-art" href="./digital-arts-camp/">
+          <div class="ico">🖌️</div>
+          <h3>Digital Arts Camp</h3>
+          <span>Downhill Derby, 3D printing, pixel art, animation and game art, step by step.</span>
+          <div class="go">Open &rarr;</div>
+        </a>
+      </div>
+    </section>
+
+    <section class="hub-section">
+      <h3 class="section-title">Robotics</h3>
+      <div class="cards">
+        <a class="card" data-tool-card="vex" href="./vex-build-center/">
+          <div class="ico">🤖</div>
+          <h3>VEX Build Center</h3>
+          <span>Design a VEX IQ robot in 3D from real parts, with live size and motor checks.</span>
+          <div class="go">Start building &rarr;</div>
+        </a>
+        <a class="card" data-tool-card="vex" href="./vex-mechanisms/">
+          <div class="ico">⚙️</div>
+          <h3>VEX Windshield Wiper</h3>
+          <span>Build a motor-driven wiper, then watch its gears and four-bar linkage move in 3D.</span>
+          <div class="go">See how it works &rarr;</div>
+        </a>
+      </div>
+    </section>
 
     <footer>&copy; 2026 UTG Academy</footer>
   </div>
@@ -252,6 +269,11 @@
         // Projects live in an account, so only an account gets the card. A
         // class code on its own has nowhere to keep them.
         document.querySelector("[data-projects-card]").style.display = entry.hasAccount ? "" : "none";
+        // A section none of whose cards this sign-in can open is not shown at all.
+        document.querySelectorAll(".hub-section").forEach(function (section) {
+          var open = Array.prototype.some.call(section.querySelectorAll("a.card"), function (card) { return card.style.display !== "none"; });
+          section.style.display = open ? "" : "none";
+        });
         $("adminBtn").classList.toggle("hidden", !entry.isAdmin);
         $("classLabel").textContent = entry.label ? (entry.label + " · ") : "";
       }
