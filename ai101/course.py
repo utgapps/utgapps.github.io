@@ -50,7 +50,7 @@ it is not a bug in anybody's code.</p>
 
 <p><strong>Everything here is written to the OpenAI standard.</strong> That is deliberate. The
 school server speaks the same request and response format that OpenAI's API does, so the code
-students write in this course is not throwaway - it is the same code a real product would use.</p>
+you write in this course is not throwaway - it is the same code a real product would use.</p>
 
 <p><strong>Swapping to your own OpenAI account takes three edits.</strong> We do not cover
 signing up, and it costs money, so nobody has to. But if you get your own key, this is all
@@ -67,8 +67,9 @@ that changes:</p>
 <p><strong>One honest warning.</strong> A key written into a web page can be read by anyone who
 opens that page. That is fine for a class key on a school network with a request limit and no
 bill attached. It is <em>not</em> fine for a personal key with your card behind it - real apps
-keep the key on a server and never send it to the browser. If a student swaps in their own
-paid key, tell them this first.</p>
+keep the key on a server and never send it to the browser. If you ever try your own paid key,
+keep that copy on your own computer: do not upload it, share it, or hand it in with the key
+still inside.</p>
 """
 
 # The course home page gets two points a student needs before week 1. The full
