@@ -310,9 +310,25 @@ async function newSession(db, accountId, days) {
 }
 async function accountFromToken(db, token) {
   if (!token) return null;
-  const session = await db.prepare("SELECT account_id, expires_at FROM sessions WHERE token = ?").bind(token).first();
-  if (!session || session.expires_at < Date.now()) return null;
-  return db.prepare("SELECT * FROM accounts WHERE id = ?").bind(session.account_id).first();
+  return db.prepare("SELECT a.* FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token = ? AND s.expires_at >= ?").bind(token, Date.now()).first();
+}
+/* last_seen only has to be good to the day: the admin list shows a date and the
+   guest reaper works in months. Writing it on every autosave was a D1 row write
+   every eight seconds per student for nothing, so it is moved at most once
+   every quarter of an hour. */
+const LAST_SEEN_STEP = 15 * 60 * 1000;
+async function touchAccount(db, accountId, now = Date.now()) {
+  await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)").bind(now, accountId, now - LAST_SEEN_STEP).run();
+}
+/* One statement for files and title, and none at all when both are already
+   what is stored: an autosave of an unchanged project writes nothing. */
+async function saveProject(db, projectId, files, title, now) {
+  const filesJson = files === undefined ? null : projectFilesJson(files);
+  const cleanTitle = title === undefined ? null : projectTitle(title);
+  await db.prepare(
+    "UPDATE projects SET files = COALESCE(?1, files), title = COALESCE(?2, title), updated_at = ?3 " +
+    "WHERE id = ?4 AND ((?1 IS NOT NULL AND files IS NOT ?1) OR (?2 IS NOT NULL AND title IS NOT ?2))"
+  ).bind(filesJson, cleanTitle, now, projectId).run();
 }
 async function accountFromRequest(db, request) {
   const auth = request.headers.get("authorization") || "";
@@ -437,16 +453,18 @@ function attemptedHashes(value) {
 async function checkCodeLock(db, request) {
   const browserKey = await browserLockKey(request), now = Date.now();
   const row = await db.prepare("SELECT * FROM access_lockouts WHERE browser_key = ?").bind(browserKey).first();
-  if (!row) return { browserKey, attemptCount: 0, lockLevel: 0, hashes: [] };
+  if (!row) return { browserKey, attemptCount: 0, lockLevel: 0, hashes: [], recorded: false };
   if (row.lock_level >= 4 && row.locked_until == null) throw lockError(row.lock_level, null);
   if (row.locked_until && row.locked_until > now) throw lockError(row.lock_level, row.locked_until);
   if (row.locked_until && row.locked_until <= now) {
     await db.prepare("UPDATE access_lockouts SET attempted_code_hashes = '[]', attempt_count = 0, locked_until = NULL, updated_at = ? WHERE browser_key = ?").bind(now, browserKey).run();
-    return { browserKey, attemptCount: 0, lockLevel: row.lock_level, hashes: [] };
+    return { browserKey, attemptCount: 0, lockLevel: row.lock_level, hashes: [], recorded: true };
   }
-  return { browserKey, attemptCount: row.attempt_count, lockLevel: row.lock_level, hashes: attemptedHashes(row.attempted_code_hashes) };
+  return { browserKey, attemptCount: row.attempt_count, lockLevel: row.lock_level, hashes: attemptedHashes(row.attempted_code_hashes), recorded: true };
 }
-async function clearCodeAttempts(db, browserKey) {
+async function clearCodeAttempts(db, browserKey, lock = null) {
+  // Nothing on record for this browser: nothing to clear, so write nothing.
+  if (lock && !lock.recorded) return;
   await db.prepare("DELETE FROM access_lockouts WHERE browser_key = ? AND lock_level = 0").bind(browserKey).run();
   await db.prepare("UPDATE access_lockouts SET attempted_code_hashes = '[]', attempt_count = 0, locked_until = NULL, updated_at = ? WHERE browser_key = ?").bind(Date.now(), browserKey).run();
 }
@@ -654,7 +672,7 @@ export default {
           const access = await db.prepare("SELECT class_id FROM class_access WHERE student_code_hash = ?").bind(await codeHash("student", cleanCode)).first();
           if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That student code is not valid.", 401); }
           if (!await classroomProfileForCode(db, cleanCode, access.class_id, "student")) throw new HttpError("Curriculum access is not enabled for this student code.", 403);
-          await clearCodeAttempts(db, lock.browserKey);
+          await clearCodeAttempts(db, lock.browserKey, lock);
           classId = access.class_id;
         }
         const now = Date.now();
@@ -688,7 +706,7 @@ export default {
           access = await db.prepare("SELECT class_id, instructor_account_id FROM class_access WHERE instructor_code_hash = ?").bind(await codeHash("instructor", cleanCode)).first();
           if (!access) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That instructor code is not valid.", 401); }
           if (!await classroomProfileForCode(db, cleanCode, access.class_id, "instructor")) throw new HttpError("Curriculum access is not enabled for this instructor code.", 403);
-          await clearCodeAttempts(db, lock.browserKey);
+          await clearCodeAttempts(db, lock.browserKey, lock);
         }
         if (!access) throw new HttpError("That classroom pass is not valid.", 401);
         const account = await db.prepare("SELECT * FROM accounts WHERE id = ?").bind(access.instructor_account_id).first();
@@ -737,14 +755,17 @@ export default {
       // reloading the static home page.
       if (path === "/access/verify" && request.method === "POST") {
         await rateLimit(db, request, "code-verify", 60);
-        const { code } = await readJson(request, 200);
+        /* grant: false is guard.js re-checking a saved code on a tool page. It
+           has no use for a classroom pass, so none is minted - that INSERT ran
+           on every tool page a student opened. */
+        const { code, grant } = await readJson(request, 200);
         const cleanCode = normalizeCode(code);
         if (!validCode(cleanCode)) throw new HttpError("Enter a valid class code.");
         const lock = await checkCodeLock(db, request);
         const profile = await db.prepare("SELECT * FROM site_access WHERE code_hash = ?").bind(await siteCodeHash(cleanCode)).first();
         if (!profile || !profileActive(profile)) { await recordWrongCode(db, request, cleanCode); throw new HttpError("That class code is not valid.", 401); }
-        await clearCodeAttempts(db, lock.browserKey);
-        return response(request, env, { profile: publicProfile(profile), classroomGrant: await newClassroomGrant(db, profile) });
+        await clearCodeAttempts(db, lock.browserKey, lock);
+        return response(request, env, { profile: publicProfile(profile), classroomGrant: grant === false ? null : await newClassroomGrant(db, profile) });
       }
 
       // Used only by the TURN credential Worker. It deliberately returns no
@@ -1002,9 +1023,9 @@ export default {
         const filesJson = projectFilesJson(files);
         const now = Date.now();
         const existing = await db.prepare("SELECT id FROM projects WHERE account_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 1").bind(me.id).first();
-        if (existing) await db.prepare("UPDATE projects SET title = ?, files = ?, updated_at = ? WHERE id = ?").bind(projectTitle(title), filesJson, now, existing.id).run();
+        if (existing) await saveProject(db, existing.id, files, title, now);
         else await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)").bind(crypto.randomUUID(), me.id, projectTitle(title), "web", filesJson, now, now).run();
-        await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
+        await touchAccount(db, me.id, now);
         return response(request, env, { ok: true, updatedAt: now });
       }
 
@@ -1033,7 +1054,7 @@ export default {
         const id = crypto.randomUUID(), now = Date.now();
         await db.prepare("INSERT INTO projects (id, account_id, title, kind, files, created_at, updated_at) VALUES (?,?,?,?,?,?,?)")
           .bind(id, me.id, projectTitle(title), projectKind(kind), filesJson, now, now).run();
-        await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
+        await touchAccount(db, me.id, now);
         return response(request, env, { project: { id, title: projectTitle(title), kind: projectKind(kind), files: JSON.parse(filesJson), size: filesJson.length, createdAt: now, updatedAt: now } });
       }
       /* Every per-id route scopes on account_id in the WHERE rather than checking
@@ -1178,23 +1199,19 @@ export default {
           if (!row) throw new HttpError("No such project.", 404);
           const body = await readJson(request, JSON_LIMIT);
           const now = Date.now();
+          let clean;
           if (body.files !== undefined) {
             // Never let a teacher's own key land in a student's file (they would
             // spend the teacher's rate limit under the teacher's name). Same
             // placeholder the course tells them to replace, matching seed.
-            const clean = {};
+            clean = {};
             for (const [name, text] of Object.entries(body.files || {})) {
               clean[name] = typeof text === "string"
                 ? text.replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-class-put-your-own-key-here")
                 : text;
             }
-            await db.prepare("UPDATE projects SET files = ?, updated_at = ? WHERE id = ?")
-              .bind(projectFilesJson(clean), now, projectId).run();
           }
-          if (body.title !== undefined) {
-            await db.prepare("UPDATE projects SET title = ?, updated_at = ? WHERE id = ?")
-              .bind(projectTitle(body.title), now, projectId).run();
-          }
+          await saveProject(db, projectId, clean, body.title, now);
           return response(request, env, { ok: true, updatedAt: now });
         }
       }
@@ -1282,9 +1299,8 @@ export default {
           if (!row) throw new HttpError("No such project.", 404);
           const now = Date.now();
           // kind is fixed at creation: a Java project must not quietly become a web one.
-          if (body.files !== undefined) await db.prepare("UPDATE projects SET files = ?, updated_at = ? WHERE id = ?").bind(projectFilesJson(body.files), now, projectId).run();
-          if (body.title !== undefined) await db.prepare("UPDATE projects SET title = ?, updated_at = ? WHERE id = ?").bind(projectTitle(body.title), now, projectId).run();
-          await db.prepare("UPDATE accounts SET last_seen = ? WHERE id = ?").bind(now, me.id).run();
+          await saveProject(db, projectId, body.files, body.title, now);
+          await touchAccount(db, me.id, now);
           return response(request, env, { ok: true, updatedAt: now });
         }
         if (request.method === "DELETE") {
@@ -1357,7 +1373,7 @@ export default {
           const text = JSON.stringify(record);
           if (enc.encode(text).byteLength > CLASSROOM_LIMIT) throw new HttpError("Classroom record is too large.", 413);
           const now = Date.now();
-          await db.prepare("INSERT INTO classrooms (class_id, record, updated_at, updated_by) VALUES (?,?,?,?) ON CONFLICT(class_id) DO UPDATE SET record=excluded.record, updated_at=excluded.updated_at, updated_by=excluded.updated_by")
+          await db.prepare("INSERT INTO classrooms (class_id, record, updated_at, updated_by) VALUES (?,?,?,?) ON CONFLICT(class_id) DO UPDATE SET record=excluded.record, updated_at=excluded.updated_at, updated_by=excluded.updated_by WHERE classrooms.record IS NOT excluded.record")
             .bind(classId, text, now, me.id).run();
           return response(request, env, { ok: true, updatedAt: now });
         }

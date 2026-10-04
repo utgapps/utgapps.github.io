@@ -800,8 +800,23 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const liveTokenRef = useRef("");
   const liveNameRef = useRef("");
   const reconnectTimer = useRef<number | null>(null);
+  /* How many times in a row the class was found closed. Every look is a Worker
+     request, so a student who opened the editor long before the teacher opened
+     the class backs off from every 15 seconds to every minute, and a hidden tab
+     does not look at all until it is shown again. */
+  const closedPolls = useRef(0);
+  const pollWhenVisible = useRef(false);
   const device = useMemo(localDevice, []);
   useEffect(() => () => { if (reconnectTimer.current) window.clearTimeout(reconnectTimer.current); peerRef.current?.destroy(); }, []);
+  useEffect(() => {
+    function onShown() {
+      if (document.visibilityState !== "visible" || !pollWhenVisible.current) return;
+      pollWhenVisible.current = false;
+      if (reconnectTimer.current === null) void attemptConnect();
+    }
+    document.addEventListener("visibilitychange", onShown);
+    return () => document.removeEventListener("visibilitychange", onShown);
+  }, []);
 
   // --- the student's own project doc (source of truth), backed by D1 ---
   const docRef = useRef<Y.Doc | null>(null);
@@ -841,14 +856,20 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   const [saved, setSaved] = useState(true);
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const lastSaved = useRef("");
   function sendConn(msg: WireMessage) { const c = connectionRef.current; if (c && c.open) c.send(msg); }
   function scheduleDerive() { deriveLater(deriveTimer, () => docRef.current, setFiles); }
   async function saveNow() {
     const token = apiTokenRef.current, doc = docRef.current, id = localProjectIdRef.current;
     if (!token || !doc || !id) return;
+    const body = { title: titleRef.current, files: docToFiles(doc) };
+    // A cursor move or a teacher's echo schedules a save too; when nothing in
+    // the project changed there is nothing to send.
+    const snapshot = id + "\n" + JSON.stringify(body);
+    if (snapshot === lastSaved.current) { setSaved(true); return; }
     // "Your account" is where a project of this student's own is saved. A
     // shared one is saved to the project itself, which is not the same claim.
-    try { await apiSaveProjectById(token, id, { title: titleRef.current, files: docToFiles(doc) }); setSaved(true); setStatus(ownerRef.current ? "Saved to the shared project." : "Saved to your account."); }
+    try { await apiSaveProjectById(token, id, body); lastSaved.current = snapshot; setSaved(true); setStatus(ownerRef.current ? "Saved to the shared project." : "Saved to your account."); }
     catch { /* keep working; retry on next change */ }
   }
   function scheduleSave() {
@@ -1047,6 +1068,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     if (connectionRef.current && connectionRef.current.open) return; // already live
     const connection = peer.connect(room.peerId); connectionRef.current = connection;
     connection.on("open", () => {
+      closedPolls.current = 0;
       if (reconnectTimer.current !== null) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
       setLive(true); setStatus("Live with your teacher — they can see and help.");
       connection.send({ type: "join", name: liveNameRef.current, deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage);
@@ -1057,10 +1079,14 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   }
   function scheduleReconnect() {
     if (reconnectTimer.current !== null) return;
+    closedPolls.current += 1;
+    const wait = closedPolls.current <= 8 ? 15000 : closedPolls.current <= 20 ? 30000 : 60000;
     reconnectTimer.current = window.setTimeout(() => {
       reconnectTimer.current = null;
-      if (!connectionRef.current || !connectionRef.current.open) void attemptConnect();
-    }, 15000);
+      if (connectionRef.current && connectionRef.current.open) return;
+      if (document.visibilityState === "hidden") { pollWhenVisible.current = true; return; }
+      void attemptConnect();
+    }, wait);
   }
 
   function receive(data: WireMessage) {

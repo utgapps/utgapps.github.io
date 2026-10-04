@@ -24,9 +24,30 @@ async function loadIceServers(token?: string): Promise<RTCIceServer[]> {
     { urls: "stun:stun1.l.google.com:19302" },
   ];
   if (!token || (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"))) return base;
+  const stored = storedIceServers(token);
+  if (stored) { iceCache = [...base, ...stored]; return iceCache; }
   const fetched = await apiGetTurnCredentials(token);
+  storeIceServers(token, fetched);
   iceCache = [...base, ...fetched];
   return iceCache;
+}
+
+/* The relay credentials last a day. Each fresh fetch costs a TURN Worker
+   request, a Classroom API request and a Cloudflare credentials call, and every
+   page load used to make one - so they are kept for the session's token and
+   reused while at least four hours of the day are left. */
+const ICE_KEY = "utg_ice_servers", ICE_REUSE_MS = 20 * 60 * 60 * 1000;
+function storedIceServers(token: string): RTCIceServer[] | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ICE_KEY) || "null");
+    if (!saved || saved.token !== token || !Array.isArray(saved.servers)) return null;
+    const age = Date.now() - saved.at;
+    return age >= 0 && age < ICE_REUSE_MS ? saved.servers : null;
+  } catch { return null; }
+}
+function storeIceServers(token: string, servers: RTCIceServer[]) {
+  if (!servers.length) return;
+  try { localStorage.setItem(ICE_KEY, JSON.stringify({ token, servers, at: Date.now() })); } catch { /* private mode: fetch again next time */ }
 }
 
 // Options for every Peer we create. Resolves to PeerJS defaults (STUN-only,

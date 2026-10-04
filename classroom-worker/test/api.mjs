@@ -77,6 +77,24 @@ check("save an edit", (await call("/projects/" + PID, { method: "PUT", token: T1
 check("the edit stuck",
       (await call("/projects/" + PID, { token: T1 })).data?.project?.files?.["index.html"] === "<p>edited</p>");
 
+/* Saves are one statement, and none when nothing changed: an unchanged
+   autosave must leave updated_at alone, and a title on its own must not touch
+   the files. */
+check("an unchanged save writes nothing", await (async () => {
+  const before = (await call("/projects/" + PID, { token: T1 })).data?.project?.updatedAt;
+  await new Promise((done) => setTimeout(done, 20));
+  const put = await call("/projects/" + PID, { method: "PUT", token: T1,
+    body: { title: "ZZ Suite Project", files: { "index.html": "<p>edited</p>" } } });
+  const after = (await call("/projects/" + PID, { token: T1 })).data?.project?.updatedAt;
+  return put.status === 200 && before && before === after;
+})());
+check("a title alone renames and keeps the files", await (async () => {
+  await call("/projects/" + PID, { method: "PUT", token: T1, body: { title: "ZZ Suite Renamed" } });
+  const project = (await call("/projects/" + PID, { token: T1 })).data?.project;
+  await call("/projects/" + PID, { method: "PUT", token: T1, body: { title: "ZZ Suite Project" } });
+  return project?.title === "ZZ Suite Renamed" && project?.files?.["index.html"] === "<p>edited</p>";
+})());
+
 check("kind cannot be changed after creation",
       (await call("/projects/" + PID, { method: "PUT", token: T1, body: { kind: "java" } })).status === 200
       && (await call("/projects/" + PID, { token: T1 })).data?.project?.kind === "web");

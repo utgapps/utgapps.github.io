@@ -12,7 +12,31 @@
     if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/[^a-zA-Z0-9-]/g, ""); localStorage.setItem(deviceKey, id); }
     return id;
   }
+  /* A verdict is remembered for a quarter of an hour, keyed by the exact
+     credential it was given for, so moving between tool pages does not ask the
+     API again on every page load. It is a gate, not security: the cache only
+     ever skips a check the API already passed for this same code or account. */
+  var cacheKey = "utg_guard_cache", cacheMs = 15 * 60 * 1000;
+  function credential() {
+    var acct = null;
+    try { acct = JSON.parse(localStorage.getItem("utg_account") || "null"); } catch (e) { acct = null; }
+    return (acct && acct.token ? "acct:" + acct.token : "") + "|code:" + (localStorage.getItem("utg_class_code") || "").trim().toUpperCase();
+  }
+  function remember(entry) {
+    try { localStorage.setItem(cacheKey, JSON.stringify({ credential: credential(), entry: entry, at: Date.now() })); } catch (e) {}
+  }
+  function covers(entry) {
+    return (!window.UTG_TOOL || allow(entry.tools, window.UTG_TOOL)) && (!window.UTG_PLAY || allow(entry.play, window.UTG_PLAY));
+  }
+  function fromCache() {
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch (e) { cached = null; }
+    if (!cached || !cached.entry || cached.credential !== credential()) return null;
+    if (!(Date.now() - cached.at >= 0 && Date.now() - cached.at < cacheMs)) return null;
+    return covers(cached.entry) ? cached.entry : null;
+  }
   function grant(entry) {
+    remember(entry);
     window.UTG = { entry: entry, canPlay: function (slug) { return allow(entry.play, slug); } };
     if (entry.print) document.documentElement.classList.add("utg-can-print");
     if (window.UTG_PLAY && !window.UTG.canPlay(window.UTG_PLAY)) { deny(window.UTG_PLAY + "-workbook.html"); return; }
@@ -42,7 +66,7 @@
   function verifyCode() {
     var saved = (localStorage.getItem("utg_class_code") || "").trim().toUpperCase();
     if (!saved) { deny(); return; }
-    fetch(API + "/access/verify", { method: "POST", cache: "no-store", headers: { "content-type": "application/json", "x-utg-access-device": accessDevice() }, body: JSON.stringify({ code: saved }) })
+    fetch(API + "/access/verify", { method: "POST", cache: "no-store", headers: { "content-type": "application/json", "x-utg-access-device": accessDevice() }, body: JSON.stringify({ code: saved, grant: false }) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (result) {
         var entry = result.d && result.d.profile;
@@ -53,5 +77,6 @@
       .catch(function () { deny(); });
   }
   document.documentElement.style.visibility = "hidden";
-  tryAccount(verifyCode);
+  var cachedEntry = fromCache();
+  if (cachedEntry) grant(cachedEntry); else tryAccount(verifyCode);
 })();

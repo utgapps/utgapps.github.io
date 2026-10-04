@@ -49,12 +49,18 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
   const titleRef = useRef("");
   const deriveTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const lastSaved = useRef("");
 
   async function saveNow() {
     const doc = docRef.current;
     if (!doc || !idRef.current) return;
+    const body = { title: titleRef.current, files: docToFiles(doc) };
+    // Nothing changed since the last save: nothing to send.
+    const snapshot = idRef.current + "\n" + JSON.stringify(body);
+    if (snapshot === lastSaved.current) { setSaved(true); return; }
     try {
-      await apiSaveProjectById(token, idRef.current, { title: titleRef.current, files: docToFiles(doc) });
+      await apiSaveProjectById(token, idRef.current, body);
+      lastSaved.current = snapshot;
       setSaved(true);
       setStatus("Saved.");
     } catch { /* keep working; the next change retries */ }
