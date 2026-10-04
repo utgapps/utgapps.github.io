@@ -23,7 +23,7 @@ import {
   type ChallengeSubmission,
 } from "./lib/api";
 import { CHALLENGES, CHALLENGE_POINTS, DIFFICULTIES, challengeById, type Challenge } from "./lib/challenges";
-import { askChecker, errorVerdict, type Verdict } from "./lib/challengeCheck";
+import { askChecker, errorVerdict, NO_ANSWER, NO_ANSWER_MS, type Verdict } from "./lib/challengeCheck";
 import { buildGamePreview, useGameAudio } from "./lib/game-project";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
 import { GAME_KIND } from "./lib/types";
@@ -264,39 +264,69 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
   const closedRef = useRef(false);
   useEffect(() => { closedRef.current = false; return () => { closedRef.current = true; }; }, []);
 
-  async function submit() {
-    const summary = projects?.find((project) => project.id === chosen);
-    if (!summary) return;
-    try {
-      const project = await apiGetProjectById(token, summary.id);
-      if (!project) throw new Error("That project is not there any more.");
-      errorsRef.current = [];
-      setStage({ step: "running", projectTitle: project.title, files: project.files, nonce: crypto.randomUUID(), projectId: project.id });
-      window.setTimeout(() => { void check(project.id, project.title, project.files); }, TEST_RUN_MS);
-    } catch (error) { setStage({ step: "error", message: (error as Error).message || "That project could not be opened." }); }
+  /* One hand-in at a time. Submit used to stay pressable while the project
+     loaded, so an impatient double click started two checks and two
+     submissions. The ref closes the gap before React has re-rendered the
+     button as disabled; the number lets an attempt that has been given up on
+     (a minute without an answer) notice it and stop, rather than landing a
+     submission after the student has already pressed Submit again. */
+  const [handingIn, setHandingIn] = useState(false);
+  const handingInRef = useRef(false);
+  const attemptRef = useRef(0);
+  const abandoned = (attempt: number) => closedRef.current || attemptRef.current !== attempt;
+
+  function endAttempt(attempt: number, next: Stage) {
+    if (abandoned(attempt)) return;
+    attemptRef.current++;
+    handingInRef.current = false;
+    setHandingIn(false);
+    setStage(next);
   }
 
-  async function check(projectId: string, projectTitle: string, files: Record<string, string>) {
-    if (closedRef.current) return;
+  /* The worker's own calls get the same minute the checker's do. */
+  function withinMinute<T>(request: Promise<T>): Promise<T> {
+    return Promise.race([request, new Promise<T>((_, reject) =>
+      window.setTimeout(() => reject(new Error(NO_ANSWER)), NO_ANSWER_MS))]);
+  }
+
+  async function submit() {
+    const summary = projects?.find((project) => project.id === chosen);
+    if (!summary || handingInRef.current) return;
+    handingInRef.current = true;
+    setHandingIn(true);
+    const attempt = ++attemptRef.current;
+    try {
+      const project = await withinMinute(apiGetProjectById(token, summary.id));
+      if (!project) throw new Error("That project is not there any more.");
+      if (abandoned(attempt)) return;
+      errorsRef.current = [];
+      setStage({ step: "running", projectTitle: project.title, files: project.files, nonce: crypto.randomUUID(), projectId: project.id });
+      window.setTimeout(() => { void check(attempt, project.id, project.title, project.files); }, TEST_RUN_MS);
+    } catch (error) { endAttempt(attempt, { step: "error", message: (error as Error).message || "That project could not be opened." }); }
+  }
+
+  async function check(attempt: number, projectId: string, projectTitle: string, files: Record<string, string>) {
+    if (abandoned(attempt)) return;
     try {
       let verdict = errorVerdict(errorsRef.current);
       const ranClean = !verdict;
       if (!verdict) {
         setStage({ step: "asking", projectTitle });
-        const key = await apiChallengeKey(token);
+        const key = await withinMinute(apiChallengeKey(token));
         if (!key) throw new Error("The challenge checker has not been switched on yet. Ask your teacher.");
         verdict = await askChecker(key, challenge, files);
       }
-      if (closedRef.current) return;
-      const saved = await apiSubmitChallenge(token, challenge.id, { projectId, passed: verdict.passed, notes: verdict.notes, ranClean });
+      if (abandoned(attempt)) return;
+      const saved = await withinMinute(apiSubmitChallenge(token, challenge.id, { projectId, passed: verdict.passed, notes: verdict.notes, ranClean }));
+      if (abandoned(attempt)) return;
       onProgress({ points: saved.points, challenges: saved.challenges, admin: saved.admin, review: saved.review });
       /* The worker has the last word: a project the checker turned down can
          still be a close match for one a teacher approved. */
       const matched = !verdict.passed && saved.passed && saved.matched;
       if (matched) verdict = { passed: true, notes: [] };
-      if (!closedRef.current) setStage({ step: "result", verdict, earned: saved.earned, projectTitle, matched });
+      endAttempt(attempt, { step: "result", verdict, earned: saved.earned, projectTitle, matched });
     } catch (error) {
-      if (!closedRef.current) setStage({ step: "error", message: (error as Error).message || "Something went wrong. Nothing was counted - try again." });
+      endAttempt(attempt, { step: "error", message: (error as Error).message || "Something went wrong. Nothing was counted - try again." });
     }
   }
 
@@ -312,7 +342,7 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
           : projects.length
             ? <div className="pcc-project-list">{projects.map((project) =>
                 <button key={project.id} className={chosen === project.id ? "pcc-project selected" : "pcc-project"}
-                        onClick={() => setChosen(project.id)}>
+                        disabled={handingIn} onClick={() => setChosen(project.id)}>
                   <span className="kind-badge game">Game</span>
                   <strong>{project.title}</strong>
                   {project.owner && <small>Shared by {project.owner}</small>}
@@ -320,7 +350,7 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
             : <p className="notice">{listError || "You have no Python game projects yet. Press Create a new project, choose Python game, and build the mechanic there."}</p>}
         <div className="dialog-actions">
           <button className="text-button" onClick={onClose}>Cancel</button>
-          <button className="primary" disabled={!chosen} onClick={submit}>Submit</button>
+          <button className="primary" disabled={!chosen || handingIn} onClick={submit}>{handingIn ? "Submitting…" : "Submit"}</button>
         </div>
       </>}
 
@@ -335,7 +365,7 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
 
       {stage.step === "asking" && <>
         <h2>Checking "{stage.projectTitle}"…</h2>
-        <p className="small">The checker is reading your code against every line of the challenge. This can take up to a minute.</p>
+        <p className="small">The checker is reading your code against every line of the challenge. This can take a minute or two.</p>
         <div className="pcc-spinner" aria-hidden="true" />
       </>}
 

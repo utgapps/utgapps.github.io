@@ -37,6 +37,7 @@ export function gatewayAsk(
   key: string,
   body: { model: string; messages: ChatMessage[]; temperature?: number; max_tokens?: number },
   timeoutMs = 45000,
+  timeoutMessage = "The classroom AI did not answer. It is only reachable on a school computer on the school network.",
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const nonce = crypto.randomUUID();
@@ -68,8 +69,7 @@ export function gatewayAsk(
       "<\/script>";
 
     let settled = false;
-    const timer = window.setTimeout(() => finish(() =>
-      reject(new Error("The classroom AI did not answer. It is only reachable on a school computer on the school network."))), timeoutMs);
+    const timer = window.setTimeout(() => finish(() => reject(new Error(timeoutMessage))), timeoutMs);
 
     function finish(action: () => void) {
       if (settled) return;

@@ -121,6 +121,13 @@ export function errorVerdict(errors: string[]): Verdict | null {
 
 const UNREADABLE = "The checker gave an answer that could not be read. Nothing was counted - press Submit again.";
 
+/* How long any one step of a hand-in may go without an answer before the
+   student gets the Submit button back. A whole check can take longer than
+   this - it is one request plus a second look at each missing requirement -
+   but every one of those answers must arrive within it. */
+export const NO_ANSWER_MS = 60000;
+export const NO_ANSWER = "No answer came back for a minute. Nothing was counted - press Submit again.";
+
 export async function askChecker(key: string, challenge: Challenge, files: Record<string, string>): Promise<Verdict> {
   const code = serialize(files);
   if (!code.replace(/^## .*$/gm, "").trim()) {
@@ -138,7 +145,7 @@ export async function askChecker(key: string, challenge: Challenge, files: Recor
     model: "smart",
     messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
     temperature: 0.1, max_tokens: 900,
-  }, 90000);
+  }, NO_ANSWER_MS, NO_ANSWER);
 
   const project = squeeze(Object.values(files).join("\n"));
   const found = jsonIn(await ask(FIND, findPrompt));
