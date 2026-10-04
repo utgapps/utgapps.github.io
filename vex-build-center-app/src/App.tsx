@@ -362,10 +362,20 @@ export default function App() {
             </div>
           </section>
 
-          <section className="card">
-            <h3>Selected part</h3>
-            {hasSel ? (
-              <>
+          {!state.count && (
+            <section className="card">
+              <h3>Start building</h3>
+              <p className="muted small">Pick a part on the left to drop it in, or open one from Examples. Its size, checks and parts list appear here as you build.</p>
+              <div className="btn-row">
+                <button onClick={load}>Load saved</button>
+                <button onClick={() => fileRef.current?.click()}>Open file</button>
+              </div>
+            </section>
+          )}
+
+          {hasSel && (
+            <section className="card">
+              <h3>Selected part</h3>
                 <p className="sel-name">{state.selectedName}</p>
                 {state.gearInfo && <p className="gear-info">{state.gearInfo}</p>}
                 {state.canPivot && (
@@ -387,14 +397,13 @@ export default function App() {
                   <button className="danger" onClick={() => editorRef.current?.deleteSelected()}>Delete</button>
                 </div>
                 <p className="muted small">Arrow keys slide it one hole at a time.</p>
-              </>
-            ) : <p className="muted small">Click a part in the scene to select it.</p>}
-          </section>
+            </section>
+          )}
 
+          {state.count > 0 && <>
           <section className="card">
             <h3>Build check</h3>
-            {!state.count ? <p className="muted small">Add parts and this checks they would hold together for real.</p>
-              : state.problems.length ? (
+            {state.problems.length ? (
                 <ul className="checks">
                   {state.problems.map((problem, index) => (
                     <li key={index}><button onClick={() => editorRef.current?.selectByUid(problem.uids[0] ?? null)} title="Show me">{problem.text}</button></li>
@@ -405,8 +414,6 @@ export default function App() {
 
           <section className="card">
             <h3>Parts list · {state.count} total</h3>
-            {inventory.length ? (
-              <>
                 <ul className="bom">
                   {inventory.map((row) => (
                     <li key={row.id}><span className="bom-n">{row.count}×</span><span className="bom-name">{row.name}</span></li>
@@ -416,8 +423,6 @@ export default function App() {
                   <button onClick={() => copyList(inventory.map((r) => `${r.count} x ${r.name}`).join("\n"), setStatus)}>Copy list</button>
                 </div>
                 <p className="muted small">Everything you'd take off the shelf to build this for real.</p>
-              </>
-            ) : <p className="muted small">Add parts and they'll be counted up here.</p>}
           </section>
 
           <section className="card">
@@ -434,12 +439,13 @@ export default function App() {
             <div className="btn-row">
               <button className="danger" onClick={clear}>Clear all</button>
             </div>
-            <input
-              ref={fileRef} type="file" accept="application/json,.json" hidden
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }}
-            />
             <p className="muted small">Save keeps it on this computer. Export makes a file you can take with you.</p>
           </section>
+          </>}
+          <input
+            ref={fileRef} type="file" accept="application/json,.json" hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); e.target.value = ""; }}
+          />
         </aside>
       </div>
 
