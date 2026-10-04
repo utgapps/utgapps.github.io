@@ -268,7 +268,7 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
      loaded, so an impatient double click started two checks and two
      submissions. The ref closes the gap before React has re-rendered the
      button as disabled; the number lets an attempt that has been given up on
-     (a minute without an answer) notice it and stop, rather than landing a
+     (two minutes without an answer) notice it and stop, rather than landing a
      submission after the student has already pressed Submit again. */
   const [handingIn, setHandingIn] = useState(false);
   const handingInRef = useRef(false);
@@ -283,8 +283,8 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
     setStage(next);
   }
 
-  /* The worker's own calls get the same minute the checker's do. */
-  function withinMinute<T>(request: Promise<T>): Promise<T> {
+  /* The worker's own calls get the same time limit the checker's do. */
+  function withinTimeLimit<T>(request: Promise<T>): Promise<T> {
     return Promise.race([request, new Promise<T>((_, reject) =>
       window.setTimeout(() => reject(new Error(NO_ANSWER)), NO_ANSWER_MS))]);
   }
@@ -296,7 +296,7 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
     setHandingIn(true);
     const attempt = ++attemptRef.current;
     try {
-      const project = await withinMinute(apiGetProjectById(token, summary.id));
+      const project = await withinTimeLimit(apiGetProjectById(token, summary.id));
       if (!project) throw new Error("That project is not there any more.");
       if (abandoned(attempt)) return;
       errorsRef.current = [];
@@ -312,12 +312,12 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
       const ranClean = !verdict;
       if (!verdict) {
         setStage({ step: "asking", projectTitle });
-        const key = await withinMinute(apiChallengeKey(token));
+        const key = await withinTimeLimit(apiChallengeKey(token));
         if (!key) throw new Error("The challenge checker has not been switched on yet. Ask your teacher.");
         verdict = await askChecker(key, challenge, files);
       }
       if (abandoned(attempt)) return;
-      const saved = await withinMinute(apiSubmitChallenge(token, challenge.id, { projectId, passed: verdict.passed, notes: verdict.notes, ranClean }));
+      const saved = await withinTimeLimit(apiSubmitChallenge(token, challenge.id, { projectId, passed: verdict.passed, notes: verdict.notes, ranClean }));
       if (abandoned(attempt)) return;
       onProgress({ points: saved.points, challenges: saved.challenges, admin: saved.admin, review: saved.review });
       /* The worker has the last word: a project the checker turned down can

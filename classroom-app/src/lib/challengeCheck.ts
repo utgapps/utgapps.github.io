@@ -5,8 +5,9 @@
 // error fails the submission on the spot: an error is a fact, and asking a
 // language model whether code that just crashed is "error free" would be
 // paying for a guess at something already known. Only a game that runs is
-// read by the classroom AI's smart model, against the challenge's own
-// requirements list - the same list the challenge page shows the student.
+// read by the classroom AI's `grader` - Qwen3.8 Flash-Next on the PX13, which
+// graded 85 of 86 benchmark hand-ins right - against the challenge's own
+// requirements list, the same list the challenge page shows the student.
 //
 // The model is never asked "does this pass?". Asked that, the school's smart
 // model failed every one of the nine working examples, with confident notes
@@ -124,9 +125,14 @@ const UNREADABLE = "The checker gave an answer that could not be read. Nothing w
 /* How long any one step of a hand-in may go without an answer before the
    student gets the Submit button back. A whole check can take longer than
    this - it is one request plus a second look at each missing requirement -
-   but every one of those answers must arrive within it. */
-export const NO_ANSWER_MS = 60000;
-export const NO_ANSWER = "No answer came back for a minute. Nothing was counted - press Submit again.";
+   but every one of those answers must arrive within it.
+
+   Two minutes, not one, since grading moved to the PX13: a check there takes
+   about 15 s and two run at once, so ten students handing in together leave
+   the last one waiting about 75 s for a FIRST answer - past a minute with
+   nothing wrong. */
+export const NO_ANSWER_MS = 120000;
+export const NO_ANSWER = "No answer came back for two minutes. Nothing was counted - press Submit again.";
 
 export async function askChecker(key: string, challenge: Challenge, files: Record<string, string>): Promise<Verdict> {
   const code = serialize(files);
@@ -142,7 +148,7 @@ export async function askChecker(key: string, challenge: Challenge, files: Recor
       "Hand in a project that only builds this challenge - take out other experiments and unused files - then submit again.");
   }
   const ask = (system: string, prompt: string) => gatewayAsk(key, {
-    model: "smart",
+    model: "grader",
     messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
     temperature: 0.1, max_tokens: 900,
   }, NO_ANSWER_MS, NO_ANSWER);
