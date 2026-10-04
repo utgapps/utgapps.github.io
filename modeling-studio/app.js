@@ -315,6 +315,10 @@ function updateSelectionUI() {
   selectedName.textContent = one ? one.userData.name : selection.size ? `${selection.size} shapes selected` : "Nothing selected";
   selectedHint.textContent = one ? (isClay(one) ? "Pick a clay brush below, then drag directly on this shape." : isUnionResult(one) ? "Move, rotate, or scale this live union. Break union restores its source shapes here." : one.userData.hole ? "This is a hole. Union it with a solid to remove material." : "Use the arrows or type exact measurements.") : selection.size ? "Choose Union to keep source shapes together, including any holes." : "Click a shape in the workplane.";
   clayControls.hidden = !isClay(one);
+  // Buttons that need a shape are dimmed until there is one to act on.
+  document.getElementById("deleteSelected").disabled = selection.size === 0;
+  document.getElementById("layFlat").disabled = !one;
+  document.getElementById("optimizeOrientation").disabled = !one;
   syncClayList();
   syncInspector();
 }
@@ -322,6 +326,8 @@ function updateSelectionUI() {
 function syncInspector() {
   const one = selection.size === 1 ? [...selection][0] : null;
   Object.values(fields).forEach((field) => { field.disabled = !one; });
+  // Position, size and rotation belong to one shape; with none chosen they are hidden, not shown empty.
+  document.querySelectorAll(".right-panel .inspector").forEach((section) => { section.hidden = !one; });
   if (!one) {
     Object.values(fields).forEach((field) => { field.value = ""; });
     return;
@@ -989,6 +995,6 @@ window.addEventListener("resize", resize);
 resetView();
 resize();
 renderer.setAnimationLoop(() => { orbit.update(); renderer.render(scene, camera); });
-syncInspector();
+updateSelectionUI();
 syncHistoryControls();
 scheduleAnalysis();
