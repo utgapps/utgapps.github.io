@@ -128,7 +128,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
       {tab === "codes" && msg && <p className="notice">{msg}</p>}
       {tab === "accounts" && <>
       <div className="admin-toolbar">
-        <label>Filter by class<input value={classId} placeholder="all classes (e.g. ai102)" onChange={(e) => setClassId(e.target.value.trim())} /></label>
+        <label>Filter by class<input value={classId} placeholder="all classes (e.g. ai101)" onChange={(e) => setClassId(e.target.value.trim())} /></label>
         <button className="secondary" onClick={refresh}>Refresh</button>
         <span className="muted">{perms.length} accounts · {guests.length} guests</span>
       </div>
@@ -137,11 +137,11 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
       <div className="admin-create">
         <h3>Create a student account</h3>
         <div className="row">
-          <input value={nc.classId} placeholder="class (ai102)" onChange={(e) => setNc({ ...nc, classId: e.target.value })} />
-          <input value={nc.name} placeholder="name" onChange={(e) => setNc({ ...nc, name: e.target.value })} />
-          <input value={nc.username} placeholder="username" onChange={(e) => setNc({ ...nc, username: e.target.value })} />
-          <input value={nc.password} placeholder="password" onChange={(e) => setNc({ ...nc, password: e.target.value })} />
-          <select value={nc.role} onChange={(e) => setNc({ ...nc, role: e.target.value as "student" | "instructor" })}><option value="student">Student</option><option value="instructor">Instructor</option></select>
+          <label>Class<input value={nc.classId} placeholder="ai101" onChange={(e) => setNc({ ...nc, classId: e.target.value })} /></label>
+          <label>Name<input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} /></label>
+          <label>Username<input value={nc.username} autoComplete="off" onChange={(e) => setNc({ ...nc, username: e.target.value })} /></label>
+          <label>Password<input value={nc.password} autoComplete="new-password" onChange={(e) => setNc({ ...nc, password: e.target.value })} /></label>
+          <label>Role<select value={nc.role} onChange={(e) => setNc({ ...nc, role: e.target.value as "student" | "instructor" })}><option value="student">Student</option><option value="instructor">Instructor</option></select></label>
           <button className="primary" onClick={create}>Create</button>
         </div>
       </div>
@@ -150,9 +150,9 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
       <div className="admin-create">
         <h3>Set classroom codes</h3>
         <div className="row">
-          <input value={codes.classId} placeholder="class (ai102)" onChange={(e) => setCodes({ ...codes, classId: e.target.value })} />
-          <input value={codes.studentCode} placeholder="student code (4+ characters)" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} />
-          <input value={codes.instructorCode} placeholder="instructor code (4+ characters)" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} />
+          <label>Class<input value={codes.classId} placeholder="ai101" onChange={(e) => setCodes({ ...codes, classId: e.target.value })} /></label>
+          <label>Student code<input value={codes.studentCode} placeholder="4+ characters" onChange={(e) => setCodes({ ...codes, studentCode: e.target.value.toUpperCase() })} /></label>
+          <label>Instructor code<input value={codes.instructorCode} placeholder="4+ characters" onChange={(e) => setCodes({ ...codes, instructorCode: e.target.value.toUpperCase() })} /></label>
           <button className="primary" onClick={saveCodes}>Save codes</button>
         </div>
       </div>
@@ -273,11 +273,13 @@ function AccessLockoutTable({ rows, onClear }: { rows: ApiAccessLockout[]; onCle
 // A dropdown of every access code, one checkbox each. Ticking a code registers
 // the account to it: signed in, they see everything that code unlocks without
 // typing it. Each tick saves straight away.
-function CodePicker({ account, profiles, onChange }: { account: ApiAccount; profiles: ApiSiteAccess[]; onChange: (codes: string[]) => void }) {
+// A panel pinned under its button and drawn into document.body, so a table's
+// overflow cannot clip it. Clicking elsewhere, Escape, scrolling or resizing
+// closes it. `alignRight` lines its right edge up with the button's.
+function useFloatingPanel(width: number, height: number, alignRight = false) {
   const [open, setOpen] = useState<{ top: number; left: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const chosen = (account.access || []).filter((id) => profiles.some((profile) => profile.id === id));
   useEffect(() => {
     if (!open) return;
     const close = (event: Event) => { if (!panel.current?.contains(event.target as Node) && !button.current?.contains(event.target as Node)) setOpen(null); };
@@ -289,9 +291,15 @@ function CodePicker({ account, profiles, onChange }: { account: ApiAccount; prof
   function toggle() {
     if (open) { setOpen(null); return; }
     const box = button.current!.getBoundingClientRect();
-    const width = 300;
-    setOpen({ top: Math.min(box.bottom + 4, window.innerHeight - 340), left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)) });
+    const preferredLeft = alignRight ? box.right - width : box.left;
+    setOpen({ top: Math.min(box.bottom + 4, window.innerHeight - height - 10), left: Math.max(8, Math.min(preferredLeft, window.innerWidth - width - 8)) });
   }
+  return { open, close: () => setOpen(null), toggle, button, panel };
+}
+
+function CodePicker({ account, profiles, onChange }: { account: ApiAccount; profiles: ApiSiteAccess[]; onChange: (codes: string[]) => void }) {
+  const { open, toggle, button, panel } = useFloatingPanel(300, 330);
+  const chosen = (account.access || []).filter((id) => profiles.some((profile) => profile.id === id));
   const names = chosen.map((id) => profiles.find((profile) => profile.id === id)!.label);
   const summary = names.length === 0 ? "No codes" : names.length === 1 ? names[0] : `${names.length} codes`;
   return <>
@@ -325,13 +333,31 @@ function AccountTable({ title, rows, profiles, onUpdate, onRemove, onRegister, i
         <td>{a.classId}</td>
         <td>{a.role === "admin" ? <span className="muted">Everything</span> : <CodePicker account={a} profiles={profiles} onChange={(codes) => onRegister(a, codes)} />}</td>
         <td className="muted">{new Date(a.lastSeen).toLocaleDateString()}</td>
-        <td className="admin-actions">
-          {isGuest && <button className="text-button" onClick={() => { const u = prompt(`Username for ${a.name}?`, a.name.toLowerCase().replace(/\s+/g, "")); if (!u) return; const p = prompt("Set a password:"); if (!p) return; onUpdate(a.id, { promote: true, username: u, password: p }); }}>Make permanent</button>}
-          <button className="text-button" onClick={() => { const n = prompt("Name:", a.name); if (n != null && n !== a.name) onUpdate(a.id, { name: n }); }}>Rename</button>
-          <button className="text-button" onClick={() => { const u = prompt("New username:", a.username || ""); if (u) onUpdate(a.id, { username: u }); }}>Username</button>
-          <button className="text-button" onClick={() => { const p = prompt(`New password for ${a.name}:`); if (p) onUpdate(a.id, { password: p }); }}>Password</button>
-          <button className="text-button danger" onClick={() => onRemove(a)}>Delete</button>
-        </td>
+        <td className="admin-actions"><AccountMenu account={a} isGuest={isGuest} onUpdate={onUpdate} onRemove={onRemove} /></td>
       </tr>)}</tbody></table>}
   </div>;
+}
+
+// Every change to an account behind one button, so a long roster reads as
+// names rather than as a wall of Rename / Username / Password / Delete.
+function AccountMenu({ account, isGuest, onUpdate, onRemove }: {
+  account: ApiAccount; isGuest?: boolean; onUpdate: (id: string, body: Record<string, unknown>) => void; onRemove: (a: ApiAccount) => void;
+}) {
+  const { open, close, toggle, button, panel } = useFloatingPanel(190, 200, true);
+  const choose = (action: () => void) => () => { close(); action(); };
+  const makePermanent = () => { const username = prompt(`Username for ${account.name}?`, account.name.toLowerCase().replace(/\s+/g, "")); if (!username) return; const password = prompt("Set a password:"); if (!password) return; onUpdate(account.id, { promote: true, username, password }); };
+  const rename = () => { const name = prompt("Name:", account.name); if (name != null && name !== account.name) onUpdate(account.id, { name }); };
+  const changeUsername = () => { const username = prompt("New username:", account.username || ""); if (username) onUpdate(account.id, { username }); };
+  const resetPassword = () => { const password = prompt(`New password for ${account.name}:`); if (password) onUpdate(account.id, { password }); };
+  return <>
+    <button ref={button} type="button" className="row-menu-button" aria-haspopup="menu" aria-expanded={!!open} aria-label={`Change ${account.name}`} title="Change this account" onClick={toggle}>⋯</button>
+    {open && createPortal(<div ref={panel} className="row-menu" role="menu" aria-label={`Change ${account.name}`} style={{ top: open.top, left: open.left }}>
+      {isGuest && <button role="menuitem" onClick={choose(makePermanent)}>Make permanent…</button>}
+      <button role="menuitem" onClick={choose(rename)}>Rename…</button>
+      <button role="menuitem" onClick={choose(changeUsername)}>Change username…</button>
+      <button role="menuitem" onClick={choose(resetPassword)}>Reset password…</button>
+      <hr />
+      <button role="menuitem" className="danger" onClick={choose(() => onRemove(account))}>Delete account</button>
+    </div>, document.body)}
+  </>;
 }
