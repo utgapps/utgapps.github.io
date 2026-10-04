@@ -326,10 +326,17 @@ export async function apiAdminSetChallengeKey(token: string, key: string): Promi
 }
 
 /* ---- Python Coding Challenges ---- */
-export type ChallengeAttempt = { passed: boolean; points: number; notes: string[]; projectTitle: string; at: number };
+export type ChallengeAttempt = {
+  passed: boolean; points: number; notes: string[]; projectTitle: string; at: number;
+  /** Passed by a teacher by hand, or as a close match for a project one approved. */
+  approved?: boolean; matched?: boolean;
+};
 export type ChallengeProgress = {
   points: number;
   challenges: Record<string, { passed: boolean; attempts: number; last: ChallengeAttempt | null }>;
+  /** Only for an admin: how many projects each challenge has had handed in. */
+  admin?: boolean;
+  review?: Record<string, { total: number; students: number; earned: number }>;
 };
 /** The key the challenge checker asks the classroom AI with. Null when an
  *  admin has not set one yet. */
@@ -342,7 +349,42 @@ export async function apiChallengeProgress(token: string): Promise<ChallengeProg
 /** Hand a project in. earned is the points this submission won: 1000 the
  *  first time a challenge passes, 0 every other time. */
 export async function apiSubmitChallenge(token: string, challengeId: string,
-                                         body: { projectId: string; passed: boolean; notes: string[] }):
-                                         Promise<ChallengeProgress & { earned: number }> {
+                                         body: { projectId: string; passed: boolean; notes: string[]; ranClean: boolean }):
+                                         Promise<ChallengeProgress & { earned: number; passed: boolean; matched: boolean }> {
   return req(`/challenges/${encodeURIComponent(challengeId)}/submissions`, { method: "POST", body: JSON.stringify(body) }, token);
+}
+
+/* Reviewing a challenge: admins only. */
+export type ChallengeLogEntry = {
+  id: string; accountId: string; student: string; classId: string; projectTitle: string;
+  passed: boolean; points: number; notes: string[]; at: number;
+  approvedAt: number | null; approvedBy: string | null;
+  matchedId: string | null; matchScore: number | null; matchedStudent: string | null;
+};
+export type ApprovedSolution = { id: string; submissionId: string; student: string; projectTitle: string; approvedBy: string; at: number };
+export type ChallengeSubmission = {
+  id: string; challengeId: string; student: string; projectTitle: string;
+  passed: boolean; points: number; notes: string[]; at: number; files: Record<string, string>;
+  approvedAt: number | null; approvedBy: string | null;
+  matchedId: string | null; matchScore: number | null; matchedStudent: string | null;
+};
+export async function apiChallengeLog(token: string, challengeId: string): Promise<{ submissions: ChallengeLogEntry[]; approved: ApprovedSolution[] }> {
+  return req(`/challenges/${encodeURIComponent(challengeId)}/log`, {}, token);
+}
+export async function apiChallengeSubmission(token: string, submissionId: string): Promise<ChallengeSubmission> {
+  return req(`/challenges/submissions/${encodeURIComponent(submissionId)}`, {}, token);
+}
+/** Pass a project by hand, and keep its code to compare later projects with. */
+export async function apiApproveSubmission(token: string, submissionId: string): Promise<{ earned: number }> {
+  return req(`/challenges/submissions/${encodeURIComponent(submissionId)}/approve`, { method: "POST" }, token);
+}
+export async function apiRevokeSubmission(token: string, submissionId: string): Promise<void> {
+  await req(`/challenges/submissions/${encodeURIComponent(submissionId)}/revoke`, { method: "POST" }, token);
+}
+export async function apiApprovedSolution(token: string, approvedId: string):
+                                          Promise<{ id: string; challengeId: string; student: string; projectTitle: string; files: Record<string, string>; at: number }> {
+  return req(`/challenges/approved/${encodeURIComponent(approvedId)}`, {}, token);
+}
+export async function apiDeleteApproved(token: string, approvedId: string): Promise<void> {
+  await req(`/challenges/approved/${encodeURIComponent(approvedId)}`, { method: "DELETE" }, token);
 }

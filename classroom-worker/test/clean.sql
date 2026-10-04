@@ -8,6 +8,7 @@ DELETE FROM media WHERE account_id IN (SELECT id FROM accounts WHERE username LI
 DELETE FROM account_classrooms WHERE account_id IN (SELECT id FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%');
 DELETE FROM account_access WHERE account_id IN (SELECT id FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%');
 DELETE FROM challenge_submissions WHERE account_id IN (SELECT id FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%');
+DELETE FROM challenge_approved WHERE account_id IN (SELECT id FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%') OR approved_by IN (SELECT id FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%') OR account_id LIKE 'zz-%' OR approved_by LIKE 'zz-%';
 DELETE FROM accounts WHERE username LIKE 'zz.%' OR id LIKE 'zz-%';
 -- Any project the suites made under a real account, and orphans left behind.
 DELETE FROM projects WHERE title LIKE 'ZZ %';

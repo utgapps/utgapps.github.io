@@ -1,5 +1,7 @@
 /* UTG Classroom API: private class-code login, saved projects, and live rooms. */
 
+import { similarity } from "./similarity.js";
+
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const DAY = 86400000;
@@ -543,7 +545,7 @@ function challengeCode(filesJson) {
    told - which is what the challenge page shows when a student comes back. */
 async function challengeProgress(db, accountId) {
   const rows = (await db.prepare(
-    "SELECT challenge_id, passed, points, notes, project_title, created_at FROM challenge_submissions WHERE account_id = ? ORDER BY created_at"
+    "SELECT challenge_id, passed, points, notes, project_title, created_at, approved_by, matched_id FROM challenge_submissions WHERE account_id = ? ORDER BY created_at"
   ).bind(accountId).all()).results;
   const challenges = {};
   let points = 0;
@@ -554,10 +556,35 @@ async function challengeProgress(db, accountId) {
     points += row.points || 0;
     let notes = [];
     try { notes = JSON.parse(row.notes); } catch { notes = []; }
-    entry.last = { passed: !!row.passed, points: row.points || 0, notes, projectTitle: row.project_title, at: row.created_at };
+    entry.last = { passed: !!row.passed, points: row.points || 0, notes, projectTitle: row.project_title, at: row.created_at,
+                   approved: !!row.approved_by, matched: !!row.matched_id };
   }
   return { points, challenges };
 }
+/* The same, plus what an admin needs to see on the library: how many projects
+   each challenge has had handed in, by how many students, and how many of
+   those students have the points. */
+async function challengeProgressFor(db, me) {
+  const progress = await challengeProgress(db, me.id);
+  if (me.role !== "admin") return progress;
+  const rows = (await db.prepare(
+    "SELECT challenge_id, COUNT(*) AS total, COUNT(DISTINCT account_id) AS students, " +
+    "COUNT(DISTINCT CASE WHEN points > 0 THEN account_id END) AS earned FROM challenge_submissions GROUP BY challenge_id"
+  ).all()).results;
+  const review = {};
+  for (const row of rows) review[row.challenge_id] = { total: row.total, students: row.students, earned: row.earned };
+  return { ...progress, admin: true, review };
+}
+/* A project the AI checker turned down still passes when it is a close match
+   for one an admin approved by hand for the same challenge. Measured on the
+   challenge examples and twenty unusual correct solutions: the same code under
+   new names and numbers scores 1, a different way of building the same
+   mechanic 0.08 to 0.76, and the single-jump example against the double-jump
+   example 0.82. A copy of an approved project with one line broken still
+   scores about 0.97 - closeness cannot tell that apart - which is why every
+   match says so in the submissions log, with its score, and can be taken back. */
+const MATCH_AT = 0.9;
+const TEACHER_LOOKED = "Your teacher looked at this project: it does not do everything the challenge asks yet.";
 async function newClassroomGrant(db, profile) {
   if (!profile.classroom_class_id || !profile.classroom_role || !profileAllows(profile, "classroom")) return null;
   const token = rndHex(24), now = Date.now();
@@ -817,13 +844,13 @@ export default {
           return response(request, env, { key: (row && row.value) || null });
         }
         if (path === "/challenges/progress" && request.method === "GET") {
-          return response(request, env, await challengeProgress(db, me.id));
+          return response(request, env, await challengeProgressFor(db, me));
         }
         const submitMatch = path.match(/^\/challenges\/([a-z0-9-]{1,40})\/submissions$/);
         if (submitMatch && request.method === "POST") {
           const challengeId = submitMatch[1];
           await rateLimit(db, request, "challenge-submit", 40, me.id);
-          const { projectId, passed, notes } = await readJson(request, 20000);
+          const { projectId, passed, notes, ranClean } = await readJson(request, 20000);
           const project = await db.prepare(
             "SELECT p.id, p.title, p.kind, p.files FROM projects p WHERE p.id = ? AND p.deleted_at IS NULL AND " +
             "(p.account_id = ? OR EXISTS (SELECT 1 FROM project_members m WHERE m.project_id = p.id AND m.account_id = ?))"
@@ -831,15 +858,132 @@ export default {
           if (!project) throw new HttpError("That project is not one of yours.", 404);
           if (project.kind !== "pixelpad") throw new HttpError("Only a Python game project can be handed in for a challenge.");
           const cleanNotes = (Array.isArray(notes) ? notes : []).map((note) => String(note || "").trim().slice(0, 400)).filter(Boolean).slice(0, 12);
-          const id = crypto.randomUUID(), now = Date.now(), didPass = passed === true ? 1 : 0;
+          const id = crypto.randomUUID(), now = Date.now(), code = challengeCode(project.files);
+          let didPass = passed === true ? 1 : 0, matchedId = null, matchScore = null;
+          /* The last word before "not yet": a game that ran with no errors and
+             is a close match for a project an admin approved. Done here, not in
+             the browser, so an approved project's code never reaches a student. */
+          if (!didPass && ranClean === true) {
+            const approved = (await db.prepare("SELECT id, files FROM challenge_approved WHERE challenge_id = ?").bind(challengeId).all()).results;
+            const mine = JSON.parse(code);
+            for (const entry of approved) {
+              let theirs = {};
+              try { theirs = JSON.parse(entry.files) || {}; } catch { theirs = {}; }
+              const score = similarity(mine, theirs);
+              if (score >= MATCH_AT && (matchScore === null || score > matchScore)) { matchedId = entry.id; matchScore = score; }
+            }
+            if (matchedId) didPass = 1;
+          }
           /* One statement, so two passes handed in at the same moment cannot
              both find the challenge unearned and both pay out. */
           await db.prepare(
-            "INSERT INTO challenge_submissions (id, account_id, challenge_id, project_id, project_title, files, passed, points, notes, created_at) " +
-            "VALUES (?,?,?,?,?,?,?, CASE WHEN ? = 1 AND NOT EXISTS (SELECT 1 FROM challenge_submissions WHERE account_id = ? AND challenge_id = ? AND points > 0) THEN ? ELSE 0 END, ?, ?)"
-          ).bind(id, me.id, challengeId, project.id, project.title, challengeCode(project.files), didPass, didPass, me.id, challengeId, CHALLENGE_POINTS, JSON.stringify(cleanNotes), now).run();
+            "INSERT INTO challenge_submissions (id, account_id, challenge_id, project_id, project_title, files, passed, points, notes, created_at, matched_id, match_score) " +
+            "VALUES (?,?,?,?,?,?,?, CASE WHEN ? = 1 AND NOT EXISTS (SELECT 1 FROM challenge_submissions WHERE account_id = ? AND challenge_id = ? AND points > 0) THEN ? ELSE 0 END, ?, ?, ?, ?)"
+          ).bind(id, me.id, challengeId, project.id, project.title, code, didPass, didPass, me.id, challengeId, CHALLENGE_POINTS, JSON.stringify(cleanNotes), now, matchedId, matchScore).run();
           const row = await db.prepare("SELECT points FROM challenge_submissions WHERE id = ?").bind(id).first();
-          return response(request, env, { earned: (row && row.points) || 0, ...(await challengeProgress(db, me.id)) });
+          return response(request, env, { earned: (row && row.points) || 0, passed: !!didPass, matched: !!matchedId, ...(await challengeProgressFor(db, me)) });
+        }
+
+        /* ---- Reviewing a challenge: admins only ----
+           Every project handed in, newest first; one opened with its code; a
+           pass granted by hand, which also keeps a copy of the code for the
+           close-match check above; and a pass taken back. */
+        const adminOnly = () => { if (me.role !== "admin") throw new HttpError("Admins only.", 403); };
+        const logMatch = path.match(/^\/challenges\/([a-z0-9-]{1,40})\/log$/);
+        if (logMatch && request.method === "GET") {
+          adminOnly();
+          const submissions = (await db.prepare(
+            "SELECT s.id, s.account_id, a.name AS student, a.class_id, s.project_title, s.passed, s.points, s.notes, s.created_at, " +
+            "s.approved_at, ap.name AS approved_by_name, s.matched_id, s.match_score, m.student_name AS matched_student " +
+            "FROM challenge_submissions s LEFT JOIN accounts a ON a.id = s.account_id LEFT JOIN accounts ap ON ap.id = s.approved_by " +
+            "LEFT JOIN challenge_approved m ON m.id = s.matched_id WHERE s.challenge_id = ? ORDER BY s.created_at DESC LIMIT 2000"
+          ).bind(logMatch[1]).all()).results;
+          const approved = (await db.prepare(
+            "SELECT id, submission_id, student_name, project_title, approved_by_name, created_at FROM challenge_approved WHERE challenge_id = ? ORDER BY created_at DESC"
+          ).bind(logMatch[1]).all()).results;
+          return response(request, env, {
+            submissions: submissions.map((row) => {
+              let notes = [];
+              try { notes = JSON.parse(row.notes); } catch { notes = []; }
+              return {
+                id: row.id, accountId: row.account_id, student: row.student || "(account deleted)", classId: row.class_id || "",
+                projectTitle: row.project_title, passed: !!row.passed, points: row.points || 0, notes, at: row.created_at,
+                approvedAt: row.approved_at || null, approvedBy: row.approved_by_name || null,
+                matchedId: row.matched_id || null, matchScore: row.match_score ?? null, matchedStudent: row.matched_student || null,
+              };
+            }),
+            approved: approved.map((row) => ({ id: row.id, submissionId: row.submission_id, student: row.student_name, projectTitle: row.project_title, approvedBy: row.approved_by_name, at: row.created_at })),
+          });
+        }
+        const oneMatch = path.match(/^\/challenges\/(submissions|approved)\/([0-9a-f-]{36})(\/approve|\/revoke)?$/);
+        if (oneMatch && oneMatch[1] === "approved") {
+          adminOnly();
+          if (oneMatch[3]) throw new HttpError("Not found.", 404);
+          if (request.method === "GET") {
+            const row = await db.prepare("SELECT * FROM challenge_approved WHERE id = ?").bind(oneMatch[2]).first();
+            if (!row) throw new HttpError("That approved project is not there any more.", 404);
+            return response(request, env, { id: row.id, challengeId: row.challenge_id, student: row.student_name, projectTitle: row.project_title, files: JSON.parse(row.files || "{}"), at: row.created_at });
+          }
+          if (request.method === "DELETE") {
+            await db.prepare("DELETE FROM challenge_approved WHERE id = ?").bind(oneMatch[2]).run();
+            return response(request, env, { ok: true });
+          }
+        }
+        if (oneMatch && oneMatch[1] === "submissions") {
+          adminOnly();
+          const row = await db.prepare(
+            "SELECT s.*, a.name AS student, ap.name AS approved_by_name, m.student_name AS matched_student FROM challenge_submissions s " +
+            "LEFT JOIN accounts a ON a.id = s.account_id LEFT JOIN accounts ap ON ap.id = s.approved_by LEFT JOIN challenge_approved m ON m.id = s.matched_id WHERE s.id = ?"
+          ).bind(oneMatch[2]).first();
+          if (!row) throw new HttpError("That submission is not there any more.", 404);
+          if (!oneMatch[3] && request.method === "GET") {
+            let notes = [];
+            try { notes = JSON.parse(row.notes); } catch { notes = []; }
+            return response(request, env, {
+              id: row.id, challengeId: row.challenge_id, student: row.student || "(account deleted)", projectTitle: row.project_title,
+              passed: !!row.passed, points: row.points || 0, notes, at: row.created_at, files: JSON.parse(row.files || "{}"),
+              approvedAt: row.approved_at || null, approvedBy: row.approved_by_name || null,
+              matchedId: row.matched_id || null, matchScore: row.match_score ?? null, matchedStudent: row.matched_student || null,
+            });
+          }
+          if (oneMatch[3] === "/approve" && request.method === "POST") {
+            /* The points, if the student has not earned this challenge yet, and
+               a copy of the code that later projects are compared with. The copy
+               keeps the student's name and outlives the submission: the nightly
+               clean-up deletes guest accounts and everything they handed in, and
+               an approved way of building a mechanic should not go with them. */
+            const now = Date.now();
+            await db.batch([
+              db.prepare(
+                "UPDATE challenge_submissions SET passed = 1, approved_by = ?, approved_at = ?, points = CASE WHEN points > 0 OR NOT EXISTS " +
+                "(SELECT 1 FROM challenge_submissions o WHERE o.account_id = ? AND o.challenge_id = ? AND o.points > 0) THEN ? ELSE 0 END WHERE id = ?"
+              ).bind(me.id, now, row.account_id, row.challenge_id, CHALLENGE_POINTS, row.id),
+              db.prepare(
+                "INSERT OR IGNORE INTO challenge_approved (id, challenge_id, submission_id, account_id, student_name, project_title, files, approved_by, approved_by_name, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+              ).bind(crypto.randomUUID(), row.challenge_id, row.id, row.account_id, row.student || "", row.project_title, row.files, me.id, me.name || "", now),
+            ]);
+            const after = await db.prepare("SELECT points FROM challenge_submissions WHERE id = ?").bind(row.id).first();
+            return response(request, env, { ok: true, earned: after && after.points > (row.points || 0) ? after.points : 0 });
+          }
+          if (oneMatch[3] === "/revoke" && request.method === "POST") {
+            if (!row.passed) throw new HttpError("That project has not passed, so there is nothing to take back.");
+            /* The pass and its points go. If the same student has another
+               passing project for this challenge, the points move to that one;
+               a copy kept from this project is no longer an approved way of
+               doing it. */
+            let notes = [];
+            try { notes = JSON.parse(row.notes); } catch { notes = []; }
+            await db.batch([
+              db.prepare("UPDATE challenge_submissions SET passed = 0, points = 0, approved_by = NULL, approved_at = NULL, matched_id = NULL, match_score = NULL, notes = ? WHERE id = ?")
+                .bind(JSON.stringify([TEACHER_LOOKED, ...notes.filter((note) => note !== TEACHER_LOOKED)].slice(0, 12)), row.id),
+              db.prepare(
+                "UPDATE challenge_submissions SET points = ? WHERE id = (SELECT id FROM challenge_submissions WHERE account_id = ? AND challenge_id = ? AND passed = 1 AND id != ? ORDER BY created_at LIMIT 1) " +
+                "AND NOT EXISTS (SELECT 1 FROM challenge_submissions WHERE account_id = ? AND challenge_id = ? AND points > 0)"
+              ).bind(CHALLENGE_POINTS, row.account_id, row.challenge_id, row.id, row.account_id, row.challenge_id),
+              db.prepare("DELETE FROM challenge_approved WHERE submission_id = ?").bind(row.id),
+            ]);
+            return response(request, env, { ok: true });
+          }
         }
         throw new HttpError("Not found.", 404);
       }

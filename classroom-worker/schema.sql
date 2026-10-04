@@ -217,6 +217,30 @@ CREATE TABLE IF NOT EXISTS challenge_submissions (
   passed        INTEGER NOT NULL,
   points        INTEGER NOT NULL DEFAULT 0,
   notes         TEXT NOT NULL,              -- JSON: [ "what is wrong or missing" ]
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  approved_by   TEXT,                       -- the admin who passed it by hand
+  approved_at   INTEGER,
+  matched_id    TEXT,                       -- challenge_approved row it closely matched
+  match_score   REAL                        -- how closely, 0..1
 );
 CREATE INDEX IF NOT EXISTS idx_challenge_submissions_account ON challenge_submissions(account_id, challenge_id);
+CREATE INDEX IF NOT EXISTS idx_challenge_submissions_challenge ON challenge_submissions(challenge_id, created_at);
+
+-- A project an admin passed by hand, kept as a copy of its code. A later
+-- project the AI checker turns down still passes when it is a close match for
+-- one of these. The student's name is copied in and nothing here goes when an
+-- account does: the nightly clean-up deletes guest accounts and all they
+-- handed in, and an approved way of building a mechanic should outlive that.
+CREATE TABLE IF NOT EXISTS challenge_approved (
+  id               TEXT PRIMARY KEY,
+  challenge_id     TEXT NOT NULL,
+  submission_id    TEXT NOT NULL UNIQUE,
+  account_id       TEXT NOT NULL,
+  student_name     TEXT NOT NULL,
+  project_title    TEXT NOT NULL,
+  files            TEXT NOT NULL,           -- JSON: { filename: contents }
+  approved_by      TEXT NOT NULL,
+  approved_by_name TEXT NOT NULL,
+  created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_challenge_approved_challenge ON challenge_approved(challenge_id);

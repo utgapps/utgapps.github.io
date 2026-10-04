@@ -20,7 +20,8 @@ it can be found and removed; nothing else in the database matches.
   path, the project and size caps, and a teacher reading and editing a student's
   saved work (their own class only; keys scrubbed on write), every page of a shared site, and what
   the access codes an account is registered to unlock, and Python Coding
-  Challenges: who may hand in, which project, and that a pass pays out once. 106 checks.
+  Challenges: who may hand in, which project, and that a pass pays out once; an admin reviewing, granting and taking back,
+  and a close copy of an approved project passing. 140 checks.
 - **throttle.mjs** - sign-in throttling from the classroom's point of view: a
   class of twelve signing in from one address must all get in, and one student
   fumbling their password must not lock out the rest. 11 checks.

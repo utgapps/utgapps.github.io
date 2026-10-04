@@ -338,6 +338,112 @@ const chatty = await submit("coin-collector", { projectId: game?.id, passed: fal
 check("a flood of notes is cut to twelve", chatty.data?.challenges?.["coin-collector"]?.last?.notes?.length === 12, chatty.data?.challenges?.["coin-collector"]);
 check("the outsider still has no points to see", (await call("/challenges/progress", { token: outsider })).status === 403);
 
+// ------------------------------------------- Reviewing challenges (admins)
+section("Reviewing challenges");
+const admin = (await call("/login/account", { method: "POST", body: { username: "zz.test.admin", password: "test-pw-stu" } })).data?.token;
+check("the test admin can sign in", !!admin);
+const walkCode = (speedName, speed) => ({
+  "game.txt": "room Play\nobject Hero\n", "Game.start.py": "set_room('Play')\n",
+  "Hero.start.py": `self.${speedName} = ${speed}\n`,
+  "Hero.loop.py": `if key_is_pressed('right'):\n    self.x += self.${speedName}\n    self.scaleX = 1\n` +
+                  `if key_is_pressed('left'):\n    self.x -= self.${speedName}\n    self.scaleX = -1\n`,
+  "art/hero.json": "{\"big\": true}",
+});
+const otherWalk = {
+  "game.txt": "room Play\nobject Hero\n", "Game.start.py": "set_room('Play')\n",
+  "Hero.loop.py": "direction = 0\nif key_is_pressed('d'):\n    direction = 1\nif key_is_pressed('a'):\n    direction = -1\n" +
+                  "self.x = self.x + direction * 3\nif direction != 0:\n    self.scaleX = direction\n",
+};
+const newGame = async (title, files) => (await call("/projects", { method: "POST", token: challenger, body: { title, kind: "pixelpad", files } })).data?.project;
+const approvedWalk = await newGame("ZZ PCC Walk", walkCode("speed", 4));
+const copiedWalk = await newGame("ZZ PCC Walk Copy", walkCode("pace", 7));
+const ownWalk = await newGame("ZZ PCC Walk Own", otherWalk);
+
+const adminProgress = (await call("/challenges/progress", { token: admin })).data;
+check("an admin's progress carries the review counts", adminProgress?.admin === true && adminProgress?.review?.["double-jump"]?.total === 3 &&
+      adminProgress?.review?.["double-jump"]?.earned === 1, adminProgress?.review);
+check("a student's does not", fresh && !("admin" in fresh) && !("review" in ((await call("/challenges/progress", { token: challenger })).data || {})));
+check("a teacher's does not either", !("review" in ((await call("/challenges/progress", { token: T1 })).data || {})));
+check("a teacher cannot read the log", (await call("/challenges/double-jump/log", { token: T1 })).status === 403);
+check("a student cannot read the log", (await call("/challenges/double-jump/log", { token: challenger })).status === 403);
+
+const turnedDown = await submit("walk-and-face", { projectId: approvedWalk?.id, passed: false, notes: ["The checker missed it."], ranClean: true });
+check("with nothing approved yet, a turned-down project stays turned down", turnedDown.data?.passed === false && turnedDown.data?.earned === 0, turnedDown.data);
+let log = (await call("/challenges/walk-and-face/log", { token: admin })).data;
+const firstRow = log?.submissions?.[0];
+check("the log lists it, with the student and the AI's notes",
+      log?.submissions?.length === 1 && firstRow?.student === "ZZ Pupil 05" && firstRow?.projectTitle === "ZZ PCC Walk" &&
+      firstRow?.passed === false && firstRow?.notes?.[0] === "The checker missed it." && log?.approved?.length === 0, log);
+const opened = await call(`/challenges/submissions/${firstRow?.id}`, { token: admin });
+check("an admin can open it and see the code it was judged on, not the pictures",
+      opened.status === 200 && opened.data?.files?.["Hero.loop.py"]?.includes("self.speed") && !("art/hero.json" in (opened.data?.files || {})), opened.data);
+check("a teacher cannot open it", (await call(`/challenges/submissions/${firstRow?.id}`, { token: T1 })).status === 403);
+check("a student cannot grant themselves the points",
+      (await call(`/challenges/submissions/${firstRow?.id}/approve`, { method: "POST", token: challenger })).status === 403);
+check("nobody can revoke a pass that is not one",
+      (await call(`/challenges/submissions/${firstRow?.id}/revoke`, { method: "POST", token: admin })).status === 400);
+check("a submission that is not there is a 404",
+      (await call("/challenges/submissions/00000000-0000-0000-0000-000000000000", { token: admin })).status === 404);
+
+const granted = await call(`/challenges/submissions/${firstRow?.id}/approve`, { method: "POST", token: admin });
+check("granting it pays 1000", granted.status === 200 && granted.data?.earned === 1000, granted);
+let studentView = (await call("/challenges/progress", { token: challenger })).data;
+check("and the student sees it passed, by their teacher",
+      studentView?.points === 3000 && studentView?.challenges?.["walk-and-face"]?.passed === true && studentView?.challenges?.["walk-and-face"]?.last?.approved === true, studentView);
+const grantedTwice = await call(`/challenges/submissions/${firstRow?.id}/approve`, { method: "POST", token: admin });
+log = (await call("/challenges/walk-and-face/log", { token: admin })).data;
+check("granting it twice pays nothing more and keeps one copy",
+      grantedTwice.data?.earned === 0 && log?.approved?.length === 1 && (await call("/challenges/progress", { token: challenger })).data?.points === 3000, { grantedTwice: grantedTwice.data, approved: log?.approved });
+check("the copy keeps the student's name and the admin's",
+      log?.approved?.[0]?.student === "ZZ Pupil 05" && log?.approved?.[0]?.approvedBy === "ZZ Test Admin" && log?.submissions?.[0]?.approvedBy === "ZZ Test Admin", log);
+const snapshotId = log?.approved?.[0]?.id;
+const snapshot = await call(`/challenges/approved/${snapshotId}`, { token: admin });
+check("an admin can open the approved copy", snapshot.status === 200 && snapshot.data?.files?.["Hero.loop.py"]?.includes("key_is_pressed('left')"), snapshot.data);
+check("a student cannot", (await call(`/challenges/approved/${snapshotId}`, { token: challenger })).status === 403);
+
+const crashed = await submit("walk-and-face", { projectId: copiedWalk?.id, passed: false, notes: [], ranClean: false });
+check("a close copy that crashed is not passed", crashed.data?.passed === false && crashed.data?.matched === false, crashed.data);
+const unsaid = await submit("walk-and-face", { projectId: copiedWalk?.id, passed: false, notes: [] });
+check("nor one that did not say it ran clean", unsaid.data?.passed === false, unsaid.data);
+const matched = await submit("walk-and-face", { projectId: copiedWalk?.id, passed: false, notes: ["The checker missed it."], ranClean: true });
+check("a close copy that ran clean passes as a match",
+      matched.data?.passed === true && matched.data?.matched === true && matched.data?.challenges?.["walk-and-face"]?.last?.matched === true, matched.data);
+check("but pays nothing twice", matched.data?.earned === 0 && matched.data?.points === 3000, matched.data);
+const different = await submit("walk-and-face", { projectId: ownWalk?.id, passed: false, notes: [], ranClean: true });
+check("a project built another way is not matched", different.data?.passed === false && different.data?.matched === false, different.data);
+log = (await call("/challenges/walk-and-face/log", { token: admin })).data;
+const matchRow = log?.submissions?.find((row) => row.matchedId);
+const openedMatch = (await call(`/challenges/submissions/${log?.submissions?.find((row) => row.matchedId)?.id}`, { token: admin })).data;
+check("so does the matched project, opened", openedMatch?.matchedId === snapshotId && openedMatch?.matchScore >= 0.9 && openedMatch?.approvedAt === null, openedMatch);
+check("the log shows the match, its score and whose project it matched",
+      log?.submissions?.length === 5 && matchRow?.matchedId === snapshotId && matchRow?.matchScore >= 0.9 && matchRow?.matchedStudent === "ZZ Pupil 05", log?.submissions);
+
+const takenBack = await call(`/challenges/submissions/${firstRow?.id}/revoke`, { method: "POST", token: admin });
+log = (await call("/challenges/walk-and-face/log", { token: admin })).data;
+studentView = (await call("/challenges/progress", { token: challenger })).data;
+check("taking back the approved pass removes its copy", takenBack.status === 200 && log?.approved?.length === 0, log?.approved);
+check("and its points move to the student's other pass",
+      studentView?.points === 3000 && studentView?.challenges?.["walk-and-face"]?.passed === true &&
+      log?.submissions?.find((row) => row.id === matchRow?.id)?.points === 1000, studentView);
+const revokedRow = log?.submissions?.find((row) => row.id === firstRow?.id);
+check("the revoked project says the teacher looked", revokedRow?.passed === false && revokedRow?.points === 0 &&
+      revokedRow?.notes?.[0]?.startsWith("Your teacher looked"), revokedRow);
+await call(`/challenges/submissions/${matchRow?.id}/revoke`, { method: "POST", token: admin });
+studentView = (await call("/challenges/progress", { token: challenger })).data;
+check("taking back the last pass takes the points", studentView?.points === 2000 && studentView?.challenges?.["walk-and-face"]?.passed === false, studentView);
+const noCopyLeft = await submit("walk-and-face", { projectId: copiedWalk?.id, passed: false, notes: [], ranClean: true });
+check("with the copy gone, the same project no longer matches", noCopyLeft.data?.passed === false, noCopyLeft.data);
+
+await call(`/challenges/submissions/${firstRow?.id}/approve`, { method: "POST", token: admin });
+log = (await call("/challenges/walk-and-face/log", { token: admin })).data;
+check("granting again makes a new copy", log?.approved?.length === 1, log?.approved);
+check("a teacher cannot remove a copy", (await call(`/challenges/approved/${log?.approved?.[0]?.id}`, { method: "DELETE", token: T1 })).status === 403);
+const removedCopy = await call(`/challenges/approved/${log?.approved?.[0]?.id}`, { method: "DELETE", token: admin });
+check("an admin can remove a copy and keep the pass",
+      removedCopy.status === 200 && (await call("/challenges/walk-and-face/log", { token: admin })).data?.approved?.length === 0 &&
+      (await call("/challenges/progress", { token: challenger })).data?.challenges?.["walk-and-face"]?.passed === true);
+check("a removed copy is gone", (await call(`/challenges/approved/${log?.approved?.[0]?.id}`, { token: admin })).status === 404);
+
 // ------------------------------------------------------------------ tidy up
 section("Tidy up");
 const mine = await call("/projects", { token: T1 });

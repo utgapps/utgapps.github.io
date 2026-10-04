@@ -2,6 +2,7 @@
 --   zz.test.t101 / test-pw-101      instructor, ai101
 --   zz.test.t102 / test-pw-102      instructor, ai102
 --   zz.test.stu01..12 / test-pw-stu students, ai101  (a class, for throttling)
+--   zz.test.admin / test-pw-stu     an admin, to review challenge submissions
 --   zz-guest                        a guest student, to prove reset refuses one
 --   ZZ Test Code / ZZ Test Code Off  access codes zz.test.stu03 is registered to
 --   ZZ Test PCC                     unlocks Python Coding Challenges for zz.test.stu05
@@ -22,7 +23,8 @@ INSERT INTO accounts (id, class_id, name, username, password_hash, password_salt
   ('zz-stu-10','ai101','ZZ Pupil 10','zz.test.stu10','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'student',1,1),
   ('zz-stu-11','ai101','ZZ Pupil 11','zz.test.stu11','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'student',1,1),
   ('zz-stu-12','ai101','ZZ Pupil 12','zz.test.stu12','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'student',1,1),
-  ('zz-spare','ai101','ZZ Spare','zz.test.spare','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'student',1,1);
+  ('zz-spare','ai101','ZZ Spare','zz.test.spare','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'student',1,1),
+  ('zz-admin','*','ZZ Test Admin','zz.test.admin','3b299326bf2ff1eb0fec1a23b5cdc0b97c5848663cd0b4dc2db0627481287090','f8af083386f0c2d7b82da0c9ed4c6822',1,'admin',1,1);
 -- A guest, to prove the password reset refuses one. last_seen must be NOW:
 -- the nightly reaper deletes guest accounts that have not been seen recently,
 -- and a fixture dated 1970 vanishes the first time the cron runs.
@@ -43,3 +45,4 @@ INSERT INTO account_access (account_id, code_hash, granted_at) VALUES
   ('zz-stu-03','0000000000000000000000000000000000000000000000000000000000000002',1),
   ('zz-stu-05','0000000000000000000000000000000000000000000000000000000000000003',1);
 DELETE FROM challenge_submissions WHERE account_id LIKE 'zz-%';
+DELETE FROM challenge_approved WHERE account_id LIKE 'zz-%' OR approved_by LIKE 'zz-%';
