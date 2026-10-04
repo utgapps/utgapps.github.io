@@ -702,6 +702,7 @@
     resizeCanvas();
     updateTileButtons();
     updateStatus();
+    if (!$("canvasModal").classList.contains("hidden")) updateCanvasHint();
     // export size deliberately unchanged
   }
   function updateTileButtons() {
@@ -942,6 +943,7 @@
   function openCanvas() {
     $("canvasModalW").value = state.canvasW;
     $("canvasModalH").value = state.canvasH;
+    updateTileButtons();
     updateCanvasHint();
     $("canvasModal").classList.remove("hidden");
   }

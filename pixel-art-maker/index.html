@@ -68,17 +68,11 @@
         <span class="sprite-ext">.png</span>
       </div>
       <div class="top-actions">
+        <button id="newBtn" class="tbtn" title="Start a new drawing">New</button>
+        <span class="divider"></span>
         <button id="undoBtn" class="tbtn" title="Undo">↶ Undo</button>
         <button id="redoBtn" class="tbtn" title="Redo">↷ Redo</button>
         <span class="divider"></span>
-        <span class="res-title">Pixel size:</span>
-        <div class="res-group">
-          <button class="tileBtn" data-tile="4"  title="Each pixel is 4 px — 128×128 grid">4px<small>128×128</small></button>
-          <button class="tileBtn" data-tile="8"  title="Each pixel is 8 px — 64×64 grid">8px<small>64×64</small></button>
-          <button class="tileBtn" data-tile="16" title="Each pixel is 16 px — 32×32 grid">16px<small>32×32</small></button>
-          <button class="tileBtn" data-tile="32" title="Each pixel is 32 px — 16×16 grid">32px<small>16×16</small></button>
-          <button class="tileBtn" data-tile="64" title="Each pixel is 64 px — 8×8 grid">64px<small>8×8</small></button>
-        </div>
         <button id="gridBtn" class="tbtn active" title="Show / hide grid">Grid</button>
         <button id="bgBtn" class="tbtn" title="Switch the see-through background between white and black. This only changes what you see — the saved PNG stays see-through.">◐ See-through: White</button>
         <span class="divider"></span>
@@ -87,11 +81,10 @@
           <button id="zoomFitBtn" class="tbtn zlabel" title="Reset the zoom and centre the picture (0)">100%</button>
           <button id="zoomInBtn" class="tbtn zbtn" title="Zoom in (+)">+</button>
         </div>
-        <button id="canvasBtn" class="tbtn" title="Change the canvas size">Canvas</button>
+        <button id="canvasBtn" class="tbtn" title="Change the canvas size or the pixel size">Canvas…</button>
         <button id="previewBtn" class="tbtn" title="Press and hold to see your art at game scale (1280 × 720)">👁 Preview</button>
         <span class="divider"></span>
         <button id="exportBtn" class="tbtn primary" title="Download your sprite as a PNG, trimmed right down to your art">💾 Save</button>
-        <button id="newBtn" class="tbtn" title="Start a new drawing">New</button>
       </div>
     </header>
 
@@ -156,9 +149,16 @@
   <!-- ===================== CANVAS SIZE MODAL ===================== -->
   <div id="canvasModal" class="modal hidden">
     <div class="modal-card">
-      <h2>Canvas Size</h2>
-      <p class="modal-sub">The canvas size in real pixels.<br />
-        Your pixel size stays the same — the grid adjusts to fit.</p>
+      <h2>Canvas</h2>
+      <div class="field-label">Pixel size <span class="muted">(changes straight away; Undo puts it back)</span></div>
+      <div class="res-group">
+        <button class="tileBtn" data-tile="4"  title="Each pixel is 4 px — 128×128 grid">4px<small>128×128</small></button>
+        <button class="tileBtn" data-tile="8"  title="Each pixel is 8 px — 64×64 grid">8px<small>64×64</small></button>
+        <button class="tileBtn" data-tile="16" title="Each pixel is 16 px — 32×32 grid">16px<small>32×32</small></button>
+        <button class="tileBtn" data-tile="32" title="Each pixel is 32 px — 16×16 grid">32px<small>16×16</small></button>
+        <button class="tileBtn" data-tile="64" title="Each pixel is 64 px — 8×8 grid">64px<small>8×8</small></button>
+      </div>
+      <div class="field-label">Canvas size <span class="muted">(the saved image, in real pixels)</span></div>
 
       <div class="export-fields">
         <label>Width
