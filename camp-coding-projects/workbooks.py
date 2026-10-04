@@ -1298,9 +1298,6 @@ HUB_CSS = """
     .logo-img { height:38px; width:auto; display:block; }
     h1 { font-size:clamp(28px,5vw,40px); font-weight:700; letter-spacing:-.02em; margin:0 0 8px; }
     .sub { color:var(--muted); font-size:17px; margin:0 0 22px; max-width:620px; line-height:1.5; }
-    .banner { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 18px;
-              margin:0 0 30px; max-width:760px; font-size:14px; color:#43505f; box-shadow:0 1px 3px rgba(31,42,55,.05); }
-    .banner a { color:var(--brand-ink); font-weight:600; text-decoration:none; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
     .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 18px 16px;
             display:flex; flex-direction:column; gap:9px; box-shadow:0 1px 3px rgba(31,42,55,.05);
@@ -1362,9 +1359,7 @@ def index():
            '<div class="wrap"><a class="logo-link" href="../"><img class="logo-img" src="%s" alt="UTG Academy"></a>'
            '<h1>Camp Coding Projects</h1>'
            '<p class="sub">Learn to code real games in Python. Each project takes you from a blank file to a '
-           'finished, playable game — one step at a time.</p>'
-           '<div class="banner">Every project is a hands-on Python coding challenge: type each line yourself, '
-           'run your code, and watch your game come to life. Start with any project below.</div>'
+           'finished, playable game, one line you type yourself at a time. Start with any of them.</p>'
            '<div class="grid">%s</div>'
            '<footer>&copy; 2026 UTG Academy</footer></div>'
            '<script>(function(){var u=window.UTG;document.querySelectorAll(".play[data-game]").forEach('

@@ -30,7 +30,7 @@ None folds a line into the slide before it, the way a closing brace is).
 
 from course_ops import ADD, BLOCK, OPS, ORDER, SET  # noqa: F401  (ADD/SET for readers)
 
-COURSE_TITLE = "CS701 &middot; AP Computer Science Prep Level 1"
+COURSE_TITLE = "CS701 · AP Computer Science Prep Level 1"
 COURSE_BLURB = (
     "Fifteen weeks of Java. You start by printing one line and finish with Wordle, a complete "
     "two-player word game you wrote line by line - and along the way you meet every idea an AP "

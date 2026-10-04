@@ -806,7 +806,8 @@ document.querySelectorAll('[data-tabs]').forEach(function(group){
 
 
 def page(title, body, extra_js="", tool="ai101", extra_css=""):
-    return f"""<meta charset="utf-8">
+    return f"""<!doctype html>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} &middot; UTG Academy</title>
 {FONT}
@@ -2211,11 +2212,12 @@ font-size:13px;backdrop-filter:blur(6px)}
 .bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
 border-radius:6px;padding:7px 13px;cursor:pointer}
 .bar button:hover{background:#2d5361}
-.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em;white-space:nowrap;flex:none}
 .bar .spacer{flex:1}
 .bar .hint{color:#8fa9b3}
-.dots{display:flex;gap:5px}
-.dots i{width:7px;height:7px;border-radius:50%;background:#3a5c68;cursor:pointer}
+.dots{display:flex;gap:3px;flex:0 1 auto;min-width:0}
+.dots i{flex:0 1 7px;min-width:2px;height:7px;border-radius:4px;background:#3a5c68;cursor:pointer}
+@media (max-width:1100px){.bar .hint{display:none}}
 .dots i.on{background:#01aefd}
 .slide.line{overflow-y:auto}
 .slide.line .filebar{margin-bottom:.55em}
@@ -2562,7 +2564,8 @@ def build_html_decks():
         for desc in slide_plan(week, seen):
             slides.append(deck_render_html(desc))
         dots = "".join("<i></i>" for _ in slides)
-        html_out = """<meta charset="utf-8">
+        html_out = """<!doctype html>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Week {n} slides &middot; AI101 &middot; UTG Academy</title>
 {font}
