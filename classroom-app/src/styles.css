@@ -21,7 +21,7 @@ h1, h2, h3, p { margin-top: 0; }
 .saved-go { color: #0a6299; font-size: 13px; white-space: nowrap; }
 .saved-forget { flex: none; width: 42px; border: 1px solid #e3c9c9; border-radius: 9px; background: #fff; color: #b23b2a; font-size: 20px; line-height: 1; }
 .saved-forget:hover { background: #fbe9e4; border-color: #d98a7a; }
-.banner-actions, .workspace-top > div:last-child { display: flex; flex-wrap: wrap; gap: 10px; }
+.banner-actions, .workspace-top > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: 10px; }
 .primary, .secondary, .danger, .file-button { border: 0; border-radius: 7px; padding: 11px 16px; font-weight: 750; font-size: 14px; transition: transform .15s, box-shadow .15s; }
 .primary { color: #fff; background: #01aefd; box-shadow: 0 7px 16px rgba(1,174,253,.28); }
 .primary:hover { background: #0294d8; transform: translateY(-1px); }
@@ -222,7 +222,7 @@ body.running-full { overflow: hidden; }
 .project-open { display: grid; gap: 6px; justify-items: start; border: 0; background: transparent; padding: 15px; text-align: left; width: 100%; }
 .project-open:hover { background: #f2fafc; }
 .project-open strong { font-size: 15px; color: #23434e; }.project-open small { color: #74898f; font-size: 11px; }
-.project-actions { display: flex; gap: 4px; justify-content: flex-end; padding: 6px 10px; border-top: 1px solid #e6eef0; background: #fafcfd; }
+.project-actions { display: flex; gap: 4px; justify-content: flex-end; padding: 6px 10px; border-top: 1px solid #e6eef0; background: #fafcfd; } .project-actions .text-button { font-size: 13px; } .project-actions .danger { color: #a33726; }
 .kind-badge { border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .kind-badge.web { color: #0a6299; background: #e7f7ff; }.kind-badge.java { color: #6d5a22; background: #f6efdc; }
 .kind-badge.game { color: #2f6b3a; background: #e6f7ea; }

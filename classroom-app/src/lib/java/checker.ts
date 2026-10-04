@@ -12,7 +12,7 @@ import {
   type ClassInfo, type FieldInfo, type JavaType, type LocalVariable, type MethodInfo, type Substitution,
   INT, LONG, DOUBLE, FLOAT, BOOLEAN, CHAR, VOID, NULL_TYPE, ERROR_TYPE, OBJECT_PLACEHOLDER,
   arrayOf, classType, primitive, isPrimitive, isReference, isString, sameType, typeName, substitute,
-  substitutionOf, asSuper, isSubclass, isSubtype, wideningPrimitive, binaryNumericPromotion,
+  substitutionOf, asSuper, isSubtype, wideningPrimitive, binaryNumericPromotion,
   unaryNumericPromotion, assignmentConversion, boxedType, castAllowed, erasedDescriptor, unboxed,
   primitiveOf, isNumericPrimitive, isIntegralPrimitive, PRIMITIVE_NAMES, type PrimitiveName, directSupertypes,
 } from "./types";

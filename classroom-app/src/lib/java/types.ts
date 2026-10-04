@@ -133,7 +133,6 @@ export function arrayOf(element: JavaType): JavaType {
 // ---- questions about a type -------------------------------------------------
 export const isPrimitive = (type: JavaType, name?: PrimitiveName) =>
   type.tag === "primitive" && (name === undefined || type.name === name);
-export const isError = (type: JavaType) => type.tag === "error";
 export const isReference = (type: JavaType) => type.tag === "class" || type.tag === "array" || type.tag === "null" || type.tag === "typeVariable";
 export const isClass = (type: JavaType, qualifiedName: string) => type.tag === "class" && type.classInfo.qualifiedName === qualifiedName;
 export const isString = (type: JavaType) => isClass(type, "java.lang.String");

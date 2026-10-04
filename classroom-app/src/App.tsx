@@ -2,17 +2,17 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import Peer, { DataConnection } from "peerjs";
 import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
-import { downloadFile, hostId, makeClass, makeStudent, normalizeCode } from "./lib/classroom";
+import { downloadFile, makeClass, makeStudent } from "./lib/classroom";
 import { seedDoc, docToFiles, deriveLater, fileNames, filesMap, b64encode, b64decode, userColor } from "./lib/collab";
 import { FileTree } from "./FileTree";
 import { CollabEditor } from "./CollabEditor";
 import { AdminApp } from "./AdminApp";
 import { ChallengesApp } from "./ChallengesApp";
-import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiListProjects, apiCreateProject, apiGetProjectById, apiSaveProjectById, apiDeleteProject, apiSaveProjectBeacon, apiEnterProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type ApiCoeditRoom, type WeekStates } from "./lib/api";
+import { apiLoginGuest, apiLoginInstructor, apiGetClassroom, apiSaveClassroom, apiOpenLiveRoom, apiGetLiveRoom, apiCloseLiveRoom, apiListMedia, apiUploadMedia, apiDeleteMedia, apiMyClassrooms, apiForgetClassroom, apiGetProjectById, apiSaveProjectById, apiSaveProjectBeacon, apiEnterProject, apiUnshareProject, apiLoginAccount, apiClassStudents, apiStudentProjects, apiStudentProject, apiSaveStudentProject, apiDemoKey, apiSlideStates, expectedFilesAt, type ApiAccount, type ApiMedia, type ApiClassroomLink, type ApiClassStudent, type ApiProjectSummary, type ApiProject, type ApiCoeditRoom } from "./lib/api";
 import { gatewayAsk } from "./lib/gatewayAsk";
 import { compressImage, compressAudio } from "./lib/media";
 import { classroomForId, peerOptions } from "./lib/rootCodes";
-import { getClassByCode, getClasses, persistentStorage, saveClass } from "./lib/storage";
+import { getClasses, persistentStorage, saveClass } from "./lib/storage";
 import { buildPreview, ENTRY_FILE, isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
 import { usePreviewPages } from "./lib/usePreviewPages";
 import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/game-project";
@@ -24,7 +24,7 @@ import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
 import { GAME_KIND } from "./lib/types";
-import type { ClassRecord, PendingJoin, ProjectKind, Student } from "./lib/types";
+import type { ClassRecord, PendingJoin, ProjectKind } from "./lib/types";
 
 type Mode = "home" | "instructor" | "student" | "projects";
 type WireMessage =
@@ -930,7 +930,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   async function openSession(token: string, displayName: string, cls: string, classId: string) {
     sessionRef.current = { token, name: displayName || "Student", className: cls, classId };
     setAccountToken(token); setClassName(cls);
-    setStep("picker"); setStatus("Choose a project, or start a new one.");
+    setStep("picker"); setStatus("");
     if (classId) connectToTeacher(classId, token, displayName);
   }
 
@@ -1004,7 +1004,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
 
   async function backToPicker() {
     await flushSave();
-    setStep("picker"); setStatus("Choose a project, or start a new one.");
+    setStep("picker"); setStatus("");
   }
 
   /* The other browser stopped answering, so this one takes the project over.
@@ -1104,7 +1104,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
 
   if (step === "coedit" && coeditRoom && sessionRef.current) return <CoEditGuest
     token={sessionRef.current.token} name={sessionRef.current.name} room={coeditRoom} owned={coeditOwned}
-    onLeave={() => { setCoeditRoom(null); setStep("picker"); setStatus("Choose a project, or start a new one."); }}
+    onLeave={() => { setCoeditRoom(null); setStep("picker"); setStatus(""); }}
     onCopied={(id) => { setCoeditRoom(null); void openProject(id); }}
     onTakeOver={(files) => { void takeOver(files); }}>
     {(props) => <CollabWorkspace {...props} token={sessionRef.current?.token} />}

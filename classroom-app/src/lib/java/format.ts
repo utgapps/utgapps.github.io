@@ -57,6 +57,3 @@ export function javaFloatToString(value: number): string {
   return layout(value < 0, digits, exponent);
 }
 
-export function javaCharToString(code: number): string {
-  return String.fromCharCode(code);
-}

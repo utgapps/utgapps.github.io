@@ -190,9 +190,6 @@ export async function apiEnterProject(token: string, id: string, opts: { claim?:
   return { role: got.role, room: got.room };
 }
 /** Publish a snapshot at an unguessable link. Off until a student asks for it. */
-export async function apiShareProject(token: string, id: string): Promise<string> {
-  return (await req(`/projects/${encodeURIComponent(id)}/share`, { method: "POST" }, token)).slug;
-}
 export async function apiUnshareProject(token: string, id: string): Promise<void> {
   await req(`/projects/${encodeURIComponent(id)}/share`, { method: "DELETE" }, token);
 }

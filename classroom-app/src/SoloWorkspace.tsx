@@ -34,7 +34,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
   const [files, setFiles] = useState<Record<string, string>>({});
   const [kind, setKind] = useState<ProjectKind>("web");
   const [title, setTitle] = useState("");
-  const [status, setStatus] = useState("Choose a project, or start a new one.");
+  const [status, setStatus] = useState("");
   /* Whether everything typed has reached the server - what the game editor's
      SAVED button reports, and what pressing it fixes. */
   const [saved, setSaved] = useState(true);
@@ -122,7 +122,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
     setStatus("Saved to your account.");
   }
 
-  async function back() { await flush(); setStep("picker"); setStatus("Choose a project, or start a new one."); }
+  async function back() { await flush(); setStep("picker"); setStatus(""); }
 
   if (step === "coedit" && coeditRoom) {
     return <CoEditGuest token={token} name={who} room={coeditRoom}
