@@ -1006,7 +1006,7 @@ def build_index():
   both without leaving the room. Java runs right in the code editor &mdash; see <em>Before you
   start</em> below.</p>
 </div>
-<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>{course.DISCLAIMER}</div>
+<div class="warn"><h3 style="margin-top:0">Before you start</h3>{course.INDEX_NOTE}</div>
 <h2>The weeks</h2>
 <div class="grid">{cards}</div>
 </div>"""

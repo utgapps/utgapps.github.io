@@ -71,6 +71,17 @@ keep the key on a server and never send it to the browser. If a student swaps in
 paid key, tell them this first.</p>
 """
 
+# The course home page gets two points a student needs before week 1. The full
+# DISCLAIMER - the three edits to an OpenAI account and the warning about keys
+# in web pages - stays on the teacher guide and the first page of the workbook.
+INDEX_NOTE = """
+<p><strong>The school AI only answers on the school network.</strong> At home or on a phone,
+your requests will fail to connect. That is expected - it is not a bug in your code.</p>
+<p><strong>Your code follows the OpenAI standard</strong>, so it is the same code a real product
+would use. The first page of your homework book shows the three edits that point it at your own
+OpenAI account, and why a paid key never belongs in a web page.</p>
+"""
+
 TEACHER_PREAMBLE = """
 <p><strong>Where students write code.</strong> The browser editor at
 <a href="../classroom/">/classroom/</a>. They sign in with the class student code, create a

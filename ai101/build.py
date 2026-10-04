@@ -868,7 +868,7 @@ def build_index():
   slides and links straight to its lesson plan. In the classroom, opening a week gives the teacher
   both without leaving the room.</p>
 </div>
-<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>{course.DISCLAIMER}</div>
+<div class="warn"><h3 style="margin-top:0">Before you start</h3>{course.INDEX_NOTE}</div>
 <h2>The weeks</h2>
 <div class="grid">{cards}</div>
 </div>"""

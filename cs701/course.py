@@ -60,6 +60,17 @@ save the file under its class name, open a terminal in that folder and type, for
 copy them and carry on from there - you will not be behind.</p>
 """
 
+# The course home page gets the two points a student needs before week 1. The
+# full DISCLAIMER, with running Java on your own computer, stays on the teacher
+# guide and the first page of the workbook.
+INDEX_NOTE = """
+<p><strong>Run it in the classroom editor.</strong> Add each program as its own file with the
+<strong>+</strong>, named exactly as the lesson says, then press <strong>Run</strong>
+(Ctrl+Enter).</p>
+<p><strong>Missed a lesson?</strong> Every week's finished programs are on that week's page. Copy
+them and carry on - you will not be behind.</p>
+"""
+
 TEACHER_PREAMBLE = """
 <p><strong>Where students write and run code.</strong> Students keep their work in the classroom
 editor at <a href="../classroom/">/classroom/</a>. They sign in with the class student code and
