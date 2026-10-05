@@ -9,6 +9,9 @@ const MODULES = [
   { id: "camp", label: "Camp Coding" }, { id: "vex", label: "VEX Build Center" }, { id: "classroom", label: "Curriculum Classroom" },
   { id: "ai101", label: "AI101 Course" }, { id: "ai102", label: "AI102 Course" },
   { id: "pxp101", label: "PXP101 Course" }, { id: "cs701", label: "CS701 Course" },
+  { id: "py101", label: "PY101 Course" }, { id: "py102", label: "PY102 Course" },
+  { id: "py201", label: "PY201 Course" }, { id: "py202", label: "PY202 Course" },
+  { id: "py301", label: "PY301 Course" }, { id: "py302", label: "PY302 Course" },
   { id: "pcc", label: "Python Coding Challenges" },
 ];
 const GAMES = ["catch", "whack", "flappy", "subway", "geo", "crossy", "pong", "brick", "doodle", "shooter", "heli", "slice", "dodge", "stack", "fishing", "rhythm", "lander", "platformer", "cookie", "pacman", "drift"];
