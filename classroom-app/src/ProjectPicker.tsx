@@ -23,8 +23,10 @@ function edited(at: number) {
   return `edited ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-export function ProjectPicker({ token, className, status, live, onOpen, onSignOut, onJoinCoedit, exitLabel = "Sign out" }: {
+export function ProjectPicker({ token, className, status, live, onOpen, onSignOut, onJoinCoedit, exitLabel = "Sign out", newProjectKind = "web" }: {
   token: string; className: string; status: string; live: boolean;
+  // The kind the class writes, chosen already in the new-project dialog.
+  newProjectKind?: ProjectKind;
   onOpen: (id: string) => void; onSignOut: () => void;
   // Redeeming a friend's code. Optional so a screen that has nowhere to put a
   // co-edit session simply does not offer one.
@@ -127,6 +129,7 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
     </section>
     {creating && <NewProjectDialog
       suggested={`Project ${(projects?.length || 0) + 1}`}
+      initialKind={newProjectKind}
       onCreate={create}
       onCancel={() => setCreating(false)}
       // A child who signed in only to join a friend's code must be able to get
@@ -141,11 +144,11 @@ export function ProjectPicker({ token, className, status, live, onOpen, onSignOu
   </main>;
 }
 
-function NewProjectDialog({ suggested, onCreate, onCancel, canCancel }: {
-  suggested: string; onCreate: (title: string, kind: ProjectKind) => void; onCancel: () => void; canCancel: boolean;
+function NewProjectDialog({ suggested, initialKind, onCreate, onCancel, canCancel }: {
+  suggested: string; initialKind: ProjectKind; onCreate: (title: string, kind: ProjectKind) => void; onCancel: () => void; canCancel: boolean;
 }) {
   const [title, setTitle] = useState(suggested);
-  const [kind, setKind] = useState<ProjectKind>("web");
+  const [kind, setKind] = useState<ProjectKind>(initialKind);
   return <div className="dialog-backdrop">
     <div className="dialog" role="dialog" aria-modal="true" aria-label="New project">
       <h2>New project</h2>

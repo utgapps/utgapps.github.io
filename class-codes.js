@@ -34,6 +34,36 @@ window.UTG_CLASSROOMS = [
     id: "pcc",
     courseId: "PCC",
     className: "PCC - Python Coding Challenges"
+  },
+  {
+    id: "py101",
+    courseId: "PY101",
+    className: "PY101 - Python Space Shooter"
+  },
+  {
+    id: "py102",
+    courseId: "PY102",
+    className: "PY102 - Python Platformer"
+  },
+  {
+    id: "py201",
+    courseId: "PY201",
+    className: "PY201 - Python RPG"
+  },
+  {
+    id: "py202",
+    courseId: "PY202",
+    className: "PY202 - Python Balloon Fight"
+  },
+  {
+    id: "py301",
+    courseId: "PY301",
+    className: "PY301 - Python Fruit Slasher"
+  },
+  {
+    id: "py302",
+    courseId: "PY302",
+    className: "PY302 - Python Strategy Game"
   }
 ];
 

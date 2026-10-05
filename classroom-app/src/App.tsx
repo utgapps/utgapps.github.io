@@ -1248,7 +1248,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     onTakeOver={(files) => { void takeOver(files); }}>
     {(props) => <CollabWorkspace {...props} token={sessionRef.current?.token} />}
   </CoEditGuest>;
-  if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} status={status} live={live} onOpen={(id) => { void openProject(id); }} onJoinCoedit={(room) => { void openProject(room.projectId); }} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
+  if (step === "picker" && sessionRef.current) return <ProjectPicker token={sessionRef.current.token} className={className} newProjectKind={classroomForId(sessionRef.current.classId)?.projectKind} status={status} live={live} onOpen={(id) => { void openProject(id); }} onJoinCoedit={(room) => { void openProject(room.projectId); }} onSignOut={() => { localStorage.removeItem("utg_account"); window.location.href = "../"; }} />;
   if (step !== "room" || !docRef.current || !awarenessRef.current) return <main className="join-screen"><section className="join-card">
     <a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
     <p className="eyebrow">Student classroom</p>
