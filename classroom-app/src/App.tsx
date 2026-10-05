@@ -21,7 +21,7 @@ import { JavaRunPanel } from "./JavaRunPanel";
 import { GameEditor } from "./GameEditor";
 import { ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
-import { CoursePanel } from "./CoursePanel";
+import { CoursePanel, PanelSection } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
 import { GAME_KIND } from "./lib/types";
 import type { ClassRecord, PendingJoin, ProjectKind } from "./lib/types";
@@ -41,6 +41,7 @@ type WireMessage =
 
 const deviceKey = "utg-classroom-device-v1";
 const accountKey = "utg_account";
+const COURSE_PANEL_KEY = "utg-teacher-course-panel";
 
 type StoredAccount = { token: string; account: ApiAccount };
 
@@ -182,8 +183,9 @@ function App() {
 // A saved list of the classrooms this account has connected to, so teachers and
 // students re-enter without retyping a code. Each row can be forgotten (removes
 // the account's record; it never changes the class code itself).
-function SavedClassrooms({ token, role, actionLabel, onPick }: {
+function SavedClassrooms({ token, role, actionLabel, onPick, onCount }: {
   token: string; role: "student" | "instructor"; actionLabel: string; onPick: (link: ApiClassroomLink) => void;
+  onCount?: (count: number) => void;
 }) {
   const [links, setLinks] = useState<ApiClassroomLink[] | null>(null);
   useEffect(() => {
@@ -191,6 +193,7 @@ function SavedClassrooms({ token, role, actionLabel, onPick }: {
     apiMyClassrooms(token).then((all) => { if (live) setLinks(all.filter((l) => l.role === role)); }).catch(() => { if (live) setLinks([]); });
     return () => { live = false; };
   }, [token, role]);
+  useEffect(() => { if (links) onCount?.(links.length); }, [links]);
   async function forget(link: ApiClassroomLink) {
     setLinks((cur) => (cur || []).filter((l) => !(l.classId === link.classId && l.role === link.role)));
     try { await apiForgetClassroom(token, link.classId, link.role); } catch { /* removed locally; reappears on reload if the server call failed */ }
@@ -201,10 +204,9 @@ function SavedClassrooms({ token, role, actionLabel, onPick }: {
     <ul className="saved-list">
       {links.map((l) => <li key={l.classId + l.role} className="saved-item">
         <button className="saved-open" onClick={() => onPick(l)}><span className="saved-name">{l.label}</span><span className="saved-go">{actionLabel} →</span></button>
-        <button className="saved-forget" title="Forget this classroom" aria-label={`Forget ${l.label}`} onClick={() => forget(l)}>×</button>
+        <button className="saved-forget" title="Forget this classroom. The class code itself does not change." aria-label={`Forget ${l.label}`} onClick={() => forget(l)}>×</button>
       </li>)}
     </ul>
-    <p className="small">Removing a classroom only clears it from your account — it does not change the class code.</p>
   </div>;
 }
 
@@ -310,8 +312,19 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   const [isOpen, setIsOpen] = useState(false);
   const [pending, setPending] = useState<PendingJoin[]>([]);
   const [selectedId, setSelectedId] = useState(record.students[0]?.id || "");
-  const [status, setStatus] = useState("Class is closed. Projects are still saved locally.");
+  /* What just happened, shown for a few seconds and then gone. It used to be a
+     footer that always said something, which made it one more place on the
+     screen repeating "the class is closed" next to the three that already did. */
+  const [status, setStatus] = useState("");
   const [newStudent, setNewStudent] = useState("");
+  const [addingStudent, setAddingStudent] = useState(false);
+  /* The course panel is worth its width while teaching from the slides and
+     in the way while helping one student with their code, so the teacher
+     decides, and the decision outlasts a reload. */
+  const [coursePanel, setCoursePanel] = useState(() => {
+    try { const saved = localStorage.getItem(COURSE_PANEL_KEY); if (saved) return saved === "open"; } catch { /* storage blocked */ }
+    return window.innerWidth > 1050;
+  });
   const peerRef = useRef<Peer | null>(null);
   const connections = useRef(new Map<string, DataConnection>());
   const roomRef = useRef(room);
@@ -332,6 +345,17 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
 
   useEffect(() => { setRoom(record); }, [record]);
   useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
+  useEffect(() => {
+    if (!status) return;
+    const timer = window.setTimeout(() => setStatus(""), 8000);
+    return () => window.clearTimeout(timer);
+  }, [status]);
+  function toggleCoursePanel() {
+    setCoursePanel((was) => {
+      try { localStorage.setItem(COURSE_PANEL_KEY, was ? "closed" : "open"); } catch { /* storage blocked */ }
+      return !was;
+    });
+  }
   useEffect(() => () => { peerRef.current?.destroy(); docs.current.forEach((e) => { e.awareness.destroy(); e.doc.destroy(); }); }, []);
 
   const selected = room.students.find((student) => student.id === selectedId);
@@ -349,7 +373,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
     if (!newStudent.trim()) return;
     const made = makeStudent(newStudent.trim());
     updateRoom((current) => ({ ...current, students: [...current.students, made.student], projects: { ...current.projects, [made.project.id]: made.project } }));
-    setSelectedId(made.student.id); setNewStudent("");
+    setSelectedId(made.student.id); setNewStudent(""); setAddingStudent(false);
   }
   async function openRoom() {
     if (peerRef.current) return;
@@ -496,15 +520,116 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
                                onExit={() => setClassWork(false)} />;
   }
 
+  const checkpointCount = selectedProject ? room.checkpoints.filter((item) => item.projectId === selectedProject.id).length : 0;
+  const hereLabel = room.students.length ? `${onlineCount} of ${room.students.length} here` : "nobody here yet";
+
+  /* One bar says everything about the class as a whole: which class, whether
+     it is live, the one thing to do next, and a menu for the rest. It replaced
+     a header, a banner and a footer that between them said "closed" three
+     times and carried eight buttons a teacher reaches for once a term. */
   return <main className="room-shell">
-    <header className="room-header"><div><a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a><span className="slash">/</span><strong>{room.courseId}</strong></div><div className="connection"><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Live class" : "Class closed"}<button className="text-button" onClick={() => setClassWork(true)}>Saved work</button><button className="text-button" onClick={() => setOwnProjects(true)}>My projects</button><button className="text-button" onClick={onExit}>Exit</button></div></header>
-    <section className="class-banner"><div><p className="eyebrow">Instructor classroom</p><h1>{room.name}</h1><p><strong className="code-pill">Instructor access verified</strong> <span className="muted">{isOpen ? "Students can join now with their student login code. Keep this page open while they join." : "Open class when you are ready."}</span></p></div><div className="banner-actions"><button className="secondary" onClick={() => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen }))}>{room.admissionsOpen ? "Close admissions" : "Open admissions"}</button>{isOpen ? <button className="danger" onClick={closeRoom}>End class</button> : <button className="primary" onClick={openRoom}>Open class</button>}</div></section>
-    {pending.length > 0 && <section className="pending-strip"><strong>Waiting for approval</strong>{pending.map((join) => <div key={join.connectionId}><span>{join.studentName}<small>{join.deviceLabel}</small></span><button className="primary compact" onClick={() => approve(join)}>Approve and remember</button><button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button></div>)}</section>}
-    <div className="class-layout"><aside className="roster"><div className="panel-title"><h2>Students <span>{onlineCount}/{room.students.length}</span></h2></div><div className="add-student"><input value={newStudent} placeholder="Add student" onChange={(event) => setNewStudent(event.target.value)} onKeyDown={(event) => event.key === "Enter" && addStudent()} /><button onClick={addStudent} aria-label="Add student">+</button></div><div className="student-list">{room.students.length ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id} onClick={() => setSelectedId(student.id)}><i className={student.status}></i><span>{student.name}<small>{student.status === "offline" ? "saved locally" : student.status}</small></span></button>) : <p className="empty">Students appear here after you add them or approve a join.</p>}</div><div className="roster-footer"><button className="secondary full" onClick={exportClass}>Export classpack</button><button className="text-button full" onClick={() => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv")}>Download roster</button></div></aside>
-      <section className="workspace">{selected && selectedProject ? <><div className="workspace-top"><div><p className="eyebrow">Individual project</p><h2>{selected.name}</h2></div><div><button className="secondary" onClick={checkpoint}>Save checkpoint</button><button className="secondary" onClick={() => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2))}>Personal backup</button></div></div>{selectedEntry && fileNames(selectedEntry.doc).length > 0 ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} /> : <div className="offline-view"><p className="empty">{selectedEntry ? "Connected — loading this student's code…" : "This student is offline. Their last saved work is shown here; live co-editing resumes when they open their project."}</p><StaticPreview files={selectedProject.files} kind={selectedProject.kind ?? "web"} /></div>}<div className="workspace-status"><span><i className={isOpen ? "online" : "offline"}></i>{isOpen ? "Changes are syncing to this device." : "Saved in the instructor's browser."}</span><span>{room.checkpoints.filter((item) => item.projectId === selectedProject.id).length} checkpoints</span></div></> : <div className="empty-workspace"><h2>Choose a student</h2><p>Start by adding a student, or open the class and approve a student device.</p></div>}</section>
-      <aside className="details"><CoursePanel token={token} classId={classId} onSlide={(week, index) => setCurrentSlide({ week, index })} /><h2>Class controls</h2><dl><dt>Course</dt><dd>{room.courseId}</dd><dt>Instructor login</dt><dd>Four-character instructor code</dd><dt>Student login</dt><dd>Four-character student code</dd><dt>Room address</dt><dd className="small-code">Fresh and private for each live class</dd><dt>Class record</dt><dd>Saved to the shared classroom</dd></dl><label>Private instructor notes<textarea value={room.notes} placeholder="Notes never appear in a student project." onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} /></label><div className="safety"><strong>Recovery ready</strong><p>Every student can export a personal backup. The shared class record is also available to authorized instructor devices.</p></div></aside>
+    <header className="room-header teacher-bar">
+      <div className="teacher-bar-title">
+        <a href="../"><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
+        <span className="slash">/</span><strong title={room.name}>{room.name}</strong>
+      </div>
+      <nav className="teacher-bar-views">
+        <button className="text-button" onClick={() => setClassWork(true)}>Saved work</button>
+        <button className="text-button" onClick={() => setOwnProjects(true)}>My projects</button>
+      </nav>
+      <div className="teacher-bar-actions">
+        <span className={isOpen ? "live-pill on" : "live-pill"}>
+          <i className={isOpen ? "online" : "offline"}></i>
+          {isOpen ? `Live · ${hereLabel}` : "Class not open"}
+          {isOpen && !room.admissionsOpen && <em> · admissions closed</em>}
+        </span>
+        {isOpen
+          ? <button className="quiet-danger" onClick={closeRoom}>End class</button>
+          : <button className="primary bar-primary" onClick={openRoom}>Open class</button>}
+        <GearMenu label="Class menu" dots items={[
+          { label: room.admissionsOpen ? "Close admissions" : "Open admissions",
+            onClick: () => updateRoom((current) => ({ ...current, admissionsOpen: !current.admissionsOpen })) },
+          { label: coursePanel ? "Hide the course panel" : "Show the course panel", onClick: toggleCoursePanel },
+          { label: "Export classpack", onClick: exportClass },
+          { label: "Download roster", onClick: () => downloadFile(`${room.code}-roster.csv`, "Student,Status\n" + room.students.map((student) => `${student.name},${student.status}`).join("\n"), "text/csv") },
+          { label: "Leave the classroom", onClick: onExit },
+        ]} />
+      </div>
+    </header>
+    {pending.length > 0 && <section className="pending-strip">
+      <strong>Waiting to join</strong>
+      {pending.map((join) => <div key={join.connectionId}>
+        <span>{join.studentName}<small>{join.deviceLabel}</small></span>
+        <button className="primary compact" title="Lets them in, and remembers this device so it is let in by itself next time" onClick={() => approve(join)}>Let in</button>
+        <button className="text-button" onClick={() => setPending((items) => items.filter((item) => item.connectionId !== join.connectionId))}>Reject</button>
+      </div>)}
+    </section>}
+    <div className={coursePanel ? "class-layout" : "class-layout no-course"}>
+      <aside className="roster">
+        <div className="panel-title"><h2>Students</h2>{room.students.length > 0 && <span className="count">{onlineCount}/{room.students.length}</span>}</div>
+        <div className="student-list">
+          {room.students.length
+            ? room.students.map((student) => <button className={student.id === selectedId ? "student active" : "student"} key={student.id}
+                                                     title={student.status === "offline" ? "Not connected" : "Connected"}
+                                                     onClick={() => setSelectedId(student.id)}>
+                <i className={student.status}></i><span>{student.name}</span>
+              </button>)
+            : <p className="empty">No one yet.</p>}
+        </div>
+        {addingStudent
+          ? <div className="add-student">
+              <input autoFocus value={newStudent} placeholder="Their name" onChange={(event) => setNewStudent(event.target.value)}
+                     onKeyDown={(event) => { if (event.key === "Enter") addStudent(); if (event.key === "Escape") { setAddingStudent(false); setNewStudent(""); } }} />
+              <button onClick={addStudent} aria-label="Add student">+</button>
+            </div>
+          : <button className="text-button add-student-toggle" onClick={() => setAddingStudent(true)}>+ Add a student</button>}
+      </aside>
+      <section className="workspace">
+        {selected && selectedProject ? <>
+          <div className="workspace-top">
+            <div className="student-heading">
+              <h2>{selected.name}</h2>
+              <span className="muted">
+                {selectedEntry ? "Live - you are editing together" : "Not connected - their last saved work"}
+                {checkpointCount > 0 && ` · ${checkpointCount} checkpoint${checkpointCount === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            <div className="workspace-actions">
+              <button className="secondary compact" onClick={checkpoint}>Save checkpoint</button>
+              <GearMenu label="Student menu" dots items={[
+                { label: "Download their backup", onClick: () => downloadFile(`${selected.name.replaceAll(" ", "-").toLowerCase()}-backup.json`, JSON.stringify(selectedProject, null, 2)) },
+              ]} />
+            </div>
+          </div>
+          {selectedEntry && fileNames(selectedEntry.doc).length > 0
+            ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} />
+            : <div className="offline-view">
+                {selectedEntry && <p className="empty">Connected - loading their code…</p>}
+                <StaticPreview files={selectedProject.files} kind={selectedProject.kind ?? "web"} />
+              </div>}
+        </> : <div className="empty-workspace">
+          <h2>Choose a student</h2>
+          <p>{room.students.length ? "Pick a name on the left to see their code." : isOpen ? "Students appear on the left as they join." : "Open the class when you are ready, and students appear on the left as they join."}</p>
+        </div>}
+      </section>
+      {coursePanel
+        ? <aside className="details">
+            <div className="details-head">
+              <h2>Course</h2>
+              <button className="icon-button" title="Hide the course panel" aria-label="Hide the course panel" onClick={toggleCoursePanel}>&rsaquo;</button>
+            </div>
+            <CoursePanel token={token} classId={classId} onSlide={(week, index) => setCurrentSlide({ week, index })} />
+            <PanelSection title="Private notes" initiallyOpen={!!room.notes}>
+              <textarea className="notes" value={room.notes} placeholder="Only you see these. They never appear in a student project."
+                        onChange={(event) => updateRoom((current) => ({ ...current, notes: event.target.value }))} />
+            </PanelSection>
+          </aside>
+        : <button className="panel-rail" title="Show the course panel" onClick={toggleCoursePanel}><span>Course</span></button>}
     </div>
-    <footer className="room-footer">{status}</footer>
+    {status && <div className="room-toast" role="status">
+      <span>{status}</span>
+      <button className="icon-button" aria-label="Dismiss" onClick={() => setStatus("")}>&times;</button>
+    </div>}
   </main>;
 }
 
@@ -714,7 +839,11 @@ function PublicLink({ token, projectId, initialSlug }: { token: string; projectI
    which leaves the header saying only which project is open and whether it is
    saved. Closes on Escape and on a click anywhere else, because a menu a child
    cannot get rid of is a menu covering the thing they meant to press. */
-function GearMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean }[] }) {
+/* The teacher's screens use the same menu with three dots on it: a gear says
+   "settings", and what hides behind the teacher's is everyday class actions. */
+function GearMenu({ items, label = "Project menu", dots = false }: {
+  items: { label: string; onClick: () => void; danger?: boolean }[]; label?: string; dots?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -732,12 +861,12 @@ function GearMenu({ items }: { items: { label: string; onClick: () => void; dang
   }, [open]);
 
   return <div className="gear-menu" ref={boxRef}>
-    <button className="gear-button" aria-haspopup="menu" aria-expanded={open} aria-label="Project menu"
-            title="Project menu" onClick={() => setOpen((was) => !was)}>
+    <button className="gear-button" aria-haspopup="menu" aria-expanded={open} aria-label={label}
+            title={label} onClick={() => setOpen((was) => !was)}>
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
         {/* Eight teeth around a hole, drawn here rather than borrowed, so it
             renders the same on every machine in the room. */}
-        <path fill="currentColor" fillRule="evenodd" d="M18.58 9.61 L22.01 10.05 L22.01 13.95 L18.58 14.39 L18.34 14.96 L20.46 17.70 L17.70 20.46 L14.96 18.34 L14.39 18.58 L13.95 22.01 L10.05 22.01 L9.61 18.58 L9.04 18.34 L6.30 20.46 L3.54 17.70 L5.66 14.96 L5.42 14.39 L1.99 13.95 L1.99 10.05 L5.42 9.61 L5.66 9.04 L3.54 6.30 L6.30 3.54 L9.04 5.66 L9.61 5.42 L10.05 1.99 L13.95 1.99 L14.39 5.42 L14.96 5.66 L17.70 3.54 L20.46 6.30 L18.34 9.04 Z M8.50 12.00 a3.50 3.50 0 1 0 7.00 0 a3.50 3.50 0 1 0 -7.00 0 Z" />
+        {dots ? <path fill="currentColor" d="M3.5 12 a2.25 2.25 0 1 0 4.5 0 a2.25 2.25 0 1 0 -4.5 0 Z M9.75 12 a2.25 2.25 0 1 0 4.5 0 a2.25 2.25 0 1 0 -4.5 0 Z M16 12 a2.25 2.25 0 1 0 4.5 0 a2.25 2.25 0 1 0 -4.5 0 Z" /> : <path fill="currentColor" fillRule="evenodd" d="M18.58 9.61 L22.01 10.05 L22.01 13.95 L18.58 14.39 L18.34 14.96 L20.46 17.70 L17.70 20.46 L14.96 18.34 L14.39 18.58 L13.95 22.01 L10.05 22.01 L9.61 18.58 L9.04 18.34 L6.30 20.46 L3.54 17.70 L5.66 14.96 L5.42 14.39 L1.99 13.95 L1.99 10.05 L5.42 9.61 L5.66 9.04 L3.54 6.30 L6.30 3.54 L9.04 5.66 L9.61 5.42 L10.05 1.99 L13.95 1.99 L14.39 5.42 L14.96 5.66 L17.70 3.54 L20.46 6.30 L18.34 9.04 Z M8.50 12.00 a3.50 3.50 0 1 0 7.00 0 a3.50 3.50 0 1 0 -7.00 0 Z" />}
       </svg>
     </button>
     {open && <div className="gear-list" role="menu">
@@ -791,7 +920,11 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
   // teacher made. An account is the better one - two students called Alex
   // would otherwise share a guest account and overwrite each other.
   const [useAccount, setUseAccount] = useState(false);
-  const [status, setStatus] = useState("Enter the private student code from your teacher.");
+  // A student who already has a classroom saved needs only that button; the
+  // code form is for joining a different class, so it waits to be asked for.
+  const [savedCount, setSavedCount] = useState(0);
+  const [joinOther, setJoinOther] = useState(false);
+  const [status, setStatus] = useState("");
   const [className, setClassName] = useState("");
   const [savedToken, setSavedToken] = useState("");
   const connectionRef = useRef<DataConnection | null>(null);
@@ -1070,7 +1203,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     connection.on("open", () => {
       closedPolls.current = 0;
       if (reconnectTimer.current !== null) { window.clearTimeout(reconnectTimer.current); reconnectTimer.current = null; }
-      setLive(true); setStatus("Live with your teacher — they can see and help.");
+      setStatus("Asking your teacher to let you in…");
       connection.send({ type: "join", name: liveNameRef.current, deviceId: device.id, deviceLabel: `${navigator.platform || "Desktop"} browser`, fingerprint: device.fingerprint } satisfies WireMessage);
     });
     connection.on("data", (data) => receive(data as WireMessage));
@@ -1114,7 +1247,10 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     <a className="back" onClick={onExit}><img className="logo-img" src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy" /></a>
     <p className="eyebrow">Student classroom</p>
     <h1>Open your project</h1>
-    {savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} />}
+    {savedToken && <SavedClassrooms token={savedToken} role="student" actionLabel="Open" onPick={enterSaved} onCount={setSavedCount} />}
+    {savedToken && savedCount > 0 && !joinOther
+      ? <button className="text-button join-other" onClick={() => setJoinOther(true)}>Join a different class</button>
+      : <>
     <div className="signin-switch">
       <button className={useAccount ? "text-button" : "text-button on"} onClick={() => { setUseAccount(false); setStatus(""); }}>Join with a class code</button>
       <button className={useAccount ? "text-button on" : "text-button"} onClick={() => { setUseAccount(true); setStatus(""); }}>I have an account</button>
@@ -1127,11 +1263,12 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
     </> : <>
       <p>{initialGrant ? "Class access is verified. Enter your name to open your project." : savedToken ? "Or join a new class with a student code." : "Enter your student code and name. Sign in with the same name next time to return to your saved project."}</p>
       <label>Your name<input value={name} placeholder="Your first name" onChange={(event) => setName(event.target.value)} /></label>
-      {!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="Your four-character student code" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}
+      {!initialGrant && <label>Student code<input className="code-input" value={code} maxLength={32} placeholder="ABCD" onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>}
       <button className="primary full" onClick={join}>Open my project</button>
     </>}
-    <p className="notice">{status}</p>
     <small>{useAccount ? "No account yet? Ask your teacher, or join with the class code instead." : "Sharing a first name with a classmate? Ask your teacher for an account so your work stays yours."}</small>
+    </>}
+    {status && <p className="notice">{status}</p>}
   </section></main>;
   return <main className="student-shell">
     <header className="room-header">
@@ -1154,7 +1291,10 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
       </div>
     </header>
     <section className="student-project">
-      <div className="workspace-top"><div><p className="eyebrow">{projectOwner ? `${projectOwner}'s project, shared with you` : memberCount > 0 || hostRoom ? "Shared project" : "My individual project"}</p><h1>{title}</h1></div><span className="save-label">{status}</span></div>
+      <div className="workspace-top project-top">
+        <div>{(projectOwner || memberCount > 0 || hostRoom) && <p className="eyebrow">{projectOwner ? `${projectOwner}'s project, shared with you` : "Shared project"}</p>}<h1>{title}</h1></div>
+        {status && <span className="project-status">{status}</span>}
+      </div>
       {accountToken && kind === "web" && !projectOwner && <PublicLink token={accountToken} projectId={localProjectIdRef.current} initialSlug={shareSlug} />}
       {/* Keyed by project: switching projects must end the old session rather
           than quietly re-point a live code at different code. Two beats missed
@@ -1199,8 +1339,7 @@ function MediaPanel({ token }: { token: string }) {
   return <div className="media-panel">
     <div className="media-head">
       <strong>My media</strong>
-      <label className="file-button">{busy ? "Working…" : "＋ Upload image or sound"}<input type="file" accept="image/*,audio/*" onChange={onFile} disabled={busy} /></label>
-      <span className="muted">Images become WebP, sound becomes small MP3. Keep files small.</span>
+      <label className="file-button" title="Pictures are saved as WebP and sounds as small MP3 files. Keep them small.">{busy ? "Working…" : "＋ Upload image or sound"}<input type="file" accept="image/*,audio/*" onChange={onFile} disabled={busy} /></label>
     </div>
     {note && <p className="notice">{note}</p>}
     <div className="media-list">{items.length === 0 ? <span className="muted">No media yet — upload a picture or a sound.</span> : items.map((m) =>

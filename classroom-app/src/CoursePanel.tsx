@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CourseViewer, type ViewerTab } from "./CourseViewer";
 import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent, apiResetStudentPassword,
          apiListProjects, apiCreateProject, apiGetProjectById,
@@ -41,6 +41,7 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [viewing, setViewing] = useState<ViewerTab | null>(null);
 
   function refresh() {
@@ -96,93 +97,86 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
 
   if (weeks === null) return <div className="course-panel"><p className="muted">Loading the course&hellip;</p></div>;
 
+  /* Two sections, folded by what they act on: the week (present it, keep a
+     copy) and one student (give them a week, copy them a project, reset their
+     password). Every student action used to be laid out at once under a
+     second class list, whether or not anybody had been chosen. */
   return <div className="course-panel">
-    <h3>Course weeks</h3>
-    {weeks.length === 0
-      ? <p className="muted">No published weeks for <code>{classId}</code> yet.</p>
-      : <>
-        <div className="week-grid">
-          {weeks.map((w) => (
-            <button key={w.n} className={w.n === picked ? "week-chip active" : "week-chip"}
-                    onClick={() => { setPicked(w.n === picked ? null : w.n); setNote(""); }}>
-              <span className="wk-n">{w.n}</span>
-            </button>
-          ))}
-        </div>
-        {week && <div className="week-open">
-          <p className="week-open-head">
-            <strong>Week {week.n} &middot; {week.title}</strong>
-            <a href={"../" + classId + "/week-" + String(week.n).padStart(2, "0") + ".html"}
-               target="_blank" rel="noreferrer">Week page &rarr;</a>
-          </p>
-          <p className="muted">
-            {Object.entries(week.files).map(([n, t]) => n + " " + t.split("\n").length).join(" · ")} lines
-          </p>
-          <div className="catch-row two">
-            <button className="primary compact" onClick={() => setViewing("slides")}>
-              Present slides
-            </button>
-            <button className="secondary compact" onClick={() => setViewing("plan")}>
-              Lesson plan
-            </button>
+    <PanelSection title="Weeks" initiallyOpen>
+      {weeks.length === 0
+        ? <p className="muted">No published weeks for <code>{classId}</code> yet.</p>
+        : <>
+          <div className="week-grid">
+            {weeks.map((w) => (
+              <button key={w.n} className={w.n === picked ? "week-chip active" : "week-chip"} title={w.title}
+                      onClick={() => { setPicked(w.n === picked ? null : w.n); setNote(""); }}>
+                <span className="wk-n">{w.n}</span>
+              </button>
+            ))}
           </div>
-          <div className="catch-row">
-            <button className="secondary compact" disabled={busy} onClick={() => copyToMe(week.n)}>
-              Add week {week.n} to my projects
+          {week
+            ? <div className="week-open">
+                <p className="week-open-head"><strong>Week {week.n} &middot; {week.title}</strong></p>
+                <div className="catch-row two">
+                  <button className="primary compact" onClick={() => setViewing("slides")}>Present slides</button>
+                  <button className="secondary compact" onClick={() => setViewing("plan")}>Lesson plan</button>
+                </div>
+                <div className="week-links">
+                  <a href={"../" + classId + "/week-" + String(week.n).padStart(2, "0") + ".html"}
+                     target="_blank" rel="noreferrer">Week page &#8599;</a>
+                  <button className="text-button" disabled={busy} onClick={() => copyToMe(week.n)}>Copy to my projects</button>
+                </div>
+              </div>
+            : <p className="muted week-hint">Pick a week to present it.</p>}
+        </>}
+    </PanelSection>
+
+    <PanelSection title="Student accounts" badge={students.length || undefined}>
+      {students.length === 0
+        ? <p className="muted">Nobody has joined yet.</p>
+        : <select className="student-select" value={who}
+                  onChange={(event) => { setWho(event.target.value); setResetting(false); setNote(""); }}>
+            <option value="">Choose a student&hellip;</option>
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}{s.username ? " (" + s.username + ")" : " - guest"} &middot; {s.projects} project{s.projects === 1 ? "" : "s"}
+              </option>
+            ))}
+          </select>}
+
+      {chosen && <div className="catch-up">
+        {week
+          ? <button className="primary compact" disabled={busy} onClick={() => copyToStudent({ kind: "week", n: week.n })}>
+              Give {chosen.name} week {week.n}
             </button>
-            <button className="primary compact" disabled={busy || !who}
-                    onClick={() => copyToStudent({ kind: "week", n: week.n })}>
-              {who ? "Give week " + week.n + " to " + (chosen ? chosen.name : "") : "Choose a student below"}
-            </button>
-          </div>
+          : <p className="muted">Pick a week above to give {chosen.name} a fresh copy of it.</p>}
+        {mine.length > 0 && <div className="catch-row">
+          <select className="student-select" value={mineId} onChange={(event) => setMineId(event.target.value)}>
+            <option value="">Copy one of my projects&hellip;</option>
+            {mine.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+          {mineId && <button className="secondary compact" disabled={busy}
+                             onClick={() => copyToStudent({ kind: "mine", id: mineId })}>Copy it to {chosen.name}</button>}
         </div>}
-      </>}
+        {chosen.hasAccount
+          ? resetting
+            ? <ResetForm token={token} classId={classId} student={chosen}
+                         onDone={(message) => { setResetting(false); setNote(message); refresh(); }}
+                         onCancel={() => setResetting(false)} />
+            : <button className="text-button align-start" onClick={() => setResetting(true)}>Reset their password</button>
+          : <p className="muted">{chosen.name} joined as a guest, so there is no password to reset.</p>}
+      </div>}
 
-    <h3 className="course-sub">Class list</h3>
-    {students.length === 0
-      ? <p className="muted">Nobody has joined yet.</p>
-      : <select className="student-select" value={who}
-                onChange={(event) => { setWho(event.target.value); setNote(""); }}>
-          <option value="">Choose a student&hellip;</option>
-          {students.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}{s.username ? " (" + s.username + ")" : " - guest"} &middot; {s.projects} project{s.projects === 1 ? "" : "s"}
-            </option>
-          ))}
-        </select>}
-
-    {chosen && chosen.hasAccount && <div className="catch-up">
-      <strong>Reset {chosen.name}&rsquo;s password</strong>
-      <ResetForm token={token} classId={classId} student={chosen}
-                 onDone={(message) => { setNote(message); refresh(); }} />
-    </div>}
-
-    {chosen && !chosen.hasAccount && <p className="muted" style={{ marginTop: 10 }}>
-      {chosen.name} joined as a guest, so there is no password to reset. Add them as a
-      student to give them an account that follows them between computers.
-    </p>}
-
-    {mine.length > 0 && <div className="catch-up">
-      <strong>Copy one of my projects to them</strong>
-      <select className="student-select" value={mineId}
-              onChange={(event) => setMineId(event.target.value)}>
-        <option value="">Choose one of my projects&hellip;</option>
-        {mine.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-      </select>
-      <button className="secondary compact" disabled={busy || !who || !mineId}
-              onClick={() => copyToStudent({ kind: "mine", id: mineId })}>Copy it across</button>
-      <p className="muted">Your API key is replaced with the placeholder on the way, so they use their own.</p>
-    </div>}
-
-    <div className="catch-up">
-      {adding
-        ? <EnrolForm token={token} classId={classId}
-                     onDone={(message) => { setAdding(false); setNote(message); refresh(); }}
-                     onCancel={() => setAdding(false)} />
-        : <button className="secondary compact full" onClick={() => { setAdding(true); setNote(""); }}>
-            &#43; Add a student to this class
-          </button>}
-    </div>
+      <div className="catch-up">
+        {adding
+          ? <EnrolForm token={token} classId={classId}
+                       onDone={(message) => { setAdding(false); setNote(message); refresh(); }}
+                       onCancel={() => setAdding(false)} />
+          : <button className="text-button align-start" onClick={() => { setAdding(true); setNote(""); }}>
+              &#43; Add a student account
+            </button>}
+      </div>
+    </PanelSection>
     {note && <p className="notice">{note}</p>}
 
     {week && viewing && <CourseViewer classId={classId} week={week.n} title={week.title}
@@ -191,8 +185,25 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
   </div>;
 }
 
-function ResetForm({ token, classId, student, onDone }: {
-  token: string; classId: string; student: ApiClassStudent; onDone: (message: string) => void;
+/* A heading that folds what is under it away. Folded sections unmount, so a
+   half-typed form inside one is dropped when it closes - which is what closing
+   it means. */
+export function PanelSection({ title, badge, initiallyOpen = false, children }: {
+  title: string; badge?: number; initiallyOpen?: boolean; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return <section className={open ? "panel-section open" : "panel-section"}>
+    <button className="panel-section-head" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+      <span>{title}</span>
+      {badge !== undefined && <span className="count">{badge}</span>}
+      <span className="chevron" aria-hidden="true"></span>
+    </button>
+    {open && <div className="panel-section-body">{children}</div>}
+  </section>;
+}
+
+function ResetForm({ token, classId, student, onDone, onCancel }: {
+  token: string; classId: string; student: ApiClassStudent; onDone: (message: string) => void; onCancel: () => void;
 }) {
   const [password, setPassword] = useState(suggestPassword());
   const [busy, setBusy] = useState(false);
@@ -211,16 +222,19 @@ function ResetForm({ token, classId, student, onDone }: {
     setBusy(false);
   }
 
-  return <>
-    <input value={password} onChange={(event) => setPassword(event.target.value)} />
+  return <div className="enrol">
+    <label>New password for {student.name}<input value={password} onChange={(event) => setPassword(event.target.value)} /></label>
     {problem && <p className="tf-problem">{problem}</p>}
     <div className="catch-row">
       <button className="secondary compact" disabled={busy || password.length < 6} onClick={submit}>
         {busy ? "Resetting…" : "Set this password"}
       </button>
-      <button className="text-button" onClick={() => setPassword(suggestPassword())}>Suggest another</button>
+      <div className="form-links">
+        <button className="text-button" onClick={() => setPassword(suggestPassword())}>Suggest another</button>
+        <button className="text-button" onClick={onCancel}>Cancel</button>
+      </div>
     </div>
-  </>;
+  </div>;
 }
 
 /* A real account rather than a guest one. Guests are keyed by (class, name), so

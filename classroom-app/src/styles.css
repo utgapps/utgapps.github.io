@@ -21,7 +21,7 @@ h1, h2, h3, p { margin-top: 0; }
 .saved-go { color: #0a6299; font-size: 13px; white-space: nowrap; }
 .saved-forget { flex: none; width: 42px; border: 1px solid #e3c9c9; border-radius: 9px; background: #fff; color: #b23b2a; font-size: 20px; line-height: 1; }
 .saved-forget:hover { background: #fbe9e4; border-color: #d98a7a; }
-.banner-actions, .workspace-top > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: 10px; }
+.workspace-top > div:last-child:not(:first-child) { display: flex; flex-wrap: wrap; gap: 10px; }
 .primary, .secondary, .danger, .file-button { border: 0; border-radius: 7px; padding: 11px 16px; font-weight: 750; font-size: 14px; transition: transform .15s, box-shadow .15s; }
 .primary { color: #fff; background: #01aefd; box-shadow: 0 7px 16px rgba(1,174,253,.28); }
 .primary:hover { background: #0294d8; transform: translateY(-1px); }
@@ -45,32 +45,32 @@ input, textarea { width: 100%; border: 1px solid #b7cbd1; color: #1f2a37; backgr
 .room-shell, .student-shell { min-height: 100vh; background: #f4f7f8; }
 .room-header { min-height: 58px; padding: 0 24px; background: #fff; border-bottom: 1px solid #dce5e8; }
 .slash { color: #a8babf; margin: 0 9px; }
+/* The logo is a block inside a link, which used to put everything after it
+   on a line of its own. */
+.room-header > div:first-child { display: flex; align-items: center; min-width: 0; }
 .connection { display: flex; align-items: center; gap: 8px; color: #4e6871; font-size: 13px; font-weight: 700; }
 i { width: 9px; height: 9px; display: inline-block; border-radius: 50%; background: #aab9bd; }
 i.online, .student i.connected { background: #2aa865; box-shadow: 0 0 0 3px #dff4e8; }
 i.offline, .student i.offline { background: #aebcc0; }
 .student i.pending, .student i.syncing { background: #e9952a; }
-.class-banner { padding: 28px 24px; background: #e7f7ff; border-bottom: 1px solid #cbe9fb; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-.class-banner h1 { font-size: 26px; margin: 0 0 5px; }
-.class-banner p:last-child { margin: 0; color: #4d6871; }
-.code-pill { color: #fff; background: #01aefd; border-radius: 5px; padding: 4px 8px; margin: 0 5px; letter-spacing: .1em; }
 .muted { color: #61777e; font-size: 13px; }
 .pending-strip { padding: 12px 24px; background: #fff4db; border-bottom: 1px solid #ecd499; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .pending-strip > div { display: flex; align-items: center; gap: 8px; border-left: 1px solid #e3c878; padding-left: 14px; }
 .pending-strip span { font-weight: 750; font-size: 14px; }.pending-strip small { display: block; }
-.class-layout { display: grid; grid-template-columns: 265px minmax(0, 1fr) 265px; min-height: calc(100vh - 176px); }
-.roster, .details { background: #fff; padding: 20px; }.roster { border-right: 1px solid #dce5e8; }.details { border-left: 1px solid #dce5e8; }
+.class-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr) 290px; min-height: calc(100vh - 58px); }
+.class-layout.no-course { grid-template-columns: 220px minmax(0, 1fr) 34px; }
+.roster, .details { background: #fff; padding: 18px; }.roster { border-right: 1px solid #dce5e8; }.details { border-left: 1px solid #dce5e8; }
 .panel-title h2, .details h2 { font-size: 16px; margin-bottom: 17px; }.panel-title h2 span { color: #728a91; font-size: 13px; font-weight: 500; }
 .add-student { display: flex; gap: 7px; margin-bottom: 14px; }.add-student input { padding: 8px; }.add-student button { width: 35px; border: 0; border-radius: 5px; color: #fff; font-size: 20px; background: #01aefd; }
 .student-list { display: grid; gap: 4px; }.student { border: 0; border-radius: 5px; color: #2d4a55; background: transparent; padding: 9px 7px; display: flex; align-items: center; text-align: left; gap: 10px; }.student:hover, .student.active { background: #e7f5f8; }.student span { display: grid; gap: 2px; font-size: 14px; font-weight: 700; }.student small { font-weight: 500; font-size: 11px; }
-.empty { color: #70858b; font-size: 13px; line-height: 1.5; }.roster-footer { margin-top: 24px; display: grid; gap: 5px; }.workspace { padding: 24px; min-width: 0; }.workspace-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }.workspace-top h1, .workspace-top h2 { font-size: 23px; margin: 0; }.workspace-top .eyebrow { margin-bottom: 5px; }
+.empty { color: #70858b; font-size: 13px; line-height: 1.5; }.workspace { padding: 24px; min-width: 0; }.workspace-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }.workspace-top h1, .workspace-top h2 { font-size: 23px; margin: 0; }.workspace-top .eyebrow { margin-bottom: 5px; }
 .editor-grid { height: min(76vh, 1000px); min-height: 470px; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(270px, .88fr); overflow: hidden; border: 1px solid #cbd9dd; border-radius: 7px; background: #fff; }/* min-height: 0 is essential: a grid item defaults to min-height:auto, which
    lets it grow to its content. With 100+ lines the code panel would balloon past
    the grid's fixed height (dragging the preview column with it and pushing the
    whole page into a scrollbar) instead of staying put and letting CodeMirror
    scroll inside. min-height:0 pins it to its track so the editor scrolls itself. */
-.code-panel { display: grid; grid-template-rows: auto 1fr; border-right: 1px solid #d4e0e3; min-width: 0; min-height: 0; }.tabs { display: flex; overflow: auto; background: #f7fafb; border-bottom: 1px solid #d4e0e3; }.tab { border: 0; border-right: 1px solid #dce7e9; padding: 11px 12px; color: #52707a; background: transparent; white-space: nowrap; font-size: 12px; font-weight: 700; }.tab.active { color: #01aefd; background: #fff; box-shadow: inset 0 -2px #01aefd; }.editor { border: 0; border-radius: 0; resize: none; padding: 17px; background: #102127; color: #dcecef; outline: 0; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }.preview-panel { display: grid; grid-template-rows: auto 1fr; background: #fff; min-width: 0; min-height: 0; }.preview-top { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #d4e0e3; color: #4d6871; font-size: 13px; }.preview-panel iframe { width: 100%; height: 100%; border: 0; background: white; }.workspace-status { color: #667d84; display: flex; justify-content: space-between; font-size: 12px; margin-top: 12px; }.workspace-status span { display: flex; align-items: center; gap: 7px; }
-.details dl { margin: 0 0 22px; display: grid; gap: 5px; }.details dt { color: #779098; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }.details dd { color: #31515b; margin: 0 0 8px; font-size: 13px; overflow-wrap: anywhere; }.small-code { font: 11px/1.45 ui-monospace, monospace; color: #547178 !important; }.details textarea { min-height: 118px; resize: vertical; font-size: 13px; }.safety { margin-top: 20px; border-left: 3px solid #e9952a; background: #fff8e9; padding: 12px; color: #674d1b; font-size: 13px; }.safety p { margin: 7px 0 0; line-height: 1.5; }.room-footer { color: #60777e; padding: 12px 24px; background: #fff; border-top: 1px solid #dce5e8; font-size: 12px; }
+.code-panel { display: grid; grid-template-rows: auto 1fr; border-right: 1px solid #d4e0e3; min-width: 0; min-height: 0; }.tabs { display: flex; overflow: auto; background: #f7fafb; border-bottom: 1px solid #d4e0e3; }.tab { border: 0; border-right: 1px solid #dce7e9; padding: 11px 12px; color: #52707a; background: transparent; white-space: nowrap; font-size: 12px; font-weight: 700; }.tab.active { color: #01aefd; background: #fff; box-shadow: inset 0 -2px #01aefd; }.editor { border: 0; border-radius: 0; resize: none; padding: 17px; background: #102127; color: #dcecef; outline: 0; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }.preview-panel { display: grid; grid-template-rows: auto 1fr; background: #fff; min-width: 0; min-height: 0; }.preview-top { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #d4e0e3; color: #4d6871; font-size: 13px; }.preview-panel iframe { width: 100%; height: 100%; border: 0; background: white; }
+.details textarea { min-height: 118px; resize: vertical; font-size: 13px; }.room-footer { color: #60777e; padding: 12px 24px; background: #fff; border-top: 1px solid #dce5e8; font-size: 12px; }
 .empty-workspace { max-width: 420px; margin: 14vh auto; text-align: center; color: #587078; }.empty-workspace h2 { color: #274954; }
 /* The async class-work editor: the student's project wide, an optional AI
    "Identify problem" panel on the right. */
@@ -86,8 +86,8 @@ i.offline, .student i.offline { background: #aebcc0; }
 .identify-answer p:empty { margin: 0 0 4px; }
 @media (max-width: 1050px) { .teacher-edit-layout.with-panel { grid-template-columns: minmax(0, 1fr); }.identify-panel { border-left: 0; border-top: 1px solid #dce5e8; } }
 .join-screen { min-height: 100vh; display: grid; place-items: center; padding: 22px; background: linear-gradient(130deg,#e6f7fa,#f9f4e9); }.join-card { width: min(450px,100%); padding: 34px; background: #fff; border: 1px solid #dce6e8; border-radius: 8px; box-shadow: 0 17px 45px rgba(32,65,75,.12); }.join-card h1 { font-size: 32px; margin: 0 0 10px; }.join-card > p:not(.eyebrow):not(.notice) { color: #5b7178; font-size: 15px; line-height: 1.55; }.back { display: inline-block; margin-bottom: 35px; font-size: 13px; font-weight: 800; }.code-input { font: 700 23px ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; }.join-card small { display: block; margin-top: 17px; }.student-project { max-width: none; margin: 0; padding: 22px 30px; }.save-label { color: #2a8254; background: #e4f7eb; border-radius: 4px; padding: 7px 9px; font-size: 12px; font-weight: 800; }
-@media (max-width: 1050px) { .class-layout { grid-template-columns: 230px minmax(0,1fr); }.details { display: none; }.teacher-options { grid-template-columns: 1fr; }.editor-grid { grid-template-columns: 150px minmax(0,1fr); height: auto; }.filetree { grid-row: span 2; }.code-panel { height: 380px; border-right: 0; border-bottom: 1px solid #d4e0e3; }.preview-panel { height: 320px; } }
-@media (max-width: 680px) { .welcome { padding: 22px; }.teacher-entry { padding: 45px 0; }.class-banner, .workspace-top { align-items: flex-start; flex-direction: column; }.class-layout { display: block; }.roster { border-right: 0; border-bottom: 1px solid #dce5e8; }.student-list { grid-template-columns: repeat(2, minmax(0,1fr)); }.roster-footer { display: none; }.workspace { padding: 16px; }.room-header, .class-banner, .pending-strip { padding-left: 16px; padding-right: 16px; }.connection { font-size: 11px; }.student-project { padding: 16px; } }
+@media (max-width: 1050px) { .class-layout, .class-layout.no-course { grid-template-columns: 200px minmax(0,1fr) 34px; }.details { position: fixed; top: 58px; right: 0; bottom: 0; z-index: 25; width: 300px; overflow-y: auto; box-shadow: -10px 0 30px rgba(19,48,64,.16); }.teacher-options { grid-template-columns: 1fr; }.editor-grid { grid-template-columns: 150px minmax(0,1fr); height: auto; }.filetree { grid-row: span 2; }.code-panel { height: 380px; border-right: 0; border-bottom: 1px solid #d4e0e3; }.preview-panel { height: 320px; } }
+@media (max-width: 680px) { .welcome { padding: 22px; }.teacher-entry { padding: 45px 0; }.workspace-top { align-items: flex-start; flex-direction: column; }.class-layout { display: block; }.roster { border-right: 0; border-bottom: 1px solid #dce5e8; }.student-list { grid-template-columns: repeat(2, minmax(0,1fr)); }.panel-rail { display: none; }.details { top: 0; width: 100%; }.workspace { padding: 16px; }.room-header, .pending-strip { padding-left: 16px; padding-right: 16px; }.connection { font-size: 11px; }.student-project { padding: 16px; } }
 
 /* ---- instructor course panel ---- */
 .course-panel { margin-bottom: 26px; padding-bottom: 22px; border-bottom: 1px solid #dce5e8; }
@@ -671,3 +671,65 @@ body.running-full { overflow: hidden; }
 .pcc-countdown strong { font-size: 30px; font-weight: 800; color: #0a6299; font-variant-numeric: tabular-nums; }
 .pcc-countdown-bar { width: 100%; height: 6px; border-radius: 3px; background: #d7e9f2; overflow: hidden; }
 .pcc-countdown-bar span { display: block; height: 100%; background: #01aefd; transition: width 0.25s linear; }
+
+/* ---- the teacher's live classroom ---- */
+.teacher-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 18px; }
+.teacher-bar-title { display: flex; align-items: center; min-width: 0; }
+.teacher-bar-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teacher-bar-views { display: flex; gap: 6px; }
+.teacher-bar-views .text-button { color: #4d6871; font-size: 13px; }
+.teacher-bar-views .text-button:hover { color: #0a6299; }
+.teacher-bar-actions { display: flex; align-items: center; gap: 10px; }
+.live-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: #eef2f4; color: #4e6871; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.live-pill.on { background: #e3f6ea; color: #1f6b41; }
+.live-pill em { font-style: normal; color: #8a5a12; }
+.bar-primary { padding: 8px 16px; box-shadow: none; }
+.quiet-danger { border: 1px solid #e6c1bb; border-radius: 7px; padding: 7px 14px; background: #fff; color: #b23b2a; font-size: 14px; font-weight: 750; }
+.quiet-danger:hover { border-color: #c6453b; background: #fdf1ef; }
+.icon-button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #6b838a; font-size: 20px; line-height: 1; }
+.icon-button:hover { background: #eef4f6; color: #0a6299; }
+.panel-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.panel-title h2 { margin: 0; }
+.count { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #eef2f4; color: #5d757c; font-size: 11.5px; font-weight: 700; text-align: center; }
+.add-student-toggle { margin-top: 10px; padding-left: 7px; font-size: 13px; }
+.roster .add-student { margin: 10px 0 0; }
+.workspace { padding: 18px 20px; }
+.workspace-top { align-items: center; margin-bottom: 12px; }
+.student-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.student-heading h2 { font-size: 21px; }
+.workspace-actions { display: flex; align-items: center; gap: 8px; }
+.details-head { display: flex; align-items: center; justify-content: space-between; margin: -4px 0 8px; }
+.details-head h2 { margin: 0; }
+.panel-rail { display: flex; justify-content: center; align-items: flex-start; padding: 16px 0; border: 0; border-left: 1px solid #dce5e8; background: #fff; color: #4d6871; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.panel-rail span { writing-mode: vertical-rl; }
+.panel-rail:hover { background: #f2fafc; color: #0a6299; }
+.panel-section { border-top: 1px solid #e3ebee; }
+.panel-section-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 0; border: 0; background: transparent; color: #274954; font-size: 13px; font-weight: 800; text-align: left; }
+.panel-section-head > span:first-child { flex: 1; }
+.panel-section-head .chevron { width: 7px; height: 7px; margin-right: 4px; border-right: 2px solid #8aa0a7; border-bottom: 2px solid #8aa0a7; transform: rotate(-45deg); transition: transform .15s; }
+.panel-section.open .chevron { transform: rotate(45deg); }
+.panel-section-body { padding: 0 0 16px; }
+.panel-section-body > .muted:first-child { margin-top: 0; }
+.course-panel { margin: 0; padding: 0; border: 0; }
+.week-open .catch-row.two { margin-top: 10px; }
+.week-links { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 13px; font-weight: 700; }
+.week-links .text-button { padding: 0; font-size: 13px; }
+.week-hint { margin: 10px 0 0; }
+.catch-up .primary.compact, .catch-up .secondary.compact { justify-self: stretch; }
+.align-start { justify-self: start; padding-left: 0; font-size: 13px; }
+.form-links { display: flex; gap: 6px; }
+.notes { width: 100%; min-height: 110px; }
+.offline-view > .empty:first-child { margin-top: 0; }
+.room-toast { position: fixed; left: 50%; bottom: 20px; z-index: 40; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: min(620px, calc(100vw - 32px)); padding: 9px 8px 9px 16px; border-radius: 9px; background: #17323c; color: #e6f2f5; font-size: 13px; line-height: 1.45; box-shadow: 0 10px 28px rgba(19,48,64,.28); }
+.room-toast .icon-button { color: #9fb7bf; }
+.room-toast .icon-button:hover { background: #24444f; color: #fff; }
+.pending-strip strong { color: #6f4d10; font-size: 13px; }
+.pending-strip .text-button { font-size: 13px; color: #8a5a12; }
+@media (max-width: 1050px) { .teacher-bar-views .text-button { padding: 7px 3px; } }
+@media (max-width: 680px) { .teacher-bar { grid-template-columns: minmax(0, 1fr) auto; padding-top: 8px; padding-bottom: 8px; }.teacher-bar-views { grid-column: 1 / -1; grid-row: 2; }.live-pill { display: none; } }
+
+/* ---- the student's screens ---- */
+.join-other { display: block; margin: 4px 0 0; padding-left: 0; font-size: 14px; }
+.project-top { align-items: center; margin-bottom: 14px; }
+.project-top h1 { font-size: 22px; }
+.project-status { color: #5d757c; font-size: 12.5px; font-weight: 600; text-align: right; }
