@@ -1,0 +1,380 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
+  body{background:#fff}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="py202";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PY202</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>PY202 &#183; Balloon Fight</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>Nothing here needs the internet except the code editor itself.</strong> The
+game runs entirely in the browser - there is no server, no account and no API key anywhere
+in this course.</p>
+<p><strong>The students draw the art.</strong> Every sprite is listed with the exact size
+to draw it. The generated games use plain coloured rectangles as stand-ins so the code can
+be tested; they are meant to be replaced. Week 15 also uses a sound called
+<code>jump.mp3</code>; until a student uploads one, the editor plays a short beep in its
+place.</p>
+<p><strong>Keep the console open.</strong> From week 3 the game writes your speed, the
+enemies left and the game over message to the console under the game. If a student cannot
+see it, that is the first thing to fix.</p>
+</div>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>Pixelhead, a virus and two bubbles</h2>
+<p class="lead">Every game is built from objects. Today you make three <a class="term" href="textbook.html#g-class">classes</a> - Pixelhead, a virus and a bubble - and put one of each kind in a <a class="term" href="textbook.html#g-room">room</a> called Level1.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">class</b> is a blueprint; an <a class="term" href="textbook.html#g-object">object</a> is one thing built from it.</li><li><a class="term" href="textbook.html#g-start">start</a> runs once, the moment an object is made.</li><li>A <b class="term">room</b> builds what is in it; set_room picks the room.</li><li>0, 0 is the middle. Plus x is right, plus y is up.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">class</span><span class="pill">object</span><span class="pill">sprite</span><span class="pill">room</span><span class="pill">x and y</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make Pixelhead yours</strong><p style="margin:8px 0 0">Redraw pixelhead.png as a hero you would want to float with. Keep it 60 by 80, facing right.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Play and your own hero is in Level1.</p></div><div class="card"><strong>Challenge 2. Where is it?</strong><p style="margin:8px 0 0">Without pressing Play: an object is at x -300, y -200. Which corner of the screen is it nearest?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Bottom left - minus x is left, minus y is down.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>Mountains, and a drift</h2>
+<p class="lead">Start runs once; <a class="term" href="textbook.html#g-loop">loop</a> runs forever. Today the sky gets its mountains, the bubbles start to rise, and Pixelhead drifts at a speed kept in a <a class="term" href="textbook.html#g-variable">variable</a>.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Objects are drawn in the order they are made: the background first.</li><li><b class="term">loop</b> runs about sixty times a second.</li><li>self.y = self.y + 1 means: my new y is my old y plus 1.</li><li>A <b class="term">variable</b> keeps a value, like the speed, for later.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">draw order</span><span class="pill">loop</span><span class="pill">variable</span><span class="pill">speed</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Say it in English</strong><p style="margin:8px 0 0">Write self.x = self.x + self.speed as an English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Something like: my new x is my old x plus my speed.</p></div><div class="card"><strong>Challenge 2. A pile of paper</strong><p style="margin:8px 0 0">Explain in one sentence why the background has to be made first.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Whatever is made first is drawn first, at the bottom of the pile.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 3</p>
+<h2>Steer</h2>
+<p class="lead">Pixelhead does not walk - it builds up speed. Today each tap of an arrow changes the speed by one, Pixelhead turns to face the way you tapped, and the console tells you the speed.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The lines under an <a class="term" href="textbook.html#g-if">if</a> run only when its question is true.</li><li><a class="term" href="textbook.html#g-key_was_pressed">key_was_pressed</a> is True for one loop only - one tap, one change.</li><li>scaleX = -1 flips a picture; scaleX = 1 is the way you drew it.</li><li><a class="term" href="textbook.html#g-print">print</a> writes to the console; <a class="term" href="textbook.html#g-str">str</a> turns a number into words.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">if</span><span class="pill">key_was_pressed()</span><span class="pill">scaleX</span><span class="pill">print()</span><span class="pill">str()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Trace the speed</strong><p style="margin:8px 0 0">Pixelhead&#x27;s speed is 1. You tap right, right, left, left, left. What does the console say after each tap?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Speed: 2, 3, 2, 1, 0.</p></div><div class="card"><strong>Challenge 2. Say it in English</strong><p style="margin:8px 0 0">Write if key_was_pressed(&#x27;arrowLeft&#x27;): self.speed = self.speed - 1 as an English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Something like: each time left is tapped, my speed goes down by one.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-03.html">week 3's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 4</p>
+<h2>Up and down</h2>
+<p class="lead">Today a virus patrols up and down. It remembers which way it is going in a variable that holds words, and changes it when it reaches the top or the bottom - using &amp;lt; and &amp;gt;.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>&amp;lt; is less than, &amp;gt; is greater than.</li><li>A <b class="term">variable</b> can hold words in quotes, like &#x27;up&#x27;.</li><li>== asks whether two things are equal; = stores a value.</li><li>Each virus remembers its own direction.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">&amp;lt; and &amp;gt;</span><span class="pill">==</span><span class="pill">words in quotes</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Fill in the sign</strong><p style="margin:8px 0 0">Write &amp;lt; or &amp;gt; between each pair: 5 and -5, -100 and -10, 300 and 299.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 5 &amp;gt; -5, -100 &amp;lt; -10, 300 &amp;gt; 299.</p></div><div class="card"><strong>Challenge 2. Where next?</strong><p style="margin:8px 0 0">A virus is at y 301 going up. What happens in its next loop, line by line?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> It moves up to 302, then sees it is above 300 and changes to going down.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-04.html">week 4's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 5</p>
+<h2>Side to side</h2>
+<p class="lead">Today you build the sideways patrol yourself from the pattern you made last week - a direction, a move for each one, and a turn at each edge - and the virus faces the way it flies.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Plan in plain English first; the code follows the plan.</li><li>Left and right is the same pattern as up and down.</li><li>Both happen every loop, so the virus flies diagonally.</li><li>scaleX flips the virus to face the way it moves.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a pattern, again</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. The three parts</strong><p style="margin:8px 0 0">Write the three parts of a patrol in plain English, without any code.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A direction variable; a move for each direction; a turn at each edge.</p></div><div class="card"><strong>Challenge 2. Which way?</strong><p style="margin:8px 0 0">A virus is at x 626, going right and up. Which two directions does it have after its next loop?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Left and up - it turned at the side, and is still going up.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Three balloons</h2>
+<p class="lead">Pixelhead gets three balloons. Pixelhead makes them in its own start, keeps a name for each, and moves them to sit above its head every loop - one object steering three others with the <a class="term" href="textbook.html#g-dot">dot</a>.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An object can make other objects in its own start.</li><li>self.b1.x = self.x moves another object to where I am.</li><li><a class="term" href="textbook.html#g-angle">angle</a> turns a picture, in degrees.</li><li>A bigger <a class="term" href="textbook.html#g-z">z</a> is drawn in front.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">objects making objects</span><span class="pill">angle</span><span class="pill">z</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Where is b2?</strong><p style="margin:8px 0 0">Pixelhead is at x 100, y -50. Where is balloon b2?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> x 130, y 30.</p></div><div class="card"><strong>Challenge 2. Who made it?</strong><p style="margin:8px 0 0">Explain why the balloons are made in Player start and not in Level1 start.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> They belong to Pixelhead and should come with it into every level.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>Stomp or pop</h2>
+<p class="lead">Today things touch. Land on a virus from above and it is gone; touch one from below and Pixelhead is gone - an <b class="term">if</b> inside an if, with <a class="term" href="textbook.html#g-else">else</a> for the other way. And bubbles pop.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><a class="term" href="textbook.html#g-get_collision">get_collision</a> gives back the thing you touch, or False.</li><li><a class="term" href="textbook.html#g-destroy">destroy</a> takes an object out of the game.</li><li><b class="term">else</b> runs when its if&#x27;s question is not true.</li><li>An if inside an if is pushed in further - you can see the decision in the shape.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">get_collision()</span><span class="pill">destroy()</span><span class="pill">else</span><span class="pill">an if inside an if</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Draw the tree</strong><p style="margin:8px 0 0">Draw the stomp-or-pop decision as a tree with two questions and three endings.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Touching? No - carry on. Yes - higher? Yes - virus gone. No - Pixelhead gone.</p></div><div class="card"><strong>Challenge 2. Who wins?</strong><p style="margin:8px 0 0">Pixelhead is at y 100 and touches a virus at y 140. Which lines run?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The else lines - 100 is not higher than 140, so Pixelhead and its balloons are destroyed.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>A bubble machine</h2>
+<p class="lead">Two bubbles are not a game. Today an invisible Spawner makes a new bubble every two seconds with a <a class="term" href="textbook.html#g-timer">timer</a>, and each one starts somewhere <a class="term" href="textbook.html#g-random">random</a> along the bottom.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><a class="term" href="textbook.html#g-visible">visible</a> False hides an object.</li><li>A <b class="term">timer</b> counts loops; 60 loops is one second.</li><li><a class="term" href="textbook.html#g-import">import</a> random brings in the random toolbox, at the very top.</li><li>random.randint(-600, 600) picks a different number each time.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">visible</span><span class="pill">timer</span><span class="pill">import</span><span class="pill">random.randint()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Which numbers?</strong><p style="margin:8px 0 0">Write every number random.randint(-2, 3) could pick.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> -2, -1, 0, 1, 2, 3 - both ends included.</p></div><div class="card"><strong>Challenge 2. Why reset?</strong><p style="margin:8px 0 0">Explain in one sentence why the timer goes back to 0.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Otherwise it stays above 120 and makes a bubble every loop.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>Level 2</h2>
+<p class="lead">Clear the sky and you go to level 2. To know when the sky is clear, the <a class="term" href="textbook.html#g-game">game</a> counts the viruses - in the Game class, the one object that lasts through every room.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The Game class lasts the whole game; <b class="term">game</b> reaches it from anywhere.</li><li>Count up when a virus is made, down when it is stomped.</li><li>When the count is 0, set_room changes level.</li><li>A new room builds new objects - a new Pixelhead, too.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">game.</span><span class="pill">a count</span><span class="pill">a second room</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Count it</strong><p style="margin:8px 0 0">Level1 makes three viruses. You stomp two. What is game.enemiesNumber, and which room are you in?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 1, still Level1.</p></div><div class="card"><strong>Challenge 2. self or game</strong><p style="margin:8px 0 0">Explain why Enemy start writes game.enemiesNumber, but Game start writes self.enemiesNumber.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Inside Game, the Game is self; from any other class it is game.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Gravity, and a boost</h2>
+<p class="lead">Today Pixelhead falls. <a class="term" href="textbook.html#g-gravity">gravity</a> pulls it down a little every loop, and popping a bubble starts a <b class="term">timer</b> that lifts it up for two-thirds of a second.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">gravity</b> takes a little off y every loop.</li><li>It lives in Game, so it lasts from level to level.</li><li>A <b class="term">timer</b> is set, counts down, and does something while above 0.</li><li>Up 5 and down 1 every loop: you rise 4 a loop.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">gravity</span><span class="pill">a timer that counts down</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Trace the boost</strong><p style="margin:8px 0 0">Pixelhead is at y 0 and pops a bubble. Where is it after 10 loops?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> y 40 - up 5 and down 1, ten times.</p></div><div class="card"><strong>Challenge 2. Why Game?</strong><p style="margin:8px 0 0">Explain why gravity is in Game and not in Player start.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Pixelhead is rebuilt in each level; Game lasts, so a change to gravity lasts too.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>One balloon at a time</h2>
+<p class="lead">Losing everything at the first touch is harsh. Today a virus pops one balloon at a time, the <b class="term">game</b> counts how many are left, and <a class="term" href="textbook.html#g-elif">elif</a> picks which one to pop.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">elif</b> is asked only when every question above it was no.</li><li><b class="term">else</b> catches whatever is left.</li><li>The balloon count lives in Game, so it lasts from level to level.</li><li>&amp;gt;= means at least; only move the balloons you still have.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">elif</span><span class="pill">&amp;gt;=</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Which branch?</strong><p style="margin:8px 0 0">For each balloon count - 3, 2 and 1 - write which balloon pops when a virus wins.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 3: b1. 2: b2. 1: b3, and Pixelhead goes too.</p></div><div class="card"><strong>Challenge 2. Why all at once?</strong><p style="margin:8px 0 0">Explain in one sentence why one touch pops all three balloons.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The touch lasts several loops, and every loop pops one more.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>Invincible</h2>
+<p class="lead">After a hit, Pixelhead gets a moment of safety: a <b class="term">timer</b> that must run out before the next virus counts. Then the viruses learn to place themselves, so level 2 can have some.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><a class="term" href="textbook.html#g-and">and</a> needs both questions to be yes.</li><li>A grace period is a timer set when you are hit.</li><li>An object can place itself in its start with <b class="term">random</b>.</li><li>A room&#x27;s own x and y come after, so they win.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">and</span><span class="pill">a grace period</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. When is it safe?</strong><p style="margin:8px 0 0">Pixelhead is hit, and the timer is set to 90. After how many loops can it be hit again?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 91 - the timer must go below 0.</p></div><div class="card"><strong>Challenge 2. Both or one?</strong><p style="margin:8px 0 0">Touching a virus is yes, the timer is 40. Does Pixelhead lose a balloon? Why?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> No - and needs both, and 40 is not below 0.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>New level, same balloons</h2>
+<p class="lead">Lose a balloon in level 1 and level 2 hands it back - and it never follows you. Today the balloons a level builds come from the count, and every lost balloon makes Pixelhead heavier.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Player start builds only the balloons the count says.</li><li>Game&#x27;s numbers last from level to level.</li><li>Fewer balloons, more <b class="term">gravity</b>.</li><li>The boost timer makes a stomp into a bounce.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">state that lasts</span><span class="pill">a decimal number</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. How heavy?</strong><p style="margin:8px 0 0">Write the gravity for 3, 2 and 1 balloons.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 1, 1.5 and 2.</p></div><div class="card"><strong>Challenge 2. How many balloons?</strong><p style="margin:8px 0 0">You lost one balloon in level 1. Which balloons does Player start build in level 2?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> b2 and b3 - the count is 2.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>Game over</h2>
+<p class="lead">A game needs an ending. Today losing your last balloon or falling off the bottom goes to a game over room, and space starts again - after putting back every number the last game changed.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>set_room(&#x27;GameOver&#x27;) ends the game - from anywhere.</li><li><a class="term" href="textbook.html#g-key_is_pressed">key_is_pressed</a> is True as long as the key is held.</li><li>Starting again means putting back every number that changed.</li><li>A new room builds everything fresh - but Game remembers.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">key_is_pressed()</span><span class="pill">resetting state</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Find the bug</strong><p style="margin:8px 0 0">The restart forgets game.gravity = 1. You lost two balloons last game. What happens?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The new game starts with three balloons but falls as fast as with one - gravity is still 2.</p></div><div class="card"><strong>Challenge 2. Two endings</strong><p style="margin:8px 0 0">Write both ways the game can end, and the line that does each.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Losing the last balloon - set_room in the enemy else; falling below -400 - the falloff if.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>Sound, a flash and a win</h2>
+<p class="lead">The last week makes it feel finished: a sound when you pop a bubble, Pixelhead flashing while it is safe, and a win screen when level 2 is clear.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><a class="term" href="textbook.html#g-sound">sound</a> loads a sound once; <a class="term" href="textbook.html#g-play_sound">play_sound</a> plays it.</li><li><a class="term" href="textbook.html#g-alpha">alpha</a> is how solid a picture is, from 0 to 1.</li><li>A win room is just another room.</li><li>Every line of the game is yours.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">sound()</span><span class="pill">play_sound()</span><span class="pill">alpha</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Teach it</strong><p style="margin:8px 0 0">Show someone at home your game and explain how stomping a virus works, line by line.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> They can say why landing from above is safe and from below is not.</p></div><div class="card"><strong>Challenge 2. Your next idea</strong><p style="margin:8px 0 0">Write down one thing you would add next, and which class it would go in.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> One idea and one class name.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
