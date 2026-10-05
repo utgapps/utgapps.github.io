@@ -21,10 +21,15 @@ const PIXELPAD_PANEL = /^([A-Za-z][A-Za-z0-9_]*) (start|loop)$/;
 
 /** One week of PixelPad panels as a game project: each panel under the
  *  editor's file name, and a game.txt listing the rooms the week has reached
- *  and the pictures its code asks for. A room is listed only once a panel
- *  for it exists - GameOver arrives in week 10 - because a listed room with
- *  nothing in it is something the editor reports as broken. */
-export function gameFromPanels(panels: Record<string, string>, rooms: string[], sprites: CourseSprites): Record<string, string> {
+ *  and the pictures the class has drawn by then. A room is listed only once
+ *  a panel for it exists - GameOver arrives in week 10 - because a listed
+ *  room with nothing in it is something the editor reports as broken.
+ *
+ *  `drawn` is the course's own list for the week. Without it a picture counts
+ *  once its name is in the code, which misses a name the code builds:
+ *  sprite(self.tag + '.png') names no picture, and PY301's fruit was blank. */
+export function gameFromPanels(panels: Record<string, string>, rooms: string[], sprites: CourseSprites,
+                               drawn: string[] = []): Record<string, string> {
   const files: Record<string, string> = {};
   for (const [name, code] of Object.entries(panels)) {
     const match = PIXELPAD_PANEL.exec(name);
@@ -33,7 +38,7 @@ export function gameFromPanels(panels: Record<string, string>, rooms: string[], 
   const allCode = Object.values(panels).join("\n");
   const manifest = [
     ...rooms.filter((room) => `${room} start` in panels || `${room} loop` in panels).map((room) => `room ${room}`),
-    ...Object.entries(sprites).filter(([picture]) => allCode.includes(picture))
+    ...Object.entries(sprites).filter(([picture]) => allCode.includes(picture) || drawn.includes(picture))
       .map(([picture, [colour, width, height]]) => `sprite ${picture} ${colour} ${width} ${height}`),
   ];
   files[MANIFEST_FILE] = manifest.join("\n") + "\n";
@@ -44,11 +49,14 @@ export function gameFromPanels(panels: Record<string, string>, rooms: string[], 
 export function weeksFromMilestones(data: unknown): CourseWeek[] {
   const course = (data || {}) as { kind?: unknown; rooms?: unknown; sprites?: unknown; weeks?: unknown };
   if (!Array.isArray(course.weeks)) return [];
-  const weeks = course.weeks as { n: number; title: string; files: Record<string, string> }[];
+  const weeks = course.weeks as { n: number; title: string; files: Record<string, string>; pictures?: unknown }[];
   if (course.kind === GAME_KIND) {
     const rooms = Array.isArray(course.rooms) ? course.rooms as string[] : [];
     const sprites = (course.sprites || {}) as CourseSprites;
-    return weeks.map((week) => ({ ...week, kind: GAME_KIND, files: gameFromPanels(week.files, rooms, sprites) }));
+    return weeks.map(({ pictures, ...week }) => ({
+      ...week, kind: GAME_KIND,
+      files: gameFromPanels(week.files, rooms, sprites, Array.isArray(pictures) ? pictures as string[] : []),
+    }));
   }
   /* CS701's .java files are Java, everything else so far is a web page.
      Guessing "web" for a Java week would open it in the web editor with a

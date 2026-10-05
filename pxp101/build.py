@@ -2419,7 +2419,16 @@ def build_milestones():
     needs to know which panels are rooms and how big each picture is, which a
     PixelPad project keeps outside its code. So the rooms and sprites travel
     with the weeks, and the classroom turns each week into its own project.
+
+    Each week also says which pictures the class has drawn by then. The
+    classroom used to find them by name in the code, which misses a picture
+    whose name the code builds - sprite(self.tag + '.png') names no picture
+    at all, and PY301's fruit opened as nothing.
     """
+    drawn, pictures = [], {}
+    for week in course.WEEKS:
+        drawn += [name for name in week.get("draw", []) if name not in drawn]
+        pictures[week["n"]] = list(drawn)
     payload = {
         "course": TOOL,
         "title": course.COURSE_TITLE,
@@ -2427,7 +2436,8 @@ def build_milestones():
         "rooms": course.ROOMS,
         "sprites": {name: list(spec) for name, spec in course.SPRITES.items()},
         "weeks": [
-            {"n": week["n"], "title": week["title"], "files": state_at(week["n"])}
+            {"n": week["n"], "title": week["title"], "files": state_at(week["n"]),
+             "pictures": pictures[week["n"]]}
             for week in course.WEEKS
         ],
     }

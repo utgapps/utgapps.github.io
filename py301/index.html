@@ -1,0 +1,196 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PY301 &#183; Fruit Slasher &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
+  body{background:#fff}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="py301";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PY301</strong></header>
+<div class="wrap">
+<p class="eyebrow">15-week course</p>
+<h1>PY301 &#183; Fruit Slasher</h1>
+<p class="lead">Fifteen weeks building a slicing game in Python. Fruit leaps up and falls under gravity; swipe with the mouse to slice it, and never touch a bomb. You write every line.</p>
+<div class="card">
+  <h3 style="margin-top:0">What you are building</h3>
+  <p class="muted">A one-minute fruit slicer. Fruit of five kinds leaps from the bottom of the screen; hold the mouse button and swipe to slice it into a splash. Every fruit is a point, a bomb explodes, shakes the screen and takes them all, and a treasure chest buys you five more seconds.</p>
+  <p><a class="pill" href="textbook.html">The book</a>
+     <a class="pill" href="teacher.html">Teacher curriculum</a>
+     <a class="pill" href="workbook.html">Homework book</a>
+     <a class="pill ghost" href="https://pixelpad.io" target="_blank" rel="noopener">Open PixelPad</a></p>
+  <p class="muted" style="margin:10px 0 0;font-size:13px">The book is the one to hand a child: every
+  step, every line, chapter by chapter. Each week page carries that week&rsquo;s slides and links
+  straight to its lesson plan.</p>
+</div>
+<div class="warn"><h3 style="margin-top:0">Before you start &mdash; read this</h3>
+<p><strong>Nothing here needs the internet except the code editor itself.</strong> The
+game runs entirely in the browser - there is no server, no account and no API key anywhere
+in this course.</p>
+<p><strong>The students draw the art.</strong> Every sprite is listed with the exact size
+to draw it. The generated games use plain coloured rectangles as stand-ins so the code can
+be tested; they are meant to be replaced. The splashes and the explosion are sprite sheets
+- several frames in one picture - and week 12 explains how to draw one. Week 11 also uses a
+sound called <code>woosh.mp3</code>; until a student uploads one, the editor plays a short
+beep in its place.</p>
+<p><strong>This game is played with the mouse.</strong> Click into the game before you
+slice. On a laptop's touchpad, hold the button down and drag.</p>
+</div>
+<h2>The weeks</h2>
+<div class="grid"><a class="wk-card" href="week-01.html"><span class="n">Week 1</span><h3>A fruit in a room</h3><p>Every game is built from objects. Today you make two <b class="term">classes</b> - a fruit and a background - and put one of each in a <b class="term">room</b> called Play.</p></a><a class="wk-card" href="week-02.html"><span class="n">Week 2</span><h3>Up, then down</h3><p>A fruit leaps because it has a <b class="term">velocity</b> - how far it moves every loop - and it falls because <b class="term">gravity</b> takes a little of that velocity away, every loop.</p></a><a class="wk-card" href="week-03.html"><span class="n">Week 3</span><h3>The fruit machine</h3><p>One fruit is not a game. A spawner is an invisible object with a <b class="term">timer</b>: every time it counts to a number, it makes a fruit and starts counting again.</p></a><a class="wk-card" href="week-04.html"><span class="n">Week 4</span><h3>Never the same twice</h3><p>Every fruit picks its own place, height and drift with <b class="term">random</b> numbers - and <b class="term">destroy</b>s itself once it has fallen off the screen, so the game never fills up.</p></a><a class="wk-card" href="week-05.html"><span class="n">Week 5</span><h3>The slicer</h3><p>The slicer is an object that sits wherever the mouse is. When it touches a fruit, <b class="term">get_collision</b> gives you that fruit - and you take it away and count a point that everyone can see.</p></a><a class="wk-card" href="week-06.html"><span class="n">Week 6</span><h3>Five kinds of fruit</h3><p>Every fruit rolls a dice when it is made, and an <b class="term">if</b> with <b class="term">elif</b>s turns the number into a kind - and the kind into the name of its picture.</p></a><a class="wk-card" href="week-07.html"><span class="n">Week 7</span><h3>Click to slice, and never a bomb</h3><p>The slicer only cuts while the button is held - <b class="term">and</b> asks two questions at once - and the fruit it hits has a tag the slicer can read with the <b class="term">dot</b>.</p></a><a class="wk-card" href="week-08.html"><span class="n">Week 8</span><h3>A trail behind the blade</h3><p>A trail is lots of little objects, one dropped every loop while the button is held. Each one <b class="term">times</b> itself out and shrinks to nothing as it goes.</p></a><a class="wk-card" href="week-09.html"><span class="n">Week 9</span><h3>One minute on the clock</h3><p>A game needs an end. A clock is a <b class="term">timer</b> that counts down from a minute&#x27;s worth of loops; dividing by 60 turns loops into seconds, and at nothing left a second <b class="term">room</b> takes over.</p></a><a class="wk-card" href="week-10.html"><span class="n">Week 10</span><h3>A smooth slash</h3><p>To fill the gaps in a fast swipe, the slicer remembers where it was and lays twenty pieces of trail along the line to where it is - a <b class="term">for</b> loop does it twenty times without twenty copies of the code.</p></a><a class="wk-card" href="week-11.html"><span class="n">Week 11</span><h3>Woosh, and play again</h3><p><b class="term">mouse_was_pressed</b> is true for one loop only - the moment you click - which is just right for a sound you want once per swipe, and for a click that starts the game again.</p></a><a class="wk-card" href="week-12.html"><span class="n">Week 12</span><h3>Boom</h3><p>An <b class="term">animation</b> is a run of pictures shown one after another. A sprite sheet holds them all in one picture, and a bomb you slice leaves an explosion that plays them, then removes itself.</p></a><a class="wk-card" href="week-13.html"><span class="n">Week 13</span><h3>Splash</h3><p>Every sliced fruit bursts into a splash of its own colour. One Splash class does it for all of them, by building the sheet&#x27;s name from the fruit&#x27;s tag - left in <b class="term">game</b>. just before the splash is made, because <b class="term">start</b> runs the moment it is.</p></a><a class="wk-card" href="week-14.html"><span class="n">Week 14</span><h3>Shake, and speed up</h3><p>Game feel: a bomb shakes the screen by moving the <b class="term">camera</b> somewhere random every loop, and the better you play, the faster the fruit comes.</p></a><a class="wk-card" href="week-15.html"><span class="n">Week 15</span><h3>Treasure</h3><p>A treasure chest buys you five more seconds - but never more than a full minute. Adding first and then cutting back to the most allowed is called clamping.</p></a></div>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
