@@ -171,9 +171,9 @@ export async function askChecker(key: string, challenge: Challenge, files: Recor
   // A second look, one requirement at a time - but only at a game that is
   // mostly there. Half the list missing is not a misreading.
   const missing = unmet.length * 2 <= requirements.length
-    ? await unmet.reduce<Promise<typeof unmet>>(async (sofar, item) => {
+    ? await unmet.reduce<Promise<typeof unmet>>(async (sofar, item, index) => {
         const still = await sofar;
-        onAsk(`Taking a second look at requirement ${item.number}`);
+        onAsk(`Taking a second look at requirement ${item.number} (${index + 1} of ${unmet.length})`);
         const again = jsonIn(await ask(LOOK_AGAIN, `REQUIREMENT: ${requirements[item.number - 1]}\nPROJECT:\n${code}`));
         if (!(again && again.met === true && quotedFrom(project, again.code))) still.push({ number: item.number, why: String(again?.why || item.why) });
         return still;
