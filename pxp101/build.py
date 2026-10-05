@@ -1256,7 +1256,8 @@ def slide_plan(week, seen):
                 out.append(("delete", {"file": filename, "start": start,
                                        "lines": context, "dropped": group, "at": at,
                                        "replacing": replacing,
-                                       "note": delete_notes.get((filename, block), default)}))
+                                       "note": delete_notes.get((week["n"], filename, block),
+                                                                delete_notes.get((filename, block), default))}))
                 shown += 1
 
             for index, line in enumerate(lines):

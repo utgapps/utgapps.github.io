@@ -1,0 +1,375 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
+  body{background:#fff}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="py102";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PY102</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>PY102 &#183; Platformer</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>Nothing here needs the internet except the code editor itself.</strong> The
+game runs entirely in the browser - there is no server, no account and no API key anywhere
+in this course.</p>
+<p><strong>The students draw the art.</strong> Every sprite is listed with the exact size
+to draw it. The generated games use plain coloured rectangles as stand-ins so the code can
+be tested; they are meant to be replaced.</p>
+</div>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>Meet Pixelhead</h2>
+<p class="lead">Every game is built from objects. Today you make a Player <a class="term" href="textbook.html#g-class">class</a>, give it a <a class="term" href="textbook.html#g-sprite">sprite</a>, and put Pixelhead into your first <a class="term" href="textbook.html#g-room">room</a>, Level1.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">class</b> is a kind of thing; an <a class="term" href="textbook.html#g-object">object</a> is one thing made from it.</li><li><a class="term" href="textbook.html#g-start">start</a> runs once, the moment an object is made.</li><li><b class="term">sprite</b>() puts the picture you drew onto an object.</li><li>Player() makes one player; self.player is the name the room keeps it under.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">class</span><span class="pill">object</span><span class="pill">sprite</span><span class="pill">room</span><span class="pill">start</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make Pixelhead yours</strong><p style="margin:8px 0 0">Redraw pixelhead.png as a character you would want to play. Keep it 60 by 80, facing right.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Play and your own character is on the screen.</p></div><div class="card"><strong>Challenge 2. Name the classes</strong><p style="margin:8px 0 0">Write down every class you saw in the finished game, and one thing each one does.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have a list of at least five classes.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>Wasps in the sky</h2>
+<p class="lead">Every spot on the screen has an address. Today you learn the <a class="term" href="textbook.html#g-coordinates">x and y</a> grid, make a FlyEnemy class, and use the <a class="term" href="textbook.html#g-dot">dot</a> to put two wasps exactly where you want them.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The middle of the screen is x 0, y 0. Plus y is up, minus y is down.</li><li>A <a class="term" href="textbook.html#g-variable">variable</a> is a name holding a value - self.wasp1 holds one wasp.</li><li>The <b class="term">dot</b> reaches inside an object: self.wasp1.x is wasp1&#x27;s x.</li><li>One class can make as many objects as you like, each with its own x and y.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">x and y</span><span class="pill">the dot</span><span class="pill">variables</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Map the screen</strong><p style="margin:8px 0 0">Move one wasp to each corner of the screen, one at a time, and write down the x and y you used.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have four pairs of numbers, one for each corner.</p></div><div class="card"><strong>Challenge 2. Read it out loud</strong><p style="margin:8px 0 0">Write self.wasp2.y = 200 as an English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Something like: set wasp2&#x27;s y to 200.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 3</p>
+<h2>Things that move</h2>
+<p class="lead">Start runs once; loop runs forever. Today the wasps fly with <a class="term" href="textbook.html#g-loop">loop</a>, and Pixelhead walks left and right while you hold the arrow keys.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">loop</b> runs about sixty times every second.</li><li>self.x = self.x + self.speed takes the old x, changes it, and stores it back.</li><li>A minus speed moves left; a plus speed moves right.</li><li><a class="term" href="textbook.html#g-if">if</a> <a class="term" href="textbook.html#g-key_is_pressed">key_is_pressed</a>(&#x27;arrowRight&#x27;): runs the pushed-in line only while the key is held.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">loop</span><span class="pill">changing a value</span><span class="pill">if</span><span class="pill">key_is_pressed()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Read it out loud</strong><p style="margin:8px 0 0">Write self.x = self.x - self.speed as an English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Something like: take my speed off my x and keep the answer as my new x.</p></div><div class="card"><strong>Challenge 2. Count it</strong><p style="margin:8px 0 0">Pixelhead starts at x 0 with speed 5. Where is it after holding right for one second (60 loops)?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> x is 300.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-03.html">week 3's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 4</p>
+<h2>A world to stand in</h2>
+<p class="lead">Pixelhead should face the way it walks, and stand on something. Today a minus <a class="term" href="textbook.html#g-scale">scaleX</a> flips the picture, a background goes up behind everything, and grass tiles make the first floor.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">scaleX</b> = -1 flips a picture like a mirror; 1 puts it back.</li><li>A new line inside an if is pushed in four spaces, like the line above it.</li><li>Objects are drawn in the order they are made, so the background goes first.</li><li>Tiles 100 wide, placed 100 apart, sit edge to edge.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">scaleX</span><span class="pill">flipping</span><span class="pill">draw order</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Plan a level</strong><p style="margin:8px 0 0">On squared paper, draw the screen and plan where you would put grass tiles for a whole level.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Each tile has an x and a y written next to it.</p></div><div class="card"><strong>Challenge 2. Upside down</strong><p style="margin:8px 0 0">What would scaleY = -1 do? Try it in Player start, then take it out.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what it did.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-04.html">week 4's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 5</p>
+<h2>Wasps on patrol</h2>
+<p class="lead">The wasps fly away and never come back. Today they shrink to size, and two <b class="term">if</b>s turn them around at each side of the screen - facing the way they fly.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">scaleX and scaleY</b> of 0.7 shrinks a picture to seven tenths.</li><li>&amp;gt; is greater than, &amp;lt; is less than.</li><li>Changing the speed&#x27;s sign turns an object around.</li><li>The flip has to keep the size: 0.7 and -0.7.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">comparing numbers</span><span class="pill">turning around</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Solve it</strong><p style="margin:8px 0 0">Fill in &amp;gt; or &amp;lt;: 7 __ 5, -3 __ 2, -500 __ -400.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> &amp;gt;, &amp;lt;, &amp;lt;.</p></div><div class="card"><strong>Challenge 2. A shorter patrol</strong><p style="margin:8px 0 0">Make the wasps turn at 300 and -300. Is the game better or worse?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked the numbers you want and can say why.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Gravity and the ground</h2>
+<p class="lead">In the real world things fall. Today Pixelhead falls all the time - and <a class="term" href="textbook.html#g-get_collision">get_collision</a> tells it when it is touching the floor, so it can stop.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Gravity is self.y = self.y - 2, every loop.</li><li><b class="term">get_collision</b>(self, &#x27;Floor&#x27;) gives back the tile you are touching, or False.</li><li>On the floor, + 2 cancels the - 2, so you stand still.</li><li>A name without self. lives only inside this loop.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">gravity</span><span class="pill">get_collision()</span><span class="pill">a name for right now</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Heavy gravity</strong><p style="margin:8px 0 0">Try - 5 for gravity. What else must change so you still stand on the floor?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The floor line must add 5 too.</p></div><div class="card"><strong>Challenge 2. Explain it</strong><p style="margin:8px 0 0">In two sentences, explain why Pixelhead does not fall through the grass.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Gravity takes 2 away; touching the floor puts 2 back.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>Jump!</h2>
+<p class="lead">To reach high ground you have to jump. Today space throws Pixelhead upward with <a class="term" href="textbook.html#g-key_was_pressed">key_was_pressed</a>, and two more tiles make a platform worth jumping to.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Gravity takes 2 away; the floor puts 2 back; they balance.</li><li><b class="term">key_is_pressed</b> is True every loop a key is held.</li><li><b class="term">key_was_pressed</b> is True only for the loop it goes down - one press, one jump.</li><li>&#x27; &#x27; with a space inside is the space bar.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">key_was_pressed()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Count the presses</strong><p style="margin:8px 0 0">How many presses of space does it take to reach the high platform? Why?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Two - each press is 50, and the platform is 100 higher.</p></div><div class="card"><strong>Challenge 2. Spot the problem</strong><p style="margin:8px 0 0">Write down two things that are wrong with this jump.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> It is instant, not smooth; and you can jump again in mid-air.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>A smooth jump</h2>
+<p class="lead">A real jump rises over time. Today a jump <a class="term" href="textbook.html#g-timer">timer</a> counts down: while it is above zero Pixelhead rises, and space only sets it going.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">timer</b> is a number that changes every loop.</li><li>While self.jumpTimer is above 0, Pixelhead rises 8 a loop.</li><li>Space does not move you - it sets the timer to 30.</li><li>The countdown takes 1 off every loop, so the rise stops by itself.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a timer that counts down</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Do the maths</strong><p style="margin:8px 0 0">Rising 8 and falling 2 every loop, for 30 loops - how high does Pixelhead go?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 6 a loop for 30 loops: 180.</p></div><div class="card"><strong>Challenge 2. Explain it</strong><p style="margin:8px 0 0">Why did Pixelhead fly away before the countdown line was added?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The timer stayed at 30, so it was always above 0.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>Only from the ground</h2>
+<p class="lead">Pixelhead can still jump in mid-air. Today a <a class="term" href="textbook.html#g-boolean">boolean</a> - True or False - remembers whether it is on the ground, <a class="term" href="textbook.html#g-else">else</a> sets it back, and <a class="term" href="textbook.html#g-and">and</a> makes the jump check both.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">boolean</b> is True or False, with a capital letter.</li><li><b class="term">else</b> runs when its if is not true.</li><li><b class="term">and</b> needs both questions to be true.</li><li>= stores a value; == asks if two things are equal.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">True and False</span><span class="pill">else</span><span class="pill">and</span><span class="pill">==</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Booleans in real life</strong><p style="margin:8px 0 0">Write three things in your house that are True or False, like a light switch.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have three switches.</p></div><div class="card"><strong>Challenge 2. Read it out loud</strong><p style="margin:8px 0 0">Write the jump line as an English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Something like: if space was just pressed and I am on the ground, start the jump timer.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Stomp the wasps</h2>
+<p class="lead">A wasp is dangerous from below and beaten from above. Today Pixelhead asks which wasp it touched, and an <b class="term">if</b> inside an if decides who is <a class="term" href="textbook.html#g-destroy">destroyed</a>.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>enemyHit is the wasp you touched; enemyHit.y is its y.</li><li>A bigger y means higher up the screen.</li><li>An <b class="term">if</b> inside an if is pushed in eight spaces.</li><li><b class="term">destroy</b>(enemyHit) removes the wasp; destroy(self) removes Pixelhead.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">destroy()</span><span class="pill">an if inside an if</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Trace it</strong><p style="margin:8px 0 0">Pixelhead is at y 150 and touches a wasp at y 200. Which line runs?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> destroy(self) - 150 is not above 200.</p></div><div class="card"><strong>Challenge 2. Say it in English</strong><p style="margin:8px 0 0">Write the six lines as three English sentences.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Which wasp am I touching? If I am above it, it goes. Otherwise, I go.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>Bounce, and land on top</h2>
+<p class="lead">What lifts Pixelhead is the jump timer, not the space bar. Today a stomp sets the timer for a bounce, and the floor check learns to look down - so you land ON a platform, not inside it.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The jump timer lifts Pixelhead; space only sets it.</li><li>A stomp sets the timer to 15 for a bounce.</li><li>An object&#x27;s y is its middle; a 100-tall tile&#x27;s top is y + 50.</li><li>With <b class="term">and</b>, you stand only when touching a tile AND above it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">reusing the timer</span><span class="pill">y is the middle</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Find the top</strong><p style="margin:8px 0 0">A tile is at y 100. Where is its top? Its bottom?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 150 and 50.</p></div><div class="card"><strong>Challenge 2. Explain the bounce</strong><p style="margin:8px 0 0">Explain in two sentences how setting jumpTimer makes Pixelhead bounce.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A timer above 0 makes the rise lines lift you; 15 is a short lift.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>A portal to Level 2</h2>
+<p class="lead">A game can have more than one level. Today you build a second <b class="term">room</b>, and a Portal that sends Pixelhead there the moment they touch.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A new object needs a class, a sprite, and to be made in a room.</li><li>A <b class="term">room</b> starts empty - each one makes its own objects.</li><li>set_room(&#x27;Level2&#x27;) changes the room the moment it runs.</li><li>A portal is a collision that changes room.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a second room</span><span class="pill">set_room() from a class</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Design Level 3</strong><p style="margin:8px 0 0">On squared paper, plan a third level: where the tiles go, where Pixelhead starts, where the portal is.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Every tile has an x and a y.</p></div><div class="card"><strong>Challenge 2. Spot the bug</strong><p style="margin:8px 0 0">Next week there will be a portal in Level2 as well. Where will it take you, with this code? Why?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Back to Level2 - every portal says set_room(&#x27;Level2&#x27;).</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>Where does this portal go?</h2>
+<p class="lead">Every portal goes to Level2 - even the one in Level2. Today each portal gets its own destination, a <b class="term">variable</b> the room sets, and the last one leads to a Win room.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">variable</b> can hold a word, like &#x27;Level2&#x27;.</li><li>Portal start gives every portal a destination; the room can change one with the dot.</li><li>set_room(self.destination) goes wherever this portal was told.</li><li><a class="term" href="textbook.html#g-text">text</a>() puts words on the screen.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a variable holding a room&#x27;s name</span><span class="pill">text()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Quotes or not</strong><p style="margin:8px 0 0">What is the difference between set_room(&#x27;Level2&#x27;) and set_room(self.destination)?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The first is always Level2; the second is whatever this portal holds.</p></div><div class="card"><strong>Challenge 2. Add a Level 3</strong><p style="margin:8px 0 0">Plan the lines you would change to go Level1, Level2, Level3, Win.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Level2&#x27;s portal goes to Level3, and Level3&#x27;s portal goes to Win.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>Three lives</h2>
+<p class="lead">One sting should not end everything. Today the <a class="term" href="textbook.html#g-game">game</a> itself keeps three lives, a sting costs one, falling off costs them all - and Game loop starts Level1 again when they run out.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Game is made once and lasts the whole game, so it keeps the lives.</li><li>From another class, Game&#x27;s health is <b class="term">game</b>.health.</li><li>A sting destroys the wasp and costs one life.</li><li>Game loop restarts Level1 whenever the lives reach 0.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">game.</span><span class="pill">Game loop</span><span class="pill">&amp;lt;=</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Why game.</strong><p style="margin:8px 0 0">Explain why game.health keeps its value through a portal, but a Player&#x27;s own variables do not.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Game lasts the whole game; each room makes a new Player.</p></div><div class="card"><strong>Challenge 2. Easier or harder</strong><p style="margin:8px 0 0">Would five lives make a better game? Try it.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a number and can say why.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>Hearts on the screen</h2>
+<p class="lead">You cannot see your lives yet. Today three Heart objects, made by the Game, survive every room change because they are <a class="term" href="textbook.html#g-persistent">persistent</a>, and each one hides when the lives drop below its number.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">persistent</b> object survives every room change.</li><li>z brings an object forward: 1 is in front of 0.</li><li>Each heart holds its own minimumHealth, set with the dot.</li><li>visible shows or hides an object without destroying it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">persistent</span><span class="pill">z</span><span class="pill">visible</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Trace it</strong><p style="margin:8px 0 0">The lives are 2. Which hearts show?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> heart1 and heart2 - heart3 needs 3.</p></div><div class="card"><strong>Challenge 2. Your own level</strong><p style="margin:8px 0 0">Build a Level3 from your plan, with its own portal to Win.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can play Level1 to Level2 to Level3 to YOU WIN.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>
