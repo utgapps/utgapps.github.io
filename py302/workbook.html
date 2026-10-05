@@ -1,0 +1,378 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
+  body{background:#fff}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="py302";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PY302</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>PY302 &#183; Strategy Game</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>Nothing here needs the internet except the code editor itself.</strong> The
+game runs entirely in the browser - there is no server, no account and no API key anywhere
+in this course.</p>
+<p><strong>The students draw the art.</strong> Every sprite is listed with the exact size
+to draw it. The generated games use plain coloured rectangles as stand-ins so the code can
+be tested; they are meant to be replaced. The slime, the bat, the golem and the ghost are
+sprite sheets - eight frames in one picture - and week 3 explains how to draw one.</p>
+<p><strong>This game is played with the mouse, and one key.</strong> Click into the game
+before you click a card. After a win or a loss, the space bar starts another round.</p>
+</div>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>The battlefield</h2>
+<p class="lead">A strategy game starts with its map. Today you build the field - a background, three bases of yours, three bridges and the enemy&#x27;s base - and a <a class="term" href="textbook.html#g-for">for</a> loop places the three lanes so you only type them once.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <a class="term" href="textbook.html#g-room">room</a> builds what is in it; set_room picks the room.</li><li><a class="term" href="textbook.html#g-game">game</a>. keeps a number every class can reach.</li><li>A <a class="term" href="textbook.html#g-list">list</a> holds values in square brackets; <b class="term">for</b> runs its lines once for each.</li><li>The <a class="term" href="textbook.html#g-dot">dot</a> changes one object after it is made.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">class</span><span class="pill">room</span><span class="pill">game.</span><span class="pill">for over a list</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Four lanes</strong><p style="margin:8px 0 0">What would you change to have four lanes instead of three?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Add a fourth height to the list, like [300, 100, -100, -300].</p></div><div class="card"><strong>Challenge 2. Count the lines</strong><p style="margin:8px 0 0">Without the loop, how many lines would Play start need for the three lanes?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Twelve - four for each lane.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>Cards and a cursor</h2>
+<p class="lead">You play this game by clicking cards. A card is just an object with a picture - and to know when the mouse is on one, you give the mouse an object of its own that follows it everywhere.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>One class can make many objects; each can be moved after it is made.</li><li>A name with no self. is only for right now.</li><li><a class="term" href="textbook.html#g-mouse_x">mouse_x</a>() and mouse_y() say where the mouse is, right now.</li><li>Made last is drawn on top.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">local names</span><span class="pill">mouse_x() and mouse_y()</span><span class="pill">the dot</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Name it or not</strong><p style="margin:8px 0 0">Which of the three cards could you not move after it was made? Why?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The middle one - Card() has no name to reach it by.</p></div><div class="card"><strong>Challenge 2. A bigger dot</strong><p style="margin:8px 0 0">Would a 100 by 100 cursor be better or worse? Why?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Worse - it would touch two things at once and you could not tell which you meant.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 3</p>
+<h2>A slime from a card</h2>
+<p class="lead">Click a card and a slime appears. The card asks two questions every loop - is the cursor touching me, and was the button just pressed - and only when both are yes does it make a unit.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A sprite sheet is many frames in one picture; <a class="term" href="textbook.html#g-animation">animation</a> plays them.</li><li><a class="term" href="textbook.html#g-get_collision">get_collision</a> gives back what you touch, or False.</li><li><a class="term" href="textbook.html#g-and">and</a> needs both questions to be yes.</li><li><a class="term" href="textbook.html#g-mouse_was_pressed">mouse_was_pressed</a> is True for one loop - one click, one slime.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">sprite sheets and animation</span><span class="pill">get_collision()</span><span class="pill">and</span><span class="pill">mouse_was_pressed()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Faster wobble</strong><p style="margin:8px 0 0">Which number makes the slime wobble twice as fast?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The 20 in animation - make it 40.</p></div><div class="card"><strong>Challenge 2. Hidden but there</strong><p style="margin:8px 0 0">The dot is hidden. Explain why the cards still work.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> visible only stops it being drawn; it still moves and still touches the cards.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-03.html">week 3's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 4</p>
+<h2>Down the lanes</h2>
+<p class="lead">A slime marches by its speed, and the outer lanes bend in towards the enemy. <a class="term" href="textbook.html#g-min">min</a>() and <a class="term" href="textbook.html#g-max">max</a>() pick the smaller and the bigger of two numbers - which is all a bend in the road needs.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An object moves by a <a class="term" href="textbook.html#g-variable">variable</a> it keeps.</li><li><b class="term">min</b>() gives back the smaller number, <b class="term">max</b>() the bigger.</li><li><a class="term" href="textbook.html#g-elif">elif</a> is asked only when the question above it was no.</li><li>One object can pass a value to another it makes.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">speed</span><span class="pill">min() and max()</span><span class="pill">elif</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Work it out</strong><p style="margin:8px 0 0">A bottom-lane slime is at x 400. What is its y?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 400 - 500 is -100, bigger than -250, so -100.</p></div><div class="card"><strong>Challenge 2. Why no lane 2?</strong><p style="margin:8px 0 0">Why does the path code say nothing about lane 2?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A middle slime stays at y 0, where it started - there is no bend to make.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-04.html">week 4's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 5</p>
+<h2>The enemy sends its own</h2>
+<p class="lead">The enemy base runs a <a class="term" href="textbook.html#g-timer">timer</a>: every second it makes a unit of its own. Every unit knows its <a class="term" href="textbook.html#g-team">team</a>, and an enemy is given a minus speed - a minus number walks the other way.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">timer</b> is set, counted, checked and reset.</li><li>A <b class="term">team</b> in quotes tells objects of one class apart.</li><li><b class="term">and</b> needs both questions to be yes.</li><li>Adding a minus speed walks the other way.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">timer</span><span class="pill">team</span><span class="pill">a minus speed</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Faster enemies</strong><p style="margin:8px 0 0">What would you change to get an enemy every half a second?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> self.spawnTime = 30 in Base start.</p></div><div class="card"><strong>Challenge 2. Why only one?</strong><p style="margin:8px 0 0">Your three bases count too. Explain why they never make enemies.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Their team is &#x27;player&#x27;, so the and is never true for them.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Bats, and a battle</h2>
+<p class="lead">The enemy sends bats down a <a class="term" href="textbook.html#g-random">random</a> lane, flipped to face you. When units of two teams touch, each takes the other&#x27;s attack off its health - <a class="term" href="textbook.html#g-get_collision_list">get_collision_list</a>() finds everything you touch at once, and a <b class="term">for</b> loop deals with each one.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">random.randint()</b> picks a whole number, both ends included.</li><li>A minus <a class="term" href="textbook.html#g-scale">scale</a> flips the picture.</li><li><b class="term">get_collision_list</b>() is everything you touch; <b class="term">for</b> goes through it.</li><li><a class="term" href="textbook.html#g-notequal">!=</a> asks whether two things are different.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">import and random</span><span class="pill">flipping with scaleX</span><span class="pill">get_collision_list()</span><span class="pill">!=</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Who hits whom?</strong><p style="margin:8px 0 0">A slime and a bat touch. Whose loop takes the bat&#x27;s health away?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The slime&#x27;s - and the bat&#x27;s loop takes the slime&#x27;s.</p></div><div class="card"><strong>Challenge 2. Only the middle</strong><p style="margin:8px 0 0">What would you change so bats only come down the middle lane?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Take out the random lane - lane 2 is what every unit starts with.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>Win or lose</h2>
+<p class="lead">A unit that reaches a base on the other team strikes it and is spent. A base keeps its own health, and the moment one falls the game changes <b class="term">room</b> - to YouWin or to YouLose.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A strike asks two questions: touching a base, and on the other team.</li><li><a class="term" href="textbook.html#g-text">text</a>() writes words; fontSize and color change them.</li><li>An <a class="term" href="textbook.html#g-if">if</a> inside an if is pushed in eight spaces; <a class="term" href="textbook.html#g-else">else</a> catches the rest.</li><li>Changing <b class="term">room</b> ends the game.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a second room</span><span class="pill">text()</span><span class="pill">an if inside an if</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Count the hits</strong><p style="margin:8px 0 0">How many slimes must reach the enemy base to win?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 25 - each takes 1 off its 25 health.</p></div><div class="card"><strong>Challenge 2. Spent</strong><p style="margin:8px 0 0">What would happen if self.health = 0 were left out of the strike?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A slime standing on the base would hit it every loop - sixty hits a second.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>Health bars, and another round</h2>
+<p class="lead">A base shows its health as a bar that shrinks. The bar is an object of its own that the base keeps under a name, moves to itself every loop, and squeezes with <b class="term">scale</b> - health divided by the most it ever had.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An object can keep another under a name with self.</li><li>Health / the most health is a size from 1 down to 0.</li><li>A higher <a class="term" href="textbook.html#g-z">z</a> is drawn on top.</li><li><a class="term" href="textbook.html#g-key_was_pressed">key_was_pressed</a>() is True for one loop.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">an object that owns an object</span><span class="pill">division</span><span class="pill">z</span><span class="pill">key_was_pressed()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Half a bar</strong><p style="margin:8px 0 0">maxHealth is 25. How much health is left when the bar is half its size?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 12.5 - in hits, after 12 or 13.</p></div><div class="card"><strong>Challenge 2. Order matters</strong><p style="margin:8px 0 0">Why must self.maxHealth = self.health come after self.health = 25?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Before it, there is no health to copy.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>Only so many</h2>
+<p class="lead">Strategy needs a limit. The game counts how many units you have out in <b class="term">game</b>. - every card adds its cost, every unit that dies gives it back - and a card only works while there is room.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">game</b>. holds a count every class can change.</li><li>Add the cost when a unit is made; give it back when it dies.</li><li><b class="term">and</b> can join three questions - all must be yes.</li><li>A limit turns clicking into choosing.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a count every class shares</span><span class="pill">three questions with and</span><span class="pill">&lt;=</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Room for one?</strong><p style="margin:8px 0 0">unitCount is 29 and a card costs 1. Can you click it? What if unitCount is 30?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 29 + 1 is 30, &lt;= 30: yes. 30 + 1 is 31: no.</p></div><div class="card"><strong>Challenge 2. Where it lives</strong><p style="margin:8px 0 0">Why is maxCount set in Game start, but unitCount in Play start?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> The cap never changes between rounds; the count starts again every round.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Easy or hard</h2>
+<p class="lead">A game starts with a menu. A Menu <b class="term">room</b> shows two buttons, and the one you click sets how big your army can be before it sends you to Play.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The first room is whatever Game start sets.</li><li>Objects of one class are told apart by a value they keep.</li><li>An <b class="term">if</b> and <b class="term">else</b> inside another if pick between two.</li><li>A button can set a <b class="term">game</b>. value that lasts into the next room.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a start screen</span><span class="pill">if and else inside an if</span><span class="pill">a value that picks</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Medium</strong><p style="margin:8px 0 0">What would you add for a Medium button with an army of 30?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A third button with difficulty &#x27;medium&#x27;, and an elif before the else.</p></div><div class="card"><strong>Challenge 2. Lined up</strong><p style="margin:8px 0 0">If set_room(&#x27;Play&#x27;) were pushed in under the else, what would Easy do?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Nothing visible - it would set 35 and stay in the menu.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>The golem</h2>
+<p class="lead">One enemy in ten is a golem: twice the size, ten times the health, and half the speed. A second <b class="term">random</b> roll, inside the spawn, turns a bat into a golem after it is made.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>randint(1, 10) == 1 is true about one time in ten.</li><li>Code can change an object straight after it is made.</li><li>A minus <b class="term">scale</b> of 2 flips the picture and doubles it.</li><li>Strong and slow is a fair trade.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a one-in-ten chance</span><span class="pill">scale for size and direction</span><span class="pill">an if inside an if</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Rarer</strong><p style="margin:8px 0 0">What would you change so a golem comes one time in 20?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> random.randint(1, 20) == 1.</p></div><div class="card"><strong>Challenge 2. Twice the size</strong><p style="margin:8px 0 0">The golem&#x27;s frames are 60 by 60. How big is it on screen?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 120 by 120 - scale 2 on both.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>A bar for the golem</h2>
+<p class="lead">Every unit gets a health bar, hidden - and the golem shows its own. A unit that owns an object must take it away when it goes, or the bar is left floating where it died.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Hidden with <a class="term" href="textbook.html#g-visible">visible</a> = False is still there, and still runs.</li><li>One class&#x27;s bar code works for another.</li><li>A value set in start can be changed straight after.</li><li><a class="term" href="textbook.html#g-destroy">destroy</a> what you own before you go.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">hidden until needed</span><span class="pill">cleaning up what you own</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Half a golem</strong><p style="margin:8px 0 0">A golem has 5 health left. What is its bar&#x27;s scaleX?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 5 / 10 is 0.5 - half the bar.</p></div><div class="card"><strong>Challenge 2. Order</strong><p style="margin:8px 0 0">Why must destroy(self.healthBar) come before destroy(self)?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> After destroy(self) the unit is gone - say everything it has to do first.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>The ghost card</h2>
+<p class="lead">A fourth card makes a ghost. It is the same Card class with four values changed - its lane, its cost, its picture and one <a class="term" href="textbook.html#g-boolean">boolean</a> that says it is a ghost - and the card passes the difference on to the unit it makes.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">boolean</b> can mark one kind of object.</li><li>One class makes many kinds when its values change.</li><li>An <b class="term">if</b> can ask a True-or-False value straight.</li><li>A cost of 10 is a third of your army.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a boolean that marks a kind</span><span class="pill">one class, many kinds</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Worth it?</strong><p style="margin:8px 0 0">A ghost costs 10 and hits a base for 5. Ten slimes cost 10. Which is better, and when?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Ten slimes hit for 10 if they all get through - the ghost wins when the lane is full of bats.</p></div><div class="card"><strong>Challenge 2. Straight</strong><p style="margin:8px 0 0">Is if self.isGhost == True: wrong?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> No - it works. == True just asks the question twice.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>Ghost powers</h2>
+<p class="lead">A ghost walks through the battle: nothing hits it and it hits nothing, until it reaches the base. <a class="term" href="textbook.html#g-not">not</a> turns a True into a False - and the golem&#x27;s bar stops flashing once it is put in place the moment it is made.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">not</b> turns True into False.</li><li><b class="term">and</b> can join two nots: neither is a ghost.</li><li>A new object is drawn once before its loop runs.</li><li>Place what you make as you make it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">not</span><span class="pill">a new object&#x27;s first frame</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Read it aloud</strong><p style="margin:8px 0 0">Say not self.isGhost and not otherUnit.isGhost in plain words.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> I am not a ghost, and the other one is not a ghost either.</p></div><div class="card"><strong>Challenge 2. Hit, but not be hit</strong><p style="margin:8px 0 0">How would you change the line so ghosts still hit, but are never hit?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Ask only not otherUnit.isGhost.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>Mana, and a stronger enemy</h2>
+<p class="lead">A mana bar shows how much of your army is left to spend, and the enemy sends its units a little faster every time - <b class="term">max</b>() keeps it from getting impossibly fast.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>1 - used / most is the part left.</li><li>A room can have a loop of its own.</li><li>A game can get harder over time.</li><li><b class="term">max</b>() puts a floor under a number.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a bar that shows a count</span><span class="pill">max() as a floor</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. A ghost on the bar</strong><p style="margin:8px 0 0">maxCount is 30 and you send a ghost. How much of the bar disappears?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> A third - 10 / 30.</p></div><div class="card"><strong>Challenge 2. Never easier</strong><p style="margin:8px 0 0">Why max and not min in the ramp?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> min(20, ...) would make the wait 20 straight away - max lets it come down to 20 and stop.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>

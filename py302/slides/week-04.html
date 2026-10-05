@@ -1,0 +1,335 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Week 4 slides &middot; PY302 &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0d1b21;color:#1f2a37;font:16px/1.55 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif;
+overflow:hidden}
+.deck{position:absolute;inset:0}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+padding:min(6vh,58px) min(6vw,72px) calc(min(6vh,58px) + 54px);background:#f4f8fb}
+.slide.on{display:flex}
+.slide.dark{background:#102127;color:#dcecef;justify-content:flex-start}
+.eyebrow{color:#01aefd;font-size:clamp(13px,1.5vw,19px);font-weight:800;letter-spacing:.09em;
+text-transform:uppercase;margin:0 0 .5em}
+.slide h1{font-size:clamp(38px,7vw,92px);line-height:1.05;margin:0;font-weight:800;letter-spacing:-.02em}
+.slide h2{font-size:clamp(28px,4.4vw,58px);line-height:1.1;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:#0a6299;font-size:clamp(19px,2.4vw,33px);font-weight:600;margin:.55em 0 0}
+.sub.mono{font-family:Consolas,"SF Mono",Menlo,monospace;font-weight:500;letter-spacing:-.01em}
+ul.pts{list-style:none;margin:clamp(20px,3.4vh,44px) 0 0;padding:0;display:grid;
+gap:clamp(10px,1.9vh,22px)}
+ul.pts li{position:relative;padding-left:1.5em;font-size:clamp(18px,2.3vw,32px);line-height:1.4}
+ul.pts li:before{content:"";position:absolute;left:0;top:.52em;width:.62em;height:.62em;
+border-radius:50%;background:#01aefd}
+.filebar{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;
+font-size:clamp(16px,2vw,27px);font-weight:700;color:#01aefd;margin:0 0 .6em}
+.filebar .part{color:#7f9aa4;font-weight:600;font-size:.72em}
+.code{font-family:Consolas,"SF Mono",Menlo,monospace;border-collapse:collapse;width:100%;
+font-size:clamp(11px,1.55vw,23px);line-height:1.42}
+.code td{padding:0;white-space:pre;vertical-align:top}
+.code .ln{width:3.4em;text-align:right;padding-right:1.1em;color:#6d8c97;user-select:none}
+.code .new td:last-child{color:#7fe0a0}
+.code .gone td:last-child{color:#f3928b;text-decoration:line-through}
+.code .gone .ln{color:#a8635e}
+.bar{position:absolute;left:0;right:0;bottom:0;height:54px;display:flex;align-items:center;
+gap:12px;padding:0 18px;background:rgba(16,33,39,.9);color:#dcecef;
+font-size:13px;backdrop-filter:blur(6px)}
+.bar button{font:inherit;font-weight:600;color:#dcecef;background:#22424d;border:0;
+border-radius:6px;padding:7px 13px;cursor:pointer}
+.bar button:hover{background:#2d5361}
+.bar .count{font-variant-numeric:tabular-nums;letter-spacing:.03em;white-space:nowrap;flex:none}
+.bar .spacer{flex:1}
+.bar .hint{color:#8fa9b3}
+.dots{display:flex;gap:3px;flex:0 1 auto;min-width:0}
+.dots i{flex:0 1 7px;min-width:2px;height:7px;border-radius:4px;background:#3a5c68;cursor:pointer}
+@media (max-width:1100px){.bar .hint{display:none}}
+.dots i.on{background:#01aefd}
+.slide.line{overflow-y:auto}
+.slide.line .filebar{margin-bottom:.55em}
+.slide.line .code{font-size:clamp(13px,1.9vw,26px);margin:0 0 .7em}
+.code tr.ctx td{color:#aebfcb}
+.code tr.ctx .ln{color:#7c909d}
+.code tr.hi td:last-child{color:#7fe0a0;background:rgba(127,224,160,.14);
+box-shadow:-.5em 0 0 rgba(127,224,160,.14),4px 0 0 rgba(127,224,160,.14)}
+.code tr.hi .ln{color:#7fe0a0;background:rgba(127,224,160,.14);font-weight:700}
+.code tr.gone.hi td:last-child{color:#f3928b;background:rgba(243,146,139,.16);text-decoration:line-through}
+.code tr.gone.hi .ln{color:#f3928b;background:rgba(243,146,139,.16)}
+.linenote{color:#dcecef;font-size:clamp(16px,2vw,28px);line-height:1.45;margin:0;max-width:40ch}
+.slide.line.whole .linenote{color:#8fa9b3;font-size:clamp(14px,1.6vw,22px)}
+.slide.quiz{justify-content:flex-start;overflow-y:auto}
+.slide.quiz .eyebrow{color:#8a5cd0}
+.slide.quiz.answered .eyebrow{color:#0f8a4c}
+.opts{list-style:upper-alpha;margin:clamp(16px,3vh,34px) 0 0;padding-left:1.5em;
+display:grid;gap:clamp(9px,1.7vh,18px)}
+.opts li{font-size:clamp(17px,2.2vw,29px);line-height:1.35;padding-left:.3em}
+.slide.quiz.answered .opts li{color:#8a9aa5}
+.slide.quiz.answered .opts li.right{color:#0f8a4c;font-weight:800}
+.quiz-hint{color:#5b7178;font-size:clamp(14px,1.7vw,22px);margin-top:clamp(16px,3vh,30px)}
+.quiz-why{color:#0a6299;font-size:clamp(16px,2vw,27px);line-height:1.5;
+margin-top:clamp(16px,3vh,30px);max-width:46ch}
+.slide.checkpoint{justify-content:flex-start;overflow-y:auto}
+.cp-say{color:#0a6299;font-size:clamp(16px,2.1vw,27px);line-height:1.5;margin:.5em 0 1em;max-width:44ch}
+.cp-run{font:inherit;font-weight:800;color:#04222f;background:#ffd633;border:0;border-radius:8px;
+padding:12px 22px;cursor:pointer;font-size:clamp(15px,1.8vw,22px)}
+.cp-run:hover{background:#ffdf5c}
+.cp-out{margin-top:16px;width:100%}
+.cp-out iframe{width:100%;height:min(56vh,520px);border:1px solid #cbd9dd;border-radius:8px;background:#0f1320}
+.cp-console{margin-top:12px;border:1px solid #21414c;border-radius:8px;overflow:hidden;background:#0f1b21}
+.cp-console-head{padding:6px 12px;background:#16303a;color:#cfe3e8;font-size:13px;font-weight:700;
+letter-spacing:.03em}
+.cp-console-body{max-height:min(22vh,180px);overflow:auto;padding:8px 12px;
+font:13px/1.5 Consolas,"SF Mono",Menlo,monospace;color:#dcecef}
+.cp-console-body .cp-muted{color:#7f9aa4}
+.cp-row{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}
+.cp-row.error{color:#ff9d8e}.cp-row.warn{color:#f4c869}.cp-row.net{color:#8fb3bd}.cp-row.info{color:#9fd8ee}
+@media (max-width:640px){.bar .hint{display:none}}
+.slide.concept-vis{align-items:center;text-align:center;justify-content:center}
+.slide.concept-vis .sub{margin-top:.4em}
+.vis{width:100%;max-width:min(780px,94%);margin:clamp(12px,2.6vh,26px) auto 0}
+.vis.mock{max-width:min(500px,66%)}
+.vis svg{width:100%;height:auto;display:block;overflow:visible}
+.vis-cap{color:#0a6299;text-align:center;font-size:clamp(16px,2.1vw,27px);font-weight:600;
+margin:clamp(8px,1.8vh,18px) auto 0;max-width:40ch}
+.vb-rect{fill:#132833;stroke:#33586a;stroke-width:2.5}
+.vb-txt{fill:#e6f2f6;font:700 30px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vb-in .vb-rect{fill:#20301b;stroke:#ffd633}
+.vb-hi{fill:rgba(1,174,253,.30);stroke:#01aefd;stroke-width:3}
+.vmachine{fill:#0f2c38;stroke:#01aefd;stroke-width:3}
+.vmlabel{fill:#7fd8ff;font:800 26px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vtile rect{fill:#16303a;stroke:#33586a;stroke-width:2.5}
+.vtile text{fill:#e6f2f6;font:700 23px Consolas,"SF Mono",Menlo,monospace;text-anchor:middle;dominant-baseline:central}
+.vt-in rect{stroke:#ffd633}
+.vt-out rect{fill:#16321f;stroke:#7fe0a0}
+.vt-cloud rect{fill:#0f2c38;stroke:#01aefd}
+.vplus{fill:#7fd8ff;font:800 42px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.varrow{fill:#5b8aa0;font:800 30px Rubik,system-ui,sans-serif;text-anchor:middle;dominant-baseline:central}
+.vswap-off{fill:#2a2030;stroke:#c98be0;stroke-width:3}
+.vswap-on{fill:#16321f;stroke:#7fe0a0;stroke-width:3}
+.vb-pick .vb-rect{fill:#16321f;stroke:#7fe0a0}
+.vt-btn rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag rect{fill:#0f2c38;stroke:#01aefd}
+.vt-tag text{fill:#7fd8ff}
+.vt-no rect{fill:#1a2730;stroke:#7c909d}
+.vt-no text{fill:#aebfcb}
+.term{color:#0a6299;font-weight:700}
+a.term{color:#0a6299;border-bottom:1px dotted #7fbfe0}
+.slide.dark .term{color:#7fd8ff}
+</style>
+<script>window.UTG_GUARD="../../";window.UTG_TOOL="py302";document.write('<script src="../../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../../guard.js"></script>
+<div class="deck"><section class="slide"><p class="eyebrow">Week 4</p><h1>Down the lanes</h1></section><section class="slide"><h2>Marching</h2><p class="sub">Speed is how far every loop</p><ul class="pts"><li>Kept in a variable</li><li>Speed 2: 120 a second</li></ul></section><section class="slide"><h2>A speed and a lane</h2></section><section class="slide dark line"><p class="filebar">Type this into Unit start <span class="part">line 4</span></p><table class="code"><tr class="hi"><td class="ln">4</td><td>self.speed = 2</td></tr></table><p class="linenote">Move 2 every loop.</p></section><section class="slide dark line"><p class="filebar">Type this into Unit start <span class="part">line 5</span></p><table class="code"><tr class="ctx"><td class="ln">4</td><td>self.speed = 2</td></tr><tr class="hi"><td class="ln">5</td><td>self.lane = 2</td></tr></table><p class="linenote">The middle lane, unless told otherwise.</p></section><section class="slide dark line whole"><p class="filebar">All together in Unit start</p><table class="code"><tr class="new"><td class="ln">4</td><td>self.speed = 2</td></tr><tr class="new"><td class="ln">5</td><td>self.lane = 2</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide"><h2>March</h2></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>+= and -=</h2><p class="sub mono">self.x += self.speed</p><div class="vis"><style>@keyframes v16i{0%{transform:translateX(0);opacity:0}9%{opacity:1}40%{transform:translateX(158px);opacity:1}48%{transform:translateX(178px);opacity:0}100%{opacity:0}}.v16-in{animation:v16i 3.6s ease-in-out infinite}@keyframes v16o{0%{transform:translateX(-158px);opacity:0}52%{transform:translateX(-158px);opacity:0}62%{transform:translateX(0);opacity:1}92%{transform:translateX(0);opacity:1}100%{transform:translateX(-158px);opacity:0}}.v16-out{animation:v16o 3.6s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="+= adds to what is already there."><rect class="vmachine" x="245" y="57" width="190" height="96" rx="16"/><text class="vmlabel" x="340" y="105">+= 2</text><g class="v16-in"><g class="vtile vt-in"><rect x="87" y="78" width="92" height="54" rx="10"/><text x="133" y="105">x = 100</text></g></g><g class="v16-out"><g class="vtile vt-out"><rect x="501" y="78" width="92" height="54" rx="10"/><text x="547" y="105">x = 102</text></g></g></svg></div><p class="vis-cap">+= adds to what is already there.</p></section><section class="slide dark line"><p class="filebar">Type this into Unit loop <span class="part">line 1</span></p><table class="code"><tr class="hi"><td class="ln">1</td><td>self.x += self.speed</td></tr></table><p class="linenote">Move by your speed - a minus speed walks left.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: they march</h2><p class="cp-say">Press Play and click a card. The slime walks straight to the right, off the screen.</p><button class="cp-run" data-cp="cp4-1">&#9654; Play it</button><div class="cp-out" id="out-cp4-1"></div><script type="text/plain" id="src-cp4-1"><!DOCTYPE html><html><head><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<meta charset="utf-8"><title>Week 4</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}#game{height:100vh}#game #pp-block0,#game #pp-block1,#game #pp-console,#game #pp-col-adjust-code,#game #pp-col-adjust-canvas{display:none!important}#game #pp-block2{width:100%!important}#game #pp-block2-child>.row:not(#canvasContainer){display:none!important}#game #canvasContainer{flex:1 1 auto}</style></head><body><div id="game"></div><script src="https://cdn.jsdelivr.net/gh/pixelpad-io/pixelpad.min@main/pixelpad.min.js"><\/script><script>
+PixelPad.game("#game", {"autoplay": true, "theme": "dark", "layout": "vertical", "canEdit": true, "textures": {"background.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAUhUlEQVR4nO3YoQ0AIADAMD7C8xL/a7iCkCwV9dMbc68DAAAAADSN3wEAAAAAwDsGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABB2AZ59sNlpZzXCAAAAAElFTkSuQmCC", "base.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAABLElEQVR4nO3RMQ0AIADAMJwhCEt4BRkko0f/JRt7zUPXeB2AwRiMwZ8yOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjLtWcsLII/HetAAAAAElFTkSuQmCC", "bridge.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAABQCAYAAACeXX40AAAA50lEQVR4nO3SIQEAIBDAwM+PJQJBIcYEJ85PbNY+FypTB/A3A5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiCpBxVRVghaJXUNAAAAAElFTkSuQmCC", "slimeCard.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAAB4CAYAAAByzOU/AAAA7klEQVR4nO3QQQ3AIADAQCQieyLwAioWknKP/psbc31b/zduD7wSaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0qwPNBHLVdcMdTAAAAABJRU5ErkJggg==", "mouseCollider.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFElEQVR4nGN45u39nxjMMKqQvgoBoCr4DZ24e78AAAAASUVORK5CYII=", "slimeUnit.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMHJSgbI0ghZcMDF/9zH3OgDAW6MOAIAfGTAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACF/aYGv+8tZNeAAAAAElFTkSuQmCC", "bat.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMPpSjETUgRZcMDF/97HmPgDAW6MOAIAfGTAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACFx/dByrWrwQRAAAAAElFTkSuQmCC", "healthBar.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAMCAYAAACURRhjAAAAOklEQVR4nO3RMQ0AMAzAsPIrfwqjscFYDh/+I2XO7qVjfgdgSJohMYbEGBJjSIwhMYbEGBJjSIwhMQ/T2KE2FIwT1gAAAABJRU5ErkJggg==", "button.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAAB4CAYAAABIFc8gAAABp0lEQVR4nO3UMQ0AIADAMHwhEbFIAAt8ZEmP/rs29poHoGD8DgB4ZVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZFzACNsU8Y6KMAAAAAElFTkSuQmCC", "golem.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMEIgcPRPCS24YGL+7mOufQCAt0YdAAA/MmAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAELi0aDYDadcuLAAAAAElFTkSuQmCC", "ghostCard.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAAB4CAYAAAByzOU/AAABGklEQVR4nO3QQREAMAjAMPybHi6yB42CXueFmN8BVzQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjC1f3IRksAiLJAAAAAElFTkSuQmCC", "ghost.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABA0lEQVR4nO3VMQEAMAyAsPo3vboYRxMFfMwDAL6bOgAALjJgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABBbmHFhBT3+u/wAAAABJRU5ErkJggg==", "manaBar.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAAUCAYAAABRY0PiAAAAeklEQVR4nO3WsQkAIBDAQOdzTQd9lwgIcsX1KbP2mQEAoLNeBwAA/MZgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQOwCEGvPmU1LfQUAAAAASUVORK5CYII="}, "start": "game.leftSide = -400\ngame.rightSide = 500\nset_room('Play')", "loop": "", "classes": {"Background": {"start": "self.image = sprite('background.png')", "loop": ""}, "Base": {"start": "self.image = sprite('base.png')\nself.x = game.leftSide", "loop": ""}, "Bridge": {"start": "self.image = sprite('bridge.png')\nself.x = 50", "loop": ""}, "Card": {"start": "self.image = sprite('slimeCard.png')\nself.x = game.leftSide - 150", "loop": "cardClicked = get_collision(self, 'Cursor')\nif cardClicked and mouse_was_pressed('left'):\n    unit = Unit()\n    unit.x = game.leftSide\n    unit.y = self.y"}, "Unit": {"start": "slimeSheet = sprite('slimeUnit.png', 1, 8)\nslimeAnimation = animation(slimeSheet, 20, 0, 7)\nanimation_set(self, slimeAnimation)\nself.speed = 2\nself.lane = 2", "loop": "self.x += self.speed"}, "Cursor": {"start": "self.image = sprite('mouseCollider.png')\nself.visible = False", "loop": "self.x = mouse_x()\nself.y = mouse_y()"}, "HealthBar": {"start": "", "loop": ""}, "ManaBar": {"start": "", "loop": ""}, "DifficultyButton": {"start": "", "loop": ""}}, "rooms": {"Play": {"start": "Background()\nfor laneY in [250, 0, -250]:\n    base = Base()\n    base.y = laneY\n    bridge = Bridge()\n    bridge.y = laneY\nenemyBase = Base()\nenemyBase.x = game.rightSide\ntopCard = Card()\ntopCard.y = 250\nbottomCard = Card()\nbottomCard.y = -250\nCard()\nCursor()", "loop": ""}, "YouWin": {"start": "", "loop": ""}, "YouLose": {"start": "", "loop": ""}, "Menu": {"start": "", "loop": ""}}});
+(function(){var n=0;var iv=setInterval(function(){n++;window.dispatchEvent(new Event("resize"));var b=document.querySelector("#game #pp-start");if(!window.ppApp&&b&&b.textContent.trim()==="PLAY")b.click();if(window.ppApp||n>80){window.dispatchEvent(new Event("resize"));clearInterval(iv);}},200);})();
+<\/script></body></html></script></section><section class="slide"><h2>Which lane?</h2><p class="sub">The card tells the unit</p><ul class="pts"><li>Every card has a lane</li><li>It passes it on</li></ul></section><section class="slide"><h2>Every card has a lane</h2></section><section class="slide dark line"><p class="filebar">Type this into Card start <span class="part">line 3</span></p><table class="code"><tr class="ctx"><td class="ln">1</td><td>self.image = sprite(&#x27;slimeCard.png&#x27;)</td></tr><tr class="ctx"><td class="ln">2</td><td>self.x = game.leftSide - 150</td></tr><tr class="hi"><td class="ln">3</td><td>self.lane = 2</td></tr></table><p class="linenote">Lane 2, unless told otherwise.</p></section><section class="slide"><h2>The top and bottom lanes</h2></section><section class="slide dark line"><p class="filebar">Type this into Play start <span class="part">line 14</span></p><table class="code"><tr class="ctx"><td class="ln">9</td><td>topCard = Card()</td></tr><tr class="ctx"><td class="ln">10</td><td>topCard.y = 250</td></tr><tr class="ctx"><td class="ln">11</td><td>bottomCard = Card()</td></tr><tr class="ctx"><td class="ln">12</td><td>bottomCard.y = -250</td></tr><tr class="ctx"><td class="ln">13</td><td>Card()</td></tr><tr class="hi"><td class="ln">14</td><td>topCard.lane = 1</td></tr></table><p class="linenote">The top card sends to lane 1...</p></section><section class="slide dark line"><p class="filebar">Type this into Play start <span class="part">line 15</span></p><table class="code"><tr class="ctx"><td class="ln">9</td><td>topCard = Card()</td></tr><tr class="ctx"><td class="ln">10</td><td>topCard.y = 250</td></tr><tr class="ctx"><td class="ln">11</td><td>bottomCard = Card()</td></tr><tr class="ctx"><td class="ln">12</td><td>bottomCard.y = -250</td></tr><tr class="ctx"><td class="ln">13</td><td>Card()</td></tr><tr class="ctx"><td class="ln">14</td><td>topCard.lane = 1</td></tr><tr class="hi"><td class="ln">15</td><td>bottomCard.lane = 3</td></tr></table><p class="linenote">...and the bottom card to lane 3.</p></section><section class="slide dark line whole"><p class="filebar">All together in Play start</p><table class="code"><tr><td class="ln">9</td><td>topCard = Card()</td></tr><tr><td class="ln">10</td><td>topCard.y = 250</td></tr><tr><td class="ln">11</td><td>bottomCard = Card()</td></tr><tr><td class="ln">12</td><td>bottomCard.y = -250</td></tr><tr><td class="ln">13</td><td>Card()</td></tr><tr class="new"><td class="ln">14</td><td>topCard.lane = 1</td></tr><tr class="new"><td class="ln">15</td><td>bottomCard.lane = 3</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide"><h2>Pass the lane on</h2></section><section class="slide dark line"><p class="filebar">Type this into Card loop <span class="part">line 6</span></p><table class="code"><tr class="ctx"><td class="ln">3</td><td>    unit = Unit()</td></tr><tr class="ctx"><td class="ln">4</td><td>    unit.x = game.leftSide</td></tr><tr class="ctx"><td class="ln">5</td><td>    unit.y = self.y</td></tr><tr class="hi"><td class="ln">6</td><td>    unit.lane = self.lane</td></tr></table><p class="linenote">It walks this card&#x27;s lane.</p></section><section class="slide"><h2>A bend in the road</h2><p class="sub mono">min() and max()</p><ul class="pts"><li>min(250, 400) is 250</li><li>min(250, 200) is 200</li><li>max does the same from below</li></ul></section><section class="slide"><h2>Bend towards the base</h2></section><section class="slide"><p class="eyebrow">Python</p><h2>== asks, = stores</h2><p class="sub mono">if self.lane == 1:</p><ul class="pts"><li>One = puts a value into a name.</li><li>Two == asks whether two things are exactly equal.</li></ul></section><section class="slide dark line"><p class="filebar">Type this into Unit loop <span class="part">line 2</span></p><table class="code"><tr class="hi"><td class="ln">2</td><td>if self.lane == 1:</td></tr></table><p class="linenote">Top lane?</p></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>min() gives the smaller</h2><p class="sub mono">self.y = min(250, game.rightSide - self.x)</p><div class="vis"><style>@keyframes v17i{0%{transform:translateX(0);opacity:0}9%{opacity:1}40%{transform:translateX(158px);opacity:1}48%{transform:translateX(178px);opacity:0}100%{opacity:0}}.v17-in{animation:v17i 3.6s ease-in-out infinite}@keyframes v17o{0%{transform:translateX(-158px);opacity:0}52%{transform:translateX(-158px);opacity:0}62%{transform:translateX(0);opacity:1}92%{transform:translateX(0);opacity:1}100%{transform:translateX(-158px);opacity:0}}.v17-out{animation:v17o 3.6s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="<a class="term" href="../textbook.html#g-min">min</a>() gives back the smaller."><rect class="vmachine" x="245" y="57" width="190" height="96" rx="16"/><text class="vmlabel" x="340" y="105">min</text><g class="v17-in"><g class="vtile vt-in"><rect x="87" y="78" width="92" height="54" rx="10"/><text x="133" y="105">250, 400</text></g></g><g class="v17-out"><g class="vtile vt-out"><rect x="501" y="78" width="92" height="54" rx="10"/><text x="547" y="105">250</text></g></g></svg></div><p class="vis-cap"><b class="term">min</b>() gives back the smaller.</p></section><section class="slide dark line"><p class="filebar">Type this into Unit loop <span class="part">line 3</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.lane == 1:</td></tr><tr class="hi"><td class="ln">3</td><td>    self.y = min(250, game.rightSide - self.x)</td></tr></table><p class="linenote">The smaller of 250 and the distance left to go.</p></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>elif - else if</h2><p class="sub mono">elif self.lane == 3:</p><div class="vis"><style>@keyframes v18k{0%{transform:translate(0,0);opacity:0}12%{opacity:1}58%{transform:translate(-112px,66px);opacity:1}78%{transform:translate(-112px,66px);opacity:0}100%{opacity:0}}.v18-tok{fill:#ffd633}.v18-tok{animation:v18k 3.0s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="<a class="term" href="../textbook.html#g-elif">elif</a> is asked only when the question above it was no."><rect class="vmachine" x="250" y="16" width="180" height="58" rx="12"/><text class="vmlabel" x="340" y="45" style="font-size:21px">lane 1?</text><path d="M340,74 L228,140" stroke="#33586a" stroke-width="2.5" fill="none"/><path d="M340,74 L452,140" stroke="#33586a" stroke-width="2.5" fill="none"/><g class="vtile vt-out"><rect x="150" y="140" width="156" height="58" rx="10"/><text x="228" y="169">bend down</text></g><g class="vtile vt-no"><rect x="374" y="140" width="156" height="58" rx="10"/><text x="452" y="169">ask: lane 3?</text></g><circle class="v18-tok" cx="340" cy="74" r="10"/></svg></div><p class="vis-cap"><b class="term">elif</b> is asked only when the question above it was no.</p></section><section class="slide dark line"><p class="filebar">Type this into Unit loop <span class="part">line 4</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.lane == 1:</td></tr><tr class="ctx"><td class="ln">3</td><td>    self.y = min(250, game.rightSide - self.x)</td></tr><tr class="hi"><td class="ln">4</td><td>elif self.lane == 3:</td></tr></table><p class="linenote">Bottom lane?</p></section><section class="slide concept-vis"><p class="eyebrow">Python</p><h2>max() gives the bigger</h2><p class="sub mono">self.spawnTime = max(20, self.spawnTime - 1)</p><div class="vis"><style>@keyframes v19i{0%{transform:translateX(0);opacity:0}9%{opacity:1}40%{transform:translateX(158px);opacity:1}48%{transform:translateX(178px);opacity:0}100%{opacity:0}}.v19-in{animation:v19i 3.6s ease-in-out infinite}@keyframes v19o{0%{transform:translateX(-158px);opacity:0}52%{transform:translateX(-158px);opacity:0}62%{transform:translateX(0);opacity:1}92%{transform:translateX(0);opacity:1}100%{transform:translateX(-158px);opacity:0}}.v19-out{animation:v19o 3.6s ease-in-out infinite}</style><svg viewBox="0 0 680 210" role="img" aria-label="<a class="term" href="../textbook.html#g-max">max</a>() gives back the bigger."><rect class="vmachine" x="245" y="57" width="190" height="96" rx="16"/><text class="vmlabel" x="340" y="105">max</text><g class="v19-in"><g class="vtile vt-in"><rect x="87" y="78" width="92" height="54" rx="10"/><text x="133" y="105">20, 35</text></g></g><g class="v19-out"><g class="vtile vt-out"><rect x="501" y="78" width="92" height="54" rx="10"/><text x="547" y="105">35</text></g></g></svg></div><p class="vis-cap"><b class="term">max</b>() gives back the bigger.</p></section><section class="slide dark line"><p class="filebar">Type this into Unit loop <span class="part">line 5</span></p><table class="code"><tr class="ctx"><td class="ln">2</td><td>if self.lane == 1:</td></tr><tr class="ctx"><td class="ln">3</td><td>    self.y = min(250, game.rightSide - self.x)</td></tr><tr class="ctx"><td class="ln">4</td><td>elif self.lane == 3:</td></tr><tr class="hi"><td class="ln">5</td><td>    self.y = max(-250, self.x - game.rightSide)</td></tr></table><p class="linenote">The bigger of -250 and minus that distance.</p></section><section class="slide dark line whole"><p class="filebar">All together in Unit loop</p><table class="code"><tr class="new"><td class="ln">2</td><td>if self.lane == 1:</td></tr><tr class="new"><td class="ln">3</td><td>    self.y = min(250, game.rightSide - self.x)</td></tr><tr class="new"><td class="ln">4</td><td>elif self.lane == 3:</td></tr><tr class="new"><td class="ln">5</td><td>    self.y = max(-250, self.x - game.rightSide)</td></tr></table><p class="linenote">That is the whole piece. Check yours looks the same before moving on.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>sprite(&#x27;slimeUnit.png&#x27;, 1, 8) - how many frames?</h2><ol class="opts"><li class="">1</li><li class="">9</li><li class="">18</li><li class="">8</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>sprite(&#x27;slimeUnit.png&#x27;, 1, 8) - how many frames?</h2><ol class="opts"><li class="">1</li><li class="">9</li><li class="">18</li><li class="right">8</li></ol><p class="quiz-why">1 row of 8.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>cardClicked is False. Does the if run?</h2><ol class="opts"><li class="">No</li><li class="">Yes</li><li class="">Only if you click</li><li class="">Only once</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>cardClicked is False. Does the if run?</h2><ol class="opts"><li class="right">No</li><li class="">Yes</li><li class="">Only if you click</li><li class="">Only once</li></ol><p class="quiz-why">and needs both to be yes.</p></section><section class="slide quiz"><p class="eyebrow">Quick check</p><h2>min(250, 400) is? (this week)</h2><ol class="opts"><li class="">400</li><li class="">650</li><li class="">250</li><li class="">-150</li></ol><p class="quiz-hint">Pick one &mdash; the answer is on the next slide.</p></section><section class="slide quiz answered"><p class="eyebrow">Answer</p><h2>min(250, 400) is? (this week)</h2><ol class="opts"><li class="">400</li><li class="">650</li><li class="right">250</li><li class="">-150</li></ol><p class="quiz-why">min gives back the smaller.</p></section><section class="slide checkpoint"><p class="eyebrow">Checkpoint &middot; run it</p><h2>Checkpoint: three lanes</h2><p class="cp-say">Press Play and click all three cards. The top and bottom slimes bend in to meet at the enemy base.</p><button class="cp-run" data-cp="cp4-2">&#9654; Play it</button><div class="cp-out" id="out-cp4-2"></div><script type="text/plain" id="src-cp4-2"><!DOCTYPE html><html><head><script>(function () {
+  if (window.parent === window) return;            // only when embedded in the deck
+  function say(level, parts) {
+    try {
+      var text = Array.prototype.map.call(parts, function (a) {
+        if (a instanceof Error) return a.message;
+        if (a && typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      }).join(' ');
+      window.parent.postMessage({ utg: 'cp-log', level: level, text: text }, '*');
+    } catch (e) {}
+  }
+  ['log', 'info', 'warn', 'error'].forEach(function (name) {
+    var orig = console[name];
+    console[name] = function () { say(name, arguments); if (orig) orig.apply(console, arguments); };
+  });
+  window.addEventListener('error', function (e) {
+    say('error', [e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason; say('error', ['Uncaught (in promise) ' + (r && r.message ? r.message : r)]);
+  });
+  var f = window.fetch;
+  if (f) window.fetch = function () {
+    var url = (arguments[0] && arguments[0].url) || arguments[0];
+    say('net', ['\u2192 ' + url]);
+    return f.apply(this, arguments).then(function (res) {
+      say(res.ok ? 'net' : 'error', [(res.ok ? '\u2190 ' : '\u2717 ') + res.status + ' ' + url]);
+      return res;
+    }, function (err) {
+      say('error', ['\u2717 could not reach ' + url + ' \u2014 ' + (err && err.message || err)]);
+      throw err;
+    });
+  };
+})();<\/script>
+<meta charset="utf-8"><title>Week 4</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}#game{height:100vh}#game #pp-block0,#game #pp-block1,#game #pp-console,#game #pp-col-adjust-code,#game #pp-col-adjust-canvas{display:none!important}#game #pp-block2{width:100%!important}#game #pp-block2-child>.row:not(#canvasContainer){display:none!important}#game #canvasContainer{flex:1 1 auto}</style></head><body><div id="game"></div><script src="https://cdn.jsdelivr.net/gh/pixelpad-io/pixelpad.min@main/pixelpad.min.js"><\/script><script>
+PixelPad.game("#game", {"autoplay": true, "theme": "dark", "layout": "vertical", "canEdit": true, "textures": {"background.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABQAAAALQCAYAAADPfd1WAAAUhUlEQVR4nO3YoQ0AIADAMD7C8xL/a7iCkCwV9dMbc68DAAAAADSN3wEAAAAAwDsGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABBmAAIAAABAmAEIAAAAAGEGIAAAAACEGYAAAAAAEGYAAgAAAECYAQgAAAAAYQYgAAAAAIQZgAAAAAAQZgACAAAAQJgBCAAAAABhBiAAAAAAhBmAAAAAABB2AZ59sNlpZzXCAAAAAElFTkSuQmCC", "base.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAABLElEQVR4nO3RMQ0AIADAMJwhCEt4BRkko0f/JRt7zUPXeB2AwRiMwZ8yOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjDI4zOM7gOIPjLtWcsLII/HetAAAAAElFTkSuQmCC", "bridge.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAABQCAYAAACeXX40AAAA50lEQVR4nO3SIQEAIBDAwM+PJQJBIcYEJ85PbNY+FypTB/A3A5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiApA5IyICkDkjIgKQOSMiCpBxVRVghaJXUNAAAAAElFTkSuQmCC", "slimeCard.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAAB4CAYAAAByzOU/AAAA7klEQVR4nO3QQQ3AIADAQCQieyLwAioWknKP/psbc31b/zduD7wSaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0K9CgW4EG3Qo06FagQbcCDboVaNCtQINuBRp0qwPNBHLVdcMdTAAAAABJRU5ErkJggg==", "mouseCollider.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFElEQVR4nGN45u39nxjMMKqQvgoBoCr4DZ24e78AAAAASUVORK5CYII=", "slimeUnit.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMHJSgbI0ghZcMDF/9zH3OgDAW6MOAIAfGTAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACF/aYGv+8tZNeAAAAAElFTkSuQmCC", "bat.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMPpSjETUgRZcMDF/97HmPgDAW6MOAIAfGTAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACFx/dByrWrwQRAAAAAElFTkSuQmCC", "healthBar.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAMCAYAAACURRhjAAAAOklEQVR4nO3RMQ0AMAzAsPIrfwqjscFYDh/+I2XO7qVjfgdgSJohMYbEGBJjSIwhMYbEGBJjSIwhMQ/T2KE2FIwT1gAAAABJRU5ErkJggg==", "button.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAAB4CAYAAABIFc8gAAABp0lEQVR4nO3UMQ0AIADAMHwhEbFIAAt8ZEmP/rs29poHoGD8DgB4ZVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZhgVkGBaQYVhAhmEBGYYFZBgWkGFYQIZhARmGBWQYFpBhWECGYQEZFzACNsU8Y6KMAAAAAElFTkSuQmCC", "golem.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABCElEQVR4nO3VIQEAIADAMEIgcPRPCS24YGL+7mOufQCAt0YdAAA/MmAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAELi0aDYDadcuLAAAAAElFTkSuQmCC", "ghostCard.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAAB4CAYAAAByzOU/AAABGklEQVR4nO3QQREAMAjAMPybHi6yB42CXueFmN8BVzQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjjUYajTQaaTTSaKTRSKORRiONRhqNNBppNNJopNFIo5FGI41GGo00Gmk00mik0UijkUYjC1f3IRksAiLJAAAAAElFTkSuQmCC", "ghost.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAA8CAYAAAC+X2l1AAABA0lEQVR4nO3VMQEAMAyAsPo3vboYRxMFfMwDAL6bOgAALjJgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABAwYAAIGDAABAwaAgAEDQMCAASBgwAAQMGAACBgwAAQMGAACBgwAAQMGgIABA0DAgAEgYMAAEDBgAAgYMAAEDBgAAgYMAAEDBoCAAQNAwIABIGDAABAwYAAIGDAABBbmHFhBT3+u/wAAAABJRU5ErkJggg==", "manaBar.png": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAAUCAYAAABRY0PiAAAAeklEQVR4nO3WsQkAIBDAQOdzTQd9lwgIcsX1KbP2mQEAoLNeBwAA/MZgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQMxgAQDEDBYAQOwCEGvPmU1LfQUAAAAASUVORK5CYII="}, "start": "game.leftSide = -400\ngame.rightSide = 500\nset_room('Play')", "loop": "", "classes": {"Background": {"start": "self.image = sprite('background.png')", "loop": ""}, "Base": {"start": "self.image = sprite('base.png')\nself.x = game.leftSide", "loop": ""}, "Bridge": {"start": "self.image = sprite('bridge.png')\nself.x = 50", "loop": ""}, "Card": {"start": "self.image = sprite('slimeCard.png')\nself.x = game.leftSide - 150\nself.lane = 2", "loop": "cardClicked = get_collision(self, 'Cursor')\nif cardClicked and mouse_was_pressed('left'):\n    unit = Unit()\n    unit.x = game.leftSide\n    unit.y = self.y\n    unit.lane = self.lane"}, "Unit": {"start": "slimeSheet = sprite('slimeUnit.png', 1, 8)\nslimeAnimation = animation(slimeSheet, 20, 0, 7)\nanimation_set(self, slimeAnimation)\nself.speed = 2\nself.lane = 2", "loop": "self.x += self.speed\nif self.lane == 1:\n    self.y = min(250, game.rightSide - self.x)\nelif self.lane == 3:\n    self.y = max(-250, self.x - game.rightSide)"}, "Cursor": {"start": "self.image = sprite('mouseCollider.png')\nself.visible = False", "loop": "self.x = mouse_x()\nself.y = mouse_y()"}, "HealthBar": {"start": "", "loop": ""}, "ManaBar": {"start": "", "loop": ""}, "DifficultyButton": {"start": "", "loop": ""}}, "rooms": {"Play": {"start": "Background()\nfor laneY in [250, 0, -250]:\n    base = Base()\n    base.y = laneY\n    bridge = Bridge()\n    bridge.y = laneY\nenemyBase = Base()\nenemyBase.x = game.rightSide\ntopCard = Card()\ntopCard.y = 250\nbottomCard = Card()\nbottomCard.y = -250\nCard()\ntopCard.lane = 1\nbottomCard.lane = 3\nCursor()", "loop": ""}, "YouWin": {"start": "", "loop": ""}, "YouLose": {"start": "", "loop": ""}, "Menu": {"start": "", "loop": ""}}});
+(function(){var n=0;var iv=setInterval(function(){n++;window.dispatchEvent(new Event("resize"));var b=document.querySelector("#game #pp-start");if(!window.ppApp&&b&&b.textContent.trim()==="PLAY")b.click();if(window.ppApp||n>80){window.dispatchEvent(new Event("resize"));clearInterval(iv);}},200);})();
+<\/script></body></html></script></section></div>
+<div class="bar">
+  <button class="prev" title="Previous slide (left arrow)">&lsaquo;</button>
+  <button class="next" title="Next slide (right arrow, space)">&rsaquo;</button>
+  <span class="count"></span>
+  <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="spacer"></span>
+  <span class="hint">arrows or space to move &middot; f for full screen</span>
+  <button class="full" title="Full screen (f)">Full screen</button>
+</div>
+<script>
+var slides = [].slice.call(document.querySelectorAll('.slide'));
+var dots = [].slice.call(document.querySelectorAll('.dots i'));
+var count = document.querySelector('.count');
+var at = 0;
+// The week this deck is (from its own filename), so the classroom shell knows
+// which week + slide the teacher is on - that is the compare point for the
+// teacher's "Identify problem" (only what the class has reached so far).
+var DECK_WEEK = (function () { var m = location.pathname.match(/week-(\d+)/); return m ? parseInt(m[1], 10) : null; })();
+
+function reportSlide() {
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ utg: 'deck', action: 'slide', week: DECK_WEEK, index: at, total: slides.length }, location.origin); } catch (e) {}
+}
+
+function show(next, push) {
+  at = Math.max(0, Math.min(slides.length - 1, next));
+  slides.forEach(function (s, i) { s.classList.toggle('on', i === at); });
+  dots.forEach(function (d, i) { d.classList.toggle('on', i === at); });
+  count.textContent = (at + 1) + ' / ' + slides.length;
+  if (push !== false) history.replaceState(null, '', '#' + (at + 1));
+  focusTypedLine(slides[at]);
+  reportSlide();
+}
+
+// A code slide can be taller than the screen. The line to type is always the
+// newest (last) line of the block, so when a scrollable code slide opens, jump
+// to the bottom - the line they type and its note land on screen and nobody has
+// to scroll down to find them. Review ("all together") slides have no such line,
+// so they read from the top.
+function focusTypedLine(slide) {
+  if (!slide || !slide.classList.contains('line')) return;
+  var hasTarget = !!slide.querySelector('tr.hi');
+  function go() {
+    // Bail if the class moved on before a late callback (font load) fires.
+    if (slides[at] !== slide || !slide.classList.contains('on')) return;
+    slide.scrollTop = hasTarget ? slide.scrollHeight : 0;
+  }
+  requestAnimationFrame(go);
+  // Rubik/Consolas can load after first paint and make the code taller; without
+  // re-running once fonts are in, the jump uses the pre-font height and stops
+  // short, leaving the line off-screen - exactly the bug this fixes.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(go);
+}
+// Deep link, so a reload - or opening straight at a slide - keeps the place.
+show(parseInt((location.hash || '').slice(1), 10) - 1 || 0, false);
+
+document.querySelector('.prev').onclick = function () { show(at - 1); };
+document.querySelector('.next').onclick = function () { show(at + 1); };
+dots.forEach(function (d, i) { d.onclick = function () { show(i); }; });
+document.querySelector('.full').onclick = function () {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+// Full screen and any projector/window resize change the slide height, so
+// re-pin the line-to-type to the bottom of whatever code slide is showing.
+window.addEventListener('resize', function () { focusTypedLine(slides[at]); });
+
+document.addEventListener('keydown', function (event) {
+  var key = event.key;
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'Enter') show(at + 1);
+  else if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') show(at - 1);
+  else if (key === 'Home') show(0);
+  else if (key === 'End') show(slides.length - 1);
+  else if (key === 'f') document.querySelector('.full').click();
+  else if (key === 'Escape') {
+    // Inside the classroom this deck is an iframe: tell the page holding it to
+    // close rather than leaving the teacher stuck in a panel with no exit.
+    if (document.fullscreenElement) return;   // the browser handles that one
+    if (window.parent !== window) window.parent.postMessage({ utg: 'deck', action: 'close' }, location.origin);
+  } else return;
+  event.preventDefault();
+});
+// An iframe gets no keys until something in it is focused.
+window.addEventListener('load', function () { window.focus(); });
+document.addEventListener('click', function () { window.focus(); });
+
+// Checkpoint slides: play the real game at that week's state, so the class can
+// compare theirs against it. It boots from the PixelPad CDN and needs nothing else.
+[].slice.call(document.querySelectorAll('.cp-run')).forEach(function (btn) {
+  btn.onclick = function (e) {
+    e.stopPropagation();
+    var id = btn.getAttribute('data-cp');
+    var out = document.getElementById('out-' + id);
+    if (out.firstChild) {
+      if (out._cpStop) out._cpStop();       // drop the console listener
+      out.innerHTML = ''; btn.textContent = '▶ Play it'; return;
+    }
+    // The stored page escapes the script close tag so the text/plain box is not
+    // closed early; undo that before it becomes a real document, or the first
+    // script tag never closes and none of the project's JS runs. (The close tag
+    // is built from pieces so this very file does not contain a literal one.)
+    var CLOSE = '<' + '/script';
+    var raw = document.getElementById('src-' + id).textContent.split('<\\' + '/script').join(CLOSE);
+    var frame = document.createElement('iframe');
+    // allow-same-origin so the engine can use canvas and storage; the page is
+    // generated from this course's own code, nothing student-supplied.
+    frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    out.appendChild(frame);
+
+    // A console under the output, fed by the bridge inside the page. It is how
+    // the class sees a console.log, an error, or a request that failed.
+    var con = document.createElement('div');
+    con.className = 'cp-console';
+    con.innerHTML = '<div class="cp-console-head">Console</div>'
+                  + '<div class="cp-console-body"><span class="cp-muted">console.log, errors '
+                  + 'and network requests from the output show up here.</span></div>';
+    out.appendChild(con);
+    var body = con.querySelector('.cp-console-body');
+    var first = true;
+    function onMsg(ev) {
+      if (ev.source !== frame.contentWindow) return;          // only this output
+      var d = ev.data; if (!d || d.utg !== 'cp-log') return;
+      if (first) { body.innerHTML = ''; first = false; }       // clear the hint
+      var row = document.createElement('div');
+      row.className = 'cp-row ' + (d.level || 'log');
+      row.textContent = d.text;
+      body.appendChild(row); body.scrollTop = body.scrollHeight;
+    }
+    window.addEventListener('message', onMsg);
+    out._cpStop = function () { window.removeEventListener('message', onMsg); };
+
+    frame.srcdoc = raw;
+    btn.textContent = 'Hide it';
+  };
+});
+</script>
