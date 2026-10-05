@@ -197,3 +197,27 @@ def check_kid_rules(panel, lines):
         if _BARE_ASSIGN.match(quoteless):
             complaints.append("every name needs self. or Game. - " + where)
     return complaints
+
+
+def check_python_rules(panel, lines):
+    """The rules the PY101-PY302 courses hold their code to.
+
+    Those classes are ten to fourteen, follow the UTG guides, and use what the
+    guides use: a local name for a collision (`asteroidHit = get_collision(...)`),
+    division, and lists from PY201 on. So only the two rules that are about
+    reading Python at all are kept from RULES.md - an `if` never shares its line
+    with what it runs, and a pushed-in line is pushed in by four spaces.
+    """
+    complaints = []
+    for line_number, raw in enumerate(lines, 1):
+        line = raw.split("#", 1)[0]
+        quoteless = re.sub(r"'[^']*'|\"[^\"]*\"", "''", line)
+        where = "%s line %d: %s" % (panel, line_number, raw.strip())
+        if _INLINE_IF.match(quoteless):
+            complaints.append("if/else must not share a line with what it runs - " + where)
+        indent = raw[:len(raw) - len(raw.lstrip())]
+        if "\t" in indent:
+            complaints.append("indent with spaces, not a tab - " + where)
+        elif raw.strip() and len(indent) % 4:
+            complaints.append("indent by four spaces at a time - " + where)
+    return complaints

@@ -1,0 +1,375 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student homework book &middot; UTG Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#01aefd;--brand-dark:#0294d8;--brand-ink:#0a6299;--brand-tint:#e7f7ff;
+--gold:#ffd633;--ink:#1f2a37;--muted:#6b7787;--bg:#eef2f7;--surface:#fff;--border:#dbe3ec;
+--add:#e8f8ec;--add-edge:#37a95d;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Rubik,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--brand);text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 22px 80px}
+header.site{display:flex;align-items:center;gap:12px;padding:16px 22px;background:var(--surface);border-bottom:1px solid var(--border)}
+header.site img{height:26px}
+header.site .slash{color:#b8c8ce}
+header.site strong{font-size:15px;letter-spacing:.02em}
+.eyebrow{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:34px;margin:0 0 10px;line-height:1.2}
+h2{font-size:23px;margin:34px 0 12px}
+h3{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--muted);font-size:17px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:20px;margin:16px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.wk-card{display:block;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:16px;color:inherit}
+.wk-card:hover{border-color:var(--brand)}
+.wk-card .n{color:var(--brand);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.wk-card h3{margin:6px 0 4px;font-size:16px}
+.wk-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pill{display:inline-block;background:var(--brand-tint);color:var(--brand-ink);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;margin:0 6px 6px 0}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-top:6px}
+.tab{border:0;border-right:1px solid var(--border);background:#f7fafb;color:#52707a;padding:10px 14px;font:700 12px Rubik,sans-serif;cursor:pointer}
+.tab.active{background:var(--surface);color:var(--brand);box-shadow:inset 0 -2px var(--brand)}
+/* ---- code ---- */
+.snip{margin:14px 0;border:1px solid #223f49;border-radius:9px;overflow:hidden;background:#0f1b21}
+.snip-head{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#16303a;
+  color:#9fc4cf;font-size:12px;letter-spacing:.02em}
+.snip-head .file{color:#8fd7f0;font:700 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip-head .rng{color:#6d8c97}
+.snip-head .tag{margin-left:auto;color:#6d8c97}
+.snip-head button{border:1px solid #33586a;background:transparent;color:#a8ccd8;border-radius:5px;
+  padding:4px 10px;font:600 11px Rubik,sans-serif;cursor:pointer}
+.snip-head button:hover{border-color:#5f93a8;color:#dff0f6}
+.snip .code{overflow:auto;margin:0;padding:10px 0}
+.snip table{border-collapse:collapse;width:100%;
+  font:13px/1.85 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.snip td{padding:0;white-space:pre;vertical-align:top}
+.snip td.ln{width:1%;padding:0 14px 0 16px;text-align:right;color:#44646f;user-select:none}
+.snip td.src{color:#d7e6ea;padding-right:18px}
+/* new lines get a quiet tint and an accent bar, not a solid block of colour */
+.snip tr.new td.src{background:rgba(63,186,110,.12)}
+.snip tr.new td.ln{background:rgba(63,186,110,.12);color:#79d3a0;box-shadow:inset 3px 0 #3fba6e}
+/* a line this week removes - shown where it used to be, struck through */
+.snip tr.gone td.src{background:rgba(201,74,58,.10);color:#e39289;text-decoration:line-through;
+  text-decoration-color:rgba(227,146,137,.65)}
+.snip tr.gone td.ln{background:rgba(201,74,58,.10);color:#e39289;box-shadow:inset 3px 0 #c94a3a}
+
+.teach-row{margin:14px 0 18px}
+.pill.ghost{background:var(--surface);color:var(--brand-ink);border:1px solid var(--border)}
+.pill.ghost:hover{border-color:var(--brand);background:var(--brand-tint)}
+@media print{.teach-row{display:none}}
+
+/* ---- week anchors and the jump bar ---- */
+.chapter{scroll-margin-top:74px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 18px}
+.jump span{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);margin-right:4px}
+.jump a{display:grid;place-items:center;min-width:30px;height:30px;padding:0 7px;
+background:var(--surface);border:1px solid var(--border);border-radius:7px;
+font-size:13px;font-weight:700;color:var(--brand-ink);text-decoration:none}
+.jump a:hover{border-color:var(--brand);background:var(--brand-tint)}
+/* Opened inside the classroom the page is already inside a titled panel, so
+   the site header, the intro and the print button would only be noise. */
+body.embedded header.site,body.embedded .printbtn,body.embedded .jump,
+body.embedded footer{display:none}
+body.embedded .wrap{padding-top:8px}
+@media print{.jump{display:none}}
+
+/* ---- lesson flow ---- */
+.beat{margin:0 0 4px;padding:14px 0 14px 20px;border-left:2px solid var(--border)}
+.beat:hover{border-left-color:#c3d3dd}
+.beat.step{border-left-color:var(--brand)}
+.beat h4{margin:0 0 8px;font-size:16.5px;display:flex;align-items:baseline;gap:11px}
+.beat h4 .at{color:var(--brand);font:800 11.5px/1 Rubik,sans-serif;letter-spacing:.09em;
+  min-width:40px;flex:none;padding-top:2px}
+.beat p{margin:0 0 9px;line-height:1.68;max-width:74ch}
+.beat p:last-child{margin-bottom:0}
+.chunk-note{margin:2px 0 0;color:#3f5764;font-size:14.5px;line-height:1.62;max-width:74ch}
+.unchanged{margin:10px 0;padding:9px 13px;border-left:3px solid #c3d3dd;background:#f4f7f9;
+  border-radius:0 6px 6px 0;color:#4a5f6b;font-size:13.5px;line-height:1.55;max-width:74ch}
+.step-lead{color:var(--muted);font-size:13.5px;margin:0 0 4px}
+.note{border-left:3px solid var(--brand);background:var(--brand-tint);padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.warn{border-left:3px solid #e9952a;background:#fff8e9;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.bonus{border-left:3px solid var(--gold);background:#fffbea;padding:12px 14px;margin:14px 0;font-size:14px;border-radius:0 6px 6px 0}
+.muted{color:var(--muted)}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:34px;padding-top:18px;border-top:1px solid var(--border)}
+footer{color:var(--muted);font-size:13px;padding:24px 22px;text-align:center}
+table.plan{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+table.plan th,table.plan td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+table.plan th{background:var(--brand-tint);color:var(--brand-ink);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table.plan td.t{width:70px;white-space:nowrap;color:var(--muted);font-weight:700}
+ul.tight li{margin-bottom:5px}
+.say{background:#f6f2fd;border:1px solid #e2d8f6;padding:11px 14px;margin:11px 0 0;
+  border-radius:7px;font-size:14.2px;line-height:1.6;max-width:74ch}
+.say b{color:#5b3fa0}
+.say .listen{display:block;margin-top:5px;color:#6b6280;font-size:13.2px}
+@media print{
+  /* Chrome stamps the date, the page title and the file:// URL into the top and
+     bottom page margin, on every sheet. There is no property that turns that
+     off - it only skips the stamp when the margin is too shallow to hold it.
+     Measured: at 10mm it still stamps, at 8mm it gives up. 8mm also stays
+     clear of the ~5mm strip a desktop printer physically cannot reach, so the
+     book keeps a real edge. The side margin is the one that matters for
+     holding the paper, and it stays wide. */
+  @page{size:letter;margin:8mm 14mm}
+  body{background:#fff}
+  /* The site header and the copyright line are furniture for a web page. On
+     paper the copyright was landing alone on a sheet of its own at the end. */
+  header.site,footer,.nav,.snip-head button,.noprint{display:none}
+  /* On screen the wrapper keeps 80px of air below the last paragraph so it is
+     not flush with the window. On paper that air is content: it does not fit
+     under a column that already reaches the foot of the sheet, so it takes a
+     sheet of its own and the book ends on a blank page. */
+  .wrap{padding-bottom:0}
+  .beat{break-inside:avoid;page-break-inside:avoid}
+  .snip{break-inside:avoid;page-break-inside:avoid}
+  .chapter{page-break-before:always;page-break-inside:avoid}
+  .chapter:first-of-type{page-break-before:avoid}
+  .card,.note,.warn,.bonus{page-break-inside:avoid}
+}
+html:not(.utg-can-print) .printbtn{display:none}
+@media print{html:not(.utg-can-print) body{display:none}}
+/* A word from the glossary, highlighted wherever it is used in its coding
+   sense. The first use on a page is a link to the book; later uses match. */
+.term{color:var(--brand-ink);font-weight:700}
+a.term{border-bottom:1px dotted #7fbfe0}
+a.term:hover{border-bottom-color:var(--brand)}
+</style>
+<script>window.UTG_GUARD="../";window.UTG_TOOL="py101";document.write('<script src="../class-codes.js?t='+Date.now()+'"><\/script>');</script>
+<script src="../guard.js"></script>
+<header class="site"><a href="../"><img src="https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg" alt="UTG Academy"></a><span class="slash">/</span><strong>PY101</strong></header>
+<div class="wrap">
+<p class="eyebrow">Student homework book</p>
+<h1>PY101 &#183; Space Shooter</h1>
+<p class="lead">One chapter per week. Do the challenges on your own project - there is no separate file to make.</p>
+<button class="printbtn pill" onclick="window.print()">Print to PDF</button>
+<div class="warn"><h3 style="margin-top:0">Read this first</h3>
+<p><strong>Nothing here needs the internet except the code editor itself.</strong> The
+game runs entirely in the browser - there is no server, no account and no API key anywhere
+in this course.</p>
+<p><strong>The students draw the art.</strong> Every sprite is listed with the exact size
+to draw it. The generated games use plain coloured rectangles as stand-ins so the code can
+be tested; they are meant to be replaced.</p>
+</div>
+<section class="chapter">
+<p class="eyebrow">Chapter 1</p>
+<h2>Your ship on the screen</h2>
+<p class="lead">Every game is built from objects. Today you make a Spaceship <a class="term" href="textbook.html#g-class">class</a> and an Asteroid class, give each one a <a class="term" href="textbook.html#g-sprite">sprite</a>, and put one of each into your first <a class="term" href="textbook.html#g-room">room</a>.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">class</b> is a kind of thing; an <a class="term" href="textbook.html#g-object">object</a> is one thing made from it.</li><li><a class="term" href="textbook.html#g-start">start</a> runs once, the moment an object is made.</li><li><b class="term">sprite</b>() puts the picture you drew onto an object.</li><li>Spaceship() makes one spaceship; self.player is the name you keep it under.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">class</span><span class="pill">object</span><span class="pill">sprite</span><span class="pill">room</span><span class="pill">start</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Make the ship yours</strong><p style="margin:8px 0 0">Redraw ship.png so it looks like a ship you would want to fly. Keep it 64 by 64.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You press Play and your own ship is on the screen.</p></div><div class="card"><strong>Challenge 2. Name the classes</strong><p style="margin:8px 0 0">Write down every class you saw in the finished game, and one thing each one does.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have a list of at least five classes.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-01.html">week 1's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 2</p>
+<h2>Everything in its place</h2>
+<p class="lead">Every spot on the screen has an address. Today you learn the <a class="term" href="textbook.html#g-coordinates">x and y</a> grid, reach into an object with the <a class="term" href="textbook.html#g-dot">dot</a>, and shrink the rock with scaleX and scaleY.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>The middle of the screen is x 0, y 0. Plus y is up, minus y is down.</li><li>A <a class="term" href="textbook.html#g-variable">variable</a> is a name holding a value - self.player holds your ship.</li><li>The <b class="term">dot</b> reaches inside an object: self.player.y is the ship&#x27;s y.</li><li><a class="term" href="textbook.html#g-scale">scaleX and scaleY</a> change the size: 1 is normal, 0.5 is half.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">x and y</span><span class="pill">the dot</span><span class="pill">variables</span><span class="pill">scaleX and scaleY</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Map the screen</strong><p style="margin:8px 0 0">Move the rock to each corner of the screen, one at a time, and write down the x and y you used.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have four pairs of numbers, one for each corner.</p></div><div class="card"><strong>Challenge 2. Find the size</strong><p style="margin:8px 0 0">Try the rock at scale 2, then 0.25. Which size makes a good asteroid?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a size and can say why.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-02.html">week 2's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 3</p>
+<h2>Things that move</h2>
+<p class="lead">Start runs once; loop runs forever. Today an Enemy ship joins the game and uses <a class="term" href="textbook.html#g-loop">loop</a> to fly slowly down the screen at its own speed.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">loop</b> runs about sixty times every second.</li><li>self.y = self.y - self.speed takes the old y, makes it smaller, and stores it back.</li><li>Do that every loop and the enemy moves.</li><li>self.speed belongs to the enemy, so its start and its loop can both use it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">loop</span><span class="pill">a number variable</span><span class="pill">changing a value</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Fast and slow</strong><p style="margin:8px 0 0">Try self.speed = 5, then 0.5. Which feels right for an enemy?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a speed and can say what the number means.</p></div><div class="card"><strong>Challenge 2. Sideways</strong><p style="margin:8px 0 0">Add self.x = self.x + 1 under the falling line and press Play. Which way does it go? Take it out afterwards.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You made it fly at an angle, and put it back.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-03.html">week 3's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 4</p>
+<h2>Fly the ship</h2>
+<p class="lead">A game listens to you. Today an <a class="term" href="textbook.html#g-if">if</a> asks whether a key is held down, and W, A, S and D fly your ship around the screen.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>An <b class="term">if</b> runs the pushed-in lines under it only when its question is true.</li><li><a class="term" href="textbook.html#g-key_is_pressed">key_is_pressed(&#x27;A&#x27;)</a> is True for as long as you hold A.</li><li>The line under an if starts with four spaces.</li><li>x changes left and right, y changes up and down.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">if</span><span class="pill">key_is_pressed()</span><span class="pill">indentation</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Find your speed</strong><p style="margin:8px 0 0">Try the ship at speed 2, then 12. What speed makes it fun to fly?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a speed and can say why.</p></div><div class="card"><strong>Challenge 2. Explain the keys</strong><p style="margin:8px 0 0">Write one sentence for each of W, A, S and D saying what it does to x or y.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have four sentences, and each names x or y.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-04.html">week 4's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 5</p>
+<h2>A sky full of rocks</h2>
+<p class="lead">Space should look like space. Today you add a background behind everything, make the rock fall, and use <a class="term" href="textbook.html#g-destroy">destroy</a> to clean it up once it leaves the screen.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>Objects made first are drawn first, at the back.</li><li>Every object keeps its own self.speed.</li><li>&amp;lt; means less than, &amp;gt; means greater than.</li><li><b class="term">destroy</b>(self) takes an object out of the game for good.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">draw order</span><span class="pill">less than and greater than</span><span class="pill">destroy()</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Better space</strong><p style="margin:8px 0 0">Improve space.png. Keep it 1280 by 720 so it fills the screen.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Your own space is behind the game.</p></div><div class="card"><strong>Challenge 2. Read it aloud</strong><p style="margin:8px 0 0">Write the line if self.y &lt; -400: as a full English sentence.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Your sentence says what has to be true, and what happens then.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-05.html">week 5's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 6</p>
+<h2>Crash!</h2>
+<p class="lead">Games are about things touching. Today <a class="term" href="textbook.html#g-get_collision">get_collision</a> tells your ship the moment it hits a rock or an enemy - and both of them are destroyed.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">get_collision</b>(self, &#x27;Asteroid&#x27;) gives back the rock you touch, or False.</li><li>A name without self. lives only inside this loop.</li><li>if asteroidHit: runs only when something was really hit.</li><li><b class="term">destroy</b> takes away both the rock and the ship.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">get_collision()</span><span class="pill">a name for right now</span><span class="pill">True and False</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Spot the pattern</strong><p style="margin:8px 0 0">Write down which words are the same in the rock lines and the enemy lines, and which are different.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You found the two words that change.</p></div><div class="card"><strong>Challenge 2. Invincible</strong><p style="margin:8px 0 0">Put a # in front of destroy(self) in both crashes. What happens now? Take the # out again.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say what # does to a line.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-06.html">week 6's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 7</p>
+<h2>A rock every two seconds</h2>
+<p class="lead">One rock is not a storm. Today a <a class="term" href="textbook.html#g-timer">timer</a> in the Space room counts loops, and every 120 of them - two seconds - it makes a brand-new asteroid.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">timer</b> is a number that counts loops: + 1 every time.</li><li>120 loops is two seconds.</li><li>&amp;gt;= means greater than or equal to.</li><li>Set the timer back to 0 and it starts counting again.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">timer</span><span class="pill">greater than or equal</span><span class="pill">a room&#x27;s own variables</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Seconds to loops</strong><p style="margin:8px 0 0">How many loops are there in 1 second? 3 seconds? 5 seconds?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have three numbers: 60, 180 and 300.</p></div><div class="card"><strong>Challenge 2. Find the storm</strong><p style="margin:8px 0 0">Change 120 to 30. Then 300. Which number feels best to play?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a number and can say how many seconds it is.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-07.html">week 7's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 8</p>
+<h2>Random rocks</h2>
+<p class="lead">A game that does the same thing every time gets boring. Today <a class="term" href="textbook.html#g-random">random</a> picks a different spot for every new rock, and the rocks start to spin.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>import <b class="term">random</b> brings in Python&#x27;s random numbers.</li><li>random.randint(-600, 600) is any whole number from -600 to 600, each as likely.</li><li>Every new rock gets its own random x.</li><li><a class="term" href="textbook.html#g-angle">angle</a> turns an object; adding to it every loop spins it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">import random</span><span class="pill">random.randint()</span><span class="pill">chance</span><span class="pill">angle</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Roll the dice</strong><p style="margin:8px 0 0">Write down what random.randint(1, 2) is like in real life. And random.randint(1, 100)?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You compared one to a coin and one to a 100-sided die.</p></div><div class="card"><strong>Challenge 2. Where can they fall?</strong><p style="margin:8px 0 0">Change the range to random.randint(-200, 200). What changes? Put it back afterwards.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain what the two numbers do.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-08.html">week 8's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 9</p>
+<h2>Fire!</h2>
+<p class="lead">Now you fight back. Space fires a laser from the nose of your ship, and the laser blasts any rock or enemy it touches.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><a class="term" href="textbook.html#g-key_was_pressed">key_was_pressed</a> is True for one loop; <b class="term">key_is_pressed</b> for as long as you hold.</li><li>self.laser.x = self.x puts the new laser where the ship is.</li><li>The laser checks its own hits with <b class="term">get_collision</b>.</li><li>&amp;gt; means greater than: a laser above 400 is <b class="term">destroyed</b>.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">key_was_pressed()</span><span class="pill">making an object at another object&#x27;s spot</span><span class="pill">a new class that does the hitting</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Held or pressed</strong><p style="margin:8px 0 0">Write two things in a game you know that use &#x27;held&#x27; and two that use &#x27;pressed once&#x27;.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have four examples, two of each.</p></div><div class="card"><strong>Challenge 2. Faster bolts</strong><p style="margin:8px 0 0">Try the laser at + 3 and + 20. Which feels best?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a laser speed.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-09.html">week 9's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 10</p>
+<h2>Health and Game Over</h2>
+<p class="lead">One crash should not end everything. Today your ship gets five health, a label shows it on the screen, and when it reaches zero a new <b class="term">room</b> says GAME OVER.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A hit now takes one health instead of <b class="term">destroying</b> the ship.</li><li>self.health belongs to the ship; health on its own is a NameError.</li><li><a class="term" href="textbook.html#g-text">text</a>() makes a label, and <a class="term" href="textbook.html#g-str">str</a>() turns a number into writing.</li><li>&amp;lt;= means less than or equal; at 0 the game switches to the End <b class="term">room</b>.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">health</span><span class="pill">text()</span><span class="pill">str()</span><span class="pill">a second room</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Tough or fragile</strong><p style="margin:8px 0 0">Try the ship with 1 health and with 20. Which makes a better game?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a starting health and can say why.</p></div><div class="card"><strong>Challenge 2. Read the error</strong><p style="margin:8px 0 0">Write down what NameError means in your own words.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Your sentence says Python could not find a name.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-10.html">week 10's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 11</p>
+<h2>Health pickups</h2>
+<p class="lead">A good game gives back as well as takes. Today green pickups drift down every five seconds, and catching one adds a health.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A new falling class is: picture, fall, clean up.</li><li>A spawner is: count, trigger, reset - with its own <b class="term">timer</b>.</li><li>300 loops is five seconds.</li><li>A pickup is the crash pattern with + 1 instead of - 1.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">reusing a pattern</span><span class="pill">adding instead of taking away</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Spot the copy</strong><p style="margin:8px 0 0">Put the asteroid spawner and the pickup spawner side by side. Circle every word that is different.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You found exactly what changed between them.</p></div><div class="card"><strong>Challenge 2. Seconds</strong><p style="margin:8px 0 0">How many loops is 10 seconds? 2.5 seconds?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> 600 and 150.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-11.html">week 11's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 12</p>
+<h2>An enemy fleet</h2>
+<p class="lead">Real enemies are not all the same. Today every enemy picks its own random speed and its own sideways drift, and a timer sends a new one every six seconds.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li><b class="term">random</b> in <b class="term">start</b> picks once, so each object keeps its own number.</li><li>Adding a negative number makes x smaller - the enemy drifts left.</li><li>A third spawner, the same three parts: count, trigger, reset.</li><li>Every falling thing needs a clean-up.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">random once, in start</span><span class="pill">a negative number that moves you left</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Name the range</strong><p style="margin:8px 0 0">List every number random.randint(-2, 2) can give.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> -2, -1, 0, 1, 2.</p></div><div class="card"><strong>Challenge 2. Harder</strong><p style="margin:8px 0 0">Change the enemy speed range to (2, 5). Is it still fair?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can say whether you kept the change, and why.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-12.html">week 12's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 13</p>
+<h2>They shoot back</h2>
+<p class="lead">Now the enemies fight too. Every enemy gets its own timer, and every two seconds it fires an orange laser straight down at you.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>A <b class="term">timer</b> inside Enemy means every enemy counts on its own.</li><li>An enemy can make an EnemyProjectile at its own x and y.</li><li>Getting shot is the crash pattern, costing one health.</li><li>self always means the object whose code is running.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">a timer inside every object</span><span class="pill">one class making another</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Who is self?</strong><p style="margin:8px 0 0">For each panel you typed in today, write which object self is there.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You named four different selves.</p></div><div class="card"><strong>Challenge 2. Fire rate</strong><p style="margin:8px 0 0">Try enemies firing at 60 and at 240. Which is fair?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a number.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-13.html">week 13's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 14</p>
+<h2>The boss</h2>
+<p class="lead">Every shooter ends with a boss. After twenty seconds a huge ship arrives, sweeps from side to side, and takes ten hits to bring down.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>== asks whether two things are exactly equal; = stores.</li><li>A <b class="term">timer</b> with no reset fires only once.</li><li>-self.bossSpeed flips the direction.</li><li>The boss keeps its own health and counts the lasers that hit it.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">== exactly equal</span><span class="pill">turning around with a minus</span><span class="pill">a health bar for an enemy</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. = or ==</strong><p style="margin:8px 0 0">Write three lines from your game that use =, and the one that uses ==.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You can explain why the boss line needs two.</p></div><div class="card"><strong>Challenge 2. Boss balance</strong><p style="margin:8px 0 0">Try bossHealth 3 and 30. What makes a good fight?</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You picked a number.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-14.html">week 14's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section><section class="chapter">
+<p class="eyebrow">Chapter 15</p>
+<h2>The boss fires back</h2>
+<p class="lead">A boss that cannot hurt you is not a boss. Today it fires a wide death ray every three seconds, and a ray hit costs two health.</p>
+<h3>What you learned</h3>
+<ul class="tight"><li>scaleX on its own stretches one way.</li><li>The boss fires with its own <b class="term">timer</b>, like every enemy does.</li><li>A ray hit takes two health.</li><li>Your Space Shooter is finished - every line typed by you.</li></ul>
+<h3>Words to know</h3>
+<p><span class="pill">stretching one way only</span><span class="pill">a bigger penalty</span></p>
+<h3>Challenges</h3>
+<div class="card"><strong>Challenge 1. Show it off</strong><p style="margin:8px 0 0">Let someone at home play your game from start to GAME OVER.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> Someone else played the game you built.</p></div><div class="card"><strong>Challenge 2. Your next feature</strong><p style="margin:8px 0 0">Write down one thing you would add next, and which classes it would touch.</p><p class="muted" style="margin:8px 0 0;font-size:13px"><strong>Done when:</strong> You have a plan for one more feature.</p></div>
+<h3>Stuck?</h3>
+<p class="muted">Open <a href="week-15.html">week 15's code</a> and compare it with yours line by line.
+The green lines are the ones added that week.</p>
+</section>
+</div>
+<footer>&copy; 2026 UTG Academy</footer>
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = document.getElementById(btn.getAttribute('data-copy'));
+    var text = Array.prototype.map.call(pre.querySelectorAll('td.src'), function(td){ return td.textContent; }).join('\n');
+    navigator.clipboard.writeText(text).then(function(){
+      var was = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = was; }, 1400);
+    });
+  });
+});
+document.querySelectorAll('[data-tabs]').forEach(function(group){
+  group.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      group.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var owner = group.parentElement;
+      owner.querySelectorAll('[data-pane]').forEach(function(pane){
+        pane.style.display = pane.getAttribute('data-pane') === tab.getAttribute('data-for') ? '' : 'none';
+      });
+    });
+  });
+});
+</script>

@@ -128,7 +128,7 @@ let errors = [];
 let clock = 0;
 Engine.onError = (where, error) => errors.push(where + ": " + error.message);
 
-const expectedKind = { ai101: "web", cs701: "java", pxp101: "pixelpad" };
+const expectedKind = { ai101: "web", cs701: "java", pxp101: "pixelpad", py101: "pixelpad" };
 for (const course of Object.keys(expectedKind)) {
   console.log("\n" + course);
   const weeks = weeksFromMilestones(JSON.parse(readFileSync(site + course + "/milestones.json", "utf8")));

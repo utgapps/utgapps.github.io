@@ -1,4 +1,5 @@
-"""PXP101 course builder.
+"""The PixelPad course builder: PXP101, and the PY101-PY302 courses that run
+it from their own folders with their own course.py.
 
 Everything in this folder is generated. Never hand-edit the HTML - edit
 course.py and re-run this.
@@ -36,7 +37,10 @@ import sys
 import course
 import pixelpad
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# The course being built, not this file: the PY courses run this same builder
+# from their own folders (see py101/build.py), and everything is written next
+# to the course.py that describes it.
+HERE = os.path.dirname(os.path.abspath(course.__file__))
 SLIDES_DIR = os.path.join(HERE, "slides")
 
 LOGO = "https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utglogoh.svg"
@@ -46,9 +50,16 @@ FILES = course.PANELS
 LINE_BUDGET = course.LINE_BUDGET
 BONUS_BUDGET = getattr(course, "BONUS_BUDGET", 0)
 TOTAL_WEEKS = course.TOTAL_WEEKS
+# "PXP101" in a header, "pxp101" for the site gate and the classroom.
+COURSE_CODE = course.COURSE_CODE
+TOOL = course.TOOL
+# Who the hour is for, as the teacher curriculum says it: "eight-year-olds".
+AUDIENCE = course.AUDIENCE
+# The code rules the whole course is held to - camp RULES.md for PXP101.
+check_code_rules = course.check_code_rules
 
 # The most an hour can add and still end on a Play. See the guard in main().
-WEEK_LINE_CAP = 12
+WEEK_LINE_CAP = course.WEEK_LINE_CAP
 
 
 # --------------------------------------------------------------------------
@@ -150,7 +161,7 @@ def week_ops(week):
     return {(filename, block_id): kind for kind, filename, block_id, _lines in week["ops"]}
 
 
-MAX_STEP_LINES = 6   # RULES.md's cap, proven over 21 camp games with 9-year-olds
+MAX_STEP_LINES = course.MAX_STEP_LINES   # 6 is RULES.md's cap, proven over 21 camp games with 9-year-olds
 
 
 def chunk_block(lines, filename=""):
@@ -653,7 +664,7 @@ def check_no_nested_links(name, page_html):
         depth += 1
 
 
-def guard(tool="pxp101", up="../"):
+def guard(tool=TOOL, up="../"):
     """The site access gate. `up` is the path back to the site root - the slide
     decks sit one folder deeper than everything else this builder writes."""
     return (
@@ -822,7 +833,7 @@ document.querySelectorAll('[data-tabs]').forEach(function(group){
 """
 
 
-def page(title, body, extra_js="", tool="pxp101"):
+def page(title, body, extra_js="", tool=TOOL):
     # Every page this builder writes at the site root links its glossary terms
     # back to textbook.html; the slide decks sit a folder deeper and pass their
     # own root. render_terms runs last, over the whole finished page.
@@ -833,7 +844,7 @@ def page(title, body, extra_js="", tool="pxp101"):
 {FONT}
 <style>{CSS}</style>
 {guard(tool)}
-<header class="site"><a href="../"><img src="{LOGO}" alt="UTG Academy"></a><span class="slash">/</span><strong>PXP101</strong></header>
+<header class="site"><a href="../"><img src="{LOGO}" alt="UTG Academy"></a><span class="slash">/</span><strong>{COURSE_CODE}</strong></header>
 {body}
 <footer>&copy; 2026 UTG Academy</footer>
 <script>{COPY_JS}{extra_js}</script>
@@ -989,7 +1000,7 @@ def build_teacher():
     body = f"""<div class="wrap">
 <p class="eyebrow">Teacher curriculum</p>
 <h1>{esc(course.COURSE_TITLE)}</h1>
-<p class="lead">{len(course.WEEKS)} one-hour lessons for eight-year-olds. Every hour is built so you are talking for well under half of it, and so nobody goes more than a few minutes without pressing Play.</p>
+<p class="lead">{len(course.WEEKS)} one-hour lessons for {AUDIENCE}. Every hour is built so you are talking for well under half of it, and so nobody goes more than a few minutes without pressing Play.</p>
 <nav class="jump" aria-label="Jump to a week"><span>Week</span>{jump}</nav>
 <button class="printbtn pill" onclick="window.print()">Print to PDF</button>
 <div class="warn"><h3 style="margin-top:0">Say this in week 1</h3>{course.DISCLAIMER}</div>
@@ -2361,7 +2372,7 @@ def build_html_decks():
         html_out = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Week {week_number} slides &middot; PXP101 &middot; UTG Academy</title>
+<title>Week {week_number} slides &middot; {course_code} &middot; UTG Academy</title>
 {font}
 <style>{css}</style>
 {guard}
@@ -2376,7 +2387,7 @@ def build_html_decks():
   <button class="full" title="Full screen (f)">Full screen</button>
 </div>
 <script>{js}</script>
-""".format(week_number=week["n"], font=FONT, css=DECK_CSS, guard=guard("pxp101", up="../../"),
+""".format(week_number=week["n"], font=FONT, css=DECK_CSS, guard=guard(TOOL, up="../../"), course_code=COURSE_CODE,
            slides="".join(slides), dots=dots, js=DECK_JS)
         # The decks sit in pxp101/slides/, so a glossary link reaches the book
         # one folder up.
@@ -2409,7 +2420,7 @@ def build_milestones():
     with the weeks, and the classroom turns each week into its own project.
     """
     payload = {
-        "course": "pxp101",
+        "course": TOOL,
         "title": course.COURSE_TITLE,
         "kind": "pixelpad",
         "rooms": course.ROOMS,
@@ -2449,7 +2460,7 @@ def build_slide_states():
         snaps.append({"slide": len(plan), "files": state_at(week_number)})   # week final, last slide
         by_index = {snap["slide"]: snap for snap in snaps}          # last write per index
         weeks_out.append({"n": week_number, "states": [by_index[slide_index] for slide_index in sorted(by_index)]})
-    write("slide-states.json", json.dumps({"course": "pxp101", "weeks": weeks_out}, separators=(",", ":")))
+    write("slide-states.json", json.dumps({"course": TOOL, "weeks": weeks_out}, separators=(",", ":")))
     return len(weeks_out)
 
 
@@ -2637,8 +2648,8 @@ def build_textbook():
             # PixelPad site or in our own code editor, and a child told to open
             # one who is sitting in front of the other is stuck before line 1.
             draw = ('<h3>Draw this first</h3><p>Make a new sprite in the code editor for each one '
-                    'and give it exactly this name. The size matters &mdash; the code never '
-                    'resizes your picture.</p><div class="tb-draw">%s</div>' % cards)
+                    'and give it exactly this name. %s</p><div class="tb-draw">%s</div>'
+                    % (course.DRAW_SIZE_NOTE, cards))
 
         steps, count = [], 0
         for beat in week["flow"]:
@@ -2725,7 +2736,7 @@ def build_textbook():
     chapter_count = len(chapters)
     # The glossary every blue word in the book links to. Anchored id="g-<slug>"
     # to match render_terms; ordered as the child meets the words.
-    code_head = {"mouse_x": "mouse_x()", "get_collision": "get_collision()"}
+    code_head = course.CODE_HEADS
     glossary_items = "".join(
         '<div class="tb-term" id="g-{slug}"><p class="h">{head}</p><p>{definition}</p></div>'.format(
             slug=slug,
@@ -2788,7 +2799,7 @@ def main():
 
     final = state_at(TOTAL_WEEKS)
     total = line_count(final)
-    print(f"PXP101 - final game is {total} lines "
+    print(f"{COURSE_CODE} - final game is {total} lines "
           f"({', '.join(f'{filename}: {len(final[filename].splitlines())}' for filename in FILES if final[filename])})")
     if total > LINE_BUDGET:
         raise SystemExit(f"OVER BUDGET: {total} lines > {LINE_BUDGET}. Move something to a bonus module.")
@@ -2805,12 +2816,12 @@ def main():
                 raise SystemExit(
                     f"week {week['n']} bonus writes to {panel!r}, which is not a panel "
                     f"of this course - add it to course.PANELS or fix the name")
-            complaints = pixelpad.check_kid_rules(f"week {week['n']} bonus, {panel}", lines)
+            complaints = check_code_rules(f"week {week['n']} bonus, {panel}", lines)
             if complaints:
                 raise SystemExit("bonus code breaks the kid rules (RULES.md):\n  "
                                  + "\n  ".join(complaints))
             bonus_total += len(lines)
-    print(f"PXP101 - bonus track is {bonus_total} lines of {BONUS_BUDGET}")
+    print(f"{COURSE_CODE} - bonus track is {bonus_total} lines of {BONUS_BUDGET}")
     if bonus_total > BONUS_BUDGET:
         raise SystemExit(
             f"BONUS OVER BUDGET: {bonus_total} lines > {BONUS_BUDGET}. "
@@ -2823,7 +2834,7 @@ def main():
     complaints = []
     for panel in FILES:
         if final[panel]:
-            complaints += pixelpad.check_kid_rules(panel, final[panel].split("\n"))
+            complaints += check_code_rules(panel, final[panel].split("\n"))
     if complaints:
         raise SystemExit("code breaks the kid rules (RULES.md):\n  " + "\n  ".join(complaints))
 

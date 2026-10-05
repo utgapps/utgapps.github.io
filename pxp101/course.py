@@ -24,6 +24,21 @@ recap / homework / slides / bonus.
 
 import re
 
+import pixelpad
+
+COURSE_CODE = "PXP101"
+# The site gate's name for these pages, and the classroom's name for the course.
+TOOL = "pxp101"
+AUDIENCE = "eight-year-olds"
+
+# The most one hour may add. An eight-year-old types perhaps a line a minute and
+# has to press Play inside the hour, so twelve is already generous.
+WEEK_LINE_CAP = 12
+# RULES.md's cap on one step, proven over 21 camp games with 9-year-olds.
+MAX_STEP_LINES = 6
+# camp-coding-projects/RULES.md, enforced on every panel and every bonus.
+check_code_rules = pixelpad.check_kid_rules
+
 COURSE_TITLE = "PXP101 · Monster Munch"
 COURSE_BLURB = (
     "Fifteen weeks making your own arcade game in PixelPad. You draw the monster, "
@@ -50,6 +65,12 @@ LINE_BUDGET = 150
 # deliberately OUTSIDE state_at(), so a child who does every bonus and a child
 # who does none can both follow week 9. See PLAN.md section 3.
 BONUS_BUDGET = 100
+
+# What the book says under "Draw this first". Nothing in PXP101 is ever scaled.
+DRAW_SIZE_NOTE = "The size matters &mdash; the code never resizes your picture."
+
+# Glossary entries whose heading is code rather than a word.
+CODE_HEADS = {"mouse_x": "mouse_x()", "get_collision": "get_collision()"}
 
 DISCLAIMER = """
 <p><strong>Nothing here needs the internet except PixelPad itself.</strong> The game runs
