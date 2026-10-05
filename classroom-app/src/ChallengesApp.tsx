@@ -224,10 +224,29 @@ function LastAttempt({ attempt, attempts }: { attempt: ChallengeAttempt; attempt
   </div>;
 }
 
+/* The time left on the answer being waited for, as m:ss. A check is several
+   requests in a row, and each gets NO_ANSWER_MS of its own, so this starts
+   again at 2:00 whenever an answer arrives and the next step begins - and the
+   step's name changes with it, so a student sees the check moving rather than
+   a clock that jumped back. At 0:00 the Submit button comes back. */
+function Countdown({ deadline }: { deadline: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
+  const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+  const fractionLeft = Math.max(0, Math.min(1, (deadline - now) / NO_ANSWER_MS));
+  return <div className="pcc-countdown" role="timer" aria-label="Time left to wait for an answer">
+    <strong>{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</strong>
+    <div className="pcc-countdown-bar"><span style={{ width: `${fractionLeft * 100}%` }} /></div>
+  </div>;
+}
+
 type Stage =
   | { step: "choose" }
   | { step: "running"; projectTitle: string; files: Record<string, string>; nonce: string; projectId: string }
-  | { step: "asking"; projectTitle: string }
+  | { step: "asking"; projectTitle: string; doing: string; deadline: number }
   | { step: "result"; verdict: Verdict; earned: number; projectTitle: string; matched: boolean }
   | { step: "error"; message: string };
 
@@ -283,6 +302,12 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
     setStage(next);
   }
 
+  /* Shows the step about to be waited for, with a fresh NO_ANSWER_MS on the
+     clock - set just before each request that gets that limit. */
+  function waitFor(attempt: number, projectTitle: string, doing: string) {
+    if (!abandoned(attempt)) setStage({ step: "asking", projectTitle, doing, deadline: Date.now() + NO_ANSWER_MS });
+  }
+
   /* The worker's own calls get the same time limit the checker's do. */
   function withinTimeLimit<T>(request: Promise<T>): Promise<T> {
     return Promise.race([request, new Promise<T>((_, reject) =>
@@ -311,12 +336,13 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
       let verdict = errorVerdict(errorsRef.current);
       const ranClean = !verdict;
       if (!verdict) {
-        setStage({ step: "asking", projectTitle });
+        waitFor(attempt, projectTitle, "Getting the checker ready");
         const key = await withinTimeLimit(apiChallengeKey(token));
         if (!key) throw new Error("The challenge checker has not been switched on yet. Ask your teacher.");
-        verdict = await askChecker(key, challenge, files);
+        verdict = await askChecker(key, challenge, files, (doing) => waitFor(attempt, projectTitle, doing));
       }
       if (abandoned(attempt)) return;
+      waitFor(attempt, projectTitle, "Saving your result");
       const saved = await withinTimeLimit(apiSubmitChallenge(token, challenge.id, { projectId, passed: verdict.passed, notes: verdict.notes, ranClean }));
       if (abandoned(attempt)) return;
       onProgress({ points: saved.points, challenges: saved.challenges, admin: saved.admin, review: saved.review });
@@ -365,8 +391,10 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
 
       {stage.step === "asking" && <>
         <h2>Checking "{stage.projectTitle}"…</h2>
-        <p className="small">The checker is reading your code against every line of the challenge. This can take a minute or two.</p>
+        <p className="small">{stage.doing}…</p>
         <div className="pcc-spinner" aria-hidden="true" />
+        <Countdown key={stage.deadline} deadline={stage.deadline} />
+        <p className="small">If no answer comes before the clock reaches 0:00, nothing is counted and you can press Submit again.</p>
       </>}
 
       {stage.step === "result" && (stage.verdict.passed

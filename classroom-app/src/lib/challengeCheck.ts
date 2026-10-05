@@ -134,7 +134,11 @@ const UNREADABLE = "The checker gave an answer that could not be read. Nothing w
 export const NO_ANSWER_MS = 120000;
 export const NO_ANSWER = "No answer came back for two minutes. Nothing was counted - press Submit again.";
 
-export async function askChecker(key: string, challenge: Challenge, files: Record<string, string>): Promise<Verdict> {
+/** `onAsk` hears what the checker is about to wait for, just before each
+ *  request - each of which gets its own NO_ANSWER_MS - so the page can show
+ *  the student the step and the time left on it. */
+export async function askChecker(key: string, challenge: Challenge, files: Record<string, string>,
+  onAsk: (doing: string) => void = () => {}): Promise<Verdict> {
   const code = serialize(files);
   if (!code.replace(/^## .*$/gm, "").trim()) {
     return { passed: false, notes: ["Your project has no code in it yet. Open it, build the mechanic, then hand it in again."] };
@@ -154,6 +158,7 @@ export async function askChecker(key: string, challenge: Challenge, files: Recor
   }, NO_ANSWER_MS, NO_ANSWER);
 
   const project = squeeze(Object.values(files).join("\n"));
+  onAsk("Reading your code against every line of the challenge");
   const found = jsonIn(await ask(FIND, findPrompt));
   if (!found || !Array.isArray(found.requirements)) throw new Error(UNREADABLE);
   const answers = found.requirements as { n?: unknown; code?: unknown; met?: unknown; why?: unknown }[];
@@ -168,6 +173,7 @@ export async function askChecker(key: string, challenge: Challenge, files: Recor
   const missing = unmet.length * 2 <= requirements.length
     ? await unmet.reduce<Promise<typeof unmet>>(async (sofar, item) => {
         const still = await sofar;
+        onAsk(`Taking a second look at requirement ${item.number}`);
         const again = jsonIn(await ask(LOOK_AGAIN, `REQUIREMENT: ${requirements[item.number - 1]}\nPROJECT:\n${code}`));
         if (!(again && again.met === true && quotedFrom(project, again.code))) still.push({ number: item.number, why: String(again?.why || item.why) });
         return still;
