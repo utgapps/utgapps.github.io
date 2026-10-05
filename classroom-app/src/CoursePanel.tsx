@@ -3,6 +3,7 @@ import { CourseViewer, type ViewerTab } from "./CourseViewer";
 import { apiClassStudents, apiSeedProject, apiCourseWeeks, apiEnrolStudent, apiResetStudentPassword,
          apiListProjects, apiCreateProject, apiGetProjectById,
          type ApiClassStudent, type ApiProjectSummary, type CourseWeek } from "./lib/api";
+import type { ProjectKind } from "./lib/types";
 
 /* The instructor's own panel: the course weeks, the class list, and the two
    ways to hand code to somebody.
@@ -19,13 +20,6 @@ type Source = { kind: "week"; n: number } | { kind: "mine"; id: string };
    avoids characters that look alike and words that are hard to spell. */
 const WORDS = ["maple", "harbour", "lantern", "copper", "willow", "quartz",
                "beacon", "cedar", "falcon", "meadow", "anchor", "pebble"];
-/* A course's files say what kind of project they are: CS701's .java files are
-   Java, everything else so far is a web page. Guessing "web" for a Java week
-   would open it in the web editor with a preview that can only ever be blank. */
-function kindOf(files: Record<string, string>): "java" | "web" {
-  return Object.keys(files).some((name) => name.endsWith(".java")) ? "java" : "web";
-}
-
 function suggestPassword() {
   const pick = () => WORDS[Math.floor(Math.random() * WORDS.length)];
   return `${pick()}-${pick()}-${10 + Math.floor(Math.random() * 90)}`;
@@ -54,15 +48,17 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
   const week = weeks?.find((w) => w.n === picked) || null;
   const chosen = students.find((s) => s.id === who);
 
-  async function filesFor(from: Source): Promise<{ files: Record<string, string>; label: string }> {
+  /* The kind travels with the files. It used to be guessed from them, which
+     turned a teacher's Python game into a web project on the student's side. */
+  async function filesFor(from: Source): Promise<{ files: Record<string, string>; kind: ProjectKind; label: string }> {
     if (from.kind === "week") {
       const w = weeks?.find((x) => x.n === from.n);
       if (!w) throw new Error("That week is not published.");
-      return { files: w.files, label: "week " + w.n };
+      return { files: w.files, kind: w.kind, label: "week " + w.n };
     }
     const project = await apiGetProjectById(token, from.id);
     if (!project) throw new Error("That project is gone.");
-    return { files: project.files, label: project.title };
+    return { files: project.files, kind: project.kind, label: project.title };
   }
 
   async function copyToStudent(from: Source) {
@@ -70,12 +66,12 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
     setBusy(true);
     setNote("");
     try {
-      const { files, label } = await filesFor(from);
+      const { files, kind, label } = await filesFor(from);
       const title = from.kind === "week" ? "Caught up to week " + from.n : label;
-      await apiSeedProject(token, classId, who, title, files, kindOf(files));
+      await apiSeedProject(token, classId, who, title, files, kind);
       setNote("Copied " + label + " into " + (chosen ? chosen.name : "them") +
               " as a NEW project. Nothing they already had was touched." +
-              (from.kind === "mine" ? " Your API key was not copied across." : ""));
+              (from.kind === "mine" && kind === "web" ? " Your API key was not copied across." : ""));
       setWho("");
       refresh();
     } catch (error) { setNote((error as Error).message || "That did not work."); }
@@ -88,7 +84,7 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
     try {
       const w = weeks?.find((x) => x.n === n);
       if (!w) throw new Error("That week is not published.");
-      await apiCreateProject(token, { title: "Week " + n + " - " + w.title, kind: kindOf(w.files), files: w.files });
+      await apiCreateProject(token, { title: "Week " + n + " - " + w.title, kind: w.kind, files: w.files });
       setNote("Week " + n + " is now in your own projects. Open it from My projects.");
       refresh();
     } catch (error) { setNote((error as Error).message || "That did not work."); }
@@ -149,7 +145,7 @@ export function CoursePanel({ token, classId, onSlide }: { token: string; classI
           ? <button className="primary compact" disabled={busy} onClick={() => copyToStudent({ kind: "week", n: week.n })}>
               Give {chosen.name} week {week.n}
             </button>
-          : <p className="muted">Pick a week above to give {chosen.name} a fresh copy of it.</p>}
+          : weeks.length > 0 && <p className="muted">Pick a week above to give {chosen.name} a fresh copy of it.</p>}
         {mine.length > 0 && <div className="catch-row">
           <select className="student-select" value={mineId} onChange={(event) => setMineId(event.target.value)}>
             <option value="">Copy one of my projects&hellip;</option>

@@ -20,7 +20,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ENGINE from "./game-engine.js?raw";
 import { ICONS } from "./game-icons";
 
-export const MANIFEST_FILE = "game.txt";
+import { MANIFEST_FILE } from "./types";
+export { MANIFEST_FILE };
 export const GAME_ENTRY = "Game.start.py";
 
 /** Where the drawing behind a drawn picture is kept.

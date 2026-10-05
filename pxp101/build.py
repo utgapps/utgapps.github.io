@@ -2402,10 +2402,18 @@ def build_milestones():
     panels are exactly what should be in their PixelPad project. Public on
     purpose - it is the same code already printed on the week pages, and a
     PixelPad game holds no key or secret of any kind.
+
+    The panels alone are not a game the classroom editor can open: it also
+    needs to know which panels are rooms and how big each picture is, which a
+    PixelPad project keeps outside its code. So the rooms and sprites travel
+    with the weeks, and the classroom turns each week into its own project.
     """
     payload = {
         "course": "pxp101",
         "title": course.COURSE_TITLE,
+        "kind": "pixelpad",
+        "rooms": course.ROOMS,
+        "sprites": {name: list(spec) for name, spec in course.SPRITES.items()},
         "weeks": [
             {"n": week["n"], "title": week["title"], "files": state_at(week["n"])}
             for week in course.WEEKS

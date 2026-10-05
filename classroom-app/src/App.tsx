@@ -19,7 +19,7 @@ import { buildGamePreview, GAME_ENTRY, useGameAudio } from "./lib/game-project";
 import { RunPanel } from "./RunPanel";
 import { JavaRunPanel } from "./JavaRunPanel";
 import { GameEditor } from "./GameEditor";
-import { ProjectPicker } from "./ProjectPicker";
+import { KIND_LABEL, ProjectPicker } from "./ProjectPicker";
 import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel, PanelSection } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
@@ -344,6 +344,12 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
   const [currentSlide, setCurrentSlide] = useState<{ week: number; index: number } | null>(null);
 
   useEffect(() => { setRoom(record); }, [record]);
+  /* Nobody is connected to a room that has only just opened, whatever the saved
+     record says. A teacher who reloaded mid-lesson saw every dot still green
+     beside "Not connected - their last saved work". */
+  useEffect(() => {
+    updateRoom((current) => ({ ...current, students: current.students.map((student) => student.status === "offline" ? student : { ...student, status: "offline" }) }));
+  }, []);
   useEffect(() => { onChange(room); roomRef.current = room; }, [room]);
   useEffect(() => {
     if (!status) return;
@@ -748,7 +754,7 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
       </div>
     </header>
 
-    {!current && <div className="class-layout">
+    {!current && <div className="class-layout two-column">
       <aside className="roster">
         <div className="panel-title"><h2>Students {students ? <span>{students.length}</span> : null}</h2></div>
         <div className="student-list">
@@ -766,7 +772,7 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
             {projects === null ? <p className="empty">Loading…</p>
               : projects.length ? <div className="student-list">{projects.map((p) =>
                   <button className="student" key={p.id} onClick={() => openProject(p)}>
-                    <span>{p.title}<small>{p.kind} · saved {new Date(p.updatedAt).toLocaleString()}</small></span>
+                    <span>{p.title}<small>{KIND_LABEL[p.kind] ?? "Web"} · saved {new Date(p.updatedAt).toLocaleString()}</small></span>
                   </button>)}</div>
               : <p className="empty">{status || "No saved projects yet."}</p>}
           </>}

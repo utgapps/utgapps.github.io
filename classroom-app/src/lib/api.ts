@@ -18,6 +18,7 @@ export type ApiAccount = { id: string; classId: string; name: string; username: 
 // access: the ids (code hashes) of the access codes an admin registered the account to; only on the admin list.
 export type { ProjectKind } from "./types";
 import type { ProjectKind } from "./types";
+import { weeksFromMilestones, type CourseWeek } from "./courseWeeks";
 // The picker list deliberately carries no files - see the worker's GET /projects.
 /* owner is somebody else's name, and only on a project shared WITH you: your
    own projects have it null. members is how many people it is shared with. */
@@ -82,7 +83,7 @@ export async function apiDemoKey(token: string): Promise<string | null> {
   return (await req("/demo-key", {}, token)).key ?? null;
 }
 
-export type CourseWeek = { n: number; title: string; files: Record<string, string> };
+export type { CourseWeek } from "./courseWeeks";
 /** The generated course milestones. Cached - it is 120 KB and never changes
  *  between deploys. Returns [] for a course that has no milestones published. */
 const weekCache = new Map<string, CourseWeek[]>();
@@ -92,8 +93,7 @@ export async function apiCourseWeeks(classId: string): Promise<CourseWeek[]> {
   try {
     const res = await fetch(`../${classId}/milestones.json`, { cache: "no-store" });
     if (!res.ok) return [];
-    const data = await res.json();
-    const weeks: CourseWeek[] = Array.isArray(data.weeks) ? data.weeks : [];
+    const weeks = weeksFromMilestones(await res.json());
     weekCache.set(classId, weeks);
     return weeks;
   } catch { return []; }

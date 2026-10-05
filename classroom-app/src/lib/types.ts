@@ -24,6 +24,11 @@ export const GAME_KIND = "pixelpad" as const;
 
 export type ProjectKind = "web" | "java" | typeof GAME_KIND;
 
+/** A game's own bookkeeping: its rooms, pictures and sounds, one a line. Here
+ *  rather than in game-project.ts so code that only writes one need not load
+ *  the engine. */
+export const MANIFEST_FILE = "game.txt";
+
 export type Project = {
   id: string;
   title: string;

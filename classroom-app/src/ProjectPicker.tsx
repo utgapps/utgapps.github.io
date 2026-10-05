@@ -8,7 +8,7 @@ const LOGO = "https://s3.us-west-1.amazonaws.com/utg.pictures.videos/UTGWeb/utgl
 /* Module scope on purpose: it is per browsing session, not per mount. */
 let offeredFirstProject = false;
 
-const KIND_LABEL: Record<ProjectKind, string> = { web: "Web", java: "Java", [GAME_KIND]: "Game" };
+export const KIND_LABEL: Record<ProjectKind, string> = { web: "Web", java: "Java", [GAME_KIND]: "Game" };
 /* The badge colour is picked by class name, and the stored kind is not a
    name anybody should read - see GAME_KIND. */
 const KIND_CLASS: Record<ProjectKind, string> = { web: "web", java: "java", [GAME_KIND]: "game" };
