@@ -17,13 +17,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  apiApproveSubmission, apiApprovedSolution, apiChallengeKey, apiChallengeLog, apiChallengeProgress, apiChallengeSubmission,
+  apiApproveSubmission, apiApprovedSolution, apiChallengeAsk, apiChallengeLog, apiChallengeProgress, apiChallengeSubmission,
   apiDeleteApproved, apiGetProjectById, apiListProjects, apiRevokeSubmission, apiSubmitChallenge,
   type ApiProjectSummary, type ApprovedSolution, type ChallengeAttempt, type ChallengeLogEntry, type ChallengeProgress,
   type ChallengeSubmission,
 } from "./lib/api";
 import { CHALLENGES, CHALLENGE_POINTS, DIFFICULTIES, challengeById, type Challenge } from "./lib/challenges";
 import { askChecker, errorVerdict, NO_ANSWER, NO_ANSWER_MS, type Verdict } from "./lib/challengeCheck";
+import type { CheckerStep } from "./lib/checkerPrompts";
 import { buildGamePreview, useGameAudio } from "./lib/game-project";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX } from "./lib/preview";
 import { GAME_KIND } from "./lib/types";
@@ -336,10 +337,8 @@ function SubmitDialog({ token, challenge, alreadyEarned, onProgress, onClose }: 
       let verdict = errorVerdict(errorsRef.current);
       const ranClean = !verdict;
       if (!verdict) {
-        waitFor(attempt, projectTitle, "Getting the checker ready");
-        const key = await withinTimeLimit(apiChallengeKey(token));
-        if (!key) throw new Error("The challenge checker has not been switched on yet. Ask your teacher.");
-        verdict = await askChecker(key, challenge, files, (doing) => waitFor(attempt, projectTitle, doing));
+        const ask = (step: CheckerStep, prompt: string) => withinTimeLimit(apiChallengeAsk(token, step, prompt));
+        verdict = await askChecker(ask, challenge, files, (doing) => waitFor(attempt, projectTitle, doing));
       }
       if (abandoned(attempt)) return;
       waitFor(attempt, projectTitle, "Saving your result");

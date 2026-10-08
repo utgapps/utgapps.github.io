@@ -172,7 +172,7 @@ function Dashboard({ token, me, onSignOut }: { token: string; me: ApiAccount; on
 
       <div className="admin-create">
         <h3>Python Coding Challenges checker key</h3>
-        <p className="muted">The key a student's browser uses to ask the classroom AI's smart model whether a challenge project passes. Unlike the demo key this one DOES reach students - anyone whose account can open Python Coding Challenges - so give it a budget of its own on the gateway. {challengeKeySet ? "A key is set." : "No key set yet — students cannot hand challenges in."}</p>
+        <p className="muted">The key the classroom API uses to ask the classroom AI's grader about a challenge project. It stays on the server - students' browsers never see it - but every hand-in from every class spends it, so give it a budget of its own on the gateway. {challengeKeySet ? "A key is set." : "No key set yet — students cannot hand challenges in."}</p>
         <div className="row">
           <input value={challengeKey} type="password" placeholder={challengeKeySet ? "enter a new key to replace it" : "sk-class-… challenge key"} onChange={(e) => setChallengeKey(e.target.value)} />
           <button className="primary" onClick={() => saveChallengeKey()} disabled={!challengeKey.trim()}>Save key</button>

@@ -17,6 +17,7 @@ function accessDevice() {
 export type ApiAccount = { id: string; classId: string; name: string; username: string | null; isPermanent: boolean; role: string; createdAt: number; lastSeen: number; access?: string[] };
 // access: the ids (code hashes) of the access codes an admin registered the account to; only on the admin list.
 export type { ProjectKind } from "./types";
+import type { CheckerStep } from "./checkerPrompts";
 import type { ProjectKind } from "./types";
 import { weeksFromMilestones, type CourseWeek } from "./courseWeeks";
 // The picker list deliberately carries no files - see the worker's GET /projects.
@@ -337,8 +338,11 @@ export type ChallengeProgress = {
 };
 /** The key the challenge checker asks the classroom AI with. Null when an
  *  admin has not set one yet. */
-export async function apiChallengeKey(token: string): Promise<string | null> {
-  return (await req("/challenges/key", {}, token)).key ?? null;
+/** One checker question, asked through the worker: it adds the instructions
+ *  for `step` and the grader's key, so this works on any computer, not only
+ *  one on the school's network. Resolves with the grader's reply. */
+export async function apiChallengeAsk(token: string, step: CheckerStep, prompt: string): Promise<string> {
+  return (await req("/challenges/ask", { method: "POST", body: JSON.stringify({ step, prompt }) }, token)).text;
 }
 export async function apiChallengeProgress(token: string): Promise<ChallengeProgress> {
   return req("/challenges/progress", {}, token);

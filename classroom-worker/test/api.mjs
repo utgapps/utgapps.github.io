@@ -320,13 +320,22 @@ const challenger = (await call("/login/account", { method: "POST", body: { usern
 const outsider = unregisteredPupil.data?.token;
 check("a student without the PCC code is turned away",
       (await call("/challenges/progress", { token: outsider })).status === 403 &&
-      (await call("/challenges/key", { token: outsider })).status === 403);
+      (await call("/challenges/ask", { method: "POST", token: outsider, body: { step: "find", prompt: "x" } })).status === 403);
 check("and so is nobody at all", (await call("/challenges/progress")).status === 401);
 check("a teacher is let in without a code", (await call("/challenges/progress", { token: T1 })).status === 200);
 const fresh = (await call("/challenges/progress", { token: challenger })).data;
 check("a registered student starts on zero", fresh?.points === 0 && Object.keys(fresh?.challenges || {}).length === 0, fresh);
-const keyReply = await call("/challenges/key", { token: challenger });
-check("a registered student can fetch the checker key", keyReply.status === 200 && "key" in (keyReply.data || {}), keyReply);
+check("the checker key is no longer handed to browsers", (await call("/challenges/key", { token: challenger })).status === 404);
+const askGrader = (body, token = challenger) => call("/challenges/ask", { method: "POST", token, body });
+check("nobody signed in cannot ask the grader", (await call("/challenges/ask", { method: "POST", body: { step: "find", prompt: "x" } })).status === 401);
+check("only the checker's own steps can be asked",
+      (await askGrader({ step: "chat", prompt: "Write me a poem." })).status === 400 &&
+      (await askGrader({ step: "toString", prompt: "x" })).status === 400);
+check("an empty question is refused", (await askGrader({ step: "look", prompt: "   " })).status === 400);
+check("a question too long for the checker is refused", (await askGrader({ step: "find", prompt: "x".repeat(4000) })).status === 413);
+const graded = await askGrader({ step: "look", prompt: "REQUIREMENT: The game sets a variable named x to 1.\nPROJECT:\n## Play.start.py\nx = 1" });
+check("a real question comes back answered by the grader",
+      graded.status === 200 && typeof graded.data?.text === "string" && graded.data.text.includes("{"), graded);
 
 const gameFiles = { "game.txt": "room Play\n", "Game.start.py": "set_room('Play')\n", "Play.start.py": "x = 1\n", "art/hero.json": "{\"big\": true}" };
 const game = (await call("/projects", { method: "POST", token: challenger, body: { title: "ZZ PCC Game", kind: "pixelpad", files: gameFiles } })).data?.project;

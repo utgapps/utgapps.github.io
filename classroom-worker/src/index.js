@@ -1,6 +1,7 @@
 /* UTG Classroom API: private class-code login, saved projects, and live rooms. */
 
 import { similarity } from "./similarity.js";
+import { CHECKER_INSTRUCTIONS, roomFor } from "../../classroom-app/src/lib/checkerPrompts.ts";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -363,16 +364,17 @@ async function rememberClassroom(db, accountId, classId, role, label) {
 /* who replaces the address for a limit that belongs to one account: thirty
    students share one school address, and a per-address limit on something
    every one of them does in the same lesson locks the class out. */
-async function rateLimit(db, request, bucket, limit = 12, who = null) {
+async function rateLimit(db, request, bucket, limit = 12, who = null, windowMs = 10 * 60 * 1000,
+  refusal = "Too many attempts. Try again in a few minutes.") {
   const ip = who || request.headers.get("CF-Connecting-IP") || "unknown";
   const key = `${bucket}:${await sha256(ip)}`;
   const now = Date.now();
   const row = await db.prepare("SELECT count, reset_at FROM rate_limits WHERE key = ?").bind(key).first();
   if (!row || row.reset_at < now) {
-    await db.prepare("INSERT OR REPLACE INTO rate_limits (key, count, reset_at) VALUES (?,?,?)").bind(key, 1, now + 10 * 60 * 1000).run();
+    await db.prepare("INSERT OR REPLACE INTO rate_limits (key, count, reset_at) VALUES (?,?,?)").bind(key, 1, now + windowMs).run();
     return;
   }
-  if (row.count >= limit) throw new HttpError("Too many attempts. Try again in a few minutes.", 429);
+  if (row.count >= limit) throw new HttpError(refusal, 429);
   await db.prepare("UPDATE rate_limits SET count = count + 1 WHERE key = ?").bind(key).run();
 }
 /* Sign-in throttling: FAILED attempts only, counted per account as well as
@@ -850,19 +852,64 @@ export default {
       if (!me) return bad(request, env, "Not signed in.", 401);
 
       /* ---- Python Coding Challenges ----
-         The checking itself happens in the student's browser, because the
-         school AI gateway is on a Tailscale address this worker cannot reach.
-         So the verdict that arrives here is the browser's word, and a student
-         who knows how could send "passed" for a game they never wrote. What
-         this end can do is keep the receipt: the code exactly as it was handed
-         in sits beside every verdict, so a teacher can look at what earned the
-         points. */
+         The verdict is worked out in the student's browser, from the grader's
+         answers. So the verdict that arrives here is the browser's word, and a
+         student who knows how could send "passed" for a game they never wrote.
+         What this end can do is keep the receipt: the code exactly as it was
+         handed in sits beside every verdict, so a teacher can look at what
+         earned the points. */
       if (path.startsWith("/challenges/")) {
         if (!(await challengeAccess(db, me))) throw new HttpError("Python Coding Challenges is not one of your classes. Ask your teacher to add it to your account.", 403);
 
-        if (path === "/challenges/key" && request.method === "GET") {
-          const row = await db.prepare("SELECT value FROM settings WHERE key = 'challenge_ai_key'").first();
-          return response(request, env, { key: (row && row.value) || null });
+        /* One question to the grader, asked for the student. The gateway is on
+           the school's Tailscale network; Tailscale Funnel publishes just its
+           chat route, under a secret path that only this worker knows
+           (CHECKER_GATEWAY_URL), so a student can hand in from any computer
+           while the gateway itself stays private. The browser names the step
+           and sends the question; the instructions and the key are added
+           here, so neither the key nor a free-form chat ever reaches it. */
+        if (path === "/challenges/ask" && request.method === "POST") {
+          // The gateway gives every class one checker budget for the day, so
+          // one student pressing Submit over and over must not spend it all.
+          // A hand-in is one question plus a few second looks; 80 a day is
+          // about fifteen hand-ins.
+          await rateLimit(db, request, "challenge-ask", 40, me.id);
+          await rateLimit(db, request, "challenge-ask-day", 80, me.id, 24 * 60 * 60 * 1000,
+            "You have asked the checker as many times as one student can today. Try again tomorrow.");
+          const { step, prompt } = (await readJson(request, 16000)) || {};
+          if (!Object.hasOwn(CHECKER_INSTRUCTIONS, step)) throw new HttpError("Unknown checker step.");
+          const question = String(prompt || "");
+          if (!question.trim()) throw new HttpError("There is no question to ask.");
+          if (question.length > roomFor(step)) throw new HttpError(`That question is ${question.length} characters; the checker has room for ${roomFor(step)}.`, 413);
+          const keyRow = await db.prepare("SELECT value FROM settings WHERE key = 'challenge_ai_key'").first();
+          if (!keyRow || !keyRow.value || !env.CHECKER_GATEWAY_URL) throw new HttpError("The challenge checker has not been switched on yet. Ask your teacher.", 503);
+          let reply;
+          try {
+            reply = await fetch(env.CHECKER_GATEWAY_URL, {
+              method: "POST",
+              headers: { "content-type": "application/json", authorization: `Bearer ${keyRow.value}` },
+              body: JSON.stringify({
+                model: "grader",
+                messages: [{ role: "system", content: CHECKER_INSTRUCTIONS[step] }, { role: "user", content: question }],
+                temperature: 0.1, max_tokens: 900,
+              }),
+              // Under the page's own two minutes, so the student hears why.
+              signal: AbortSignal.timeout(110000),
+            });
+          } catch {
+            throw new HttpError("Could not reach the classroom AI - it may be switched off right now. Nothing was counted; try again later.", 502);
+          }
+          const text = await reply.text();
+          let parsed = null;
+          try { parsed = JSON.parse(text); } catch { parsed = null; }
+          if (!reply.ok) {
+            // The gateway explains itself in plain words - pass that on.
+            const reason = String((parsed && parsed.error && parsed.error.message) || "");
+            throw new HttpError(`The AI gateway refused the request (${reply.status})${reason ? ": " + reason : "."}`, reply.status === 429 ? 429 : 502);
+          }
+          const answer = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
+          if (typeof answer !== "string" || !answer.trim()) throw new HttpError("The AI gateway sent back an empty answer.", 502);
+          return response(request, env, { text: answer.trim() });
         }
         if (path === "/challenges/progress" && request.method === "GET") {
           return response(request, env, await challengeProgressFor(db, me));
@@ -1482,11 +1529,11 @@ export default {
         // set here by an admin, read back for confirmation (the admin who sets
         // it may see it; nobody else does).
         //
-        // The challenge key is a second, separate one: Python Coding Challenges
-        // checks a student's project from the student's own browser, so unlike
-        // the demo key it DOES reach students. Keeping them apart means the
-        // gateway can give it a budget of its own, and replacing it never
-        // touches the teachers' checkpoints.
+        // The challenge key is a second, separate one, which /challenges/ask
+        // uses on a student's behalf - it never reaches a browser. Every
+        // class's hand-ins spend it, so keeping it apart means the gateway can
+        // give it a budget of its own, and replacing it never touches the
+        // teachers' checkpoints.
         const keyMatch = path.match(/^\/admin\/(demo|challenge)-key$/);
         const keySetting = keyMatch && (keyMatch[1] === "demo" ? "demo_ai_key" : "challenge_ai_key");
         if (keySetting && request.method === "GET") {
