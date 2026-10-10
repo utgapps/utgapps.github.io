@@ -1044,7 +1044,7 @@ def assemble(game):
     cfg = {"autoplay": True, "theme": "dark", "layout": "vertical", "canEdit": True,
            "textures": textures, "start": body("Game", "start"), "loop": body("Game", "loop"),
            "classes": classes, "rooms": rooms}
-    tmpl = ('<!DOCTYPE html><html><head>%s<meta charset="utf-8"><title>%s</title>'
+    tmpl = ('<!DOCTYPE html><html><head>%s<meta charset="utf-8"><meta name="robots" content="noindex, nofollow"><title>%s</title>'
             '<style>html,body{margin:0;height:100%%;background:#0f1320}#game{height:100vh}'
             '#game #pp-block0,#game #pp-block1{display:none!important}#game #pp-block2{width:100%%!important}'
             '</style></head><body><div id="game"></div><script src="%s"></script><script>\n'
@@ -1269,7 +1269,7 @@ def render(game):
              '<b>&#9654; Play</b> to run your code and see what changed.</p>'
              '<p class="lead" style="font-size:13px">Tip: tap <b>Print to PDF</b> (top-right) for a printable copy.</p>'
              '%s</section>' % (html.escape(game["title"]), setup_block(game)))
-    doc = ('<!DOCTYPE html><html lang="en"><head>%s<meta charset="utf-8">'
+    doc = ('<!DOCTYPE html><html lang="en"><head>%s<meta charset="utf-8"><meta name="robots" content="noindex, nofollow">'
            '<meta name="viewport" content="width=device-width, initial-scale=1">'
            '<title>%s - Workbook</title>%s<style>%s</style></head><body>'
            '<button class="printbtn" onclick="window.print()">&#128424;&nbsp; Print to PDF</button>'
@@ -1353,7 +1353,7 @@ def index():
             '<div class="btns"><a class="wb" href="%s-workbook.html">Guide</a>'
             '<a class="play" data-game="%s" href="%s-final.html" target="_blank">Play</a></div></div>'
             % (emoji, html.escape(g["title"]), len(g["steps"]), g["slug"], g["slug"], g["slug"]))
-    doc = ('<!DOCTYPE html><html lang="en"><head>%s<meta charset="utf-8">'
+    doc = ('<!DOCTYPE html><html lang="en"><head>%s<meta charset="utf-8"><meta name="robots" content="noindex, nofollow">'
            '<meta name="viewport" content="width=device-width, initial-scale=1">'
            '<title>Camp Coding Projects · UTG Academy</title>%s<style>%s</style></head><body>'
            '<div class="wrap"><a class="logo-link" href="../"><img class="logo-img" src="%s" alt="UTG Academy"></a>'

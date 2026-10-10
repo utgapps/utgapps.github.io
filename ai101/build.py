@@ -809,6 +809,7 @@ def page(title, body, extra_js="", tool="ai101", extra_css=""):
     return f"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{esc(title)} &middot; UTG Academy</title>
 {FONT}
 <style>{CSS}{extra_css}</style>
@@ -2567,6 +2568,7 @@ def build_html_decks():
         html_out = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>Week {n} slides &middot; AI101 &middot; UTG Academy</title>
 {font}
 <style>{css}</style>

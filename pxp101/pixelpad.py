@@ -104,7 +104,7 @@ def playable_html(panel_code, sprites, rooms, title, guard_html=""):
     only sizes itself on a resize, and a slide reveals the frame after load."""
     cfg = json.dumps(assemble(panel_code, sprites, rooms))
     return (
-        '<!DOCTYPE html><html><head>' + guard_html + '<meta charset="utf-8">'
+        '<!DOCTYPE html><html><head>' + guard_html + '<meta charset="utf-8"><meta name="robots" content="noindex, nofollow">'
         '<title>' + title + '</title>'
         '<style>html,body{margin:0;height:100%;overflow:hidden;background:#0f1320}'
         '#game{height:100vh}'
