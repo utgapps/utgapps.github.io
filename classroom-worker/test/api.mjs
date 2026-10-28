@@ -471,6 +471,39 @@ check("an admin can remove a copy and keep the pass",
       (await call("/challenges/progress", { token: challenger })).data?.challenges?.["walk-and-face"]?.passed === true);
 check("a removed copy is gone", (await call(`/challenges/approved/${log?.approved?.[0]?.id}`, { token: admin })).status === 404);
 
+// --------------------------------------------------------------- media links
+// A game's game.txt keeps the signed links it was saved with, and only the
+// owner can ask for fresh ones, so a link has to keep working after its
+// expiry for a teacher or partner opening the game later. The signature is
+// what keeps it honest. Making an expired link needs the worker's signing
+// secret: set MEDIA_SECRET to it, or those checks are skipped.
+section("Media links");
+const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+const upload = await fetch(API + "/media?kind=image&mime=image/png&name=zz-pixel", { method: "POST", headers: { authorization: "Bearer " + T1 }, body: PNG });
+const uploaded = (await upload.json().catch(() => null))?.media;
+check("a picture uploads", upload.status === 200 && !!uploaded?.url, uploaded);
+const fetchMedia = (link) => fetch(link).then((res) => res.status);
+const tamper = (link) => link.replace(/sig=([0-9a-f])/, (_, c) => "sig=" + (c === "0" ? "1" : "0"));
+check("a fresh link serves the picture", (await fetchMedia(uploaded?.url)) === 200);
+check("a tampered signature is refused", (await fetchMedia(tamper(uploaded?.url))) === 404);
+check("a link with no signature is refused", (await fetchMedia(uploaded?.url.replace(/&sig=.*/, ""))) === 404);
+let expiredLink = null;
+if (process.env.MEDIA_SECRET) {
+  const { createHmac } = await import("node:crypto");
+  const ownerId = (await call("/me", { token: T1 })).data?.account?.id;
+  const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const sig = createHmac("sha256", process.env.MEDIA_SECRET).update(`media:${uploaded?.id}:${ownerId}:${monthAgo}`).digest("hex");
+  expiredLink = `${API}/media/file/${uploaded?.id}?expires=${monthAgo}&sig=${sig}`;
+  check("a link that expired a month ago still serves the picture", (await fetchMedia(expiredLink)) === 200);
+  check("an expired link with a tampered signature is refused", (await fetchMedia(tamper(expiredLink))) === 404);
+  check("moving the expiry breaks the signature", (await fetchMedia(expiredLink.replace(`expires=${monthAgo}`, `expires=${monthAgo + 1}`))) === 404);
+} else {
+  console.log("  skip  expired-link checks (set MEDIA_SECRET to run them)");
+}
+check("the owner deletes the picture", (await call("/media/" + uploaded?.id, { method: "DELETE", token: T1 })).status === 200);
+check("a deleted picture's link is gone", (await fetchMedia(uploaded?.url)) === 404);
+if (expiredLink) check("so is its expired link", (await fetchMedia(expiredLink)) === 404);
+
 // ------------------------------------------------------------------ tidy up
 section("Tidy up");
 const mine = await call("/projects", { token: T1 });

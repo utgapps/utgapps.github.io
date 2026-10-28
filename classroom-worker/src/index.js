@@ -654,8 +654,14 @@ export default {
         const media = await db.prepare("SELECT r2_key, mime, account_id FROM media WHERE id = ?").bind(fileMatch[1]).first();
         const expires = Number(url.searchParams.get("expires") || 0);
         const sig = url.searchParams.get("sig") || "";
-        const expected = media && expires > Date.now() ? await hmac(env.SETUP_SECRET, `media:${fileMatch[1]}:${media.account_id}:${expires}`) : "";
-        if (!media || !sig || !expires || expires <= Date.now() || !timingSafeEqual(sig, expected)) return new Response("Not found", { status: 404, headers });
+        /* The signature is checked, the expiry is not. These links are baked
+           into a game's game.txt, and a teacher or a partner opening that game
+           cannot re-sign media they do not own, so a 7-day link left their
+           pictures and sounds broken. The HMAC still binds the id, the owner
+           and the expiry, so nothing can be forged; the cost is that a leaked
+           link keeps working until the owner deletes the file. */
+        const expected = media && expires ? await hmac(env.SETUP_SECRET, `media:${fileMatch[1]}:${media.account_id}:${expires}`) : "";
+        if (!media || !sig || !expires || !timingSafeEqual(sig, expected)) return new Response("Not found", { status: 404, headers });
         const object = await env.MEDIA.get(media.r2_key);
         if (!object) return new Response("Not found", { status: 404, headers });
         return new Response(object.body, { headers: { ...headers, "Content-Type": media.mime, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
