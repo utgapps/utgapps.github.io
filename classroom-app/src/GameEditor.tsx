@@ -9,8 +9,8 @@ import { zipStore, type ZipEntry } from "./lib/zip";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/game-icons";
 import { downloadFile } from "./lib/classroom";
-import { apiUploadMedia } from "./lib/api";
-import { compressAudio, compressImage } from "./lib/media";
+import { apiListMedia, apiUploadMedia } from "./lib/api";
+import { compressAudio, compressGameImage } from "./lib/media";
 import "./game-editor.css";
 
 /* The Python Game Editor.
@@ -72,6 +72,21 @@ const loopPath = (name: string) => name + ".loop.py";
 const fnPath = (name: string) => name + ".fn.py";
 const isLink = (source: string) => /^(https?:|data:)/i.test(source);
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
+
+/* A picture's or a sound's name goes into game.txt between spaces, and a #
+   there starts a note - so "Recording 12.mp3" off a phone, or "my monster"
+   typed into the drawing window, made a line the game could not read and a
+   picture that never appeared on the list. Spaces become dashes on the way in. */
+function safeName(name: string): string {
+  const clean = name.trim().replace(/\s+/g, "-").replace(/[\\/:*?"<>|#]/g, "");
+  return clean && !clean.startsWith(".") ? clean : "upload" + clean;
+}
+
+/* A link to the student's own media, as the server signs one. The signature
+   runs out a week after it was made, and game.txt keeps the link - so without
+   a fresh one every picture and sound in a game stopped loading after a week. */
+const MEDIA_LINK = /https?:\/\/[^\s#]+?\/media\/file\/([A-Za-z0-9-]+)\?expires=(\d+)&sig=[0-9a-f]+/g;
+const RESIGN_BEFORE = 2 * 24 * 60 * 60 * 1000;   // swap a link two days before it runs out
 
 /* The site's own Pixel Art Maker, which sits one directory up from this build
    and is the drawing tool these children already use in class. Resolved
@@ -191,6 +206,34 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
   }, []);
 
   const manifest = useMemo(() => parseManifest(snapshot[MANIFEST_FILE] ?? ""), [snapshot]);
+
+  /* Old links swapped for fresh ones whenever the game is opened, so a game
+     made a month ago still has its pictures. The server lists only this
+     account's own media, so only those links can be renewed here - a
+     partner's pictures are renewed when the partner opens the game. Each file
+     is asked about once per visit, so a link that cannot be renewed is not
+     asked about again on every keystroke. */
+  const staleMedia = useMemo(() => {
+    const ids = new Set<string>();
+    for (const match of (snapshot[MANIFEST_FILE] ?? "").matchAll(MEDIA_LINK)) {
+      if (Number(match[2]) < Date.now() + RESIGN_BEFORE) ids.add(match[1]);
+    }
+    return [...ids].sort().join(",");
+  }, [snapshot]);
+  const renewTried = useRef(new Set<string>());
+  useEffect(() => {
+    if (!token || readOnly || !staleMedia) return;
+    const wanted = staleMedia.split(",").filter((id) => !renewTried.current.has(id));
+    if (!wanted.length) return;
+    wanted.forEach((id) => renewTried.current.add(id));
+    apiListMedia(token).then((mine) => {
+      const fresh = new Map(mine.map((media) => [media.id, media.url]));
+      // The document as it is now, not as it was when this was asked.
+      const text = docToFiles(doc)[MANIFEST_FILE] ?? "";
+      const next = text.replace(MEDIA_LINK, (link, id: string) => fresh.get(id) ?? link);
+      if (next !== text) { writeFile(MANIFEST_FILE, next); touched(); }
+    }).catch(() => { /* offline: the next visit tries again */ });
+  }, [token, readOnly, staleMedia, doc]);
 
   /* The bytes of every sound in the project. The preview frame cannot fetch
      them for itself and neither can the player in the Sounds pane show a size
@@ -402,9 +445,13 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
 
   function saveSprite(was: Sprite, sprite: Sprite) {
     editManifestLine("sprite", was.name, "sprite " + spriteLine(sprite));
+    // A picture swapped for one off the computer has no drawing behind it any
+    // more. Keeping the old one would let Edit the drawing open the monster
+    // that was replaced, and saving that would put it back over the new one.
+    if (sprite.source !== was.source) filesMap(doc).delete(artPath(was.name));
     // The drawing is named after the picture, so a rename has to take it with
     // it or Edit the drawing would open the wrong squares - or nothing.
-    if (sprite.name !== was.name) moveFile(artPath(was.name), artPath(sprite.name));
+    else if (sprite.name !== was.name) moveFile(artPath(was.name), artPath(sprite.name));
     touched();
     setSelected({ kind: "sprite", name: sprite.name });
   }
@@ -449,7 +496,7 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
      beside the picture so the drawing window can open it again. */
   async function addPicture(wanted: string, mime: string, blob: Blob, art?: string) {
     if (!token) return;
-    const name = freeName(wanted, new Set(manifest.sprites.map((sprite) => sprite.name)));
+    const name = freeName(safeName(wanted), new Set(manifest.sprites.map((sprite) => sprite.name)));
     const media = await apiUploadMedia(token, "image", mime, name, blob);
     const size = await pictureSize(media.url);
     addManifestLine("sprite", name + " " + media.url + " " + size.w + " " + size.h);
@@ -467,7 +514,7 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
   async function replacePicture(was: string, wanted: string, blob: Blob, art: string) {
     if (!token) return;
     const others = new Set(manifest.sprites.map((sprite) => sprite.name).filter((name) => name !== was));
-    const name = freeName(wanted, others);
+    const name = freeName(safeName(wanted), others);
     const media = await apiUploadMedia(token, "image", "image/png", name, blob);
     const size = await pictureSize(media.url);
     editManifestLine("sprite", was, "sprite " + name + " " + media.url + " " + size.w + " " + size.h);
@@ -482,14 +529,15 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
      exactly as an uploaded sound is re-encoded to MP3: a phone photograph is
      thirty times the size a game needs. A drawing takes the other path below
      and stays a PNG, because that re-encoding would soften every hard pixel
-     edge the child drew on purpose. */
+     edge the child drew on purpose - and so does a game-sized PNG off the
+     computer, which is most likely pixel art drawn somewhere else. */
   async function uploadPicture(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || !token) return;
     say("system", "Adding " + file.name + "...");
     try {
-      const small = await compressImage(file);
+      const small = await compressGameImage(file);
       await addPicture(small.name, small.mime, small.blob);
     } catch (err) {
       say("error", (err as Error).message || "That picture would not upload.");
@@ -548,11 +596,17 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
          monster and a child seeing an empty grid: the page has to have run
          before it can be given anything. */
       if (sent?.utgPixelArt === "ready") {
-        const art = artOpening.current?.art;
-        if (art) {
+        const opening = artOpening.current;
+        if (opening?.art) {
           try {
+            /* The drawing remembers the name it was first saved under, and the
+               picture may have been renamed in its pane since. It opens under
+               the name it has now - otherwise Save would quietly rename it
+               back, and every sprite("...") asking for the new name breaks. */
+            const art = JSON.parse(opening.art);
+            if (art && typeof art === "object") art.name = splitName(opening.editing)[0];
             artRef.current?.contentWindow?.postMessage(
-              { utgPixelArt: "open", art: JSON.parse(art) }, window.location.origin);
+              { utgPixelArt: "open", art }, window.location.origin);
           } catch {
             setArtProblem("This picture's drawing could not be opened, so this is a blank one. " +
                           "Saving it will replace the picture.");
@@ -591,7 +645,7 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
     say("system", "Adding " + file.name + "...");
     try {
       const small = await compressAudio(file);
-      const name = freeName(small.name, new Set(manifest.sounds.map((sound) => sound.name)));
+      const name = freeName(safeName(small.name), new Set(manifest.sounds.map((sound) => sound.name)));
       const media = await apiUploadMedia(token, "audio", small.mime, name, small.blob);
       addManifestLine("sound", name + " " + media.url);
       touched();
@@ -666,7 +720,8 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
     link.href = url;
     link.download = "game-art.zip";
     link.click();
-    URL.revokeObjectURL(url);
+    // Not revoked straight away, for the reason downloadFile gives.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     say("system", "Exported game-art.zip with " + entries.length + " file" + (entries.length === 1 ? "" : "s") + ".");
     if (missed.length) say("error", "These would not download: " + missed.join(", ") + ".");
     const colours = wanted.length - real.length;
@@ -1156,12 +1211,16 @@ function SpritePane({ sprite, taken, token, readOnly, drawn, onEdit, onSave, onC
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const name = dropExt(stem, ext) + ext;
 
+  /* Reset when the picture itself changes, not when its object does: game.txt
+     is parsed again on every change to the project, so a partner typing in
+     another panel used to wipe a name half-typed here, and a picture just
+     uploaded with Change the picture but not yet saved. */
   useEffect(() => {
     setStem(splitName(sprite.name)[0]); setExt(splitName(sprite.name)[1]);
     setSource(sprite.source);
     setWidth(String(sprite.width)); setHeight(String(sprite.height));
     setProblem("");
-  }, [sprite]);
+  }, [sprite.name, sprite.source, sprite.width, sprite.height]);
 
   const picture = isLink(source);
 
@@ -1187,7 +1246,8 @@ function SpritePane({ sprite, taken, token, readOnly, drawn, onEdit, onSave, onC
         ctx.fillStyle = ((x / square + y / square) | 0) % 2 ? "#D8DCE0" : "#F0F2F4";
         ctx.fillRect(x, y, square, square);
       }
-      ctx.imageSmoothingEnabled = zoom < 3;
+      // Smoothed only when shrinking. Blown up, pixel art has to stay square.
+      ctx.imageSmoothingEnabled = zoom < 1;
       if (image) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       else {
         const rgb = RGB[source] ?? RGB.green;
@@ -1214,7 +1274,7 @@ function SpritePane({ sprite, taken, token, readOnly, drawn, onEdit, onSave, onC
     if (!file || !token) return;
     setBusy(true); setProblem("");
     try {
-      const small = await compressImage(file);
+      const small = await compressGameImage(file);
       const media = await apiUploadMedia(token, "image", small.mime, small.name, small.blob);
       setSource(media.url);
       // A photograph comes back re-encoded, so the ending changes with it
@@ -1310,7 +1370,7 @@ function namingProblem(stem: string, ext: string, was: string, taken: string[], 
   const clean = stem.trim();
   if (!clean) return "Give the " + what + " a name. That is the name your code asks for.";
   if (/\s/.test(clean)) return "A " + what + "'s name cannot have a space in it.";
-  if (/[\\/:*?"<>|]/.test(clean)) return 'A ' + what + '\'s name cannot have \\ / : * ? " < > or | in it.';
+  if (/[\\/:*?"<>|#]/.test(clean)) return 'A ' + what + '\'s name cannot have \\ / : * ? " < > | or # in it.';
   const full = clean + ext;
   if (full !== was && taken.includes(full)) return "There is already a " + what + " called " + full + ".";
   return "";
@@ -1336,7 +1396,8 @@ function SoundPane({ sound, data, taken, readOnly, onSave, onCancel }: {
   const src = data ?? "";
   const size = Math.round(src.length * 0.75 / 1024);
 
-  useEffect(() => { setStem(splitName(sound.name)[0]); setProblem(""); }, [sound]);
+  // By name, for the reason SpritePane gives.
+  useEffect(() => { setStem(splitName(sound.name)[0]); setProblem(""); }, [sound.name]);
 
   function save() {
     const clean = dropExt(stem, ext);

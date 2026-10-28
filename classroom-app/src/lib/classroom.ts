@@ -45,5 +45,8 @@ export function downloadFile(name: string, contents: string, type = "application
   link.href = url;
   link.download = name;
   link.click();
-  URL.revokeObjectURL(url);
+  // Revoked a moment later rather than straight away: Firefox and Safari
+  // start the download after click() returns, and a link revoked first is
+  // a download that never happens.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

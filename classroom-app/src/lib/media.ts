@@ -12,9 +12,12 @@ export async function compressImage(file: File, maxDim = 1280, quality = 0.82): 
     el.onerror = () => rej(new Error("Could not read that image."));
     el.src = URL.createObjectURL(file);
   });
-  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-  const w = Math.max(1, Math.round(img.width * scale));
-  const h = Math.max(1, Math.round(img.height * scale));
+  // An SVG with no width or height of its own reports 0 x 0, which would come
+  // out as a single pixel. It gets a size a game can use instead.
+  const iw = img.width || 512, ih = img.height || 512;
+  const scale = Math.min(1, maxDim / Math.max(iw, ih));
+  const w = Math.max(1, Math.round(iw * scale));
+  const h = Math.max(1, Math.round(ih * scale));
   const canvas = document.createElement("canvas");
   canvas.width = w; canvas.height = h;
   canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
@@ -22,6 +25,25 @@ export async function compressImage(file: File, maxDim = 1280, quality = 0.82): 
   const blob = await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), "image/webp", quality));
   if (!blob) throw new Error("Could not compress that image.");
   return { blob, mime: "image/webp", name: baseName(file) + ".webp" };
+}
+
+// A picture for a game. A PNG that is already game-sized goes up untouched:
+// it is most likely pixel art made somewhere else, and lossy WebP softens
+// every hard edge in it - the same reason a drawing from the Pixel Art Maker
+// stays a PNG. Anything else is compressed as above.
+export async function compressGameImage(file: File, maxDim = 1280, maxBytes = 1_500_000): Promise<Compressed> {
+  if (file.type === "image/png" && file.size <= maxBytes) {
+    const size = await new Promise<{ w: number; h: number } | null>((res) => {
+      const el = new Image();
+      el.onload = () => { res({ w: el.naturalWidth, h: el.naturalHeight }); URL.revokeObjectURL(el.src); };
+      el.onerror = () => { res(null); URL.revokeObjectURL(el.src); };
+      el.src = URL.createObjectURL(file);
+    });
+    if (size && Math.max(size.w, size.h) <= maxDim) {
+      return { blob: file, mime: "image/png", name: baseName(file) + ".png" };
+    }
+  }
+  return compressImage(file, maxDim);
 }
 
 // Audio -> mono 24kHz MP3 (re-encoded in the browser; big size reduction).
