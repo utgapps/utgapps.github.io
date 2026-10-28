@@ -128,5 +128,22 @@ for (const c of lib.CHALLENGES) checkGame("challenge " + c.title, c.files);
 console.log("\nstarter");
 checkGame("new game starter", lib.starterFiles(lib.GAME_KIND), { empty: true });
 
+/* Pictures uploaded before names were cleaned kept their spaces, and one
+   student's game had the same drawing added four times. Each still has to be
+   a picture the code can use, listed once. */
+console.log("\nold picture names");
+const png = "data:image/png;base64,AAAA";
+checkGame("names with spaces, added twice", {
+  "game.txt": `room Play\nsprite OIP (2).webp ${png} 220 220\nsprite New Piskel - 2026.webp ${png} 34 44\nsprite New Piskel - 2026.webp ${png} 34 44\n` +
+    `sprite coin.png yellow 20 20\n`,
+  "Game.start.py": `set_room("Play")\n`,
+  "Play.start.py": `a = Thing()\na.sprite = sprite("OIP (2).webp")\nb = Thing()\nb.sprite = sprite("New Piskel - 2026.webp")\n`,
+  "Thing.start.py": `pass\n`,
+});
+const old = lib.parseManifest(`sprite New Piskel - 2026.webp ${png} 34 44\nsprite New Piskel - 2026.webp ${png} 34 44\nsound big boom.mp3 ${png}\n`);
+if (old.sprites.length !== 1 || old.sprites[0].name !== "New Piskel - 2026.webp" || old.sounds[0]?.name !== "big boom.mp3") {
+  bad++; console.log("  FAIL  old names parse as " + JSON.stringify([old.sprites.map((s) => s.name), old.sounds.map((s) => s.name)]));
+}
+
 console.log(`\n${total - bad}/${total} games clean`);
 process.exit(bad ? 1 : 0);

@@ -4,7 +4,7 @@ import type { Awareness } from "y-protocols/awareness";
 import { CollabEditor } from "./CollabEditor";
 import { docToFiles, fileText, filesMap } from "./lib/collab";
 import { MANIFEST_FILE, RGB, artPath, buildGamePreview, fromPp2d, functionOf, isBookkeeping, panelOf,
-         parseManifest, splitName, toPp2d, useGameAudio, type Sound, type Sprite } from "./lib/game-project";
+         manifestParts, parseManifest, splitName, toPp2d, useGameAudio, type Sound, type Sprite } from "./lib/game-project";
 import { zipStore, type ZipEntry } from "./lib/zip";
 import { isPreviewMessage, PREVIEW_ALLOW, PREVIEW_SANDBOX, type PreviewMessage } from "./lib/preview";
 import { ICONS } from "./lib/game-icons";
@@ -379,10 +379,13 @@ export function GameEditor({ doc, awareness, files, token, readOnly, saved = tru
      own comment at the end of it alone. */
   function editManifestLine(word: "room" | "sprite" | "sound", name: string, replacement: string | null) {
     const out: string[] = [];
+    let replaced = false;
     for (const line of manifestLines()) {
-      const parts = line.split("#")[0].trim().split(/\s+/);
-      if (parts[0] === word && parts[1] === name) {
-        if (replacement !== null) out.push(replacement);
+      const parts = manifestParts(line);
+      if (parts && parts.word === word && parts.name === name) {
+        // A name in the file twice is one picture, so it comes out as one line.
+        if (replacement !== null && !replaced) out.push(replacement);
+        replaced = true;
         continue;
       }
       out.push(line);

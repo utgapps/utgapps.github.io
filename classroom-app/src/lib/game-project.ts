@@ -107,16 +107,18 @@ export type Manifest = { rooms: string[]; sprites: Sprite[]; sounds: Sound[]; pr
  *  right rather than what to type. */
 export function parseManifest(text: string): Manifest {
   const rooms: string[] = [];
-  const sprites: Sprite[] = [];
-  const sounds: Sound[] = [];
+  /* By name, because a game can only have one picture called anything: the
+     engine keeps the last, so the list shows the last, and a file with the
+     same picture added four times lists it once. */
+  const sprites = new Map<string, Sprite>();
+  const sounds = new Map<string, Sound>();
   const problems: string[] = [];
   (text || "").split(/\r?\n/).forEach((raw, index) => {
-    const line = raw.split("#")[0].trim();
-    if (!line) return;
+    const split = manifestParts(raw);
+    if (!split) return;
     const where = MANIFEST_FILE + " line " + (index + 1);
-    const parts = line.split(/\s+/);
-    const word = parts[0];
-    const rest = parts.slice(1);
+    const { word } = split;
+    const rest = split.name ? [split.name, ...split.rest] : [];
     if (word === "room") {
       if (rest.length !== 1) {
         problems.push(where + ': a room is the word "room" and one name, like "room Play". ' +
@@ -145,7 +147,7 @@ export function parseManifest(text: string): Manifest {
           "Delete " + name + " in Sprites and add it again with +.");
         return;
       }
-      sprites.push({ name, source, width: w, height: h });
+      sprites.set(name, { name, source, width: w, height: h });
     } else if (word === "sound") {
       // The + next to Sounds writes this line, and the link in it is a long
       // signed address nobody should ever be typing or copying by hand.
@@ -160,13 +162,30 @@ export function parseManifest(text: string): Manifest {
           "Press + next to Sounds to add one, and it goes to your own media.");
         return;
       }
-      sounds.push({ name, source });
+      sounds.set(name, { name, source });
     } else {
       problems.push(where + ': I do not understand "' + word + '". ' +
         "This game came from somewhere that writes something I cannot read.");
     }
   });
-  return { rooms, sprites, sounds, problems };
+  return { rooms, sprites: [...sprites.values()], sounds: [...sounds.values()], problems };
+}
+
+/** A game.txt line as its instruction, its name and the words after the name,
+ *  or null for a blank or comment line. The editor writes names without
+ *  spaces, but pictures and sounds uploaded before it did can have them -
+ *  "OIP (2).webp" - so for those the name is every word before the link. */
+export function manifestParts(line: string): { word: string; name: string; rest: string[] } | null {
+  const parts = line.split("#")[0].trim().split(/\s+/);
+  const word = parts[0];
+  if (!word) return null;
+  // How many words come after the name: a link and a size, or just a link.
+  const after = word === "sprite" ? 3 : word === "sound" ? 1 : 0;
+  const at = parts.length - after;
+  if (after && at > 2 && (isLink(parts[at]) || parts[at] in RGB)) {
+    return { word, name: parts.slice(1, at).join(" "), rest: parts.slice(at) };
+  }
+  return { word, name: parts[1] ?? "", rest: parts.slice(2) };
 }
 
 function isLink(source: string): boolean {
