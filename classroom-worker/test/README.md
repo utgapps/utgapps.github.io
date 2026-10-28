@@ -21,7 +21,10 @@ it can be found and removed; nothing else in the database matches.
   saved work (their own class only; keys scrubbed on write), every page of a shared site, and what
   the access codes an account is registered to unlock, and Python Coding
   Challenges: who may hand in, which project, and that a pass pays out once; an admin reviewing, granting and taking back,
-  and a close copy of an approved project passing. 143 checks.
+  and a close copy of an approved project passing; and signed media links, which
+  keep working past their expiry but refuse a tampered signature and a deleted
+  file. 153 checks. The expired-link checks need the worker's signing secret to
+  make a link: run with `MEDIA_SECRET=<SETUP_SECRET>`, or they are skipped.
 - **throttle.mjs** - sign-in throttling from the classroom's point of view: a
   class of twelve signing in from one address must all get in, and one student
   fumbling their password must not lock out the rest. 11 checks.
