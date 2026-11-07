@@ -153,7 +153,7 @@ export function SoloWorkspace({ token, who, onExit, exitLabel = "Back to the cla
     <section className="student-project">
       <CoEditBox key={idRef.current} token={token} projectId={idRef.current}
                  doc={docRef.current} awareness={awarenessRef.current} name={who} />
-      {children({ doc: docRef.current, awareness: awarenessRef.current, files, kind, saved, save: () => { void flush(); } })}
+      {children({ doc: docRef.current, awareness: awarenessRef.current, files, kind, title, saved, save: () => { void flush(); } })}
     </section>
   </main>;
 }

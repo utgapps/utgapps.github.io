@@ -24,7 +24,7 @@ import type { ProjectKind } from "./lib/types";
    document, who else is in it, and - for the game editor's SAVED button -
    whether this browser is the one writing the project down, and how to make it
    do so now. */
-export type Editor = (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; saved: boolean; save: () => void }) => ReactNode;
+export type Editor = (props: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; title: string; saved: boolean; save: () => void }) => ReactNode;
 
 /** Same files, same text: nothing was typed in the gap that did not come back. */
 function sameFiles(a: Record<string, string>, b: Record<string, string>): boolean {
@@ -299,7 +299,7 @@ export function CoEditGuest({ token, name, room, owned, onLeave, onCopied, onTak
         /* Saving is the host's job, not this browser's: what is typed here is
            on the other person's screen the moment it is typed, and their
            browser is the one writing it down. */
-        ? children({ doc: shared.doc, awareness: shared.awareness, files, kind: room.kind, saved: true, save: () => {} })
+        ? children({ doc: shared.doc, awareness: shared.awareness, files, kind: room.kind, title: room.title, saved: true, save: () => {} })
         : <p className="empty">Waiting for {room.host} to send the project&hellip;</p>}
     </section>
   </main>;

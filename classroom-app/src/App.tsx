@@ -24,6 +24,7 @@ import { CoEditBox, CoEditGuest, type CoEditHandle } from "./CoEdit";
 import { CoursePanel, PanelSection } from "./CoursePanel";
 import { SoloWorkspace } from "./SoloWorkspace";
 import { GAME_KIND } from "./lib/types";
+import { exportProject } from "./lib/projectExport";
 import type { ClassRecord, PendingJoin, ProjectKind } from "./lib/types";
 
 type Mode = "home" | "instructor" | "student" | "projects";
@@ -608,7 +609,7 @@ function InstructorRoom({ record, token, onChange, onExit }: { record: ClassReco
             </div>
           </div>
           {selectedEntry && fileNames(selectedEntry.doc).length > 0
-            ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} />
+            ? <CollabWorkspace key={selectedEntry.epoch} doc={selectedEntry.doc} awareness={selectedEntry.awareness} files={selectedProject.files} kind={selectedProject.kind ?? "web"} title={`${selected.name} ${selectedProject.title}`} />
             : <div className="offline-view">
                 {selectedEntry && <p className="empty">Connected - loading their code…</p>}
                 <StaticPreview files={selectedProject.files} kind={selectedProject.kind ?? "web"} />
@@ -793,7 +794,7 @@ function TeacherStudentWork({ token, classId, currentSlide, onExit }: {
           </div>
         </div>
         <p className="muted small">Compares against the expected code {compareNote}.</p>
-        <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={current.kind} token={token} />
+        <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={current.kind} title={`${student?.name ?? ""} ${current.title}`} token={token} />
       </section>
       {problem && <aside className="identify-panel">
         <h2>Identify problem</h2>
@@ -1310,7 +1311,7 @@ function StudentJoin({ onExit, initialCode, initialGrant }: { onExit: () => void
                                   doc={docRef.current} awareness={awarenessRef.current} name={sessionRef.current?.name || "Me"}
                                   onOpenChange={setCoediting} initialRoom={hostRoom} members={memberCount} ownerName={projectOwner}
                                   onUsurped={(room) => { apiTokenRef.current = null; setHostRoom(null); setCoeditRoom(room); setCoeditOwned(true); setStep("coedit"); }} />}
-      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} token={accountToken ?? undefined}
+      <CollabWorkspace doc={docRef.current} awareness={awarenessRef.current} files={files} kind={kind} title={title} token={accountToken ?? undefined}
                        saved={saved} save={() => { void flushSave(); }} />
       {accountToken && <MediaPanel token={accountToken} />}
     </section>
@@ -1357,7 +1358,7 @@ function MediaPanel({ token }: { token: string }) {
   </div>;
 }
 
-export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly, token, saved, save }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; readOnly?: boolean; token?: string; saved?: boolean; save?: () => void }) {
+export function CollabWorkspace({ doc, awareness, files, kind = "web", title = "", readOnly, token, saved, save }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind?: ProjectKind; title?: string; readOnly?: boolean; token?: string; saved?: boolean; save?: () => void }) {
   /* A game is not a folder of files with a page beside it, so it does not get
      the file tree: GameEditor shows the same shared document as classes,
      rooms and pictures, the way the offline editor does.
@@ -1367,10 +1368,10 @@ export function CollabWorkspace({ doc, awareness, files, kind = "web", readOnly,
      a game would change which hooks run - React counts them, and mismatched
      counts is the crash where the editor goes blank mid-lesson. */
   if (kind === GAME_KIND) return <GameEditor doc={doc} awareness={awareness} files={files} token={token} readOnly={readOnly} saved={saved} onSave={save} />;
-  return <FileWorkspace doc={doc} awareness={awareness} files={files} kind={kind} readOnly={readOnly} />;
+  return <FileWorkspace doc={doc} awareness={awareness} files={files} kind={kind} title={title} readOnly={readOnly} />;
 }
 
-function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; readOnly?: boolean }) {
+function FileWorkspace({ doc, awareness, files, kind, title, readOnly }: { doc: Y.Doc; awareness: Awareness; files: Record<string, string>; kind: ProjectKind; title: string; readOnly?: boolean }) {
   const names = Object.keys(files).length ? Object.keys(files) : fileNames(doc);
   // Where a run starts: the page for a web project, the first panel for a game.
   const entry = kind === GAME_KIND ? GAME_ENTRY : kind === "java" ? "Main.java" : ENTRY_FILE;
@@ -1406,11 +1407,29 @@ function FileWorkspace({ doc, awareness, files, kind, readOnly }: { doc: Y.Doc; 
     filesMap(doc).delete(path);
   }
 
+  /* The project as a .zip of its own files, to open in another editor (see
+     projectExport.ts). Read from the document rather than `files`, which
+     trails typing by a moment. Offered on a read-only view as well: a
+     teacher collecting a student's work is the same need. */
+  function exportZip() {
+    const made = exportProject(docToFiles(doc), title);
+    const url = URL.createObjectURL(made.blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = made.name;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return <div className="editor-grid">
     <FileTree files={names} active={file} entry={entry} onOpen={setFile} onAdd={addFile}
               onRename={renameFile} onDelete={removeFile} readOnly={readOnly} />
     <section className="code-panel">
-      <div className="code-head"><span className="code-path">{file}</span></div>
+      <div className="code-head">
+        <span className="code-path">{file}</span>
+        <button className="text-button export-button" onClick={exportZip}
+                title="Download every file in this project as a .zip, to open in another editor">Export .zip</button>
+      </div>
       <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
     </section>
     {kind === "java"

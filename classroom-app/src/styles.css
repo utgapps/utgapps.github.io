@@ -179,6 +179,7 @@ body.viewer-open { overflow: hidden; }
 .tf-problem { margin: 6px 0 0; color: #b3401f; font-size: 10.5px; line-height: 1.45; }
 .code-head { display: flex; align-items: center; padding: 9px 12px; background: #f7fafb; border-bottom: 1px solid #d4e0e3; }
 .code-path { font: 700 11.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #43606b; }
+.code-head .export-button { margin-left: auto; padding: 0 0 0 12px; font-size: 12px; white-space: nowrap; }
 
 /* ---- run harness + console ---- */
 /* Three rows now: controls, the running page, and the console under it. */
