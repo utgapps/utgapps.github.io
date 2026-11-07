@@ -1407,18 +1407,44 @@ function FileWorkspace({ doc, awareness, files, kind, title, readOnly }: { doc: 
     filesMap(doc).delete(path);
   }
 
-  /* The project as a .zip of its own files, to open in another editor (see
+  /* The project as a .zip that runs in another editor as it is (see
      projectExport.ts). Read from the document rather than `files`, which
      trails typing by a moment. Offered on a read-only view as well: a
-     teacher collecting a student's work is the same need. */
-  function exportZip() {
-    const made = exportProject(docToFiles(doc), title);
-    const url = URL.createObjectURL(made.blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = made.name;
-    link.click();
-    URL.revokeObjectURL(url);
+     teacher collecting a student's work is the same need. Pictures from My
+     media are downloaded into it, which takes a moment, so the button says so
+     and then says what happened - above all when a picture would not come. */
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<{ text: string; failed: boolean } | null>(null);
+  useEffect(() => {
+    if (!exportNote) return;
+    const timer = window.setTimeout(() => setExportNote(null), exportNote.failed ? 15000 : 6000);
+    return () => window.clearTimeout(timer);
+  }, [exportNote]);
+
+  async function exportZip() {
+    setExporting(true);
+    setExportNote(null);
+    try {
+      const made = await exportProject(docToFiles(doc), kind, title);
+      const url = URL.createObjectURL(made.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = made.name;
+      link.click();
+      // Not revoked straight away: some browsers have not started reading the
+      // file when click() returns, and an early revoke makes the download fail.
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const media = (count: number) => count === 1 ? "1 picture or sound" : `${count} pictures and sounds`;
+      if (made.missed) {
+        setExportNote({ failed: true, text: `Saved ${made.name}, but ${media(made.missed)} would not download, so ${made.missed === 1 ? "it still links" : "they still link"} to the classroom. ${made.missed === 1 ? "It" : "They"} may have been deleted from My media, or you may be offline.` });
+      } else {
+        setExportNote({ failed: false, text: made.copied ? `Saved ${made.name} with ${media(made.copied)} inside.` : `Saved ${made.name}.` });
+      }
+    } catch {
+      setExportNote({ failed: true, text: "The .zip could not be made. Try again." });
+    } finally {
+      setExporting(false);
+    }
   }
 
   return <div className="editor-grid">
@@ -1427,8 +1453,9 @@ function FileWorkspace({ doc, awareness, files, kind, title, readOnly }: { doc: 
     <section className="code-panel">
       <div className="code-head">
         <span className="code-path">{file}</span>
-        <button className="text-button export-button" onClick={exportZip}
-                title="Download every file in this project as a .zip, to open in another editor">Export .zip</button>
+        {exportNote && <span className={"export-note" + (exportNote.failed ? " failed" : "")} role="status">{exportNote.text}</span>}
+        <button className="text-button export-button" onClick={exportZip} disabled={exporting}
+                title="Download this project as a .zip that runs in another editor, pictures and all">{exporting ? "Exporting..." : "Export .zip"}</button>
       </div>
       <CollabEditor doc={doc} file={file} awareness={awareness} readOnly={readOnly} />
     </section>
