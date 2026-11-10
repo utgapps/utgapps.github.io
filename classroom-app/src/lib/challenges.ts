@@ -881,6 +881,7 @@ if get_collision(self, 'Hero'):
     files: game(["hero.png blue 40 56", "floor.png green 300 40", "flag.png red 20 60", "flagon.png yellow 20 60"], {
       "Play.start.py": `
 Game.comeBackX = -560
+Game.flag = False
 floor = Floor()
 floor.x = -490
 Floor()
@@ -894,7 +895,10 @@ Hero()
       "Floor.start.py": "self.image = sprite('floor.png')\nself.y = -340\n",
       "Flag.start.py": "self.image = sprite('flag.png')\nself.y = -290\n",
       "Flag.loop.py": `
-if get_collision(self, 'Hero'):
+if get_collision(self, 'Hero') and Game.flag != self:
+    if Game.flag:
+        Game.flag.image = sprite('flag.png')
+    Game.flag = self
     Game.comeBackX = self.x
     self.image = sprite('flagon.png')
 `,
@@ -1057,11 +1061,10 @@ if self.x > 700 or self.x < -700:
     requirements: [
       "A target moves around the screen on its own.",
       "Pressing Space launches a missile from the player's launcher.",
-      "Every frame the missile works out the direction to the target (for example with math.atan2) and turns towards it by a LIMITED amount, so it curves instead of snapping straight at it.",
-      "The missile moves forward along the direction it is facing (for example with math.cos and math.sin) and is rotated to point that way.",
-      "When a missile hits the target, the score goes up by 1, the missile is destroyed, and the target moves to a new random place.",
-      "A missile that has flown for too long without hitting is destroyed.",
-      "The score is shown on the screen.",
+      "Every frame the missile turns towards the target (for example with math.atan2) by a LIMITED amount, so it curves instead of snapping at it.",
+      "The missile flies forward the way it faces (for example with math.cos and math.sin) and is rotated to point that way.",
+      "Hitting the target adds 1 to a score shown on the screen, destroys the missile and moves the target to a new random place.",
+      "A missile that flies too long without a hit is destroyed.",
     ],
     controls: [["Left / Right", "move the launcher"], ["Space", "launch a missile"]],
     files: game(["launcher.png gray 60 30", "target.png red 44 44", "missile.png white 28 8"], {
@@ -1194,10 +1197,10 @@ if standing and key_was_pressed('space'):
       "Reaching the star at the top shows a message on the screen.",
     ],
     controls: [["Left / Right", "walk"], ["Space", "jump, or kick off a wall"]],
-    files: game(["hero.png blue 40 56", "wall.png gray 40 560", "star.png yellow 30 30", GROUND_SPRITE], {
+    files: game(["hero.png blue 40 56", "wall.png gray 40 640", "star.png yellow 30 30", GROUND_SPRITE], {
       "Play.start.py": "Ground()\nwall = Wall()\nwall.x = -130\nwall = Wall()\nwall.x = 130\nStar()\nHero()\n" + LABEL,
       ...GROUND,
-      "Wall.start.py": "self.image = sprite('wall.png')\nself.y = -40\n",
+      "Wall.start.py": "self.image = sprite('wall.png')\n",
       "Star.start.py": "self.image = sprite('star.png')\nself.y = 290\n",
       "Hero.start.py": "self.image = sprite('hero.png')\nself.y = -292\nself.speedX = 0\nself.speedY = 0\nself.pushTime = 0\n",
       "Hero.loop.py": `
@@ -1220,6 +1223,9 @@ self.speedY = self.speedY - 1
 if wall and self.speedY < -2:
     self.speedY = -2
 self.y = self.y + self.speedY
+if self.y > 300:
+    self.y = 300
+    self.speedY = 0
 if self.y <= -292:
     self.y = -292
     self.speedY = 0
@@ -1296,14 +1302,15 @@ else:
     summary: "A guard walks its beat, spots you when you get close, chases - and gives up if you get away.",
     description:
       "A guard walks back and forth on patrol. Get too close and it spots you: it turns red and runs " +
-      "at you, faster than it patrols. If it catches you, you are sent back to the start. But you are " +
+      "at you, faster than it patrols. If it catches you, you are sent back to the start and it goes " +
+      "back to its post. But you are " +
       "faster than the guard - get far enough away and it gives up, calms down, and walks back to its beat.",
     requirements: [
       "The hero walks left and right.",
       "While the hero is far away, a guard patrols back and forth between two points.",
       "When the hero comes within a set distance, the guard chases: it moves towards the hero, faster than it patrols, and looks different (for example a different picture).",
       "When the hero gets far enough away, the guard gives up, goes back to patrolling between its two points, and looks normal again.",
-      "If the guard touches the hero, the hero is sent back to the start.",
+      "If the guard touches the hero, the hero is sent back to the start and the guard goes back to its patrol.",
     ],
     controls: [["Left / Right", "walk"]],
     files: game(["hero.png blue 40 56", "guard.png purple 44 60", "alert.png red 44 60", GROUND_SPRITE], {
@@ -1334,6 +1341,8 @@ else:
         self.speedX = 2
 if get_collision(self, 'Hero'):
     hero.x = -550
+    self.x = 300
+    self.chasing = False
 `,
     }),
   },

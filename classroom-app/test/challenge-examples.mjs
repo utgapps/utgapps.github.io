@@ -145,7 +145,7 @@ const checker = await build({
   } }],
 });
 const { askChecker } = await import("data:text/javascript;base64," + Buffer.from(checker.outputFiles[0].text).toString("base64"));
-const SPARE = 150;
+const SPARE = 250;
 const tight = [];
 for (const challenge of CHALLENGES) {
   // Pad the example the way a student's longer version would be, and see
@@ -588,6 +588,11 @@ check("touching a flag makes it the checkpoint, and it lights up", game("comeBac
 check("the other flag is not lit", all("Flag").filter((flag) => imageOf(flag) === "flagon.png").length === 1);
 hold("right"); frames(35); release("right"); frames(40);
 check("falling in now comes back at that flag", get(jumper, "x") === 0, get(jumper, "x"));
+const lastFlag = all("Flag").find((flag) => get(flag, "x") === 490);
+jumper.attrs.set("x", 490); jumper.attrs.set("y", -292); frames(2);
+jumper.attrs.set("x", 0); jumper.attrs.set("y", -292); frames(2);
+check("only the flag you will come back to is lit, even going back to an older one",
+      imageOf(middleFlag) === "flagon.png" && imageOf(lastFlag) === "flag.png" && game("comeBackX") === 0, [imageOf(middleFlag), imageOf(lastFlag)]);
 ran("Checkpoints");
 
 /* ------------------------------------------------------------ masters */
@@ -630,6 +635,16 @@ check("space on a wall kicks up and away, across to the other wall", get(climber
 let highest = -292;
 for (let kick = 0; kick < 8; kick++) { tap("space"); frames(22, () => { highest = Math.max(highest, get(climberHero, "y")); }); }
 check("kicking from wall to wall climbs the shaft to the star", highest > 250 && get(game("label"), "text") === "You reached the star!", [highest, get(game("label"), "text")]);
+/* From as high as a kick can start, kicking and steering both ways: the
+   hero never gets out over a wall and lost outside the shaft. */
+let widest = 0;
+for (const steer of ["left", "right", "left", "right"]) {
+  climberHero.attrs.set("x", steer === "left" ? 91 : -91); climberHero.attrs.set("y", 260); climberHero.attrs.set("speedY", -2);
+  frames(1); tap("space"); hold(steer);
+  frames(80, () => { widest = Math.max(widest, Math.abs(get(climberHero, "x"))); });
+  release(steer);
+}
+check("the hero cannot escape the shaft over the top of a wall", widest <= 91 && get(climberHero, "y") < 360, [widest, get(climberHero, "y")]);
 ran("Wall Jump");
 
 console.log("\nPick Up and Throw");
@@ -681,6 +696,11 @@ sneak.attrs.set("x", get(guard, "x") - 240); frames(1);
 const chased = [];
 hold("left"); frames(120, () => chased.push(get(guard, "chasing"))); release("left"); frames(1);
 check("the hero can outrun the guard", chased[0] === true && chased.at(-1) === false && get(guard, "x") - get(sneak, "x") > 400, [get(sneak, "x"), get(guard, "x")]);
+/* Cornered at the start: a guard that catches the hero there must not be
+   standing on the spot the hero is sent back to, or every frame is a catch. */
+sneak.attrs.set("x", -600); guard.attrs.set("x", -520); guard.attrs.set("chasing", true); frames(25);
+hold("right"); frames(40); release("right"); frames(1);
+check("a hero caught at the start is free again, not caught every frame", get(sneak, "x") > -550 + 150, [get(sneak, "x"), get(guard, "x")]);
 ran("Guard Chase");
 
 console.log("\nKnockback");

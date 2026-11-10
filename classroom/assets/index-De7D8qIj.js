@@ -821,6 +821,7 @@ if get_collision(self, 'Hero'):
     self.y = random.randint(-320, 280)
 `})},{id:"checkpoints",title:"Checkpoints",difficulty:"explorer",summary:"Fall into a pit and you come back at the last flag you touched, not at the very start.",description:"The ground has pits in it. Jump over them - or fall in. A hero who falls in comes back, but where? At the last checkpoint flag they touched. Touching a flag turns it from red to yellow, so you can see which one you will come back to. Before you touch any, you come back at the start.",requirements:["The hero walks, jumps and falls with gravity, landing on the ground.","There are gaps in the ground the hero can jump over or fall into.","Touching a checkpoint flag remembers it as the place to come back to, and the flag changes to show it is active.","A hero who falls into a gap (off the bottom of the screen) comes back at the last checkpoint touched, or at the start if they have not touched one."],controls:[["Left / Right","walk"],["Space","jump"]],files:un(["hero.png blue 40 56","floor.png green 300 40","flag.png red 20 60","flagon.png yellow 20 60"],{"Play.start.py":`
 Game.comeBackX = -560
+Game.flag = False
 floor = Floor()
 floor.x = -490
 Floor()
@@ -835,7 +836,10 @@ self.y = -340
 `,"Flag.start.py":`self.image = sprite('flag.png')
 self.y = -290
 `,"Flag.loop.py":`
-if get_collision(self, 'Hero'):
+if get_collision(self, 'Hero') and Game.flag != self:
+    if Game.flag:
+        Game.flag.image = sprite('flag.png')
+    Game.flag = self
     Game.comeBackX = self.x
     self.image = sprite('flagon.png')
 `,"Hero.start.py":`self.image = sprite('hero.png')
@@ -944,7 +948,7 @@ self.x = self.x + self.speedX
 self.angle = self.angle + 10
 if self.x > 700 or self.x < -700:
     destroy(self)
-`})},{id:"homing-missile",title:"Homing Missile",difficulty:"master",summary:"Launch a missile that steers itself towards a moving target, turning a little every frame.",description:"A target drifts around the top of the screen. Press Space and a missile launches straight up from your launcher, then curves towards the target - not by jumping onto it, but by turning a few degrees at a time, so it swoops. Hit the target and you score; the target jumps somewhere new. A missile that misses for too long burns out.",requirements:["A target moves around the screen on its own.","Pressing Space launches a missile from the player's launcher.","Every frame the missile works out the direction to the target (for example with math.atan2) and turns towards it by a LIMITED amount, so it curves instead of snapping straight at it.","The missile moves forward along the direction it is facing (for example with math.cos and math.sin) and is rotated to point that way.","When a missile hits the target, the score goes up by 1, the missile is destroyed, and the target moves to a new random place.","A missile that has flown for too long without hitting is destroyed.","The score is shown on the screen."],controls:[["Left / Right","move the launcher"],["Space","launch a missile"]],files:un(["launcher.png gray 60 30","target.png red 44 44","missile.png white 28 8"],{"Play.start.py":`
+`})},{id:"homing-missile",title:"Homing Missile",difficulty:"master",summary:"Launch a missile that steers itself towards a moving target, turning a little every frame.",description:"A target drifts around the top of the screen. Press Space and a missile launches straight up from your launcher, then curves towards the target - not by jumping onto it, but by turning a few degrees at a time, so it swoops. Hit the target and you score; the target jumps somewhere new. A missile that misses for too long burns out.",requirements:["A target moves around the screen on its own.","Pressing Space launches a missile from the player's launcher.","Every frame the missile turns towards the target (for example with math.atan2) by a LIMITED amount, so it curves instead of snapping at it.","The missile flies forward the way it faces (for example with math.cos and math.sin) and is rotated to point that way.","Hitting the target adds 1 to a score shown on the screen, destroys the missile and moves the target to a new random place.","A missile that flies too long without a hit is destroyed."],controls:[["Left / Right","move the launcher"],["Space","launch a missile"]],files:un(["launcher.png gray 60 30","target.png red 44 44","missile.png white 28 8"],{"Play.start.py":`
 Game.score = 0
 Game.launcher = Launcher()
 Game.target = Target()
@@ -1042,7 +1046,7 @@ if platform and self.speedY <= 0 and self.y > platform.y + 10:
     standing = True
 if standing and key_was_pressed('space'):
     self.speedY = 20
-`})},{id:"wall-jump",title:"Wall Jump",difficulty:"master",summary:"Slide down a wall, kick off it, and climb a shaft by bouncing from wall to wall.",description:"Your hero is at the bottom of a narrow shaft with a star at the top. Walls stop you, and if you touch one in mid-air you slide down it slowly instead of dropping. Press Space while sliding and you kick off the wall, up and away towards the other wall - then kick off that one too.",requirements:["The hero walks left and right, jumps from the ground and falls with gravity.","Walls stop the hero: they cannot walk through them.","Touching a wall in mid-air makes the hero slide down it slowly (their falling speed is limited).","Pressing Space while touching a wall in mid-air jumps up and away from the wall, pushing the hero towards the other side for a short time even if no arrow key is held.","Reaching the star at the top shows a message on the screen."],controls:[["Left / Right","walk"],["Space","jump, or kick off a wall"]],files:un(["hero.png blue 40 56","wall.png gray 40 560","star.png yellow 30 30",vs],{"Play.start.py":`Ground()
+`})},{id:"wall-jump",title:"Wall Jump",difficulty:"master",summary:"Slide down a wall, kick off it, and climb a shaft by bouncing from wall to wall.",description:"Your hero is at the bottom of a narrow shaft with a star at the top. Walls stop you, and if you touch one in mid-air you slide down it slowly instead of dropping. Press Space while sliding and you kick off the wall, up and away towards the other wall - then kick off that one too.",requirements:["The hero walks left and right, jumps from the ground and falls with gravity.","Walls stop the hero: they cannot walk through them.","Touching a wall in mid-air makes the hero slide down it slowly (their falling speed is limited).","Pressing Space while touching a wall in mid-air jumps up and away from the wall, pushing the hero towards the other side for a short time even if no arrow key is held.","Reaching the star at the top shows a message on the screen."],controls:[["Left / Right","walk"],["Space","jump, or kick off a wall"]],files:un(["hero.png blue 40 56","wall.png gray 40 640","star.png yellow 30 30",vs],{"Play.start.py":`Ground()
 wall = Wall()
 wall.x = -130
 wall = Wall()
@@ -1050,7 +1054,6 @@ wall.x = 130
 Star()
 Hero()
 `+pa,..._s,"Wall.start.py":`self.image = sprite('wall.png')
-self.y = -40
 `,"Star.start.py":`self.image = sprite('star.png')
 self.y = 290
 `,"Hero.start.py":`self.image = sprite('hero.png')
@@ -1078,6 +1081,9 @@ self.speedY = self.speedY - 1
 if wall and self.speedY < -2:
     self.speedY = -2
 self.y = self.y + self.speedY
+if self.y > 300:
+    self.y = 300
+    self.speedY = 0
 if self.y <= -292:
     self.y = -292
     self.speedY = 0
@@ -1132,7 +1138,7 @@ else:
         self.x = 620
     if self.x < -620:
         self.x = -620
-`})},{id:"guard-chase",title:"Guard Chase",difficulty:"master",summary:"A guard walks its beat, spots you when you get close, chases - and gives up if you get away.",description:"A guard walks back and forth on patrol. Get too close and it spots you: it turns red and runs at you, faster than it patrols. If it catches you, you are sent back to the start. But you are faster than the guard - get far enough away and it gives up, calms down, and walks back to its beat.",requirements:["The hero walks left and right.","While the hero is far away, a guard patrols back and forth between two points.","When the hero comes within a set distance, the guard chases: it moves towards the hero, faster than it patrols, and looks different (for example a different picture).","When the hero gets far enough away, the guard gives up, goes back to patrolling between its two points, and looks normal again.","If the guard touches the hero, the hero is sent back to the start."],controls:[["Left / Right","walk"]],files:un(["hero.png blue 40 56","guard.png purple 44 60","alert.png red 44 60",vs],{"Play.start.py":`Ground()
+`})},{id:"guard-chase",title:"Guard Chase",difficulty:"master",summary:"A guard walks its beat, spots you when you get close, chases - and gives up if you get away.",description:"A guard walks back and forth on patrol. Get too close and it spots you: it turns red and runs at you, faster than it patrols. If it catches you, you are sent back to the start and it goes back to its post. But you are faster than the guard - get far enough away and it gives up, calms down, and walks back to its beat.",requirements:["The hero walks left and right.","While the hero is far away, a guard patrols back and forth between two points.","When the hero comes within a set distance, the guard chases: it moves towards the hero, faster than it patrols, and looks different (for example a different picture).","When the hero gets far enough away, the guard gives up, goes back to patrolling between its two points, and looks normal again.","If the guard touches the hero, the hero is sent back to the start and the guard goes back to its patrol."],controls:[["Left / Right","walk"]],files:un(["hero.png blue 40 56","guard.png purple 44 60","alert.png red 44 60",vs],{"Play.start.py":`Ground()
 Game.hero = Hero()
 Guard()
 `,..._s,"Hero.start.py":`self.image = sprite('hero.png')
@@ -1165,6 +1171,8 @@ else:
         self.speedX = 2
 if get_collision(self, 'Hero'):
     hero.x = -550
+    self.x = 300
+    self.chasing = False
 `})},{id:"knockback",title:"Knockback",difficulty:"master",summary:"Touch the enemy and you are knocked flying - then blink, safe, for a moment.",description:"An enemy patrols the ground. Touch it and you are hurt: you are knocked up and away from it - left if it hit you from the right, right if it hit you from the left - and the hit is counted. For a moment after that you blink on and off and nothing can hurt you, so one touch never counts as ten.",requirements:["The hero walks, jumps and falls with gravity.","Touching the enemy counts a hit, and the number of hits is shown on the screen.","When hit, the hero is knocked up into the air and AWAY from the enemy: left if the enemy is on the right, right if it is on the left.","After a hit the hero is safe for a short time (a timer counted in frames): touching the enemy does nothing, and the hero blinks (for example by turning visible on and off).","When the safe time ends, the hero stops blinking and can be hit again."],controls:[["Left / Right","walk"],["Space","jump"]],files:un(["hero.png blue 40 56","enemy.png purple 48 40",vs],{"Play.start.py":`Game.hits = 0
 Ground()
 Hero()
