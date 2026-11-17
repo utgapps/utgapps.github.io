@@ -5,23 +5,27 @@
 // The frame is a ladder: two 2x20 cross beams, one across the front and one across the back,
 // and four 2x20 rails running front to back, joined to the cross beams by 2x2 corner connectors.
 // Each side is a "pod" of two rails: the inner rail, and the outer rail that is the robot's side
-// wall. Between them, five 36T gears three holes apart and two omni wheels. The motor sits
-// inside the robot and turns the rear wheel's axle; the gears pass the turn forward to the front
-// wheel. Five gears in a row: the 1st, 3rd and 5th all turn the same way, so both wheels drive
-// forward together. (Four or six would not work: the wheels would fight.) The Brain sits in the
-// middle between two short beams, held off the inner rails by standoffs.
+// wall. Between them, a row of gears and two omni wheels. The motor sits inside the robot and
+// turns one gear in the row; the row passes the turn to both wheels. With an odd number of gears
+// the 1st and the last turn the same way, so both wheels drive forward together. (An even number
+// would not work: the wheels would fight.) The Brain sits between two short beams, held off the
+// inner rails by standoffs.
+//
+// A design (DESIGNS below) chooses how far apart the gears are, which one the motor turns, how
+// many teeth it has, and what strengthens the frame. Two gears mesh when their teeth add up to
+// 24 for each hole between them, so along a row the gears alternate between the motor's size and
+// the size that makes up that sum. With the motor on a gear that is not a wheel's, the wheels'
+// gears are the other size, and swapping both sizes changes the ratio without moving an axle.
 //
 // X is forward, Y up, and Z to the robot's right. Frame holes count 0 (back) to 19 (front).
 import * as THREE from "three";
 import { Build, LAYER, PITCH, X, Y, Z } from "../assembler.mjs";
 import { holesFor } from "../../../src/lib/holes.ts";
 
-const BRAIN_FIRST_HOLE = -41.8; // x of the Brain's rearmost side hole, which is frame hole 6
+const BRAIN_HOLE_X = -41.8;     // x of the Brain's rearmost side hole (the Brain sits at the origin)
 const TOP_ROW = -9.5;           // y of the Brain's side holes: every beam's top row
 const BOTTOM_ROW = TOP_ROW - PITCH;
-const BRAIN_SIDE = 37.2;        // z of the Brain's side faces
 const BEAM = 6.1;               // a beam's thickness
-export const holeX = (index) => BRAIN_FIRST_HOLE + (index - 6) * PITCH;
 // Cross beam holes, counted across from the robot's left (0) to its right (19).
 export const crossZ = (index) => (index - 9.5) * PITCH;
 
@@ -31,13 +35,9 @@ export const crossZ = (index) => (index - 9.5) * PITCH;
 // out through the cross beam's far face.
 const CORNER_FACE = -6.2, CORNER_END_HOLE = 3.21, CORNER_PIN_TIP = 15.69;
 
-export const WHEEL_HOLES = [3, 15];         // rear and front wheel axles: twelve holes apart
-export const GEAR_HOLES = [3, 6, 9, 12, 15]; // a 36T meets a 36T three holes away
-export const MOTOR_HOLE = 3;                // the motor turns the rear wheel's axle, behind the Brain
-export const BRAIN_HOLES = [6, 13];         // the Brain's eight side holes
-export const STANDOFF_HOLES = [7, 13];      // bottom row, clear of the idler axles at 6, 9 and 12
-const INNER_RAIL = 66.4;                    // centre z of the inner rails (their corners' pins: cross beam holes 5 and 14)
-const OUTER_RAIL = 111.4;                   // centre z of the outer rails (their corners' pins: the cross beams' end holes)
+const WHEEL_HOLES = [3, 15];  // rear and front wheel axles: twelve holes apart
+const INNER_RAIL = 66.4;      // centre z of the inner rails (their corners' pins: cross beam holes 5 and 14)
+const OUTER_RAIL = 111.4;     // centre z of the outer rails (their corners' pins: the cross beams' end holes)
 const BRAIN_RAIL = INNER_RAIL - BEAM / 2 - 19.05 - BEAM / 2; // a 1.5x standoff's gap inside the inner rail
 
 // What a builder does, in order. Every part is tagged with the step it arrives in.
@@ -45,15 +45,51 @@ const BRAIN_RAIL = INNER_RAIL - BEAM / 2 - 19.05 - BEAM / 2; // a 1.5x standoff'
 // them before the cross beams make the frame rigid.
 export const STEPS = ["brain", "frame", "motors", "gears", "wheels", "outer"];
 
-export function modularDriveBase() {
+// The base the step-by-step page shows: the motor on the rear wheel's axle, five 36T gears.
+export const CURRENT = {
+  spacing: 3, motorHole: 3, motorTeeth: 36, brainFirst: 6, standoffHoles: [7, 13],
+  bumpers: false, doubleWalls: false, tiedPods: false, extraPins: false,
+};
+
+// The five candidates for a base whose ratio can be changed. In each, the motor turns the 2nd
+// gear of the row on its own axle, behind the Brain, so the wheels' gears are a different size
+// from the motor's whenever the motor's is not the middle size.
+const RATIO_BASE = { ...CURRENT, motorHole: 6, brainFirst: 8, standoffHoles: [8, 14] };
+export const DESIGNS = [
+  { key: "swap", ...RATIO_BASE,
+    title: "Swap-Ratio Ladder", ratios: [36, 24, 48] },
+  { key: "bumper", ...RATIO_BASE, bumpers: true, extraPins: true,
+    title: "Bumper Ladder", ratios: [36, 24, 48] },
+  { key: "armored", ...RATIO_BASE, doubleWalls: true, extraPins: true,
+    title: "Armored Sides", ratios: [36, 24, 48] },
+  { key: "tied", ...RATIO_BASE, tiedPods: true,
+    title: "Tied Pods", ratios: [36, 24, 48] },
+  { key: "fortress", ...RATIO_BASE, bumpers: true, doubleWalls: true, tiedPods: true,
+    title: "Fortress", ratios: [36, 24, 48] },
+];
+
+export function modularDriveBase(design = CURRENT) {
+  const { spacing, motorHole, motorTeeth, brainFirst, standoffHoles } = design;
+  const holeX = (index) => BRAIN_HOLE_X + (index - brainFirst) * PITCH;
+  const gearHoles = [];
+  for (let hole = WHEEL_HOLES[0]; hole <= WHEEL_HOLES[1]; hole += spacing) gearHoles.push(hole);
+  if (gearHoles[gearHoles.length - 1] !== WHEEL_HOLES[1] || gearHoles.length % 2 === 0) throw new Error(`gears ${spacing} holes apart do not make an odd row from wheel to wheel`);
+  if (!gearHoles.includes(motorHole)) throw new Error(`the motor's hole ${motorHole} is not in the gear row`);
+  const pairTeeth = 24 * spacing;
+  const teethAt = (hole) => (Math.abs(gearHoles.indexOf(hole) - gearHoles.indexOf(motorHole)) % 2 === 0 ? motorTeeth : pairTeeth - motorTeeth);
+  const wheelTeeth = teethAt(WHEEL_HOLES[0]);
+
   const build = new Build();
   const stepOf = new Map();
   const tag = (handles, step) => { for (const handle of [handles].flat()) stepOf.set(handle.index, step); return handles; };
   const wheels = [];
-  const axleInfo = []; // { handle, step, wheel, side, outerFace }
+  const axleInfo = []; // { handle, step, wheel, side, outerFace, hole }
   const corners = [];
+  const doubles = [];  // [extra beam, the beam it is pinned to, pins]
+  const strength = new Set(); // what a design adds to the plain ladder to survive a drop
+  const strong = (handles) => { for (const handle of [handles].flat()) strength.add(handle.index); return handles; };
 
-  // A 2x20 standing on edge, holes counting along `along` from `first`, rows going down.
+  // A beam standing on edge, holes counting along `along` from `first`, rows going down.
   const beam = (id, first, along, normal) => {
     for (const facing of [normal, normal.clone().negate()]) {
       const handle = build.grid(id, { first, along, normal: facing });
@@ -71,6 +107,14 @@ export function modularDriveBase() {
     front: tag(beam("beam-2x20", [frontX, TOP_ROW, crossZ(0)], Z, X), "frame"),
     back: tag(beam("beam-2x20", [backX, TOP_ROW, crossZ(0)], Z, X), "frame"),
   };
+  // Bumpers: a second 2x20 flat against each cross beam's outside, pinned all along it, so a
+  // landing on either end is spread over the whole beam instead of the two corners.
+  if (design.bumpers) {
+    for (const [end, crossHandle, x] of [[1, cross.front, frontX], [-1, cross.back, backX]]) {
+      const bumper = strong(tag(beam("beam-2x20", [x + end * BEAM, TOP_ROW, crossZ(0)], Z, X), "outer"));
+      doubles.push([bumper, crossHandle, 6]);
+    }
+  }
 
   // A corner connector on `railHandle`'s face toward `away` (a unit z direction), at the `end`
   // (+1 front, -1 back), its pins in the cross beam there.
@@ -106,8 +150,9 @@ export function modularDriveBase() {
     for (const end of [1, -1]) corner(inner, innerZ, inward, end, "frame");
 
     // The Brain's beams, and the standoffs that hold them off the inner rail.
-    const brainRail = tag(rail("beam-2x8", BRAIN_HOLES[0], side * BRAIN_RAIL), "brain");
-    for (const index of STANDOFF_HOLES) {
+    const brainRail = tag(rail("beam-2x8", brainFirst, side * BRAIN_RAIL), "brain");
+    for (const index of standoffHoles) {
+      if (gearHoles.includes(index)) throw new Error(`a standoff at hole ${index} is where an axle goes`);
       const center = new THREE.Vector3(holeX(index), BOTTOM_ROW, side * (BRAIN_RAIL + INNER_RAIL) / 2);
       const standoff = tag(build.add("standoff-15x", center, new THREE.Quaternion()), "brain");
       // A standoff's length is its own z: it lies along Z as placed.
@@ -124,26 +169,28 @@ export function modularDriveBase() {
     // The gear train against the inner rail's outside face, the wheels against the outer rail.
     const innerFace = side * (INNER_RAIL - BEAM / 2);      // inside face of the inner rail
     const podInnerFace = side * (INNER_RAIL + BEAM / 2);   // the inner rail's face toward the gears
-    const outerFace = side * (OUTER_RAIL + BEAM / 2);      // outside face of the outer rail: the robot's side
+    const wallOut = side * (OUTER_RAIL + BEAM / 2);        // outside face of the outer rail
+    const outerFace = design.doubleWalls ? wallOut + side * BEAM : wallOut; // the robot's side
     const outerInside = side * (OUTER_RAIL - BEAM / 2);
     const gearZ = podInnerFace + side * LAYER / 2;
     const wheelZ = outerInside - side * 12.7;
     const span = Math.abs(outerFace - innerFace);
     const gears = [];
     let motor = null;
-    for (const index of GEAR_HOLES) {
+    for (const index of gearHoles) {
       const through = new THREE.Vector3(holeX(index), BOTTOM_ROW, innerFace);
-      const isWheel = WHEEL_HOLES.includes(index), isMotor = index === MOTOR_HOLE;
+      const isWheel = WHEEL_HOLES.includes(index), isMotor = index === motorHole;
       if (isMotor) {
         // The motor stands inside the robot, its axle out through the inner rail.
         motor = tag(build.motor({ socket: through.clone().addScaledVector(inward, 0.125), out: outward, body: Y }), "motors");
         const axle = tag(build.axle({ through, axis: outward, from: -5, to: span, motor: true }), "motors");
-        axleInfo.push({ handle: axle, step: "motors", wheel: isWheel, side, outerFace });
+        axleInfo.push({ handle: axle, step: "motors", wheel: isWheel, side, outerFace, hole: index });
       } else {
         const axle = tag(build.axle({ through, axis: outward, from: -1, to: span + 1 }), "gears");
-        axleInfo.push({ handle: axle, step: "gears", wheel: isWheel, side, outerFace });
+        axleInfo.push({ handle: axle, step: "gears", wheel: isWheel, side, outerFace, hole: index });
       }
-      gears.push(tag(build.spinner("gear-36t", { center: [holeX(index), BOTTOM_ROW, gearZ], axis: outward }), "gears"));
+      const gear = tag(build.spinner(`gear-${teethAt(index)}t`, { center: [holeX(index), BOTTOM_ROW, gearZ], axis: outward }), "gears");
+      gears.push({ index, gear });
       if (isWheel) {
         const wheel = tag(build.spinner("wheel-omni-200", { center: [holeX(index), BOTTOM_ROW, wheelZ], axis: outward }), "wheels");
         wheels.push({ side, index, wheel });
@@ -152,16 +199,43 @@ export function modularDriveBase() {
 
     const outer = tag(rail("beam-2x20", 0, outerZ), "outer");
     for (const end of [1, -1]) corner(outer, outerZ, outward, end, "outer");
+    // A doubled side wall: a 2x16 between the corners, so the axles go through three beams and a
+    // landing on the side meets two layers.
+    if (design.doubleWalls) doubles.push([strong(tag(rail("beam-2x16", 2, side * (OUTER_RAIL + BEAM)), "outer")), outer, 4]);
+    // Tied pods: a 3x standoff across the pod at both rows of each end hole, so the side wall is
+    // held to the inner rail by the frame itself, not only by the axles and their collars. (The
+    // wheels and gears leave no room for one anywhere else.) The corners' pins then go in the
+    // next holes along.
+    if (design.tiedPods) {
+      for (const index of [0, 19]) for (const row of [TOP_ROW, BOTTOM_ROW]) {
+        const center = new THREE.Vector3(holeX(index), row, side * (INNER_RAIL + OUTER_RAIL) / 2);
+        const tie = strong(tag(build.add("standoff-3x", center, new THREE.Quaternion()), "outer"));
+        tie.studs = holesFor(tie.meta).filter((hole) => hole.kind === "stud").map((stud) => {
+          const tip = new THREE.Vector3(...stud.p).applyMatrix4(tie.matrix);
+          const target = Math.abs(tip.z) > Math.abs(center.z) ? outer : inner;
+          const hole = build.cores(target).filter((core) => core.bore === "round" && Math.abs(core.axis.z) > 0.98)
+            .sort((first, second) => first.center.distanceTo(tip) - second.center.distanceTo(tip))[0];
+          return [stud.core, target.index, hole.core];
+        });
+        build.lines.push({ point: center, axis: Z.clone(), reach: 32 });
+      }
+    }
     pods.push({ side, inner, outer, brainRail, motor, gears });
   }
 
   // Pins last, so none goes where an axle, standoff or corner pin already is.
-  for (const { handle, railHandle, step } of corners) tag(build.join(handle, railHandle, { count: 2 }), step);
+  // Extra pins: all four of a corner's flange holes, and four of the Brain's eight side holes.
+  // Tied pods fill two of each corner's holes already, and get the Brain's extra pins.
+  const cornerPins = design.extraPins && !design.tiedPods ? 4 : 2;
+  const brainPins = design.extraPins || design.tiedPods ? 4 : 2;
+  // Pins past the plain ladder's two count as strength.
+  for (const { handle, railHandle, step } of corners) strong(tag(build.join(handle, railHandle, { count: cornerPins }), step).slice(2));
   for (const { brainRail, motor, inner } of pods) {
-    tag(build.join(brain, brainRail, { count: 2 }), "brain");
+    strong(tag(build.join(brain, brainRail, { count: brainPins }), "brain").slice(2));
     // Standing up, the motor meets a 2-row rail at one pin hole; its axle through the rail is the second hold.
     tag(build.join(motor, inner, { count: 1 }), "motors");
   }
+  for (const [extra, base, count] of doubles) strong(tag(build.join(extra, base, { count }), "outer"));
 
   const before = build.parts.length;
   const saved = build.toSaved();
@@ -177,10 +251,18 @@ export function modularDriveBase() {
     const reach = Math.abs(position.z);
     stepOf.set(index, reach > Math.abs(nearest.outerFace) ? "outer" : reach > INNER_RAIL ? "gears" : nearest.step);
   }
-  const rightSide = wheels.filter((entry) => entry.side === 1).sort((first, second) => first.index - second.index);
+  const rightWheels = wheels.filter((entry) => entry.side === 1).sort((first, second) => first.index - second.index);
+  const rightMotorGear = pods.find((pod) => pod.side === 1).gears.find((entry) => entry.index === motorHole).gear;
+  // The motor's gear and the wheels' gears are an odd number of meshes apart (or none, when the
+  // motor turns a wheel's axle), so the wheels turn the other way at motorTeeth / wheelTeeth.
+  const meshes = gearHoles.indexOf(WHEEL_HOLES[1]) - gearHoles.indexOf(motorHole);
+  const ratio = (meshes % 2 === 0 ? 1 : -1) * motorTeeth / wheelTeeth;
   return {
-    build, saved, stepOf, axles: axleInfo, cross, corners,
-    expect: { moves: wheels.map((entry) => entry.wheel.index), ratio: [rightSide[0].wheel.index, rightSide[1].wheel.index, 1] },
+    build, saved, stepOf, axles: axleInfo, cross, corners, holeX, gearHoles, teethAt, wheelTeeth, ratio, strength,
+    expect: {
+      moves: wheels.map((entry) => entry.wheel.index),
+      ratio: motorHole === WHEEL_HOLES[0] ? [rightWheels[0].wheel.index, rightWheels[1].wheel.index, 1] : [rightMotorGear.index, rightWheels[1].wheel.index, ratio],
+    },
   };
 }
 

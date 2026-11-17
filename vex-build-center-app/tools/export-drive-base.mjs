@@ -8,9 +8,11 @@ import { writeFileSync } from "node:fs";
 import * as THREE from "three";
 import { verify } from "./library/verify.mjs";
 import { PITCH } from "./library/assembler.mjs";
-import { modularDriveBase, STEPS, GEAR_HOLES, MOTOR_HOLE, WHEEL_HOLES, STANDOFF_HOLES, BRAIN_HOLES, holeX, crossZ } from "./library/families/drive-base-modular.mjs";
+import { modularDriveBase, STEPS, CURRENT, crossZ } from "./library/families/drive-base-modular.mjs";
 
-const { build, saved, stepOf, axles, cross, corners, expect } = modularDriveBase();
+const { build, saved, stepOf, axles, cross, corners, expect, holeX, gearHoles: GEAR_HOLES } = modularDriveBase(CURRENT);
+const MOTOR_HOLE = CURRENT.motorHole, WHEEL_HOLES = [GEAR_HOLES[0], GEAR_HOLES[GEAR_HOLES.length - 1]];
+const STANDOFF_HOLES = CURRENT.standoffHoles, BRAIN_HOLES = [CURRENT.brainFirst, CURRENT.brainFirst + 7];
 const problems = verify(saved, expect);
 if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
 

@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>window.UTG_TOOL = "vex";</script>
+<script>document.write('<script src="../class-codes.js?t=' + Date.now() + '"><' + '/script>');</script>
+<script>document.write('<script src="../guard.js?t=' + Date.now() + '"><' + '/script>');</script>
+<title>Drive Base Designs</title>
+<meta name="description" content="Five VEX IQ drive bases whose gear ratio can be changed by swapping gears, compared in 3D: how each one is built to survive a drop, and what it costs.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --page: #eef2f6; --panel: #ffffff; --ink: #18202b; --muted: #5b6676; --line: #d9e0e8;
+    --accent: #2b6fd6; --accent-ink: #ffffff; --chip: #f1f4f8; --scene: #e8edf3;
+    --strong: #e0a21b; --motor-gear: #d04a3a; --wheel-gear: #e8892b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #12161c; --panel: #1a2029; --ink: #e8edf3; --muted: #9aa6b5; --line: #2c3542;
+      --accent: #5b9bf0; --accent-ink: #0d1117; --chip: #232b36; --scene: #161b22;
+      --strong: #f0b636; --motor-gear: #e0604f; --wheel-gear: #f09a45;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #12161c; --panel: #1a2029; --ink: #e8edf3; --muted: #9aa6b5; --line: #2c3542;
+    --accent: #5b9bf0; --accent-ink: #0d1117; --chip: #232b36; --scene: #161b22;
+    --strong: #f0b636; --motor-gear: #e0604f; --wheel-gear: #f09a45;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--page); color: var(--ink); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 420px; height: 100vh; }
+  .stage { position: relative; min-height: 0; background: var(--scene); }
+  .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .views { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .views button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .views button:hover { border-color: var(--accent); }
+  .views button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+  .key { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 500; }
+  aside { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  header { padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0 0 2px; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .content { padding: 14px 18px 18px; overflow-y: auto; flex: 1; }
+  .label { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 6px; }
+  .designs { display: grid; gap: 6px; margin-bottom: 16px; }
+  .designs button { text-align: left; border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 10px; padding: 8px 10px; font: inherit; cursor: pointer; display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; align-items: baseline; }
+  .designs button b { font-size: 14px; }
+  .designs button span.number { font-weight: 700; color: var(--muted); }
+  .designs button small { grid-column: 2 / 4; color: var(--muted); font-size: 12px; line-height: 1.35; }
+  .designs button em { font-style: normal; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .designs button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); }
+  .ratios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+  .ratios button { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 10px; padding: 8px 6px; font: inherit; cursor: pointer; text-align: center; }
+  .ratios button b { display: block; font-size: 14px; }
+  .ratios button span { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ratios button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .ratios button[aria-pressed="true"] span { color: inherit; opacity: .85; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+  .toggles label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; background: var(--chip); padding: 5px 9px; border-radius: 8px; cursor: pointer; }
+  .detail h2 { font-size: 17px; margin: 0 0 6px; }
+  .detail p { margin: 0 0 10px; }
+  .detail ul { margin: 0 0 10px; padding-left: 20px; }
+  .detail li { margin-bottom: 4px; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 12px; }
+  .fact { background: var(--chip); border-radius: 10px; padding: 7px 9px; }
+  .fact b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .fact span { font-size: 11px; color: var(--muted); }
+  h3 { font-size: 14px; margin: 14px 0 6px; }
+  .note { font-size: 13px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 4px 0 10px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.number { text-align: right; font-variant-numeric: tabular-nums; }
+  .dots { letter-spacing: 1px; color: var(--strong); white-space: nowrap; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .content { overflow: visible; padding: 14px 16px 24px; }
+    header { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="loading" id="loading">Loading the VEX IQ parts&hellip;</div>
+    <div class="views">
+      <button data-view="corner">3D</button>
+      <button data-view="front">Front</button>
+      <button data-view="side">Side</button>
+      <button data-view="top">Top</button>
+      <button data-view="under">Underneath</button>
+      <button id="see-through" aria-pressed="false">See-through side walls</button>
+    </div>
+    <div class="legend">
+      <span><i class="key" style="background: var(--motor-gear)"></i>Motor-size gears</span>
+      <span><i class="key" style="background: var(--wheel-gear)"></i>Wheel-size gears</span>
+      <span><i class="key" style="background: var(--strong)"></i>Added for strength</span>
+    </div>
+  </div>
+  <aside>
+    <header>
+      <h1>Drive Base Designs</h1>
+      <p>Five bases whose gear ratio changes by swapping gears. Same frame, motors inside, 2x20 beams on all four sides.</p>
+    </header>
+    <div class="content">
+      <p class="label">Pick a design</p>
+      <div class="designs" id="designs"></div>
+      <p class="label">Gear ratio</p>
+      <div class="ratios" id="ratios"></div>
+      <div class="toggles">
+        <label><input type="checkbox" id="highlight" checked> Highlight strength parts</label>
+        <label><input type="checkbox" id="spin" checked> Turn the gears</label>
+      </div>
+      <div class="detail" id="detail"></div>
+      <h3>All five side by side</h3>
+      <table id="compare"></table>
+      <p class="note">Every design, at every ratio, passed the Build Center's checker: nothing loose, nothing clipping, every axle held in two places, both cables reaching the Brain, and the wheels turning at the speed the gears say. The checker does not drop robots. The strength ratings come from how each design is pinned, not from a test.</p>
+    </div>
+  </aside>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// The builds come from drive-base-designs.json, which
+// vex-build-center-app/tools/export-drive-base-designs.mjs writes only after the library verifier
+// has passed every design at every ratio. Millimetres. X is forward, Y up, Z to the robot's right.
+const WHEEL_RADIUS = 31.83;
+const MOTOR_TURNS_PER_SECOND = 0.5; // shown at a quarter of a Smart Motor's 120 rpm, so the gears can be followed
+const data = await fetch("drive-base-designs.json").then((response) => response.json());
+
+// What each design is for, in words. The numbers come from the JSON.
+const WRITE_UPS = {
+  swap: {
+    pitch: "The plain ladder, made ratio-ready.",
+    strength: 1,
+    how: "<p>The motor moves off the rear wheel's axle onto its own axle, turning the <b>2nd gear</b> in the row. The Brain moves 2 holes forward to make room. Everything else is the base you have now.</p>",
+    drop: ["Each corner is held by its 2 built-in pins and 2 connector pins.", "The side walls are held by their corners and the five axles. If a collar slips, an axle can walk out."],
+    best: "First builds, practice, and any robot that needs to stay light.",
+    cost: "Weakest when it lands on a corner or a side.",
+  },
+  bumper: {
+    pitch: "Doubled front and back, for landing on its nose or tail.",
+    strength: 3,
+    how: "<p>A second 2x20 lies flat against each cross beam, pinned at 6 holes. Every corner gets all 4 of its holes pinned, and the Brain 4 of its 8.</p>",
+    drop: ["A hit on either end is spread along a whole 2x20 instead of landing on two corners.", "Corners can't twist: 4 pins each instead of 2."],
+    best: "Games with ramps, or robots that tip forward when they lift.",
+    cost: "34 more parts. About 12 mm longer. Mechanisms pin to the bumpers instead of the cross beams.",
+  },
+  armored: {
+    pitch: "Doubled side walls, for tipping over sideways.",
+    strength: 3,
+    how: "<p>A 2x16 is pinned outside each side wall, between the corners. Every axle now runs through three beams. Corners and Brain get the extra pins too.</p>",
+    drop: ["A side landing meets two layers of beam, and the wheels and gears sit behind both.", "With three beams holding them, the axles stay straight and the gears stay meshed."],
+    best: "Tall robots, or lifts that make the robot tip.",
+    cost: "30 more parts. About 12 mm wider. Side mechanisms pin to the 2x16's top row.",
+  },
+  tied: {
+    pitch: "The cheapest upgrade: tie each side wall to its inner rail.",
+    strength: 2,
+    how: "<p>Four <b>3x standoffs</b> cross each side's pod, in both rows at the first and last hole. The Brain is pinned in 4 holes.</p>",
+    drop: ["The side wall is held by the frame itself, not only by the axles and their collars.", "The pod becomes a box at both ends, so it can't fold."],
+    best: "Most teams. It adds only 12 parts and keeps the size and every mounting zone.",
+    cost: "The cross beams still meet each corner with 2 pins. The wheels and gears leave no room for ties in the middle.",
+  },
+  fortress: {
+    pitch: "Bumpers, armored sides and tied pods together.",
+    strength: 4,
+    how: "<p>Designs 2, 3 and 4 together: bumpers front and back, a 2x16 outside each side wall, standoff ties at both ends of each pod, and the Brain pinned in 4 holes. The ties fill two of each corner's holes, so the corners keep 2 pins.</p>",
+    drop: ["Any face it lands on is doubled.", "The side walls are held three ways: the corners, the ties and the axles through three beams."],
+    best: "Robots that will be dropped a lot, or that will be built once and used all season.",
+    cost: "The heaviest: 36 more parts. About 12 mm longer and wider, so check the game's size limit with your mechanism on it.",
+  },
+};
+const RATIO_NAMES = { 1: "Normal", 0.5: "Strong", 2: "Fast" };
+const RATIO_USES = {
+  1: "The base you have now: the motor and the wheels turn at the same speed.",
+  0.5: "The wheels turn half as fast with twice the push. Use it for pushing, climbing, or a heavy mechanism.",
+  2: "The wheels turn twice as fast with half the push. Only for a light robot: a heavy one makes the motors stall.",
+};
+
+const COLORS = {
+  "robot-brain": "#30343b", "beam-2x20": "#6f86a3", "beam-2x16": "#7d93ae", "beam-2x8": "#8a9bb3", "corner-2x2": "#c8cfd8",
+  "pin-connector-1x1": "#d8b04a", "standoff-15x": "#4f79b8", "standoff-3x": "#4f79b8", "rubber-collar": "#2b2b2b",
+  "smart-motor": "#3a3f47", "wheel-omni-200": "#3d4450", "spacer-025x": "#9aa4b2", "washer": "#9aa4b2",
+};
+const cssColor = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---- Scene ------------------------------------------------------------------------------
+const stage = document.getElementById("stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 5, 9000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a96a8, 1.9));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(220, 520, 320);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -400, right: 400, top: 400, bottom: -400, near: 50, far: 1600 });
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.7);
+fill.position.set(-300, 150, -250);
+scene.add(fill);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.ShadowMaterial({ opacity: 0.18 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+const grid = new THREE.GridHelper(1200, 24, 0x9aa8b8, 0xc4ced9);
+grid.material.transparent = true; grid.material.opacity = 0.45;
+grid.position.y = 0.05;
+scene.add(grid);
+
+function decode(base64, ArrayType) {
+  const text = atob(base64), bytes = new Uint8Array(text.length);
+  for (let index = 0; index < text.length; index++) bytes[index] = text.charCodeAt(index);
+  return new ArrayType(bytes.buffer);
+}
+const geometryCache = new Map();
+function loadGeometry(id) {
+  if (!geometryCache.has(id)) {
+    geometryCache.set(id, fetch(`../vex-build-center/parts/${id}.json`).then((response) => response.json()).then((mesh) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(decode(mesh.position, Float32Array), 3));
+      if (mesh.normal) geometry.setAttribute("normal", new THREE.BufferAttribute(decode(mesh.normal, Float32Array), 3));
+      geometry.setIndex(new THREE.BufferAttribute(decode(mesh.index, Uint32Array), 1));
+      if (!mesh.normal) geometry.computeVertexNormals();
+      return geometry;
+    }));
+  }
+  return geometryCache.get(id);
+}
+
+// ---- One design's robot -----------------------------------------------------------------
+// Each design is a group of its own, built once. Each axle is a group inside it, turning with
+// everything on it; a gear keeps one mesh per size and shows the one the ratio calls for.
+const robots = new Map();
+async function robotFor(design) {
+  if (robots.has(design.key)) return robots.get(design.key);
+  const chassis = new THREE.Group();
+  const wheels = design.parts.filter((part) => part.id === "wheel-omni-200");
+  chassis.position.y = WHEEL_RADIUS - Math.min(...wheels.map((part) => part.p[1]));
+  const spinGroups = design.spins.map((spin) => {
+    const group = new THREE.Group();
+    group.position.set(spin.x, spin.y, 0);
+    chassis.add(group);
+    return group;
+  });
+  const entries = [];
+  const place = async (part, id, position, quaternion, extra) => {
+    const material = new THREE.MeshStandardMaterial({ color: COLORS[id] ?? "#8a94a6", metalness: 0.12, roughness: 0.55, transparent: true });
+    const mesh = new THREE.Mesh(await loadGeometry(id), material);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.quaternion.fromArray(quaternion);
+    const parent = part.spin === undefined ? chassis : spinGroups[part.spin];
+    mesh.position.fromArray(position).sub(parent === chassis ? new THREE.Vector3() : parent.position);
+    parent.add(mesh);
+    entries.push({ part, mesh, ...extra });
+  };
+  await Promise.all(design.parts.flatMap((part) => part.versions
+    ? part.versions.map((version, index) => place(part, version.id, version.p, version.q, { version: index }))
+    : [place(part, part.id, part.p, part.q, {})]));
+  // Centre the frame (not the Brain, which sits forward of the middle) under the camera.
+  const bounds = new THREE.Box3().setFromObject(chassis), middle = bounds.getCenter(new THREE.Vector3());
+  chassis.position.x = -middle.x; chassis.position.z = -middle.z;
+  const robot = { chassis, spinGroups, entries, size: bounds.getSize(new THREE.Vector3()) };
+  robots.set(design.key, robot);
+  return robot;
+}
+
+// ---- Choosing --------------------------------------------------------------------------
+let design = data.designs[0], ratioIndex = 0, current = null, turned = 0;
+const highlight = document.getElementById("highlight"), spinBox = document.getElementById("spin");
+const seeThrough = document.getElementById("see-through");
+let seeThroughOn = false;
+seeThrough.onclick = () => { seeThroughOn = !seeThroughOn; seeThrough.setAttribute("aria-pressed", String(seeThroughOn)); paint(); };
+highlight.onchange = paint;
+
+function paint() {
+  if (!current) return;
+  const strongColor = new THREE.Color(cssColor("--strong")), motorColor = new THREE.Color(cssColor("--motor-gear")), wheelColor = new THREE.Color(cssColor("--wheel-gear"));
+  const outerZ = Math.max(...design.parts.filter((part) => part.id === "beam-2x20").map((part) => Math.abs(part.p[2])));
+  for (const entry of current.entries) {
+    const { part, mesh } = entry;
+    mesh.visible = entry.version === undefined || entry.version === ratioIndex;
+    const material = mesh.material;
+    if (part.gear) material.color.copy(part.gear === "motor" ? motorColor : wheelColor);
+    else if (part.strong && highlight.checked) material.color.copy(strongColor);
+    else material.color.set(COLORS[part.id] ?? "#8a94a6");
+    // See-through: the side walls and everything on them, so the gears show.
+    const wall = Math.abs(part.p[2]) >= outerZ - 4 && !part.versions && part.spin === undefined && part.id !== "wheel-omni-200";
+    const ghosted = seeThroughOn && wall;
+    material.opacity = ghosted ? 0.18 : 1;
+    material.depthWrite = !ghosted;
+  }
+}
+
+async function choose(nextDesign, nextRatio = ratioIndex) {
+  design = nextDesign;
+  ratioIndex = Math.min(nextRatio, design.ratios.length - 1);
+  const robot = await robotFor(design);
+  if (current && current !== robot) scene.remove(current.chassis);
+  current = robot;
+  scene.add(robot.chassis);
+  document.getElementById("loading")?.remove();
+  paint();
+  render();
+}
+
+const holesText = (holes) => holes.join(", ");
+function render() {
+  document.getElementById("designs").innerHTML = data.designs.map((entry, index) => `
+    <button data-design="${entry.key}" aria-pressed="${entry === design}">
+      <span class="number">${index + 1}</span><b>${entry.title}</b><em class="dots" title="Strength">${"&#9679;".repeat(WRITE_UPS[entry.key].strength)}${"&#9675;".repeat(4 - WRITE_UPS[entry.key].strength)}</em>
+      <small>${WRITE_UPS[entry.key].pitch}</small>
+    </button>`).join("");
+  document.querySelectorAll("[data-design]").forEach((button) => button.onclick = () => choose(data.designs.find((entry) => entry.key === button.dataset.design)));
+
+  document.getElementById("ratios").innerHTML = design.ratios.map((ratio, index) => `
+    <button data-ratio="${index}" aria-pressed="${index === ratioIndex}">
+      <b>${RATIO_NAMES[ratio.turns]}</b>
+      <span>${ratio.motorTeeth}T &rarr; ${ratio.wheelTeeth}T</span>
+      <span>~${Math.round(ratio.inchesPerSecond)} in/s</span>
+    </button>`).join("");
+  document.querySelectorAll("[data-ratio]").forEach((button) => button.onclick = () => choose(design, Number(button.dataset.ratio)));
+
+  const write = WRITE_UPS[design.key], ratio = design.ratios[ratioIndex], stats = design.stats;
+  const inches = (millimetres) => (millimetres / 25.4).toFixed(1);
+  const size = current.size;
+  document.getElementById("detail").innerHTML = `
+    <h2>${data.designs.indexOf(design) + 1}. ${design.title}</h2>
+    ${write.how}
+    <div class="facts">
+      <div class="fact"><b>${stats.parts}</b><span>parts</span></div>
+      <div class="fact"><b>${stats.pins}</b><span>connector pins</span></div>
+      <div class="fact"><b>${inches(size.x)} &times; ${inches(size.z)}</b><span>inches, long &times; wide</span></div>
+    </div>
+    <h3>If it's dropped</h3>
+    <ul>${write.drop.map((line) => `<li>${line}</li>`).join("")}</ul>
+    <p><b>Best for:</b> ${write.best}</p>
+    <p><b>Costs:</b> ${write.cost}</p>
+    <h3>${RATIO_NAMES[ratio.turns]}: ${ratio.motorTeeth}T on the motor, ${ratio.wheelTeeth}T on the wheels</h3>
+    <p>${RATIO_USES[ratio.turns]}</p>
+    <p class="note">To change the ratio, swap the gears one axle at a time: pull the axle out from the outside, slide the gear off, put the new size on, and push the axle back. No pin and no beam moves. Every <span style="color: var(--motor-gear); font-weight: 600">motor-size</span> gear changes to the new motor size, every <span style="color: var(--wheel-gear); font-weight: 600">wheel-size</span> gear to the new wheel size. Teeth that add up to 72 always mesh 3 holes apart.</p>`;
+
+  const rows = data.designs.map((entry, index) => {
+    const entryWrite = WRITE_UPS[entry.key];
+    return `<tr><td>${index + 1}. ${entry.title}</td><td class="dots">${"&#9679;".repeat(entryWrite.strength)}${"&#9675;".repeat(4 - entryWrite.strength)}</td><td class="number">${entry.stats.parts}</td><td class="number">+${entry.stats.parts - data.designs[0].stats.parts}</td></tr>`;
+  }).join("");
+  document.getElementById("compare").innerHTML = `<tr><th>Design</th><th>Strength</th><th class="number">Parts</th><th class="number">Extra</th></tr>${rows}`;
+}
+
+// ---- Camera ----------------------------------------------------------------------------
+const VIEWS = {
+  corner: new THREE.Vector3(300, 260, 420), front: new THREE.Vector3(620, 90, 0), side: new THREE.Vector3(0, 90, 620),
+  top: new THREE.Vector3(0, 640, 1), under: new THREE.Vector3(140, -260, 460),
+};
+const lookAt = new THREE.Vector3(0, 45, 0);
+const viewDistance = () => 1.3 * Math.max(1, 1.2 / camera.aspect);
+let cameraFlight = null;
+const ease = (time) => 1 - Math.pow(1 - Math.min(1, Math.max(0, time)), 3);
+function flyTo(name) {
+  cameraFlight = { start: camera.position.clone(), end: lookAt.clone().add(VIEWS[name].clone().multiplyScalar(viewDistance())), startTarget: controls.target.clone(), elapsed: 0 };
+}
+document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => flyTo(button.dataset.view)));
+
+function applyTheme() {
+  scene.background = new THREE.Color(cssColor("--scene"));
+  const dark = scene.background.getHSL({}).l < 0.3;
+  grid.material.color.set(dark ? 0x2c3542 : 0xc4ced9);
+  floor.material.opacity = dark ? 0.35 : 0.18;
+  paint();
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+function resize() {
+  const { clientWidth, clientHeight } = stage;
+  renderer.setSize(clientWidth, clientHeight, false);
+  camera.aspect = clientWidth / Math.max(1, clientHeight);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+camera.position.copy(lookAt).add(VIEWS.corner.clone().multiplyScalar(viewDistance()));
+controls.target.copy(lookAt);
+
+await choose(design, 0);
+applyTheme();
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const seconds = Math.min(clock.getDelta(), 0.05);
+  if (spinBox.checked) turned += seconds * MOTOR_TURNS_PER_SECOND * 2 * Math.PI;
+  if (current) {
+    // The motor-size axles turn with the motor; the wheel-size ones the other way, at the ratio.
+    // Turning about -Z rolls the robot forward.
+    const turns = design.ratios[ratioIndex].turns;
+    design.spins.forEach((spin, index) => {
+      current.spinGroups[index].rotation.z = spin.motorSize ? turned : -turned * turns;
+    });
+  }
+  if (cameraFlight) {
+    cameraFlight.elapsed += seconds;
+    const progress = ease(cameraFlight.elapsed / 0.9);
+    camera.position.lerpVectors(cameraFlight.start, cameraFlight.end, progress);
+    controls.target.lerpVectors(cameraFlight.startTarget, lookAt, progress);
+    if (progress >= 1) cameraFlight = null;
+  }
+  controls.update();
+  floor.visible = grid.visible = camera.position.y > 0;
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
