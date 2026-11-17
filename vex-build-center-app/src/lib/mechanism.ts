@@ -9,6 +9,7 @@ import { PartShape, overlaps } from "./contact.ts";
 //   - two different pin lines between the same two bodies lock them solid, as they do for real;
 //   - an axle grips anything with a square bore (gears, wheels) and turns freely in round holes;
 //   - an axle in a motor's socket is driven by that motor;
+//   - that axle through a round hole is a line between the motor and the part with the hole;
 //   - two gears whose teeth touch turn together at the ratio of their tooth counts;
 //   - sprockets wrapped by one chain turn the same way at the ratio of their tooth counts.
 // The simulation is kinematic: motors are perfectly strong and nothing has weight, so what
@@ -168,6 +169,9 @@ export class Mechanism {
         for (const fill of sockets) {
           const socketAxis = fill.axis.clone().normalize();
           lines.push({ first: fill.partUid, second: occupierUid, center: fill.center, axis: socketAxis, drive: true, motorUid: fill.partUid });
+          // The motor's own shaft through a round hole holds the motor on that line too, so one
+          // pin elsewhere into the same part mounts the motor solid, as it does for real.
+          for (const hole of loose) lines.push({ first: fill.partUid, second: hole.partUid, center: hole.center, axis: occupierAxis, drive: false });
         }
       } else {
         // A pin is a hinge line between everything it passes through. It rides with the first.

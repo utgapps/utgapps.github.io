@@ -4,6 +4,7 @@
 // - The windshield wiper example: the 60T turns a fifth as fast as the motor, the other
 //   way, and the wiper sweeps exactly the angle the four-bar's own geometry gives.
 // - One pin between two beams is a hinge; two pins hold them solid.
+// - A motor's shaft through a rail counts as a hold, so one pin more mounts it solid.
 // - A linkage that cannot move stalls its motor instead of tearing itself apart.
 // - The wiper builds for real: every axle in two holes, nothing can slide off, and the motor
 //   has a cable to a Brain port nothing is in front of.
@@ -271,6 +272,21 @@ const savedOf = (slug) => JSON.parse(readFileSync(new URL(`../public/examples/li
     if (frame % 5 === 0) for (const band of bands(saved, poses)) for (const uid of band.clashes) cuts.add(uid);
   }
   check(stops >= 1 && !cuts.size, `swung stop to stop (${stops} stops), the arm's band cuts through nothing${cuts.size ? `; it cuts ${[...cuts].join(", ")}` : ""}`);
+}
+
+{
+  // A motor standing on a 2-row rail meets it at one pin hole; its own shaft through the rail is
+  // the second hold. Held by the pin alone it would swing on the pin and the drive would stall.
+  const saved = savedOf("drive-modular-gear-train");
+  const { parts, fills, studs } = layout(saved);
+  const mechanism = new Mechanism(parts, fills, studs);
+  const motors = parts.filter((part) => part.id === "smart-motor");
+  const rails = parts.filter((part) => part.id === "beam-2x20");
+  check(motors.length === 2 && motors.every((motor) => mechanism.bodyIndexOf(motor.uid) === mechanism.bodyIndexOf(rails[0].uid)),
+    "a motor held by one pin and its shaft through the rail is solid with the rail");
+  let moving = 0;
+  for (let frame = 0; frame < 30; frame++) if (mechanism.step(1 / 60)) moving++;
+  check(moving === 30, `the drive base's motors turn its wheels (${moving} of 30 frames)`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nall passed");
