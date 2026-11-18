@@ -8,7 +8,7 @@
 <script>document.write('<script src="../class-codes.js?t=' + Date.now() + '"><' + '/script>');</script>
 <script>document.write('<script src="../guard.js?t=' + Date.now() + '"><' + '/script>');</script>
 <title>VEX Modular Drive Base</title>
-<meta name="description" content="Build one standard VEX IQ drive base, step by step in 3D: two motors, a gear train to four omni wheels, and mounting zones every mechanism can be pinned onto.">
+<meta name="description" content="Build the Tied Pods VEX IQ drive base, step by step in 3D: two motors inside, a gear train to four omni wheels you can re-gear, side pods tied shut for strength, and mounting zones every mechanism can be pinned onto.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
@@ -35,7 +35,7 @@
   .views { position: absolute; left: 12px; top: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
   .views button, .chip-button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
   .views button:hover, .chip-button:hover { border-color: var(--accent); }
-  .views button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .views button[aria-pressed="true"], .chip-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 500; }
   aside { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
   header { padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
@@ -75,6 +75,10 @@
   .readout span { font-size: 12px; color: var(--muted); }
   .zone-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--zone); vertical-align: -1px; margin-right: 4px; }
   .note { font-size: 13px; color: var(--muted); }
+  .ratio-picker { margin: 12px 0; }
+  .ratio-picker h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+  .gear-key { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-right: 3px; }
+  header a { color: var(--accent); }
   .rules li { margin-bottom: 6px; }
   @media (max-width: 860px) {
     .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
@@ -99,8 +103,8 @@
   </div>
   <aside>
     <header>
-      <h1>Modular Drive Base</h1>
-      <p>One standard base: two motors, a gear train to four omni wheels, and mounting zones for any mechanism.</p>
+      <h1>Modular Drive Base: Tied Pods</h1>
+      <p>Two motors inside, a gear train to four omni wheels you can re-gear, side pods tied shut so a drop can't spread them, and mounting zones for any mechanism. <a href="drive-base-designs.html">Compare the five designs</a></p>
     </header>
     <div class="tabs" role="tablist">
       <button role="tab" id="tab-build" aria-selected="true">Build it</button>
@@ -115,100 +119,131 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-// The build comes from drive-base.json, which vex-build-center-app/tools/export-drive-base.mjs
-// writes from the Build Center's library entry after the library verifier has passed it: every
-// axle held in two places, nothing loose, nothing clipping, and the wheels turning together.
-// Millimetres. X is forward, Y up, Z to the robot's right.
+// The build comes from drive-base-tied.json, which vex-build-center-app/tools/export-drive-base.mjs
+// writes from the library's Tied Pods design after the library verifier has passed it at every
+// ratio: every axle held in two places, nothing loose, nothing clipping, the wheels turning
+// together at the speed the gears say. Millimetres. X is forward, Y up, Z to the robot's right.
 const PITCH = 12.7;
 const WHEEL_RADIUS = 31.83;
-const MOTOR_RPM = 120;                       // an IQ Smart Motor at full speed; the gears are 1:1
-const WHEEL_SPEED = (MOTOR_RPM / 60) * 2 * Math.PI * WHEEL_RADIUS; // mm per second at 100%
-const TOOTH_HALF = Math.PI / 36;             // half a 36T tooth: neighbours sit a half-tooth apart
+const MOTOR_RPM = 120;                       // an IQ Smart Motor at full speed
+const WHEEL_SPEED = (MOTOR_RPM / 60) * 2 * Math.PI * WHEEL_RADIUS; // mm per second at 100%, if the wheel turned at the motor's speed
 
-const data = await fetch("drive-base.json").then((response) => response.json());
+const data = await fetch("drive-base-tied.json").then((response) => response.json());
 const { info } = data;
 const holes = (list) => list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}` : String(list[0]);
 
+// The three gear sets. The same axles take every set; only the gears change.
+const RATIO_NAMES = { 1: "Normal", 0.5: "Strong", 2: "Fast" };
+const RATIO_NOTES = {
+  1: "The wheels turn at the motor's speed. Start here.",
+  0.5: "Half the speed, twice the push. For pushing, climbing, or a heavy robot.",
+  2: "Twice the speed, half the push. Only for a light robot: a heavy one stalls the motors.",
+};
+let ratioIndex = 0;
+const ratio = () => info.ratios[ratioIndex];
+const ratioLabel = ({ motorTeeth, wheelTeeth, turns }) => `${RATIO_NAMES[turns] ?? ""} ${motorTeeth}T to ${wheelTeeth}T`.trim();
+
 const PART_NAMES = {
   "robot-brain": "Robot Brain", "beam-2x20": "2x20 Beam", "beam-2x8": "2x8 Beam", "corner-2x2": "2x2 Corner Connector",
-  "pin-connector-1x1": "1x1 Connector Pin", "standoff-15x": "1.5x Standoff", "gear-36t": "36T Gear", "shaft-6x": "6x Axle",
+  "pin-connector-1x1": "1x1 Connector Pin", "standoff-15x": "1.5x Standoff", "standoff-3x": "3x Standoff",
+  "gear-24t": "24T Gear", "gear-36t": "36T Gear", "gear-48t": "48T Gear", "shaft-6x": "6x Axle",
   "rubber-collar": "Rubber Shaft Collar", "smart-motor": "Smart Motor", "wheel-omni-200": "200 mm Omni Wheel",
 };
 const COLORS = {
   "robot-brain": "#30343b", "beam-2x20": "#6f86a3", "beam-2x8": "#8a9bb3", "corner-2x2": "#c8cfd8",
-  "pin-connector-1x1": "#d8b04a", "standoff-15x": "#4f79b8", "gear-36t": "#e8892b", "shaft-6x": "#a7b0bc",
+  "pin-connector-1x1": "#d8b04a", "standoff-15x": "#4f79b8", "standoff-3x": "#3f9a8c", "shaft-6x": "#a7b0bc",
   "rubber-collar": "#2b2b2b", "smart-motor": "#3a3f47", "wheel-omni-200": "#3d4450",
 };
-const MOTOR_GEAR_COLOR = "#d04a3a";
+const GEAR_COLORS = { motor: "#d04a3a", wheel: "#e8892b" }; // the motor's size and the wheels' size
 const STEP = Object.fromEntries(data.steps.map((name, index) => [name, index]));
 const pinHole = ({ hole, row }) => `${hole} (${row} row)`;
+// A corner's two pins: "hole 2, both rows" when they share a hole, else each hole and row.
+const pinPair = (pins, end) => {
+  const pair = pins.filter((pin) => end === "back" ? pin.hole < 10 : pin.hole > 10);
+  return pair.length === 2 && pair[0].hole === pair[1].hole ? `hole ${pair[0].hole}, both rows` : `holes ${pair.map(pinHole).join(" and ")}`;
+};
+const axleAt = (hole) => info.axleFill.find((axle) => axle.hole === hole);
+const idlers = info.gears.filter((hole) => hole !== info.motor && !info.wheels.includes(hole));
+const gearKey = (kind) => `<span class="gear-key" style="background:${GEAR_COLORS[kind]}"></span>`;
+const ratioPicker = () => `<div class="ratio-picker"><h3>Gear ratio</h3><div class="presets">${info.ratios.map((choice, index) =>
+  `<button class="chip-button" data-ratio="${index}" aria-pressed="${index === ratioIndex}">${ratioLabel(choice)}</button>`).join("")}</div>
+  <p class="note" style="margin-top:6px">${RATIO_NOTES[ratio().turns] ?? ""}</p></div>`;
 
 // ---- Steps ------------------------------------------------------------------------------
 // Rail holes are counted 1 to 20 from the BACK end. Cross beam holes are counted 1 to 20 from
 // the robot's LEFT end. Every beam stands on its long edge, so it has a top and a bottom row.
+// A step's text is a function: the gear step quotes the ratio picked.
 const steps = [
   {
     title: "The Brain and its beams",
     view: "corner",
-    text: `<p>Stand a <b>2x8 beam</b> on its long edge against the left side of the <b>Robot Brain</b>, its <b>top row</b> lined up with the Brain's row of side holes. Pin it with <b>1x1 connector pins</b> in the 2x8's <b>holes ${holes(info.brainPins)}</b>, top row. Do the same on the right side.</p>
+    text: () => `<p>Stand a <b>2x8 beam</b> on its long edge against the left side of the <b>Robot Brain</b>, its <b>top row</b> lined up with the Brain's row of side holes. Pin it with <b>1x1 connector pins</b> in the 2x8's <b>holes ${holes(info.brainPins)}</b>, top row. Do the same on the right side.</p>
       <p>Push a <b>1.5x standoff</b> into each 2x8's <b>bottom row</b> at <b>holes ${holes(info.standoffs.map((hole) => hole - info.brainRail[0] + 1))}</b>, pointing out to the side. That is 2 standoffs on each side.</p>
-      <p class="note">The beams hang below the Brain, so the Smart Ports on top stay clear for cables.</p>`,
+      <p class="note">Four pins a side, not two: the Brain is the heaviest part, and in a drop it is what tears loose first. The beams hang below the Brain, so the Smart Ports on top stay clear for cables.</p>`,
   },
   {
     title: "The frame",
     view: "corner",
-    text: `<p>Two <b>2x20 beams</b> are the <b>inner rails</b>. From now on, count a rail's holes from the <b>back</b>: hole 1 at the back, hole 20 at the front.</p>
+    text: () => `<p>Two <b>2x20 beams</b> are the <b>inner rails</b>. From now on, count a rail's holes from the <b>back</b>: hole 1 at the back, hole 20 at the front.</p>
       <ol>
-        <li>Press an inner rail onto each side's standoffs, at the rail's <b>holes ${holes(info.standoffs)}</b>, bottom row. The Brain ends up in the middle, with 6 holes of rail behind it and 6 in front.</li>
-        <li>On each rail's <b>inside face</b>, put a <b>2x2 corner connector</b> at both ends, its two built-in pins pointing past the rail's end. Pin it to the rail with two <b>1x1 connector pins</b>: holes ${pinHole(info.cornerPins[0])} and ${pinHole(info.cornerPins[1])} at the back, ${pinHole(info.cornerPins[2])} and ${pinHole(info.cornerPins[3])} at the front.</li>
+        <li>Press an inner rail onto each side's standoffs, at the rail's <b>holes ${holes(info.standoffs)}</b>, bottom row. The Brain ends up toward the front, with ${info.brainRail[0] - 1} holes of rail behind it and ${20 - info.brainRail[1]} in front. The motors go in the space behind it.</li>
+        <li>On each rail's <b>inside face</b>, put a <b>2x2 corner connector</b> at both ends, its two built-in pins pointing past the rail's end. Pin it to the rail with two <b>1x1 connector pins</b>: ${pinPair(info.innerCornerPins, "back")} at the back, ${pinPair(info.innerCornerPins, "front")} at the front.</li>
         <li>Two more 2x20 beams are the <b>cross beams</b>. Count their holes from the robot's <b>left</b>. Press one across the back onto the corners' pins, so they go into its <b>holes ${holes(info.innerColumns)}</b>, both rows. Do the same across the front.</li>
       </ol>
-      <p class="note">The inner rails sit 5 holes in from each end of the cross beams. That leaves room outside them for the gears and wheels.</p>`,
+      <p class="note">The inner rails sit 5 holes in from each end of the cross beams. That leaves room outside them for the gears and wheels: the <b>pod</b>.</p>`,
   },
   {
     title: "The motors",
     view: "rear",
-    text: `<p>The motors go <b>inside</b> the robot, behind the Brain.</p>
+    text: () => `<p>The motors go <b>inside</b> the robot, behind the Brain.</p>
       <ol>
         <li>Stand a <b>Smart Motor</b> against the inside face of the left inner rail at <b>hole ${info.motor}</b>, body pointing <b>up</b>, its square socket facing the rail's <b>bottom row</b>.</li>
         <li>From outside the rail, push a <b>1x1 connector pin</b> through hole ${pinHole(info.motorPin)} into the motor.</li>
         <li>From outside, push a <b>6x axle</b> through hole ${info.motor}, bottom row, into the motor's socket.</li>
       </ol>
-      <p>Do the same on the right. The motor is held twice: by the pin, and by its own axle through the rail.</p>`,
+      <p>Do the same on the right. The motor is held twice: by the pin, and by its own axle through the rail. Its axle carries a gear but <b>no wheel</b>, so a hard landing on a wheel never reaches the motor.</p>`,
   },
   {
     title: "The gear train",
     view: "side",
-    text: `<p>Each side's gears go on the <b>outside</b> of its inner rail, in the <b>bottom row</b>.</p>
+    text: () => {
+      const { motorTeeth, wheelTeeth } = ratio();
+      return `<p>Each side's gears go on the <b>outside</b> of its inner rail, in the <b>bottom row</b>. Pick the gears first: every set fits the same axles, so you can swap them later without moving anything else.</p>
+      ${ratioPicker()}
       <ol>
         <li>At <b>holes ${holes(info.gears.filter((hole) => hole !== info.motor))}</b>, push a <b>6x axle</b> through the rail from the inside, with a <b>rubber shaft collar</b> on its inside end.</li>
-        <li>On all five axles, the motor's at hole ${info.motor} too, slide a <b>36T gear</b> on tight against the rail.</li>
-        <li>On the wheel axles at <b>holes ${holes(info.wheels)}</b>, put one collar after the gear. Fill the three axles in between with <b>5 collars</b> each: they are spacers that stop those axles sliding.</li>
+        <li>${gearKey("motor")}On the motor's axle at hole ${info.motor} and the axle at hole ${holes(info.motorGears.filter((hole) => hole !== info.motor))}, slide a <b>${motorTeeth}T gear</b> on tight against the rail.</li>
+        <li>${gearKey("wheel")}On the axles at <b>holes ${holes(info.wheelGears)}</b>, slide a <b>${wheelTeeth}T gear</b> on tight against the rail.</li>
+        <li>On the wheel axles at <b>holes ${holes(info.wheels)}</b>, put ${axleAt(info.wheels[0]).pod} collar after the gear. Fill the axles at holes ${holes([info.motor, ...idlers].sort((first, second) => first - second))} with <b>${axleAt(info.motor).pod} collars</b> each: they are spacers that stop those axles sliding.</li>
       </ol>
-      <p>36T gears mesh exactly 3 holes apart, so each gear's teeth sit between its neighbours'. The motor's gear, in red, turns the next one, which turns the next, all the way to the front wheel.</p>`,
+      <p>Gears 3 holes apart mesh when their teeth add up to 72: 36 and 36, 24 and 48, or 48 and 24. Every gear meshes only with gears of the other color, so the whole side turns at one ratio.</p>`;
+    },
   },
   {
     title: "The wheels",
     view: "corner",
-    text: `<p>Slide a <b>200 mm omni wheel</b> onto the axles at <b>holes ${holes(info.wheels)}</b>, against the collar. The motor's own axle carries the rear wheel, and the gears carry its turn to the front wheel.</p>`,
+    text: () => `<p>Slide a <b>200 mm omni wheel</b> onto the axles at <b>holes ${holes(info.wheels)}</b>, against the collar.</p>
+      <p>Neither wheel is on the motor's axle. The motor's gear at hole ${info.motor} turns the rear wheel's gear at hole ${info.wheels[0]} directly, and the gear at hole ${idlers[0]}, which passes the turn along to the front wheel at hole ${info.wheels[1]}.</p>`,
   },
   {
-    title: "Side walls and cables",
+    title: "Ties, side walls and cables",
     view: "corner",
-    text: `<p>The last two 2x20 beams are the <b>outer rails</b>, the robot's side walls.</p>
+    text: () => `<p>The last two 2x20 beams are the <b>outer rails</b>, the robot's side walls. Tie each pod shut first, so the two rails can never spread apart.</p>
       <ol>
-        <li>Press an outer rail onto the axle ends sticking out at <b>holes ${holes(info.gears)}</b>, bottom row.</li>
-        <li>On its <b>outside face</b>, put a corner connector at both ends. Slide its built-in pins into the cross beam's <b>end holes, ${holes(info.outerColumns)}</b>, then pin it to the rail with two 1x1 connector pins, just like the inner corners.</li>
+        <li>Push a <b>3x standoff</b> into the outside face of each inner rail at <b>holes ${holes(info.ties)}</b>, <b>both rows</b>. That is 4 standoffs a side, one at each corner of the pod.</li>
+        <li>Press an outer rail onto the axle ends sticking out at <b>holes ${holes(info.gears)}</b>, bottom row, and onto the standoffs' ends at holes ${holes(info.ties)}.</li>
+        <li>On its <b>outside face</b>, put a corner connector at both ends. Slide its built-in pins into the cross beam's <b>end holes, ${holes(info.outerColumns)}</b>, then pin it to the rail with two 1x1 connector pins: ${pinPair(info.outerCornerPins, "back")} at the back, ${pinPair(info.outerCornerPins, "front")} at the front.</li>
         <li>Lock every axle with a rubber shaft collar on its outside end.</li>
       </ol>
       <p>Plug each motor into the Brain with a <b>Smart Cable</b>: the <b>left motor into port 1</b> and the <b>right motor into port 6</b>. Put the charged battery in the Brain.</p>
-      <p class="note">In VEXcode IQ, add a <b>Drivetrain</b> with those two ports. The motors face opposite ways, so to drive forward one has to turn clockwise and the other counterclockwise. The drivetrain setup handles that for you.</p>`,
+      <p class="note">Why tie the pods? Without ties the outer rail is held only by the axle ends and its corners. Land on a wheel and the rail bends outward, the axles slide, and gears jump teeth. With a standoff at each corner the pod is a box: it holds its shape.</p>
+      <p class="note">In VEXcode IQ, add a <b>Drivetrain</b> with those two ports and the gear ratio you built. The motors face opposite ways, so to drive forward one has to turn clockwise and the other counterclockwise. The drivetrain setup handles that for you.</p>`,
   },
   {
     title: "Your mounting zones",
     view: "zones",
     zones: true,
-    text: `<p>The base is done. The <span class="zone-key"></span><b>green zones</b> are where mechanisms go:</p>
+    text: () => `<p>The base is done. The <span class="zone-key"></span><b>green zones</b> are where mechanisms go:</p>
       <ul>
         <li>The <b>front and back cross beams</b>, outer face, both rows, <b>holes ${info.zones.cross.map(([first, last]) => `${first}-${last}`).join(", ")}</b>. Holes ${holes([...info.innerColumns, ...info.outerColumns].sort((first, second) => first - second))} already have the corners' pins in them.</li>
         <li>The <b>side walls</b>, outer face, <b>top row, holes ${info.zones.side[0]}-${info.zones.side[1]}</b>. The bottom row has the axle collars.</li>
@@ -223,7 +258,7 @@ const steps = [
       </ul>`,
   },
 ];
-if (steps.length !== data.steps.length + 1) throw new Error("the page's steps and drive-base.json's steps disagree");
+if (steps.length !== data.steps.length + 1) throw new Error("the page's steps and drive-base-tied.json's steps disagree");
 
 // ---- Scene ------------------------------------------------------------------------------
 const stage = document.getElementById("stage");
@@ -285,8 +320,11 @@ const spinGroups = data.spins.map((spin) => {
   chassis.add(group);
   return group;
 });
-// Neighbouring gears sit half a tooth apart so their teeth mesh, not clash.
-const meshPhase = data.spins.map((spin) => (spin.sign < 0 ? TOOTH_HALF : 0));
+// How far each axle turns for one turn of its side's wheels: the wheels' size of gear with
+// them, the motor's size the other way and faster or slower by the ratio. The wheels' size sits
+// half a tooth round so their teeth fall between their neighbours', not on them.
+const axleTurn = (spin) => spin.motorSize ? -ratio().wheelTeeth / ratio().motorTeeth : 1;
+const meshPhase = (spin) => spin.motorSize ? 0 : Math.PI / ratio().wheelTeeth;
 
 function decode(base64, ArrayType) {
   const text = atob(base64), bytes = new Uint8Array(text.length);
@@ -315,13 +353,16 @@ function slideFrom(part) {
   if (part.step === STEP.brain || part.id === "smart-motor") return [0, 90, 0];
   if (part.id === "corner-2x2" || (part.id === "beam-2x20" && Math.abs(part.p[2]) < 1)) return [end * 70, 0, 0];
   if (part.step === STEP.frame) return part.id === "beam-2x20" ? fromOutside : fromInside;
-  if (part.step === STEP.gears && part.id !== "gear-36t" && Math.abs(part.p[2]) < 66) return fromInside;
+  if (part.step === STEP.gears && (part.id.startsWith("shaft") || Math.abs(part.p[2]) < 66)) return fromInside;
   return fromOutside;
 }
-const motorGearSpins = new Set(data.spins.map((spin, index) => [spin, index]).filter(([spin]) => spin.hole === info.motor - 1).map(([, index]) => index));
-const parts = data.parts.map((part) => ({ ...part }));
+// A gear is drawn once per ratio, in its size for that ratio; only the picked ratio's shows.
+const parts = data.parts.flatMap((part) => part.versions
+  ? part.versions.map((version, versionIndex) => ({ ...part, ...version, ratio: versionIndex }))
+  : [{ ...part }]);
+const forRatio = (part) => part.ratio === undefined || part.ratio === ratioIndex;
 await Promise.all(parts.map(async (part) => {
-  const color = part.id === "gear-36t" && motorGearSpins.has(part.spin) ? MOTOR_GEAR_COLOR : COLORS[part.id] ?? "#8a94a6";
+  const color = part.gear ? GEAR_COLORS[part.gear] : COLORS[part.id] ?? "#8a94a6";
   const material = new THREE.MeshStandardMaterial({ color, metalness: 0.12, roughness: 0.55, transparent: true });
   const mesh = new THREE.Mesh(await loadGeometry(part.id), material);
   mesh.castShadow = mesh.receiveShadow = true;
@@ -407,7 +448,7 @@ function placeParts() {
   const step = steps[currentStep];
   const xray = xrayChosen || (mode === "build" && step.xray);
   for (const part of parts) {
-    const visible = mode === "run" || part.step <= currentStep;
+    const visible = (mode === "run" || part.step <= currentStep) && forRatio(part);
     part.mesh.visible = visible;
     part.mesh.position.copy(part.home);
     const material = part.mesh.material;
@@ -439,14 +480,14 @@ function countRows(list) {
 }
 function renderBuild() {
   const step = steps[currentStep];
-  const stepParts = parts.filter((part) => part.step === currentStep);
+  const stepParts = parts.filter((part) => part.step === currentStep && forRatio(part));
   let list = stepParts.length ? `<div class="parts"><h3>You need</h3>${countRows(stepParts)}${currentStep === STEP.outer ? `<div><span>Smart Cable</span><b>&times;2</b></div>` : ""}</div>` : "";
-  if (currentStep === steps.length - 1) list = `<div class="parts"><h3>Everything in the base</h3>${countRows(parts)}<div><span>Smart Cable</span><b>&times;2</b></div><div><span>Robot Battery</span><b>&times;1</b></div></div>`;
+  if (currentStep === steps.length - 1) list = `<div class="parts"><h3>Everything in the base</h3>${countRows(parts.filter(forRatio))}<div><span>Smart Cable</span><b>&times;2</b></div><div><span>Robot Battery</span><b>&times;1</b></div></div>`;
   content.innerHTML = `
     <div class="dots">${steps.map((_, index) => `<span class="${index <= currentStep ? "done" : ""}"></span>`).join("")}</div>
     <div class="step-count">Step ${currentStep + 1} of ${steps.length}</div>
     <h2>${step.title}</h2>
-    ${step.text}
+    ${step.text()}
     ${list}
     <div class="nav">
       <button id="previous" ${currentStep === 0 ? "disabled" : ""}>Back</button>
@@ -456,6 +497,16 @@ function renderBuild() {
   document.getElementById("previous").onclick = () => goToStep(currentStep - 1);
   document.getElementById("replay").onclick = () => { stepClock = 0; };
   document.getElementById("next").onclick = () => currentStep === steps.length - 1 ? setMode("run") : goToStep(currentStep + 1);
+  wireRatioPicker(renderBuild);
+}
+// Picking a ratio swaps the gears in the scene and redraws the panel that holds the picker.
+function wireRatioPicker(render) {
+  content.querySelectorAll("[data-ratio]").forEach((button) => button.addEventListener("click", () => {
+    ratioIndex = Number(button.dataset.ratio);
+    const scrolled = content.scrollTop;
+    render();
+    content.scrollTop = scrolled;
+  }));
 }
 function goToStep(stepIndex) {
   currentStep = Math.max(0, Math.min(steps.length - 1, stepIndex));
@@ -473,6 +524,7 @@ function renderRun() {
       <div class="presets">${Object.keys(PRESETS).map((name) => `<button class="chip-button" data-preset="${name}">${name}</button>`).join("")}<button class="chip-button" id="home">Back to the middle</button></div>
       <div class="toggles"><label><input type="checkbox" id="show-zones" ${showZones ? "checked" : ""}> Mounting zones</label></div>
     </div>
+    ${ratioPicker()}
     <div class="readouts">
       <div class="readout"><b id="left-rpm"></b><span>left wheels (rpm)</span></div>
       <div class="readout"><b id="right-rpm"></b><span>right wheels (rpm)</span></div>
@@ -480,8 +532,10 @@ function renderRun() {
       <div class="readout"><b id="turning"></b><span>turning (&deg;/s)</span></div>
     </div>
     <h2>Why five gears?</h2>
-    <p>Meshing gears turn opposite ways. Count along a side: the motor turns the <b>1st</b> gear, on the rear wheel's axle. The 2nd turns the other way, the 3rd the same way as the 1st, and so on. The <b>5th</b> gear, on the front wheel's axle, turns the same way as the 1st, so both wheels drive forward together. With four or six gears the front wheel would turn backwards and fight the rear one.</p>
-    <p>All five gears are 36T, so the ratio is <b>1:1</b>: the wheels turn at the motor's speed. Every gear between the motor and a wheel is an <b>idler</b>: it passes the turn along without changing the speed.</p>
+    <p>Meshing gears turn opposite ways. The motor turns its gear at hole ${info.motor}. That gear turns two: the rear wheel's at hole ${info.wheels[0]}, and the one at hole ${idlers[0]}. From there the turn goes ${idlers[0]} to ${idlers[1]} to the front wheel's at hole ${info.wheels[1]}.</p>
+    <p>Count the meshes from the motor to each wheel: 1 to the rear, 3 to the front. Both odd, so both wheels turn the same way, and the robot drives instead of fighting itself. A wheel an even number of meshes away would turn backwards and fight the other one.</p>
+    <h2>Why ${ratio().motorTeeth}T and ${ratio().wheelTeeth}T?</h2>
+    <p>Every mesh goes from a ${gearKey("motor")}motor-size gear to a ${gearKey("wheel")}wheel-size gear. When a ${ratio().motorTeeth}T gear turns once it pushes ${ratio().motorTeeth} teeth past its neighbour, which turns the ${ratio().wheelTeeth}T gear ${ratio().turns === 1 ? "once" : ratio().turns > 1 ? `${ratio().turns} times` : "half a turn"}. ${ratio().turns === 1 ? "So the wheels turn at the motor's speed." : ratio().turns > 1 ? "The wheels turn faster than the motor, but push with half the force." : "The wheels turn slower than the motor, and push twice as hard."} Try the other ratios above and watch the readouts.</p>
     <h2>Why omni wheels?</h2>
     <p>Drive the two sides at different speeds and the robot turns. When it turns, the front and back wheels have to slide sideways a little. Plain wheels would scrub and judder. The rollers round an omni wheel let it slide sideways freely, so the robot turns smoothly, even spinning on the spot.</p>
     <h2>Tank drive</h2>
@@ -497,10 +551,11 @@ function renderRun() {
   content.querySelectorAll("[data-preset]").forEach((button) => button.addEventListener("click", () => { [leftPercent, rightPercent] = PRESETS[button.dataset.preset]; sync(); }));
   document.getElementById("home").onclick = () => { robot.position.set(0, 0, 0); heading = 0; robot.rotation.y = 0; flyTo("corner"); };
   document.getElementById("show-zones").onchange = (event) => { showZones = event.target.checked; };
+  wireRatioPicker(renderRun);
 }
 function updateReadouts(forward, turnRate) {
-  document.getElementById("left-rpm").textContent = (MOTOR_RPM * leftPercent / 100).toFixed(0);
-  document.getElementById("right-rpm").textContent = (MOTOR_RPM * rightPercent / 100).toFixed(0);
+  document.getElementById("left-rpm").textContent = (MOTOR_RPM * ratio().turns * leftPercent / 100).toFixed(0);
+  document.getElementById("right-rpm").textContent = (MOTOR_RPM * ratio().turns * rightPercent / 100).toFixed(0);
   document.getElementById("speed").textContent = (forward / 25.4).toFixed(1);
   document.getElementById("turning").textContent = ((turnRate * 180) / Math.PI).toFixed(0);
 }
@@ -532,8 +587,9 @@ renderer.setAnimationLoop(() => {
   stepClock += seconds;
   let forward = 0, turnRate = 0;
   if (mode === "run") {
-    // Tank drive: each side's wheels roll at their motor's speed (the gears are 1:1).
-    const leftSpeed = WHEEL_SPEED * leftPercent / 100, rightSpeed = WHEEL_SPEED * rightPercent / 100;
+    // Tank drive: each side's wheels roll at their motor's speed times the gear ratio.
+    const wheelSpeed = WHEEL_SPEED * ratio().turns;
+    const leftSpeed = wheelSpeed * leftPercent / 100, rightSpeed = wheelSpeed * rightPercent / 100;
     forward = (leftSpeed + rightSpeed) / 2;
     turnRate = (rightSpeed - leftSpeed) / trackWidth; // right side faster: turns left
     heading += turnRate * seconds;
@@ -551,7 +607,7 @@ renderer.setAnimationLoop(() => {
     sideTurn["1"] -= (rightSpeed / WHEEL_RADIUS) * seconds;
     updateReadouts(forward, turnRate);
   }
-  data.spins.forEach((spin, index) => { spinGroups[index].rotation.z = spin.sign * sideTurn[String(spin.side)] + meshPhase[index]; });
+  data.spins.forEach((spin, index) => { spinGroups[index].rotation.z = axleTurn(spin) * sideTurn[String(spin.side)] + meshPhase(spin); });
   placeParts();
   if (cameraFlight) {
     cameraFlight.elapsed += seconds;

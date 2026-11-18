@@ -73,6 +73,7 @@
   .fact span { font-size: 11px; color: var(--muted); }
   h3 { font-size: 14px; margin: 14px 0 6px; }
   .note { font-size: 13px; color: var(--muted); }
+  .build-link { display: inline-block; background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 8px 14px; font-weight: 600; text-decoration: none; }
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 4px 0 10px; }
   th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 600; }
@@ -170,6 +171,7 @@ const WRITE_UPS = {
     how: "<p>Four <b>3x standoffs</b> cross each side's pod, in both rows at the first and last hole. The Brain is pinned in 4 holes.</p>",
     drop: ["The side wall is held by the frame itself, not only by the axles and their collars.", "The pod becomes a box at both ends, so it can't fold."],
     best: "Most teams. It adds only 12 parts and keeps the size and every mounting zone.",
+    instructions: "drive-base.html",
     cost: "The cross beams still meet each corner with 2 pins. The wheels and gears leave no room for ties in the middle.",
   },
   fortress: {
@@ -344,6 +346,7 @@ function render() {
   document.getElementById("detail").innerHTML = `
     <h2>${data.designs.indexOf(design) + 1}. ${design.title}</h2>
     ${write.how}
+    ${write.instructions ? `<p><a class="build-link" href="${write.instructions}">Build it step by step &rarr;</a></p>` : ""}
     <div class="facts">
       <div class="fact"><b>${stats.parts}</b><span>parts</span></div>
       <div class="fact"><b>${stats.pins}</b><span>connector pins</span></div>

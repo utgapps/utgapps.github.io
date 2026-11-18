@@ -6,33 +6,15 @@
 //   node tools/export-drive-base-designs.mjs
 import { writeFileSync } from "node:fs";
 import * as THREE from "three";
-import { verify } from "./library/verify.mjs";
-import { modularDriveBase, DESIGNS } from "./library/families/drive-base-modular.mjs";
+import { verifiedVersions } from "./library/drive-base-versions.mjs";
+import { DESIGNS } from "./library/families/drive-base-modular.mjs";
 
 const round = (value) => Math.round(value * 1000) / 1000;
 const MOTOR_RPM = 120, WHEEL_TRAVEL = 200; // an IQ Smart Motor at full speed; a 200 mm wheel goes 200 mm a turn
 
 const designs = DESIGNS.map((design) => {
-  const ratios = design.ratios.map((motorTeeth) => {
-    const made = modularDriveBase({ ...design, motorTeeth });
-    const problems = verify(made.saved, made.expect);
-    if (problems.length) { console.error(`${design.key} with a ${motorTeeth}T motor gear:\n  ${problems.join("\n  ")}`); process.exit(1); }
-    return { motorTeeth, made };
-  });
-
-  // Changing the ratio must change nothing but the gears: same parts, same places. (A gear's
-  // model is centred a fraction of a millimetre off its bore, differently for each size.)
+  const ratios = verifiedVersions(design);
   const [first] = ratios;
-  for (const { motorTeeth, made } of ratios.slice(1)) {
-    if (made.saved.length !== first.made.saved.length) throw new Error(`${design.key}: the ${motorTeeth}T version has a different number of parts`);
-    made.saved.forEach((part, index) => {
-      const other = first.made.saved[index];
-      const bothGears = part.id.startsWith("gear-") && other.id.startsWith("gear-");
-      if ((part.id !== other.id && !bothGears) || part.p.some((value, axis) => Math.abs(value - other.p[axis]) > (bothGears ? 0.5 : 0.01)))
-        throw new Error(`${design.key}: part ${index} (${part.id}) moves when the ratio changes`);
-    });
-  }
-
   const { made } = first;
   // Each axle turns with everything on it; the motor's axle at 1, the others at their share.
   const spins = made.axles.map((axle) => {

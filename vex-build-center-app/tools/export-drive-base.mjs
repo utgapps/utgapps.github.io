@@ -1,20 +1,20 @@
-// Writes vex-mechanisms/drive-base.json: the modular drive base from
-// tools/library/families/drive-base-modular.mjs, every part with the step it goes on in and,
-// for parts that turn, the axle they turn with. The step-by-step page draws it from this file
-// and quotes its hole numbers from `info`, so the page shows exactly the build the library
-// verifier passed.
-//   node tools/export-drive-base.mjs
+// Writes vex-mechanisms/drive-base-<design>.json for the step-by-step page: one of the drive base
+// designs in tools/library/families/drive-base-modular.mjs, every part with the step it goes on
+// in and, for parts that turn, the axle they turn with. Gears carry one entry per ratio. The page
+// draws the build from this file and quotes its hole numbers from `info`, so it shows exactly the
+// build the library verifier passed, at every ratio.
+//   node tools/export-drive-base.mjs tied
 import { writeFileSync } from "node:fs";
 import * as THREE from "three";
-import { verify } from "./library/verify.mjs";
 import { PITCH } from "./library/assembler.mjs";
-import { modularDriveBase, STEPS, CURRENT, crossZ } from "./library/families/drive-base-modular.mjs";
+import { verifiedVersions } from "./library/drive-base-versions.mjs";
+import { DESIGNS, STEPS, crossZ } from "./library/families/drive-base-modular.mjs";
 
-const { build, saved, stepOf, axles, cross, corners, expect, holeX, gearHoles: GEAR_HOLES } = modularDriveBase(CURRENT);
-const MOTOR_HOLE = CURRENT.motorHole, WHEEL_HOLES = [GEAR_HOLES[0], GEAR_HOLES[GEAR_HOLES.length - 1]];
-const STANDOFF_HOLES = CURRENT.standoffHoles, BRAIN_HOLES = [CURRENT.brainFirst, CURRENT.brainFirst + 7];
-const problems = verify(saved, expect);
-if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+const key = process.argv[2] ?? "tied";
+const design = DESIGNS.find((entry) => entry.key === key);
+if (!design) { console.error(`no design "${key}": try ${DESIGNS.map((entry) => entry.key).join(", ")}`); process.exit(1); }
+const versions = verifiedVersions(design);
+const { build, saved, stepOf, axles, cross, corners, holeX, gearHoles, strength } = versions[0].made;
 
 const round = (value) => Math.round(value * 1000) / 1000;
 // Rail holes are counted 1-20 from the back; cross beam holes 1-20 from the robot's left.
@@ -22,14 +22,16 @@ const railHole = (x) => Math.round((x - holeX(0)) / PITCH) + 1;
 const crossHole = (z) => Math.round((z - crossZ(0)) / PITCH) + 1;
 const ROWS = { top: -9.5, bottom: -22.2 };
 const rowOf = (y) => (Math.abs(y - ROWS.top) < 1 ? "top" : "bottom");
+const byHole = (first, second) => first.hole - second.hole || (first.row === "top" ? -1 : 1);
+const INNER_RAIL = 66.4, OUTER_RAIL = 111.4, BEAM = 6.1; // the rails' centres, as in drive-base-modular.mjs
 
-// Each axle turns with everything on it. In a row of gears every other one turns the other way:
-// the motor's gear and the wheels' gears (1st, 3rd, 5th) one way, the two between them the other.
-const spins = axles.map((info) => {
-  const center = new THREE.Vector3().setFromMatrixPosition(info.handle.matrix);
-  const hole = railHole(center.x) - 1;
-  const chainPlace = GEAR_HOLES.indexOf(hole) - GEAR_HOLES.indexOf(MOTOR_HOLE);
-  return { x: round(center.x), y: round(center.y), side: info.side, hole, sign: chainPlace % 2 === 0 ? 1 : -1, wheel: WHEEL_HOLES.includes(hole) };
+// Each axle turns with everything on it. Along a row of gears every other one turns the other
+// way: the motor's size one way, the wheels' size the other.
+const spins = axles.map((axle) => {
+  const center = new THREE.Vector3().setFromMatrixPosition(axle.handle.matrix);
+  const meshes = Math.abs(gearHoles.indexOf(axle.hole) - gearHoles.indexOf(design.motorHole));
+  const motorSize = meshes % 2 === 0;
+  return { x: round(center.x), y: round(center.y), side: axle.side, hole: axle.hole + 1, motorSize, sign: motorSize ? 1 : -1, wheel: axle.wheel };
 });
 const TURNS = new Set(["gear", "wheel", "shaft", "spacer"]);
 const parts = build.parts.map((handle, index) => {
@@ -37,10 +39,15 @@ const parts = build.parts.map((handle, index) => {
   const part = { id: entry.id, p: entry.p.map(round), q: entry.q.map(round), step: STEPS.indexOf(stepOf.get(index)) };
   if (part.step < 0) throw new Error(`part ${index} (${entry.id}) is in no step`);
   if (TURNS.has(handle.meta.category)) {
-    const position = new THREE.Vector3(...entry.p);
-    const spin = spins.findIndex((axle) => Math.abs(axle.x - position.x) < 1 && Math.abs(axle.y - position.y) < 1 && Math.sign(position.z) === axle.side);
+    const spin = spins.findIndex((axle) => Math.abs(axle.x - entry.p[0]) < 1 && Math.abs(axle.y - entry.p[1]) < 1 && Math.sign(entry.p[2]) === axle.side);
     if (spin >= 0) part.spin = spin;
   }
+  if (handle.meta.category === "gear") {
+    part.gear = spins[part.spin].motorSize ? "motor" : "wheel";
+    // Where this gear goes at each ratio: its size, and its exact place.
+    part.versions = versions.map(({ made }) => { const gear = made.saved[index]; return { id: gear.id, p: gear.p.map(round), q: gear.q.map(round) }; });
+  }
+  if (strength.has(index)) part.strong = true;
   return part;
 });
 
@@ -51,11 +58,10 @@ const cornerColumns = (step) => [...new Set(corners.filter((corner) => corner.st
     if (!target) throw new Error(`no core ${core} on the cross beam`);
     return crossHole(target.center.z);
   })))].sort((first, second) => first - second);
-const pinsIn = (step, test = () => true) => parts.filter((part) => part.id === "pin-connector-1x1" && part.step === STEPS.indexOf(step) && part.p[2] > 0 && test(part));
-const cornerPins = pinsIn("frame").map((part) => ({ hole: railHole(part.p[0]), row: rowOf(part.p[1]) })).sort((first, second) => first.hole - second.hole);
-const brainRailFirst = BRAIN_HOLES[0] + 1;
-const brainPins = pinsIn("brain").map((part) => railHole(part.p[0]) - brainRailFirst + 1).sort((first, second) => first - second);
-const motorPin = pinsIn("motors").map((part) => ({ hole: railHole(part.p[0]), row: rowOf(part.p[1]) }))[0];
+// The right side's parts of one step and kind, as rail holes and rows.
+const placesOf = (step, id, test = () => true) => parts.filter((part) => part.id === id && part.step === STEPS.indexOf(step) && part.p[2] > 0 && test(part))
+  .map((part) => ({ hole: railHole(part.p[0]), row: rowOf(part.p[1]) })).sort(byHole);
+const brainFirst = design.brainFirst + 1;
 
 // Mounting zones: every cross beam hole no corner pin is in (both rows), and the outer rails'
 // top row between their corners. Bottom row holes there carry the axles' collars.
@@ -66,24 +72,46 @@ for (let column = 1; column <= 20; column++) {
   const last = runs[runs.length - 1];
   if (last && last[1] === column - 1) last[1] = column; else runs.push([column, column]);
 }
-const outerPins = pinsIn("outer").map((part) => railHole(part.p[0]));
-const sideZone = [Math.max(...outerPins.filter((hole) => hole < 10)) + 1, Math.min(...outerPins.filter((hole) => hole > 10)) - 1];
+const outerCornerPins = placesOf("outer", "pin-connector-1x1", (part) => part.p[2] > OUTER_RAIL);
+const outerHoles = outerCornerPins.map((place) => place.hole);
+const sideZone = [Math.max(...outerHoles.filter((hole) => hole < 10)) + 1, Math.min(...outerHoles.filter((hole) => hole > 10)) - 1];
+
+// What each right-side axle carries, counted from the inside: collars inside the robot, and
+// collars filling the pod between the rails (beside the gear).
+const collarsOn = (spinIndex, test) => parts.filter((part) => part.id === "rubber-collar" && part.spin === spinIndex && test(Math.abs(part.p[2]))).length;
+const axleFill = spins.filter((spin) => spin.side === 1).map((spin) => {
+  const spinIndex = spins.indexOf(spin);
+  return {
+    hole: spin.hole, wheel: spin.wheel, motorSize: spin.motorSize,
+    inside: collarsOn(spinIndex, (z) => z < INNER_RAIL - BEAM / 2),
+    pod: collarsOn(spinIndex, (z) => z > INNER_RAIL + BEAM / 2 && z < OUTER_RAIL - BEAM / 2),
+    outside: collarsOn(spinIndex, (z) => z > OUTER_RAIL + BEAM / 2),
+  };
+}).sort((first, second) => first.hole - second.hole);
 
 // Overall size, from the cross beams (they are the ends and the full width).
-const crossLength = 20 * PITCH;
 const frontX = new THREE.Vector3().setFromMatrixPosition(cross.front.matrix).x, backX = new THREE.Vector3().setFromMatrixPosition(cross.back.matrix).x;
-const size = { length: round(Math.abs(frontX - backX) + 6.1), width: round(crossLength) };
+const size = { length: round(Math.abs(frontX - backX) + BEAM), width: round(20 * PITCH) };
+const sideFace = Math.max(...axles.map((axle) => Math.abs(axle.outerFace)));
+const faces = { front: round(frontX + BEAM / 2), back: round(backX - BEAM / 2), side: round(sideFace) };
 
-// Where the page draws the zones: the cross beams' outer faces, the outer rails' outer faces.
-const outerFace = Math.max(...axles.map((axle) => Math.abs(axle.outerFace)));
-const faces = { front: round(frontX + 6.1 / 2), back: round(backX - 6.1 / 2), side: round(outerFace) };
-
+const rightSpins = spins.filter((spin) => spin.side === 1);
 const info = {
-  innerColumns: cornerColumns("frame"), outerColumns: cornerColumns("outer"), cornerPins,
-  brainRail: [brainRailFirst, brainRailFirst + 7], brainPins, standoffs: STANDOFF_HOLES.map((hole) => hole + 1),
-  motor: MOTOR_HOLE + 1, motorPin, gears: GEAR_HOLES.map((hole) => hole + 1), wheels: WHEEL_HOLES.map((hole) => hole + 1),
+  design: { key: design.key, title: design.title },
+  innerColumns: cornerColumns("frame"), outerColumns: cornerColumns("outer"),
+  innerCornerPins: placesOf("frame", "pin-connector-1x1"), outerCornerPins,
+  brainRail: [brainFirst, brainFirst + 7],
+  brainPins: placesOf("brain", "pin-connector-1x1").map((place) => place.hole - brainFirst + 1),
+  standoffs: design.standoffHoles.map((hole) => hole + 1),
+  motor: design.motorHole + 1, motorPin: placesOf("motors", "pin-connector-1x1")[0],
+  gears: gearHoles.map((hole) => hole + 1),
+  motorGears: rightSpins.filter((spin) => spin.motorSize).map((spin) => spin.hole).sort((first, second) => first - second),
+  wheelGears: rightSpins.filter((spin) => !spin.motorSize).map((spin) => spin.hole).sort((first, second) => first - second),
+  wheels: rightSpins.filter((spin) => spin.wheel).map((spin) => spin.hole).sort((first, second) => first - second),
+  ties: [...new Set(placesOf("outer", "standoff-3x").map((place) => place.hole))], axleFill,
+  ratios: versions.map(({ motorTeeth, made }) => ({ motorTeeth, wheelTeeth: made.wheelTeeth, turns: Math.abs(made.ratio) })),
   zones: { cross: runs, side: sideZone }, size, faces, rows: ROWS, firstHoleX: round(holeX(0)), firstCrossZ: round(crossZ(0)),
 };
-const out = new URL("../../vex-mechanisms/drive-base.json", import.meta.url);
+const out = new URL(`../../vex-mechanisms/drive-base-${design.key}.json`, import.meta.url);
 writeFileSync(out, JSON.stringify({ note: "Generated by vex-build-center-app/tools/export-drive-base.mjs. Do not edit.", steps: STEPS, info, spins, parts }) + "\n");
-console.log(`wrote ${parts.length} parts`, JSON.stringify(info));
+console.log(`wrote ${parts.length} parts`, JSON.stringify(info, null, 1));
